@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<libraries>
+  <library>
+    <location>thirdparty/vendor/setasign/fpdi</location>
+    <name>FPDI</name>
+    <version>2.6.8</version>
+    <license>MIT</license>
+    <licenseversion></licenseversion>
+  </library>
+</libraries>

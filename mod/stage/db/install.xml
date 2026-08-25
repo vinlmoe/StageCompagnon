@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="mod/stage/db" VERSION="20260823" COMMENT="XMLDB file for module mod_stage"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="stage" COMMENT="Instance de l'activité Gestion des stages">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="intro" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="establishmentname" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Nom de l'établissement d'enseignement affiché sur la convention (VetAgro Sup par défaut)"/>
+        <FIELD NAME="establishmentaddress" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="establishmentrepresentative" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="establishmentrepresentativetitle" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="establishmentphone" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="establishmentemail" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventionrequireteachervalidation" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"
+            COMMENT="Si 1, une demande de convention doit être validée par l'enseignant.e référent.e avant d'être visible par la DEVE (voir STAGE_CONVENTION_TEACHERPENDING)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="course" TYPE="foreign" FIELDS="course" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_theme" COMMENT="Thématiques de stage possibles">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="mandatory" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="requiredduration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Durée requise en jours"/>
+        <FIELD NAME="studyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" COMMENT="Année d'étude concernée (0 = non spécifiée)"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="visible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_convention_template" COMMENT="Gabarit de convention de stage (articles juridiques, pages 2 à 4) proposé au choix de l'étudiant">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="lang" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="fr" COMMENT="Langue de la convention : fr ou en"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_entry" COMMENT="Stage effectué par un étudiant sur une thématique">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Étudiant"/>
+        <FIELD NAME="structure" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Structure d'accueil"/>
+        <FIELD NAME="datestart" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="dateend" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="declaredduration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Durée déclarée par l'étudiant en jours"/>
+        <FIELD NAME="retainedduration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Durée retenue après validation, en jours"/>
+        <FIELD NAME="status" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" COMMENT="-2 annule, -1 non valide, 0 enregistre 1 eval etudiant 2 eval enseignant 3 valide deve"/>
+        <FIELD NAME="studentselfeval" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="teacherid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Enseignant ayant evalue"/>
+        <FIELD NAME="teachereval" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="teachertime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="deveuserid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Utilisateur DEVE ayant valide"/>
+        <FIELD NAME="devecomment" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="devetime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventiontemplateid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Gabarit de convention choisi par l'étudiant à la demande"/>
+        <FIELD NAME="conventionstatus" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0"
+            COMMENT="-1 refusee par la DEVE, 0 aucune, 1 demandee, 2 editee, 3 signee, 4 signee sur SignVet (enregistrement en masse), 5 en attente de validation enseignant"/>
+        <FIELD NAME="conventionrejectedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Utilisateur DEVE ayant refusé la convention"/>
+        <FIELD NAME="conventionrejecttime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventionrejectcomment" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventionrequesttime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventionteachervalidatedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Enseignant référent ayant validé la demande de convention avant transmission à la DEVE"/>
+        <FIELD NAME="conventionteachervalidatetime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventioneditedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Utilisateur DEVE ayant passe la convention au stade editee"/>
+        <FIELD NAME="conventionedittime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventionsignedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Utilisateur DEVE ayant passe la convention au stade signee"/>
+        <FIELD NAME="conventionsigntime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="cancelledby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Utilisateur DEVE ayant annulé le stage"/>
+        <FIELD NAME="canceltime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="cancelcomment" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="teacherid" TYPE="foreign" FIELDS="teacherid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="deveuserid" TYPE="foreign" FIELDS="deveuserid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="conventiontemplateid" TYPE="foreign" FIELDS="conventiontemplateid"
+            REFTABLE="stage_convention_template" REFFIELDS="id"/>
+        <KEY NAME="conventioneditedby" TYPE="foreign" FIELDS="conventioneditedby" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="conventionsignedby" TYPE="foreign" FIELDS="conventionsignedby" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="cancelledby" TYPE="foreign" FIELDS="cancelledby" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="conventionteachervalidatedby" TYPE="foreign" FIELDS="conventionteachervalidatedby"
+            REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="conventionrejectedby" TYPE="foreign" FIELDS="conventionrejectedby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="stageid-userid" UNIQUE="false" FIELDS="stageid, userid"/>
+        <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="stage_convention_detail" COMMENT="Informations complémentaires saisies par l'étudiant pour compléter la page 1 de sa convention de stage (coordonnées, organisme d'accueil, tuteur, modalités, gratification, congés)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="referentteacherid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Enseignant référent choisi pour la convention, parmi ceux attribués à l'étudiant"/>
+        <FIELD NAME="yearsituation" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="normal"
+            COMMENT="normal, redoublant ou detteue (combiné à stage_theme.studyyear pour la case A1..A5)"/>
+        <FIELD NAME="stagetype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="obligatoire"
+            COMMENT="obligatoire ou complementaire (EP)"/>
+        <FIELD NAME="studentbirthdate" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="studentaddress" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="studentphone" TYPE="char" LENGTH="30" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="hostaddress" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="hostrepresentative" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="hostrepresentativetitle" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Qualité du représentant / de la représentante"/>
+        <FIELD NAME="hostservice" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="hostphone" TYPE="char" LENGTH="30" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="hostemail" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="hostlocation" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Lieu du stage si différent de l'adresse de l'organisme"/>
+        <FIELD NAME="tutorname" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tutorfunction" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tutorphone" TYPE="char" LENGTH="30" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tutoremail" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="nightpresence" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="sundaypresence" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="holidaypresence" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="homebased" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Stage au domicile"/>
+        <FIELD NAME="othermodality" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="hasleave" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Case à cocher congés/autorisations d'absence (art. 10.1)"/>
+        <FIELD NAME="leavedays" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="leavemodalities" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="gratificationamount" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Montant mensuel de la gratification, en euros (art. 5.13)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="entryid" TYPE="foreign-unique" FIELDS="entryid" REFTABLE="stage_entry" REFFIELDS="id"/>
+        <KEY NAME="referentteacherid" TYPE="foreign" FIELDS="referentteacherid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_entry_teacher" COMMENT="Enseignant referent affecte a un etudiant pour une activite stage">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="studentid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="teacherid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+        <KEY NAME="studentid" TYPE="foreign" FIELDS="studentid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="teacherid" TYPE="foreign" FIELDS="teacherid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="stageid-studentid-teacherid" UNIQUE="true" FIELDS="stageid, studentid, teacherid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="stage_question" COMMENT="Question d'évaluation (choix multiple ou commentaire libre) définie par la DEVE par thématique">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="evaltype" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="student ou teacher"/>
+        <FIELD NAME="qtype" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="choice ou text"/>
+        <FIELD NAME="name" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Intitulé de la question"/>
+        <FIELD NAME="options" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Options du QCM, une par ligne"/>
+        <FIELD NAME="required" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="themeid-evaltype" UNIQUE="false" FIELDS="themeid, evaltype"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="stage_question_theme" COMMENT="Association d'une question d'évaluation à une ou plusieurs thématiques (réutilisation)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="questionid" TYPE="foreign" FIELDS="questionid" REFTABLE="stage_question" REFFIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="questionid-themeid" UNIQUE="true" FIELDS="questionid, themeid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="stage_answer" COMMENT="Réponse d'un étudiant ou d'un enseignant à une question d'évaluation, pour une saisie de stage">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="answertext" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="entryid" TYPE="foreign" FIELDS="entryid" REFTABLE="stage_entry" REFFIELDS="id"/>
+        <KEY NAME="questionid" TYPE="foreign" FIELDS="questionid" REFTABLE="stage_question" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="entryid-questionid" UNIQUE="true" FIELDS="entryid, questionid"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
