@@ -91,6 +91,16 @@ class deve_entry_form extends \moodleform {
         $mform->setType('declaredduration', PARAM_INT);
         $mform->addRule('declaredduration', null, 'required', null, 'client');
 
+        // Une validation DEVE ne fige pas définitivement la durée retenue : une erreur de
+        // décompte doit pouvoir être corrigée ensuite depuis l'action « Modifier », sans
+        // réinitialiser les évaluations ni faire repasser le stage dans le circuit de validation.
+        if (!empty($this->_customdata['editretainedduration'])) {
+            $mform->addElement('text', 'retainedduration', get_string('retainedduration', 'mod_stage'),
+                ['type' => 'number', 'min' => 0]);
+            $mform->setType('retainedduration', PARAM_INT);
+            $mform->addRule('retainedduration', null, 'required', null, 'client');
+        }
+
         // Dispense de convention : ouvre directement le droit à l'auto-évaluation, sans passer
         // par le circuit de demande/signature de convention (voir STAGE_CONVENTION_EXEMPT).
         $mform->addElement('advcheckbox', 'exemptfromconvention', get_string('exemptfromconvention', 'mod_stage'));

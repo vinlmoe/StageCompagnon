@@ -200,6 +200,7 @@ if ($mode === 'single') {
     if ($entryid) {
         $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
     }
+    $editretainedduration = $entry && (int) $entry->status === STAGE_STATUS_VALIDE_DEVE;
 
     $entrystudent = $entry ? $DB->get_record('user', ['id' => $entry->userid]) : null;
     $entryperiods = $entry ? array_values(stage_get_or_seed_entry_periods($entry)) : [];
@@ -211,6 +212,7 @@ if ($mode === 'single') {
         'studentname' => $entrystudent ? fullname($entrystudent) : '',
         'stageid' => $stage->id,
         'periods' => $entryperiods,
+        'editretainedduration' => $editretainedduration,
         // Connu côté serveur dès l'URL, avant la construction du formulaire : c'est cette valeur,
         // et non le champ caché "entryid" soumis par le client, qui sert à exclure la saisie en
         // cours d'édition du contrôle de doublon (voir deve_entry_form::validation()).
@@ -229,6 +231,9 @@ if ($mode === 'single') {
         $toform->stagetype = $existingdetail ? $existingdetail->stagetype : 'obligatoire';
         $toform->abroad = $entry->abroad;
         $toform->country = $entry->country;
+        if ($editretainedduration) {
+            $toform->retainedduration = $entry->retainedduration;
+        }
         $toform->exemptfromconvention = (int) $entry->conventionstatus === STAGE_CONVENTION_EXEMPT ? 1 : 0;
         $toform->perioddatestart = array_map(function($period) {
             return $period->datestart;
@@ -253,6 +258,11 @@ if ($mode === 'single') {
         $datestart = min(array_column($periods, 'datestart'));
         $dateend = max(array_column($periods, 'dateend'));
         if ($entry) {
+            // Le droit et l'état sont contrôlés côté serveur : un champ forgé ne peut pas changer
+            // la durée retenue d'une saisie qui n'a pas encore été validée par la DEVE.
+            if ($editretainedduration) {
+                $entry->retainedduration = max(0, (int) $data->retainedduration);
+            }
             stage_update_entry_details($entry, $data->themeid, $data->structure, $datestart, $dateend,
                 $data->declaredduration, $data->studyyear, $data->abroad, $data->country);
             stage_save_entry_periods($entry->id, $periods);
