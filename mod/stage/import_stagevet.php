@@ -65,6 +65,8 @@ $columnmap = [
     'nom étudiant' => 'lastname',
     'prénom étudiant' => 'firstname',
     'email étudiant' => 'email',
+    'année étudiant (convention)' => 'studentyear',
+    'année d\'étude' => 'studyyear',
     'thème' => 'theme',
     'thème (convention)' => 'themealt',
     'organisme' => 'structure',
@@ -82,13 +84,14 @@ $columnmap = [
     'adresse organisme' => 'hostaddress',
     'adresse organisme (convention)' => 'hostaddressalt',
     'représentant organisme' => 'hostrepresentative',
-    'qualité maître de stage' => 'hostrepresentativetitle',
     'téléphone organisme' => 'hostphone',
     'email organisme' => 'hostemail',
-    'nom tuteur' => 'tutorname',
-    'fonction tuteur' => 'tutorfunction',
-    'téléphone tuteur' => 'tutorphone',
-    'email tuteur' => 'tutoremail',
+    'nom tuteur' => 'referentteachername',
+    'fonction tuteur' => 'referentteacherfunction',
+    'téléphone tuteur' => 'referentteacherphone',
+    'email tuteur' => 'referentteacheremail',
+    'nom maître de stage' => 'tutorname',
+    'fonction maître de stage' => 'tutorfunction',
     'présence de nuit' => 'nightpresence',
     'présence dimanche' => 'sundaypresence',
     'présence jour férié' => 'holidaypresence',
@@ -108,6 +111,16 @@ $studentsbyname = [];
 foreach ($students as $student) {
     $studentsbyemail[core_text::strtolower($student->email)] = $student;
     $studentsbyname[stage_normalize_name($student->firstname . ' ' . $student->lastname)] = $student;
+}
+
+// Dans l'export StageVet, le « tuteur » est l'enseignant référent de l'école. Il est distinct du
+// « maître de stage », qui encadre l'étudiant dans la structure d'accueil et est enregistré dans
+// les champs tutor* de la convention.
+$teachersbyemail = [];
+$teachersbyname = [];
+foreach (stage_get_potential_teachers($context) as $teacher) {
+    $teachersbyemail[core_text::strtolower($teacher->email)] = $teacher;
+    $teachersbyname[stage_normalize_name($teacher->firstname . ' ' . $teacher->lastname)] = $teacher;
 }
 
 /**
@@ -133,6 +146,21 @@ function stagevet_parse_date($raw) {
  */
 function stagevet_parse_duration($raw) {
     return preg_match('/(\d+)/', $raw, $matches) ? (int) $matches[1] : 0;
+}
+
+/**
+ * Extrait l'année d'étude d'une valeur StageVet ("2", "2ème année", etc.).
+ *
+ * @param string $raw
+ * @return int 0 si la valeur est vide ou ne contient pas une année valide
+ */
+function stagevet_parse_studyyear($raw) {
+    if (!preg_match('/\d+/', trim($raw), $matches)) {
+        return 0;
+    }
+
+    $year = (int) $matches[0];
+    return $year >= 1 && $year <= 6 ? $year : 0;
 }
 
 $results = null;
@@ -258,11 +286,17 @@ if (data_submitted() && confirm_sesskey()) {
                         $duration = stagevet_parse_duration($getcol($row, 'durationtext'));
                     }
 
+                    // L'année propre à l'étudiant dans la convention décrit l'année à laquelle
+                    // ce stage doit être rattaché. L'année d'étude générale de l'export sert de
+                    // repli pour les anciens exports qui ne fournissent pas la première colonne.
+                    $studyyear = stagevet_parse_studyyear($getcol($row, 'studentyear', 'studyyear'));
+
                     $rowkey = count($entryrecords);
                     $entryrecords[$rowkey] = (object) [
                         'stageid' => $stage->id,
                         'userid' => $student->id,
                         'themeid' => $theme->id,
+                        'studyyear' => $studyyear,
                         'structure' => $getcol($row, 'structurealt', 'structure'),
                         'datestart' => $start,
                         'dateend' => $end,
@@ -275,6 +309,7 @@ if (data_submitted() && confirm_sesskey()) {
                     ];
 
                     $detailbyrowkey[$rowkey] = (object) [
+                        'referentteacherid' => null,
                         'yearsituation' => 'normal',
                         'stagetype' => 'obligatoire',
                         'studentbirthdate' => stagevet_parse_date($getcol($row, 'studentbirthdate')),
@@ -282,15 +317,15 @@ if (data_submitted() && confirm_sesskey()) {
                         'studentphone' => $getcol($row, 'studentphone'),
                         'hostaddress' => $getcol($row, 'hostaddressalt', 'hostaddress'),
                         'hostrepresentative' => $getcol($row, 'hostrepresentative'),
-                        'hostrepresentativetitle' => $getcol($row, 'hostrepresentativetitle'),
+                        'hostrepresentativetitle' => '',
                         'hostservice' => '',
                         'hostphone' => $getcol($row, 'hostphone'),
                         'hostemail' => $getcol($row, 'hostemail'),
                         'hostlocation' => '',
                         'tutorname' => $getcol($row, 'tutorname'),
                         'tutorfunction' => $getcol($row, 'tutorfunction'),
-                        'tutorphone' => $getcol($row, 'tutorphone'),
-                        'tutoremail' => $getcol($row, 'tutoremail'),
+                        'tutorphone' => '',
+                        'tutoremail' => '',
                         'nightpresence' => core_text::strtolower($getcol($row, 'nightpresence')) === 'oui' ? 1 : 0,
                         'sundaypresence' => core_text::strtolower($getcol($row, 'sundaypresence')) === 'oui' ? 1 : 0,
                         'holidaypresence' => core_text::strtolower($getcol($row, 'holidaypresence')) === 'oui' ? 1 : 0,
@@ -301,6 +336,19 @@ if (data_submitted() && confirm_sesskey()) {
                         'leavemodalities' => '',
                         'gratificationamount' => $getcol($row, 'gratificationamount'),
                     ];
+
+                    $referentteacher = null;
+                    $referentemail = $getcol($row, 'referentteacheremail');
+                    if ($referentemail !== '') {
+                        $referentteacher = $teachersbyemail[core_text::strtolower($referentemail)] ?? null;
+                    }
+                    $referentname = $getcol($row, 'referentteachername');
+                    if (!$referentteacher && $referentname !== '') {
+                        $referentteacher = $teachersbyname[stage_normalize_name($referentname)] ?? null;
+                    }
+                    if ($referentteacher) {
+                        $detailbyrowkey[$rowkey]->referentteacherid = $referentteacher->id;
+                    }
                 }
                 $cir->cleanup(true);
 

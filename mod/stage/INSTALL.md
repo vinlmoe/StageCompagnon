@@ -125,6 +125,11 @@ Importe le fichier CSV exporté par StageVet sans retraitement préalable. Les
 colonnes sont reconnues par leur en-tête, donc leur ordre est indifférent.
 L'étudiant est identifié par courriel si la colonne est renseignée, sinon par
 nom et prénom (comparaison insensible aux accents et à la casse).
+L'année du stage est tirée de la colonne `Année étudiant (convention)`, avec
+`Année d'étude` comme valeur de repli.
+Le `Nom tuteur` est rapproché de l'enseignant référent Moodle ; le
+`Nom maître de stage` et sa fonction renseignent séparément l'encadrant de la
+structure d'accueil.
 
 Les noms de thématiques doivent correspondre exactement aux intitulés StageVet
 (par exemple `THEME LIBRE / A2, A3, A4, A5`) : créez-les au préalable. Le
