@@ -106,7 +106,10 @@ $string['importstagevetcsv_help'] = 'Import the CSV file exported directly from 
     . '"Début (convention)"/"Fin (convention)", host organisation and tutor details, terms, gratuity...), in the '
     . 'order StageVet usually provides them. The student is matched by email if the "Email étudiant" column is '
     . 'filled in, otherwise by first/last name (accent- and case-insensitive) among students enrolled on the '
-    . "course. The theme name must exactly match a theme already created in this activity: since StageVet does "
+    . 'course. The internship study year is read from "Année étudiant (convention)", falling back to "Année '
+    . 'd\'étude". The export "tuteur" is matched to the Moodle referent teacher, while the "maître de stage" is '
+    . 'stored as the host organisation supervisor. The theme name must exactly match a theme already created in '
+    . 'this activity: since StageVet does '
     . 'not use the same names by default, first create themes with the same names used in StageVet (e.g. '
     . '"THEME LIBRE / A2, A3, A4, A5"). Each imported internship is registered with agreement status "Signed '
     . '(StageVet)" (already signed outside this plugin): the agreement details available in the export are still '
