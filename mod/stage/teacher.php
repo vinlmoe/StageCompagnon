@@ -63,6 +63,17 @@ if ($entryid) {
     // évaluée (ou rejetée), seule la DEVE peut réinitialiser la saisie pour la rouvrir.
     $editable = ((int) $entry->status === STAGE_STATUS_EVAL_ETUDIANT);
 
+    $periods = stage_get_or_seed_entry_periods($entry);
+
+    // Jours de stage effectifs sélectionnés par l'étudiant : visibles et modifiables ici par
+    // l'enseignant référent (formulaire distinct de l'évaluation, avec son propre bouton).
+    if ($editable && !empty($periods) && optional_param('saveworkdays', 0, PARAM_INT) && confirm_sesskey()) {
+        $workdays = optional_param_array('workdays', [], PARAM_INT);
+        stage_set_entry_workdays($entry->id, $workdays);
+        redirect(new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entryid]),
+            get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    }
+
     if ($editable && data_submitted() && confirm_sesskey()) {
         if (optional_param('rejectstage', '', PARAM_RAW) !== '') {
             $rejectcomment = optional_param('rejectcomment', '', PARAM_RAW);
@@ -84,11 +95,10 @@ if ($entryid) {
     echo $OUTPUT->heading(get_string('evaluatestage', 'mod_stage', fullname($student)));
     echo html_writer::link($baseurl, get_string('back'));
 
-    echo html_writer::tag('p', get_string('theme', 'mod_stage') . ' : ' . format_string($theme->name));
-    echo html_writer::tag('p', get_string('structure', 'mod_stage') . ' : ' . s($entry->structure));
-    echo html_writer::tag('p', get_string('declaredduration', 'mod_stage') . ' : ' . $entry->declaredduration);
-    echo html_writer::tag('p', get_string('status', 'mod_stage') . ' : '
-        . html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status)));
+    // Rappel de la saisie évaluée, en tableau plutôt qu'en paragraphes épars, et complété des
+    // informations qui manquaient ici (année d'étude, mobilité, plages de dates, convention).
+    echo stage_render_entry_summary($entry, $theme);
+
     // Auto-évaluation de l'étudiant : réponses au formulaire défini par la DEVE si
     // des questions existent pour cette thématique, sinon commentaire libre.
     echo $OUTPUT->heading(get_string('studentselfeval', 'mod_stage'), 4);
@@ -97,6 +107,37 @@ if ($entryid) {
         echo stage_render_answers_readonly($studentquestions, stage_get_answers($entry->id));
     } else {
         echo html_writer::div(format_text($entry->studentselfeval, FORMAT_HTML));
+    }
+
+    // Évaluation du maître de stage, si l'option est activée : mêmes modalités que
+    // l'auto-évaluation de l'étudiant, affichée en lecture seule.
+    if (!empty($stage->tutorevaluationenabled)) {
+        echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
+        $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
+        if (!empty($tutorquestions) && $entry->tutortime) {
+            echo stage_render_answers_readonly($tutorquestions, stage_get_answers($entry->id));
+        } else if ($entry->tutoreval) {
+            echo html_writer::div(format_text($entry->tutoreval, FORMAT_PLAIN));
+        } else {
+            echo $OUTPUT->notification(get_string('notutoreval', 'mod_stage'), 'info');
+        }
+    }
+
+    if (!empty($periods)) {
+        echo $OUTPUT->heading(get_string('workdays', 'mod_stage'), 4);
+        if ($editable) {
+            $workdaysformurl = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
+            echo html_writer::start_tag('form', ['method' => 'post', 'action' => $workdaysformurl]);
+            echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+            echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'saveworkdays', 'value' => 1]);
+            echo stage_render_workday_picker($periods, stage_get_entry_workdays($entry->id), true);
+            echo html_writer::empty_tag('input', [
+                'type' => 'submit', 'value' => get_string('savechanges'), 'class' => 'btn btn-secondary mt-2',
+            ]);
+            echo html_writer::end_tag('form');
+        } else {
+            echo stage_render_workday_picker($periods, stage_get_entry_workdays($entry->id), false);
+        }
     }
 
     if (!$editable) {
@@ -111,10 +152,14 @@ if ($entryid) {
         exit;
     }
 
+    // Les deux issues possibles (valider ou refuser) sont présentées comme deux blocs distincts,
+    // chacun sous son propre titre avec son champ et son bouton : présentés à la suite, le
+    // commentaire de refus semblait se rapporter au bouton de validation qui le précédait.
     $formurl = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
     echo html_writer::start_tag('form', ['method' => 'post', 'action' => $formurl]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
+    echo $OUTPUT->heading(get_string('teachereval', 'mod_stage'), 4);
     if (!empty($questions)) {
         // Formulaire dynamique défini par la DEVE pour cette thématique.
         echo stage_render_question_fields($questions, stage_get_answers($entry->id));
@@ -123,12 +168,13 @@ if ($entryid) {
         echo html_writer::tag('textarea', s($entry->teachereval),
             ['name' => 'teachereval', 'id' => 'teachereval', 'rows' => 5, 'class' => 'form-control']);
     }
-
     echo html_writer::empty_tag('input', [
         'type' => 'submit', 'name' => 'validatestage', 'value' => get_string('validate', 'mod_stage'),
-        'class' => 'btn btn-primary mt-2 mr-2',
+        'class' => 'btn btn-primary mt-2 mb-4',
     ]);
 
+    echo $OUTPUT->heading(get_string('rejectstageheading', 'mod_stage'), 4);
+    echo html_writer::tag('p', get_string('rejectstageheading_help', 'mod_stage'), ['class' => 'text-muted']);
     echo html_writer::tag('label', get_string('rejectcomment', 'mod_stage'), ['for' => 'rejectcomment']);
     echo html_writer::tag('textarea', '',
         ['name' => 'rejectcomment', 'id' => 'rejectcomment', 'rows' => 3, 'class' => 'form-control']);
@@ -174,17 +220,19 @@ if (empty($assignedids)) {
                 $pendingthemename,
                 $pendingentry->conventionrequesttime
                     ? userdate($pendingentry->conventionrequesttime, get_string('strftimedatetimeshort')) : '-',
-                html_writer::link(
-                    new moodle_url('/mod/stage/convention_teacher_validate.php',
-                        ['id' => $cm->id, 'entryid' => $pendingentry->id]),
-                    get_string('conventionteachervalidate', 'mod_stage')
-                ),
+                stage_render_actions([
+                    get_string('conventionteachervalidate', 'mod_stage') =>
+                        new moodle_url('/mod/stage/convention_teacher_validate.php',
+                            ['id' => $cm->id, 'entryid' => $pendingentry->id]),
+                ], 'btn btn-sm btn-primary mr-1 mb-1'),
             ];
         }
         echo html_writer::table($pendingtable);
     }
 
-    echo $OUTPUT->heading(get_string('teachervalidation', 'mod_stage'), 4);
+    // Titre distinct de celui de la page (« Validation enseignant »), qui était repris tel quel
+    // et laissait croire à une répétition de la section précédente.
+    echo $OUTPUT->heading(get_string('stagestoevaluate', 'mod_stage'), 4);
 
     $themes = stage_get_themes($stage->id);
 
@@ -210,21 +258,20 @@ if (empty($assignedids)) {
         $student = $students[$entry->userid] ?? null;
         $themename = isset($themes[$entry->themeid]) ? format_string($themes[$entry->themeid]->name) : '-';
         $badge = html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status));
-        $action = html_writer::link(new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]),
-            get_string('evaluate', 'mod_stage'));
-        if ((int) $entry->conventionstatus === STAGE_CONVENTION_SIGNED
-                && stage_get_signed_convention_file($context, $entry->id)) {
-            $action .= ' | ' . html_writer::link(
-                new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id]),
-                get_string('downloadsignedconvention', 'mod_stage')
-            );
-        }
+        $signedavailable = (int) $entry->conventionstatus === STAGE_CONVENTION_SIGNED
+            && stage_get_signed_convention_file($context, $entry->id);
         $table->data[] = [
             $student ? fullname($student) : '-',
             $themename,
             $entry->declaredduration,
             $badge,
-            $action,
+            stage_render_actions([
+                get_string('evaluate', 'mod_stage') =>
+                    new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+                get_string('downloadsignedconvention', 'mod_stage') => $signedavailable
+                    ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id])
+                    : null,
+            ]),
         ];
     }
 

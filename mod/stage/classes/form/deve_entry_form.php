@@ -68,22 +68,45 @@ class deve_entry_form extends \moodleform {
         $mform->addElement('select', 'themeid', get_string('theme', 'mod_stage'), $themeoptions);
         $mform->addRule('themeid', null, 'required', null, 'client');
 
+        // La DEVE peut rattacher un stage à n'importe quelle année d'étude.
+        $mform->addElement('select', 'studyyear', get_string('studyyear', 'mod_stage'), stage_studyyear_options());
+        $mform->addRule('studyyear', null, 'required', null, 'client');
+
         $mform->addElement('text', 'structure', get_string('structure', 'mod_stage'), ['size' => '64']);
         $mform->setType('structure', PARAM_TEXT);
 
-        $mform->addElement('date_selector', 'datestart', get_string('datestart', 'mod_stage'));
-        $mform->addElement('date_selector', 'dateend', get_string('dateend', 'mod_stage'));
+        // Un stage complémentaire (EP) ne compte pas dans le décompte des stages obligatoires de
+        // l'année (voir stage_get_student_year_progress()), mais est affiché à part.
+        $mform->addElement('select', 'stagetype', get_string('conventionstagetype', 'mod_stage'),
+            stage_convention_stagetype_options());
+        $mform->setDefault('stagetype', 'obligatoire');
+
+        $mform->addElement('advcheckbox', 'abroad', get_string('abroad', 'mod_stage'));
+
+        $mform->addElement('text', 'country', get_string('country', 'mod_stage'), ['size' => '32']);
+        $mform->setType('country', PARAM_TEXT);
+        $mform->hideIf('country', 'abroad', 'notchecked');
 
         $mform->addElement('text', 'declaredduration', get_string('declaredduration', 'mod_stage'));
         $mform->setType('declaredduration', PARAM_INT);
         $mform->addRule('declaredduration', null, 'required', null, 'client');
 
+        // Dispense de convention : ouvre directement le droit à l'auto-évaluation, sans passer
+        // par le circuit de demande/signature de convention (voir STAGE_CONVENTION_EXEMPT).
+        $mform->addElement('advcheckbox', 'exemptfromconvention', get_string('exemptfromconvention', 'mod_stage'));
+        $mform->addHelpButton('exemptfromconvention', 'exemptfromconvention', 'mod_stage');
+
+        // Les dates du stage se saisissent uniquement sous forme de plages : celles de la saisie
+        // en sont déduites (première et dernière date couvertes, voir stage_save_entry_periods()).
+        stage_add_period_fields($this, $mform, count($this->_customdata['periods'] ?? []));
+
         $this->add_action_buttons();
     }
 
     /**
-     * Server-side validation : empêche la création d'un doublon (même étudiant, même
-     * thématique, mêmes dates).
+     * Server-side validation : vérifie la cohérence des plages de dates (au moins une, sans
+     * chevauchement) et empêche la création d'un doublon (même étudiant, même thématique, mêmes
+     * dates).
      *
      * @param array $data
      * @param array $files
@@ -92,13 +115,26 @@ class deve_entry_form extends \moodleform {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 
+        // Les dates du stage étant déduites des plages, leur cohérence conditionne le contrôle de
+        // doublon ci-dessous, qui s'appuie sur elles.
+        $periods = stage_extract_submitted_periods((object) $data);
+        $perioderror = stage_validate_periods($periods);
+        if ($perioderror !== null) {
+            $errors['perioddatestart[0]'] = $perioderror;
+            return $errors;
+        }
+
+        // L'entryid à exclure vient du customdata (connu côté serveur avant même la construction
+        // du formulaire, voir register.php), pas du champ caché soumis par le client : pour une
+        // édition, c'est ce qui garantit que la saisie ne se compare jamais à elle-même, quel que
+        // soit l'aléa d'un champ caché mal réhydraté.
         $duplicate = stage_entry_is_duplicate(
             $this->_customdata['stageid'],
             $data['userid'],
             $data['themeid'],
-            $data['datestart'],
-            $data['dateend'],
-            $data['entryid']
+            min(array_column($periods, 'datestart')),
+            max(array_column($periods, 'dateend')),
+            $this->_customdata['entryid'] ?? 0
         );
         if ($duplicate) {
             $errors['themeid'] = get_string('errorduplicateentry', 'mod_stage');

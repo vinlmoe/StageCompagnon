@@ -65,6 +65,12 @@ define('STAGE_CONVENTION_SIGNVET', 4);
  * STAGE_CONVENTION_REQUESTED.
  */
 define('STAGE_CONVENTION_TEACHERPENDING', 5);
+/**
+ * Convention de stage : dispensée par la DEVE lors de l'enregistrement du stage (stage ne
+ * nécessitant pas de convention). Ouvre le droit à l'auto-évaluation et à l'évaluation au même
+ * titre que STAGE_CONVENTION_SIGNED, sans qu'aucune convention ne soit jamais demandée ni signée.
+ */
+define('STAGE_CONVENTION_EXEMPT', 6);
 
 /**
  * Returns the list of features supported by this module.

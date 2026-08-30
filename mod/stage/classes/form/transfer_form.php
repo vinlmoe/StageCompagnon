@@ -21,19 +21,15 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->libdir . '/formslib.php');
 
 /**
- * Auto-évaluation libre d'un stage par l'étudiant (entry.php), quand la DEVE n'a défini aucune
- * question d'évaluation pour la thématique.
- *
- * Le formulaire ne porte que le commentaire d'auto-évaluation : les caractéristiques du stage
- * (thématique, structure, dates, durée) sont fixées par la DEVE et rappelées au-dessus du
- * formulaire par stage_render_entry_summary(). Elles y figuraient auparavant en champs statiques
- * doublés de champs cachés, que la page ne relisait pas à la soumission.
+ * Choix de l'étudiant à transférer et de l'instance de destination (voir transfer.php). Le
+ * formulaire ne fait que ce choix : ce qui sera effectivement transféré est ensuite présenté pour
+ * confirmation, le transfert n'étant pas réversible.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class entry_form extends \moodleform {
+class transfer_form extends \moodleform {
 
     /**
      * Defines the form fields.
@@ -43,12 +39,16 @@ class entry_form extends \moodleform {
 
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
-        $mform->addElement('hidden', 'entryid');
-        $mform->setType('entryid', PARAM_INT);
 
-        $mform->addElement('editor', 'studentselfeval', get_string('studentselfeval', 'mod_stage'));
-        $mform->setType('studentselfeval', PARAM_RAW);
+        $mform->addElement('select', 'userid', get_string('student', 'mod_stage'),
+            $this->_customdata['students']);
+        $mform->addRule('userid', null, 'required', null, 'client');
 
-        $this->add_action_buttons();
+        $mform->addElement('select', 'targetstageid', get_string('transfertarget', 'mod_stage'),
+            $this->_customdata['targets']);
+        $mform->addRule('targetstageid', null, 'required', null, 'client');
+        $mform->addHelpButton('targetstageid', 'transfertarget', 'mod_stage');
+
+        $this->add_action_buttons(true, get_string('transferpreview', 'mod_stage'));
     }
 }

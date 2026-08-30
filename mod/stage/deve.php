@@ -60,6 +60,16 @@ if ($entryid && optional_param('resetentry', 0, PARAM_INT) && confirm_sesskey())
 // Validation unitaire (formulaire dédié à une saisie).
 if ($entryid) {
     $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
+    $periods = stage_get_or_seed_entry_periods($entry);
+
+    // Jours de stage effectifs sélectionnés par l'étudiant : visibles et modifiables ici par la
+    // DEVE (formulaire distinct de la validation, avec son propre bouton).
+    if (!empty($periods) && optional_param('saveworkdays', 0, PARAM_INT) && confirm_sesskey()) {
+        $workdays = optional_param_array('workdays', [], PARAM_INT);
+        stage_set_entry_workdays($entry->id, $workdays);
+        redirect(new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entryid]),
+            get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    }
 
     if (data_submitted() && confirm_sesskey()) {
         if (optional_param('rejectstage', '', PARAM_RAW) !== '') {
@@ -80,10 +90,9 @@ if ($entryid) {
     echo $OUTPUT->heading(get_string('validatestage', 'mod_stage', fullname($student)));
     echo html_writer::link($baseurl, get_string('back'));
 
-    echo html_writer::tag('p', get_string('theme', 'mod_stage') . ' : ' . format_string($theme->name));
-    echo html_writer::tag('p', get_string('declaredduration', 'mod_stage') . ' : ' . $entry->declaredduration);
-    echo html_writer::tag('p', get_string('status', 'mod_stage') . ' : '
-        . html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status)));
+    // Rappel de la saisie validée, en tableau plutôt qu'en paragraphes épars, et complété des
+    // informations qui manquaient ici (année d'étude, structure, mobilité, plages, convention).
+    echo stage_render_entry_summary($entry, $theme);
 
     // Les deux évaluations amont, telles qu'elles ont été saisies (questions ou commentaire libre).
     $answers = stage_get_answers($entry->id);
@@ -104,13 +113,43 @@ if ($entryid) {
             : html_writer::div(format_text($entry->teachereval, FORMAT_PLAIN));
     }
 
+    if (!empty($stage->tutorevaluationenabled)) {
+        $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
+        echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
+        if (!empty($tutorquestions) && $entry->tutortime) {
+            echo stage_render_answers_readonly($tutorquestions, $answers);
+        } else if ($entry->tutoreval) {
+            echo html_writer::div(format_text($entry->tutoreval, FORMAT_PLAIN));
+        } else {
+            echo $OUTPUT->notification(get_string('notutoreval', 'mod_stage'), 'info');
+        }
+    }
+
+    if (!empty($periods)) {
+        echo $OUTPUT->heading(get_string('workdays', 'mod_stage'), 4);
+        $workdaysformurl = new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entry->id]);
+        echo html_writer::start_tag('form', ['method' => 'post', 'action' => $workdaysformurl]);
+        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'saveworkdays', 'value' => 1]);
+        echo stage_render_workday_picker($periods, stage_get_entry_workdays($entry->id), true);
+        echo html_writer::empty_tag('input', [
+            'type' => 'submit', 'value' => get_string('savechanges'), 'class' => 'btn btn-secondary mt-2',
+        ]);
+        echo html_writer::end_tag('form');
+    }
+
     $formurl = new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entry->id]);
     echo html_writer::start_tag('form', ['method' => 'post', 'action' => $formurl]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+    // Le nombre de jours proposé par défaut est celui coché par l'étudiant lors de son
+    // auto-évaluation (jours de stage effectifs), s'il en a sélectionné ; sinon la durée déjà
+    // retenue ou, à défaut, déclarée. Reste modifiable par la DEVE avant validation.
+    $workdaycount = count(stage_get_entry_workdays($entry->id));
+    $proposedduration = $workdaycount > 0 ? $workdaycount : ($entry->retainedduration ?: $entry->declaredduration);
     echo html_writer::tag('label', get_string('retainedduration', 'mod_stage'), ['for' => 'retainedduration']);
     echo html_writer::empty_tag('input', [
         'type' => 'number', 'name' => 'retainedduration', 'id' => 'retainedduration',
-        'value' => $entry->retainedduration ?: $entry->declaredduration, 'class' => 'form-control', 'min' => 0,
+        'value' => $proposedduration, 'class' => 'form-control', 'min' => 0,
     ]);
     echo html_writer::tag('label', get_string('devecomment', 'mod_stage'), ['for' => 'devecomment']);
     echo html_writer::tag('textarea', s($entry->devecomment),

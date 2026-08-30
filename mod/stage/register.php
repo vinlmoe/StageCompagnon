@@ -112,6 +112,7 @@ if ($mode === 'list') {
         ['search' => $search, 'themeid' => $filterthemeid, 'status' => $filterstatus], $tsort, $tdir);
     [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
     $students = stage_get_entry_users($entries);
+    $stagetypes = stage_get_entry_stagetypes(array_keys($entries));
 
     $table = new html_table();
     $table->head = [
@@ -124,34 +125,55 @@ if ($mode === 'list') {
     foreach ($entries as $entry) {
         $student = $students[$entry->userid] ?? null;
         $themename = isset($allthemes[$entry->themeid]) ? format_string($allthemes[$entry->themeid]->name) : '-';
+        if (!empty($entry->abroad)) {
+            $themename .= ' ' . html_writer::span(get_string('abroad', 'mod_stage'), 'badge badge-info');
+        }
+        if (($stagetypes[$entry->id] ?? 'obligatoire') === 'complementaire') {
+            $themename .= ' ' . html_writer::span(get_string('conventionstagetype_complementaire', 'mod_stage'),
+                'badge badge-secondary');
+        }
         $badge = html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status));
-        $editurl = new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entry->id]);
-        $actions = html_writer::link($editurl, get_string('edit'));
+        // Jusqu'à sept actions sont possibles sur une même saisie : présentées en liens séparés
+        // par des barres verticales, elles formaient une ligne indistincte. Elles sont désormais
+        // rendues en boutons et hiérarchisées en trois groupes — la saisie elle-même, sa
+        // convention, puis les actions destructrices, visuellement mises à l'écart.
         $conventionstatus = (int) $entry->conventionstatus;
-        if ($conventionstatus === STAGE_CONVENTION_REQUESTED) {
-            $reviewurl = new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-            $actions .= ' | ' . html_writer::link($reviewurl, get_string('conventionreview', 'mod_stage'));
-        } else if (in_array($conventionstatus, [STAGE_CONVENTION_EDITED, STAGE_CONVENTION_SIGNED], true)) {
-            $conventionurl = new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-            $actions .= ' | ' . html_writer::link($conventionurl, get_string('generateconvention', 'mod_stage'));
+        $actions = stage_render_actions([
+            get_string('edit') =>
+                new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entry->id]),
+        ], 'btn btn-sm btn-secondary mr-1 mb-1');
+
+        $conventionactions = stage_render_actions([
+            get_string('conventionreview', 'mod_stage') => $conventionstatus === STAGE_CONVENTION_REQUESTED
+                ? new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+            get_string('generateconvention', 'mod_stage') =>
+                in_array($conventionstatus, [STAGE_CONVENTION_EDITED, STAGE_CONVENTION_SIGNED], true)
+                    ? new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+            get_string('conventionmarksigned', 'mod_stage') => $conventionstatus === STAGE_CONVENTION_EDITED
+                ? new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+            get_string('downloadsignedconvention', 'mod_stage') =>
+                $conventionstatus === STAGE_CONVENTION_SIGNED && stage_get_signed_convention_file($context, $entry->id)
+                    ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id])
+                    : null,
+        ], 'btn btn-sm btn-outline-primary mr-1 mb-1');
+        if ($conventionactions !== '-') {
+            $actions .= $conventionactions;
         }
-        if ($conventionstatus === STAGE_CONVENTION_EDITED) {
-            $signurl = new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-            $actions .= ' | ' . html_writer::link($signurl, get_string('conventionmarksigned', 'mod_stage'));
-        } else if ($conventionstatus === STAGE_CONVENTION_SIGNED
-                && stage_get_signed_convention_file($context, $entry->id)) {
-            $signedurl = new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-            $actions .= ' | ' . html_writer::link($signedurl, get_string('downloadsignedconvention', 'mod_stage'));
-        }
+
+        // Réinitialiser et annuler défont un travail déjà fait : en rouge et en dernier, pour ne
+        // pas être cliquées par inadvertance à la place de « Modifier ».
         if ((int) $entry->status !== STAGE_STATUS_ENREGISTRE) {
             $reseturl = new moodle_url('/mod/stage/register.php',
                 ['id' => $cm->id, 'mode' => 'reset', 'entryid' => $entry->id, 'sesskey' => sesskey()]);
-            $actions .= ' | ' . html_writer::link($reseturl, get_string('resetentry', 'mod_stage'),
-                ['onclick' => "return confirm('" . get_string('confirmresetentry', 'mod_stage') . "');"]);
+            $actions .= html_writer::link($reseturl, get_string('resetentry', 'mod_stage'), [
+                'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
+                'onclick' => "return confirm('" . get_string('confirmresetentry', 'mod_stage') . "');",
+            ]);
         }
         if ((int) $entry->status !== STAGE_STATUS_ANNULE) {
-            $cancelurl = new moodle_url('/mod/stage/cancel_entry.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-            $actions .= ' | ' . html_writer::link($cancelurl, get_string('cancelentry', 'mod_stage'));
+            $actions .= html_writer::link(
+                new moodle_url('/mod/stage/cancel_entry.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+                get_string('cancelentry', 'mod_stage'), ['class' => 'btn btn-sm btn-outline-danger mr-1 mb-1']);
         }
         $table->data[] = [
             $student ? fullname($student) : '-',
@@ -180,6 +202,7 @@ if ($mode === 'single') {
     }
 
     $entrystudent = $entry ? $DB->get_record('user', ['id' => $entry->userid]) : null;
+    $entryperiods = $entry ? array_values(stage_get_or_seed_entry_periods($entry)) : [];
     $formurl = new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entryid]);
     $mform = new deve_entry_form($formurl, [
         'themes' => $themes,
@@ -187,6 +210,11 @@ if ($mode === 'single') {
         'lockstudent' => (bool) $entry,
         'studentname' => $entrystudent ? fullname($entrystudent) : '',
         'stageid' => $stage->id,
+        'periods' => $entryperiods,
+        // Connu côté serveur dès l'URL, avant la construction du formulaire : c'est cette valeur,
+        // et non le champ caché "entryid" soumis par le client, qui sert à exclure la saisie en
+        // cours d'édition du contrôle de doublon (voir deve_entry_form::validation()).
+        'entryid' => $entryid,
     ]);
 
     $toform = new stdClass();
@@ -195,22 +223,48 @@ if ($mode === 'single') {
     if ($entry) {
         $toform->userid = $entry->userid;
         $toform->themeid = $entry->themeid;
+        $toform->studyyear = $entry->studyyear;
         $toform->structure = $entry->structure;
-        $toform->datestart = $entry->datestart;
-        $toform->dateend = $entry->dateend;
-        $toform->declaredduration = $entry->declaredduration;
+        $existingdetail = stage_get_convention_detail($entry->id);
+        $toform->stagetype = $existingdetail ? $existingdetail->stagetype : 'obligatoire';
+        $toform->abroad = $entry->abroad;
+        $toform->country = $entry->country;
+        $toform->exemptfromconvention = (int) $entry->conventionstatus === STAGE_CONVENTION_EXEMPT ? 1 : 0;
+        $toform->perioddatestart = array_map(function($period) {
+            return $period->datestart;
+        }, $entryperiods);
+        $toform->perioddateend = array_map(function($period) {
+            return $period->dateend;
+        }, $entryperiods);
+        // Le nombre de jours proposé par défaut est celui coché par l'étudiant lors de son
+        // auto-évaluation (jours de stage effectifs), s'il en a déjà sélectionné ; sinon la durée
+        // déclarée existante. Reste modifiable par la DEVE avant enregistrement.
+        $workdaycount = count(stage_get_entry_workdays($entry->id));
+        $toform->declaredduration = $workdaycount > 0 ? $workdaycount : $entry->declaredduration;
     }
     $mform->set_data($toform);
 
     if ($mform->is_cancelled()) {
         redirect($baseurl);
     } else if ($data = $mform->get_data()) {
+        // Les dates du stage sont déduites des plages, seul endroit où elles se saisissent : le
+        // formulaire a déjà refusé une saisie sans plage ou avec des plages qui se recoupent.
+        $periods = stage_extract_submitted_periods($data);
+        $datestart = min(array_column($periods, 'datestart'));
+        $dateend = max(array_column($periods, 'dateend'));
         if ($entry) {
-            stage_update_entry_details($entry, $data->themeid, $data->structure, $data->datestart, $data->dateend,
-                $data->declaredduration);
+            stage_update_entry_details($entry, $data->themeid, $data->structure, $datestart, $dateend,
+                $data->declaredduration, $data->studyyear, $data->abroad, $data->country);
+            stage_save_entry_periods($entry->id, $periods);
+            stage_set_entry_convention_exempt($entry, !empty($data->exemptfromconvention));
+            stage_set_entry_stagetype($entry->id, $data->stagetype);
         } else {
-            stage_register_entry($stage->id, $data->userid, $data->themeid, $data->structure, $data->datestart,
-                $data->dateend, $data->declaredduration);
+            $conventionstatus = !empty($data->exemptfromconvention) ? STAGE_CONVENTION_EXEMPT : STAGE_CONVENTION_NONE;
+            $newentryid = stage_register_entry($stage->id, $data->userid, $data->themeid, $data->structure,
+                $datestart, $dateend, $data->declaredduration, $data->studyyear, $conventionstatus,
+                $data->abroad, $data->country);
+            stage_save_entry_periods($newentryid, $periods);
+            stage_set_entry_stagetype($newentryid, $data->stagetype);
         }
         redirect($baseurl, get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
@@ -218,6 +272,7 @@ if ($mode === 'single') {
     echo $OUTPUT->header();
     echo $OUTPUT->heading($entry ? get_string('editstage', 'mod_stage') : get_string('registerstage', 'mod_stage'));
     echo html_writer::link($baseurl, get_string('back'));
+    echo stage_render_abroad_rules($stage);
     $mform->display();
     echo $OUTPUT->footer();
     exit;
@@ -229,6 +284,9 @@ if ($mode === 'bulk') {
 
     if (data_submitted() && confirm_sesskey() && optional_param('bulkregister', 0, PARAM_INT)) {
         $themeid = required_param('themeid', PARAM_INT);
+        $studyyear = optional_param('studyyear', 0, PARAM_INT);
+        $abroad = optional_param('abroad', 0, PARAM_INT);
+        $country = optional_param('country', '', PARAM_TEXT);
         $structure = optional_param('structure', '', PARAM_TEXT);
         $datestartraw = optional_param('datestart', '', PARAM_TEXT);
         $dateendraw = optional_param('dateend', '', PARAM_TEXT);
@@ -238,6 +296,11 @@ if ($mode === 'bulk') {
         $start = $datestartraw ? strtotime($datestartraw) : null;
         $end = $dateendraw ? strtotime($dateendraw) : null;
 
+        // Même contrôle bloquant que dans les formulaires : la plage commune doit être complète et
+        // sa fin ne peut pas précéder son début. Une seule plage ici, donc pas de chevauchement
+        // possible.
+        $bulkperioderror = stage_validate_periods($start && $end ? [['datestart' => $start, 'dateend' => $end]] : []);
+
         // Un étudiant ayant déjà un stage sur cette thématique et ces mêmes dates est écarté
         // et signalé, pour ne pas créer de doublon silencieux.
         $existing = stage_get_existing_theme_pairs($stage->id);
@@ -246,8 +309,8 @@ if ($mode === 'bulk') {
             $studentsbyid[$student->id] = $student;
         }
 
-        $bulkresults = (object) ['created' => 0, 'duplicates' => []];
-        foreach ($studentids as $studentid) {
+        $bulkresults = (object) ['created' => 0, 'duplicates' => [], 'error' => $bulkperioderror];
+        foreach ($bulkperioderror !== null ? [] : $studentids as $studentid) {
             $key = stage_duplicate_key($studentid, $themeid, $start, $end);
             if (isset($existing[$key])) {
                 $bulkresults->duplicates[] = isset($studentsbyid[$studentid])
@@ -257,7 +320,7 @@ if ($mode === 'bulk') {
             // Les stages enregistrés en masse sont déjà signés sur SignVet au moment de leur
             // enregistrement : pas de gestion de convention à faire dans ce plugin pour eux.
             stage_register_entry($stage->id, $studentid, $themeid, $structure, $start, $end, $declaredduration,
-                STAGE_CONVENTION_SIGNVET);
+                $studyyear, STAGE_CONVENTION_SIGNVET, $abroad, $country);
             $existing[$key] = true;
             $bulkresults->created++;
         }
@@ -268,7 +331,11 @@ if ($mode === 'bulk') {
     echo html_writer::link($baseurl, get_string('back'));
     echo $OUTPUT->notification(get_string('bulkregistersignvethelp', 'mod_stage'), 'info');
 
-    if ($bulkresults) {
+    if ($bulkresults && $bulkresults->error !== null) {
+        // Plage incohérente : rien n'a été créé, le message doit le dire plutôt que d'annoncer
+        // « 0 stage enregistré » sans expliquer pourquoi.
+        echo $OUTPUT->notification($bulkresults->error, \core\output\notification::NOTIFY_ERROR);
+    } else if ($bulkresults) {
         echo $OUTPUT->notification(get_string('bulkregistered', 'mod_stage', $bulkresults->created),
             \core\output\notification::NOTIFY_SUCCESS);
         if (!empty($bulkresults->duplicates)) {
@@ -290,14 +357,46 @@ if ($mode === 'bulk') {
     echo html_writer::tag('label', get_string('theme', 'mod_stage'), ['for' => 'themeid']);
     echo html_writer::select($themeoptions, 'themeid', '', false, ['id' => 'themeid', 'required' => 'required']);
 
+    echo html_writer::tag('label', get_string('studyyear', 'mod_stage'), ['for' => 'studyyear']);
+    echo html_writer::select(stage_studyyear_options(), 'studyyear', '', false,
+        ['id' => 'studyyear', 'required' => 'required']);
+
     echo html_writer::tag('label', get_string('structure', 'mod_stage'), ['for' => 'structure']);
     echo html_writer::empty_tag('input', ['type' => 'text', 'name' => 'structure', 'id' => 'structure', 'class' => 'form-control']);
 
-    echo html_writer::tag('label', get_string('datestart', 'mod_stage'));
-    echo html_writer::empty_tag('input', ['type' => 'date', 'name' => 'datestart', 'class' => 'form-control']);
+    echo html_writer::start_tag('div', ['class' => 'form-check my-2']);
+    echo html_writer::checkbox('abroad', 1, false, ' ' . get_string('abroad', 'mod_stage'),
+        ['class' => 'form-check-input', 'id' => 'abroad']);
+    echo html_writer::end_tag('div');
 
-    echo html_writer::tag('label', get_string('dateend', 'mod_stage'));
-    echo html_writer::empty_tag('input', ['type' => 'date', 'name' => 'dateend', 'class' => 'form-control']);
+    echo html_writer::start_tag('div', ['id' => 'countryfieldwrapper', 'style' => 'display:none']);
+    echo html_writer::tag('label', get_string('country', 'mod_stage'), ['for' => 'country']);
+    echo html_writer::empty_tag('input', [
+        'type' => 'text', 'name' => 'country', 'id' => 'country', 'class' => 'form-control',
+    ]);
+    echo html_writer::end_tag('div');
+    echo html_writer::script("
+        (function() {
+            var abroad = document.getElementById('abroad');
+            var wrapper = document.getElementById('countryfieldwrapper');
+            function toggle() { wrapper.style.display = abroad.checked ? '' : 'none'; }
+            abroad.addEventListener('change', toggle);
+            toggle();
+        })();
+    ");
+
+    // Création en masse : une seule plage de dates, commune à tous les étudiants sélectionnés.
+    // Ce sont bien les bornes d'une plage, et non des dates saisies séparément : la plage est
+    // créée avec la saisie et ses dates en sont déduites (voir stage_register_entry()).
+    echo html_writer::tag('label', get_string('periods', 'mod_stage') . ' — ' . get_string('periodstart', 'mod_stage'));
+    echo html_writer::empty_tag('input', [
+        'type' => 'date', 'name' => 'datestart', 'class' => 'form-control', 'required' => 'required',
+    ]);
+
+    echo html_writer::tag('label', get_string('periods', 'mod_stage') . ' — ' . get_string('periodend', 'mod_stage'));
+    echo html_writer::empty_tag('input', [
+        'type' => 'date', 'name' => 'dateend', 'class' => 'form-control', 'required' => 'required',
+    ]);
 
     echo html_writer::tag('label', get_string('declaredduration', 'mod_stage'), ['for' => 'declaredduration']);
     echo html_writer::empty_tag('input', [

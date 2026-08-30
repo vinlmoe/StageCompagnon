@@ -155,6 +155,7 @@ $establishmentform->set_data((object) [
     'establishmentrepresentativetitle' => $establishmentinfo->representativetitle,
     'establishmentphone' => $establishmentinfo->phone,
     'establishmentemail' => $establishmentinfo->email,
+    'establishmentsignatory' => $establishmentinfo->signatory,
 ]);
 
 if ($establishmentdata = $establishmentform->get_data()) {
@@ -206,9 +207,11 @@ if (empty($templates)) {
             ['id' => $cm->id, 'action' => 'edit', 'templateid' => $template->id]);
         $deleteurl = new moodle_url('/mod/stage/convention_templates.php',
             ['id' => $cm->id, 'action' => 'delete', 'templateid' => $template->id, 'sesskey' => sesskey()]);
-        $actions = html_writer::link($editurl, get_string('edit')) . ' | '
-            . html_writer::link($deleteurl, get_string('delete'),
-                ['onclick' => "return confirm('" . get_string('confirmdeleteconventiontemplate', 'mod_stage') . "');"]);
+        $actions = stage_render_actions([get_string('edit') => $editurl])
+            . html_writer::link($deleteurl, get_string('delete'), [
+                'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
+                'onclick' => "return confirm('" . get_string('confirmdeleteconventiontemplate', 'mod_stage') . "');",
+            ]);
         $table->data[] = [format_string($template->name), stage_convention_lang_label($template->lang), $actions];
     }
     echo html_writer::table($table);

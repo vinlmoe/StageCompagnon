@@ -252,6 +252,60 @@ POST https://votre-moodle/webservice/rest/server.php
      ?wstoken=JETON&wsfunction=mod_stage_register_entries&moodlewsrestformat=json
 ```
 
+## Tests unitaires
+
+Le plugin embarque une suite PHPUnit (`mod/stage/tests/`), au format standard
+des tests Moodle : elle s'exécute avec l'environnement PHPUnit de Moodle, pas
+seule.
+
+**Mise en place (une fois par site de développement)**, depuis la racine de
+l'installation Moodle :
+
+```bash
+php admin/tool/phpunit/cli/init.php
+```
+
+Cette commande crée la base de données de test et initialise l'environnement
+PHPUnit ; à relancer après toute modification du schéma du plugin
+(`db/install.xml`, `db/upgrade.php`).
+
+**Exécution** de la suite complète du plugin :
+
+```bash
+vendor/bin/phpunit --testsuite mod_stage_testsuite
+```
+
+Ou un seul fichier :
+
+```bash
+vendor/bin/phpunit mod/stage/tests/periods_test.php
+```
+
+**Contenu de la suite** :
+
+| Fichier | Couvre |
+|---|---|
+| `periods_test.php` | Cohérence des plages de dates (`stage_validate_periods`) et leur statut de source unique des dates du stage (`stage_save_entry_periods`, `stage_register_entry`). |
+| `year_progress_test.php` | Bilan annuel d'un étudiant : thématique bornée à une plage d'années (vérifiée cumulativement à sa dernière année), mobilité internationale intégrée à l'année où elle est due, stages complémentaires exclus du décompte. |
+| `promotion_test.php` | Bilan de promotion : années échues uniquement, classement des étudiants en défaut par sévérité puis ancienneté du retard. |
+| `transfer_test.php` | Transfert d'un étudiant vers une autre instance : blocages (aucun stage, non-inscrit, thématique sans correspondance), rapprochement tolérant des noms, effets réels du transfert. |
+| `helpers_test.php` | Petites fonctions utilitaires pures (libellés, normalisation de nom, rendu d'actions/badges). |
+
+`tests/generator/lib.php` fournit un générateur de données de test
+(`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :
+
+```php
+$generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+$theme = $generator->create_theme($stage, ['name' => 'Thématique', 'mandatory' => 1]);
+$entry = $generator->create_entry($stage, $userid, $theme);
+```
+
+Cette suite couvre la logique métier la plus récemment modifiée et la plus
+sensible aux régressions silencieuses (dates dérivées des plages, bilans de
+validation, transfert inter-cours) ; elle n'est pas exhaustive sur l'ensemble
+du plugin. Étendre `tests/` au même format à mesure que de nouvelles règles
+métier sont ajoutées.
+
 ## Licence
 
 GNU GPL v3 ou ultérieure, comme Moodle.

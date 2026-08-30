@@ -102,36 +102,31 @@ if (empty($allentries)) {
             'badge ' . stage_convention_status_badgeclass($entry->conventionstatus));
         $requestdate = $entry->conventionrequesttime ? userdate($entry->conventionrequesttime, get_string('strftimedatetimeshort')) : '-';
 
-        $actions = [];
+        // Chaque statut n'ouvre qu'une action « suivante » dans le circuit (relire, marquer
+        // signée...) : elle est mise en avant en bouton principal, les actions toujours
+        // disponibles (regénérer le PDF, télécharger la convention signée) restant discrètes.
         $status = (int) $entry->conventionstatus;
-        if ($status === STAGE_CONVENTION_REQUESTED) {
-            $actions[] = html_writer::link(
-                new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id]),
-                get_string('conventionreview', 'mod_stage')
-            );
-        }
+        $nextaction = stage_render_actions([
+            get_string('conventionreview', 'mod_stage') => $status === STAGE_CONVENTION_REQUESTED
+                ? new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+            get_string('conventionmarksigned', 'mod_stage') => $status === STAGE_CONVENTION_EDITED
+                ? new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+        ], 'btn btn-sm btn-primary mr-1 mb-1');
+        $otheractions = stage_render_actions([
+            get_string('downloadsignedconvention', 'mod_stage') =>
+                $status === STAGE_CONVENTION_SIGNED && stage_get_signed_convention_file($context, $entry->id)
+                    ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id])
+                    : null,
+            get_string('generateconvention', 'mod_stage') => $status >= STAGE_CONVENTION_EDITED
+                ? new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+        ]);
+        $actions = trim(($nextaction !== '-' ? $nextaction : '') . ($otheractions !== '-' ? $otheractions : ''));
+        // Le motif de refus explique pourquoi il n'y a rien à faire ici : il suit les actions,
+        // en clair sous celles-ci plutôt qu'aligné avec elles comme s'il en était une.
         if ($status === STAGE_CONVENTION_REJECTED && !empty($entry->conventionrejectcomment)) {
-            $actions[] = html_writer::span(
+            $actions .= html_writer::div(
                 get_string('conventionrejectedwithcomment', 'mod_stage', format_string($entry->conventionrejectcomment)),
-                'text-muted'
-            );
-        }
-        if ($status === STAGE_CONVENTION_EDITED) {
-            $actions[] = html_writer::link(
-                new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id]),
-                get_string('conventionmarksigned', 'mod_stage')
-            );
-        }
-        if ($status === STAGE_CONVENTION_SIGNED && stage_get_signed_convention_file($context, $entry->id)) {
-            $actions[] = html_writer::link(
-                new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id]),
-                get_string('downloadsignedconvention', 'mod_stage')
-            );
-        }
-        if ($status >= STAGE_CONVENTION_EDITED) {
-            $actions[] = html_writer::link(
-                new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id]),
-                get_string('generateconvention', 'mod_stage')
+                'text-muted small'
             );
         }
 
@@ -141,7 +136,7 @@ if (empty($allentries)) {
             $templatename,
             $badge,
             $requestdate,
-            implode(' | ', $actions),
+            $actions !== '' ? $actions : '-',
         ];
     }
     echo html_writer::table($table);
