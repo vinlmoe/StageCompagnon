@@ -49,10 +49,14 @@ class question_form extends \moodleform {
         $mform->addRule('themeids', null, 'required', null, 'client');
         $mform->addHelpButton('themeids', 'assignedthemes', 'mod_stage');
 
-        $mform->addElement('select', 'evaltype', get_string('evaltype', 'mod_stage'), [
+        $evaltypeoptions = [
             'student' => get_string('evaltype_student', 'mod_stage'),
             'teacher' => get_string('evaltype_teacher', 'mod_stage'),
-        ]);
+        ];
+        if (!empty($this->_customdata['tutorenabled'])) {
+            $evaltypeoptions['tutor'] = get_string('evaltype_tutor', 'mod_stage');
+        }
+        $mform->addElement('select', 'evaltype', get_string('evaltype', 'mod_stage'), $evaltypeoptions);
 
         $mform->addElement('select', 'qtype', get_string('qtype', 'mod_stage'), [
             'choice' => get_string('qtype_choice', 'mod_stage'),

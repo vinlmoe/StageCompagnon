@@ -73,6 +73,23 @@ $string['mystages'] = 'Mes stages';
 $string['registerstages'] = 'Enregistrer des stages';
 $string['importcsv'] = 'Importer un fichier CSV';
 $string['exportexcel'] = 'Exporter en Excel';
+$string['allstages'] = 'Stages';
+$string['promotionreport'] = 'Bilan de promotion';
+$string['promotionreportpdf'] = 'Bilan de promotion (PDF)';
+$string['promotiongeneratedon'] = 'Édité le {$a}';
+$string['promotionsummary'] = '{$a->total} étudiant(s) : {$a->failed} en défaut sur une année échue, {$a->uptodate} à jour.';
+$string['promotionfailedheading'] = 'Étudiants ne validant pas une année échue';
+$string['promotionfailedheading_help'] = "Classés du plus en retard au moins en retard : d'abord par nombre d'années non validées, puis par ancienneté du retard.";
+$string['promotionuptodateheading'] = 'Étudiants à jour';
+$string['promotionnofailed'] = 'Aucun : toute la promotion valide les années échues.';
+$string['promotionnouptodate'] = 'Aucun étudiant ne valide encore toutes les années échues.';
+$string['promotionyeardone'] = 'OK';
+$string['promotionyearfailed'] = 'NON';
+$string['promotionuptodate'] = 'À jour';
+$string['promotionfailedyears'] = 'Années non validées';
+$string['promotioncoldays'] = 'Jours retenus';
+$string['promotioncolthemes'] = 'Thématiques';
+$string['promotionlegend'] = "OK : année validée. NON : année non validée. - : aucun objectif défini pour cet étudiant cette année-là. Seules l'année d'étude courante du stage et les précédentes sont prises en compte.";
 $string['import'] = 'Importer';
 $string['importcsv_help'] = "Importez un fichier CSV (enregistré depuis Excel via « Enregistrer sous > CSV »), avec les "
     . 'colonnes suivantes, séparées par des points-virgules ou des virgules, avec une ligne d\'en-tête facultative : '
@@ -96,10 +113,13 @@ $string['importstagevetcsv_help'] = "Importez directement le fichier CSV export�
     . "mêmes intitulés par défaut, créez au préalable des thématiques portant les mêmes noms que ceux utilisés "
     . "dans StageVet (ex. « THEME LIBRE / A2, A3, A4, A5 »). Chaque stage importé est enregistré avec le statut de "
     . 'convention "Signée (StageVet)" (déjà signée hors de ce plugin) : les coordonnées de convention disponibles '
-    . "dans l'export sont tout de même enregistrées à titre de référence, sans déclencher de génération de PDF.";
+    . "dans l'export sont tout de même enregistrées à titre de référence, sans déclencher de génération de PDF. "
+    . "Les dates de début et de fin de l'export constituent l'unique plage de dates du stage importé : une ligne "
+    . "sans dates exploitables est signalée et ignorée.";
 $string['importstagevetnoheader'] = "Le fichier ne semble pas avoir de ligne d'en-tête reconnaissable. Vérifiez qu'il "
     . "s'agit bien d'un export StageVet non modifié.";
 $string['importstageveterrornotheme'] = 'Ligne {$a} : aucune thématique renseignée.';
+$string['importstageveterrordates'] = 'Ligne {$a->line} ({$a->student}) : dates de début et de fin absentes ou incohérentes. Ces dates constituent l\'unique plage du stage : la ligne est ignorée.';
 $string['importstagevetunknownstudentsreport'] = '{$a} étudiant(s) introuvable(s) parmi les inscrits au cours';
 $string['importstagevetunknownthemesreport'] = '{$a} thématique(s) introuvable(s)';
 $string['importstagevetreportline'] = '{$a->value} (ligne(s) {$a->lines})';
@@ -145,9 +165,93 @@ $string['dateend'] = 'Date de fin';
 $string['declaredduration'] = 'Durée déclarée (jours)';
 $string['retainedduration'] = 'Durée retenue (jours)';
 $string['requiredduration'] = 'Durée requise (jours)';
+$string['requiredduration_help'] = "Durée totale requise pour valider cette thématique, quelle que soit l'année d'étude (0 = non utilisé). Alternative à la définition d'une durée par année (page « Durées par année ») : ne renseignez que l'une des deux méthodes, pas les deux. Pour une thématique bornée à une plage d'années (ex : A2 à A4), cette durée est vérifiée à la dernière année de la plage, sur l'ensemble des saisies cumulées de la thématique.";
 $string['studyyear'] = "Année d'étude";
 $string['studyyear_unspecified'] = 'Non spécifiée (toutes années)';
 $string['studyyear_n'] = '{$a}e année';
+$string['minstudyyear'] = "Année d'étude minimum";
+$string['maxstudyyear'] = "Année d'étude maximum";
+$string['studyyearrange_error'] = "L'année minimum doit être inférieure ou égale à l'année maximum.";
+$string['currentstudyyear'] = 'Année d\'étude courante des étudiants';
+$string['currentstudyyear_help'] = "Année d'étude (N) des étudiants inscrits à ce cours. Sert de référence pour les stages qu'ils peuvent déclarer en convention : année N (normale), N-1 (dette) ou N+1 (anticipation). Laisser sur « Non spécifiée » pour ne pas restreindre le choix.";
+$string['abroad'] = "Stage à l'étranger";
+$string['requiredabroaddays'] = "Jours de mobilité internationale requis";
+$string['requiredabroaddays_help'] = "Nombre de jours de stage à l'étranger que chaque étudiant doit cumuler au total sur l'ensemble de ses stages (0 = aucune obligation). Seuls les stages marqués « Stage à l'étranger » et les stages obligatoires (hors stages complémentaires) comptent dans ce bilan.";
+$string['abroadtotal'] = 'Mobilité internationale';
+$string['abroadbeforeyear'] = "Année avant laquelle la mobilité est requise";
+$string['abroaddaysrequired'] = 'Jours à l\'étranger requis';
+$string['abroaddaysretained'] = "Jours à l'étranger retenus";
+$string['themeabroaddays_help'] = "Nombre de jours de stage à l'étranger requis pour cette thématique (0 = aucune obligation), cumulés sur l'ensemble des stages effectués sur cette thématique (obligatoires ET complémentaires, contrairement à la durée requise ci-dessus qui exclut les stages complémentaires). Pour une thématique bornée à une plage d'années, vérifié à sa dernière année comme la durée requise.";
+$string['abroadrule'] = 'Règle de mobilité internationale (affichée aux étudiants)';
+$string['abroadrule_help'] = "Texte libre précisant les conditions de mobilité internationale pour cette thématique (ex : pays éligibles, durée minimale continue, organismes partenaires...). Affiché aux étudiants lors de l'enregistrement d'un stage sur cette thématique et dans leur bilan.";
+$string['themeabroadsaved'] = 'Les paramètres de mobilité internationale ont été enregistrés.';
+$string['country'] = 'Pays';
+$string['workdays'] = 'Jours de stage effectifs';
+$string['workdays_help'] = "Cochez, parmi les plages de dates de ce stage, les jours effectivement travaillés. Rappel : la réglementation impose au moins un jour de repos par semaine.";
+$string['restdayrule'] = 'Rappel : au moins un jour de repos est requis chaque semaine.';
+$string['restdaywarning'] = "Attention : au moins une semaine sélectionnée ne comporte aucun jour de repos.";
+$string['periods'] = 'Plages de stage';
+$string['stagesummary'] = 'Le stage';
+$string['conventionfollowup'] = "Suivi de la convention";
+$string['stagestoevaluate'] = 'Stages à évaluer';
+$string['adminsectionrequirements'] = "Ce que les étudiants doivent faire";
+$string['adminsectionconventions'] = 'Conventions de stage';
+$string['adminsectionnotifications'] = 'Notifications';
+$string['notifications_desc'] = "Activer l'évaluation par le maître de stage et personnaliser le "
+    . "texte des e-mails envoyés par l'activité.";
+$string['adminsectionteachers'] = 'Encadrement des étudiants';
+$string['adminsectionsetup'] = "Mise en route de l'activité";
+$string['adminsectionpage'] = 'Page';
+$string['adminsectionpurpose'] = 'À quoi elle sert';
+$string['managethemes_desc'] = "Les thématiques de stage proposées aux étudiants : leur nom, leur caractère obligatoire ou non, les années d'étude concernées et la durée requise pour chacune.";
+$string['manageyearrequirements_desc'] = "La durée totale de stage exigée pour chaque année d'étude, toutes thématiques confondues, ainsi que l'obligation de mobilité internationale.";
+$string['conventiontemplates_desc'] = "Les gabarits PDF proposés aux étudiants au moment de leur demande de convention, les logos et les informations de l'établissement qui figurent en première page.";
+$string['manageteachers_desc'] = "L'attribution des enseignants référents aux étudiants : chaque étudiant doit en avoir un pour pouvoir demander sa convention.";
+$string['importfromcourse_desc'] = "Récupérer thématiques, gabarits, logos et informations d'établissement depuis une autre instance de l'activité, pour ne pas tout ressaisir à chaque nouveau cours.";
+$string['transferstudent'] = 'Transférer un étudiant';
+$string['transferstudent_desc'] = "Déplacer un étudiant et tous ses stages vers une autre instance de l'activité (redoublement, changement de promotion, réorientation), pour que son bilan le suive au lieu de rester dans le cours qu'il quitte.";
+$string['transferstudent_help'] = "Déplace un étudiant et tous ses stages vers une autre instance de l'activité, généralement dans un autre cours. Les stages sont déplacés et non copiés : ils disparaissent de ce cours-ci. Un récapitulatif de ce qui sera transféré vous sera présenté avant toute modification.";
+$string['transfertarget'] = 'Activité de destination';
+$string['transfertarget_help'] = "Seules les instances de l'activité sur lesquelles vous avez vous-même le droit d'enregistrer des stages sont proposées. L'étudiant doit déjà être inscrit au cours correspondant.";
+$string['transfersource'] = 'Activité de départ';
+$string['transferpreview'] = 'Préparer le transfert';
+$string['transfersummary'] = 'Transfert à effectuer';
+$string['transferentries'] = 'Stages qui seront transférés';
+$string['transferentrycount'] = 'Nombre de stages';
+$string['transferconfirm'] = 'Confirmer le transfert';
+$string['transferirreversible'] = "Le transfert n'est pas réversible : pour ramener l'étudiant dans ce cours, il faudra refaire un transfert en sens inverse depuis l'activité de destination.";
+$string['transferdone'] = '{$a->count} stage(s) de {$a->student} transféré(s) vers « {$a->target} ».';
+$string['transfernotargets'] = "Aucune autre instance de l'activité sur laquelle vous pouvez enregistrer des stages n'a été trouvée.";
+$string['transfernoentries'] = "Cet étudiant n'a aucun stage dans cette activité : il n'y a rien à transférer.";
+$string['transfernotenrolled'] = "L'étudiant n'est pas inscrit au cours « {\$a} ». Inscrivez-le d'abord : sans inscription, ses stages n'apparaîtraient dans aucun tableau de bord de la destination.";
+$string['transferunmatchedthemes'] = "Ces thématiques n'existent pas dans l'activité de destination : {\$a}. Créez-les-y d'abord (avec exactement le même nom), ou utilisez « Importer depuis un autre cours » : sans elles, les stages concernés perdraient leur rattachement et fausseraient le bilan de l'étudiant.";
+$string['transferunmatchedtemplates'] = "Ces gabarits de convention n'existent pas dans l'activité de destination : {\$a}. Les stages concernés seront transférés sans gabarit : leur convention déjà signée reste disponible, mais sa regénération en PDF nécessitera d'en rechoisir un.";
+$string['transferdroppedanswers'] = "{\$a} réponse(s) d'évaluation seront supprimées : les questions correspondantes n'existent pas dans les thématiques de destination.";
+$string['transferreferentteachers'] = "L'attribution des enseignants référents ({\$a}) n'est pas transférée : elle est propre au cours. Pensez à attribuer un enseignant référent à l'étudiant dans le cours de destination.";
+$string['rejectstageheading'] = 'Refuser la saisie';
+$string['rejectstageheading_help'] = "Renvoie la saisie à l'étudiant pour correction. Le motif ci-dessous lui est transmis : il est obligatoire.";
+$string['dates'] = 'Dates';
+$string['periodstart'] = 'Début';
+$string['periodend'] = 'Fin';
+$string['addperiod'] = 'Ajouter une plage';
+$string['removeperiod'] = 'Retirer';
+$string['periods_help'] = "Un stage peut comporter plusieurs plages de dates non contiguës (ex : deux séjours séparés). L'étudiant choisira ses jours de stage effectifs parmi ces plages lors de son auto-évaluation.";
+$string['periodsrequired'] = "Renseignez au moins une plage de dates : les dates du stage en sont déduites.";
+$string['periodendbeforestart'] = "La date de fin d'une plage ne peut pas précéder sa date de début.";
+$string['periodsoverlap'] = 'Deux plages de dates se recoupent ({$a->first} et {$a->second}). Les mêmes journées seraient comptées deux fois : corrigez-les pour qu\'elles ne se chevauchent pas.';
+$string['conventionsignaturedate'] = 'Date : ............................';
+$string['noperiodsdefined'] = "Aucune plage de dates n'a été définie pour ce stage.";
+$string['workdayssaved'] = 'Les jours de stage effectifs ont été enregistrés.';
+$string['totalrequiredduration'] = 'Durée totale requise (jours)';
+$string['managethemedurations'] = 'Durées par année';
+$string['durationperyear'] = 'Par année (voir Durées par année)';
+$string['durationflatignored'] = "Une durée unique de {\$a} jour(s) est définie sur cette thématique (voir sa fiche) : elle est utilisée à la place des durées par année ci-dessous, qui sont ignorées.";
+$string['themedurationssaved'] = 'Durées enregistrées.';
+$string['manageyearrequirements'] = 'Durées totales requises par année';
+$string['yearrequirementssaved'] = 'Durées totales enregistrées.';
+$string['yearrequirements_help'] = "Durée totale de stage obligatoire requise pour chaque année d'étude, toutes thématiques confondues. Les stages complémentaires ne comptent pas dans ce bilan.";
+$string['yeartotals'] = "Bilan par année d'étude";
+$string['validatedyears'] = 'Validées : {$a}';
 $string['status'] = 'Statut';
 $string['mandatory'] = 'Obligatoire';
 $string['sortorder'] = 'Ordre';
@@ -156,6 +260,12 @@ $string['teachereval'] = "Évaluation de l'enseignant";
 $string['devecomment'] = 'Commentaire DEVE';
 $string['student'] = 'Étudiant';
 $string['referentteachers'] = 'Enseignants référents';
+$string['currentreferentteachers'] = 'Enseignant(s) référent(s) actuel(s)';
+$string['noreferentteacher'] = 'Aucun';
+$string['availableteachers'] = 'Enseignants disponibles';
+$string['selectedteachers'] = 'Enseignants référents sélectionnés';
+$string['addselected'] = 'Ajouter';
+$string['removeselected'] = 'Retirer';
 
 // Statuses.
 $string['status_enregistre'] = 'Enregistré';
@@ -218,12 +328,32 @@ $string['cancelentry'] = 'Annuler ce stage';
 $string['confirmcancelentry'] = "Annuler ce stage ? La saisie sera conservée telle quelle, mais son statut passera "
     . 'à "Annulé" de façon définitive. Merci de préciser le motif ci-dessous.';
 $string['cancelcomment'] = "Motif de l'annulation";
+$string['cancelledby'] = 'Annulé par';
+$string['canceltime'] = "Date d'annulation";
 $string['stagecancelled'] = 'Le stage a été annulé.';
+$string['evaluatedby'] = 'Évalué par';
 $string['onlyunassigned'] = 'Étudiants sans référent uniquement';
 $string['selfevalnotifsubject'] = 'Auto-évaluation de stage à évaluer - {$a}';
 $string['selfevalnotifbody'] = "{\$a->student} vient de s'auto-évaluer pour son stage \"{\$a->stage}\". "
     . "Vous pouvez consulter et évaluer cette saisie ici : {\$a->url}";
 $string['generateconvention'] = 'Générer la convention';
+$string['includesignatureblock'] = "Ajouter un cadre de signatures (stagiaire, maître de stage, "
+    . "responsable de l'organisme d'accueil, enseignant.e référent.e, établissement) en bas de la "
+    . 'première page, pour une convention imprimée destinée à être signée à la main.';
+$string['conventionsignatures'] = 'Signatures';
+$string['conventionsignaturestudent'] = 'Le/la stagiaire';
+$string['conventionsignaturetutor'] = 'Le maître de stage';
+$string['conventionsignaturehostrepresentative'] = "Le/la responsable de l'organisme d'accueil";
+$string['conventionsignaturereferentteacher'] = "L'enseignant.e référent.e";
+$string['conventionsignatureestablishment'] = "L'établissement d'enseignement";
+$string['conventionsignaturename'] = 'Nom : {$a}';
+$string['conventionsignaturedelegation'] = 'Par délégation du chef d\'établissement';
+$string['conventionsignaturedelegationname'] = 'Par délégation du chef d\'établissement : {$a}';
+$string['conventionestablishmentsignatory'] = 'Personne ayant délégation de signature';
+$string['conventionestablishmentsignatory_help'] = "Nom de la personne ayant délégation de signature du chef "
+    . "d'établissement (à défaut d'une signature par le chef d'établissement lui-même). Préaffiché dans le "
+    . "cadre de signatures de la convention imprimée, quand cette option est cochée lors de la génération "
+    . 'de la convention.';
 $string['conventiontitle'] = 'Convention de stage';
 $string['conventionestablishment'] = "Établissement d'enseignement";
 $string['conventionestablishmentname'] = 'Nom';
@@ -290,6 +420,10 @@ $string['rejectconvention'] = 'Refuser';
 $string['conventionrejectcomment'] = 'Commentaire (envoyé à l\'étudiant en cas de refus)';
 $string['conventionrejected'] = "La demande de convention a été refusée. L'étudiant en a été informé par courriel.";
 $string['conventionrejectedwithcomment'] = 'Refusée : {$a}';
+$string['conventionrejectedby'] = 'Refusée par';
+$string['conventionvalidatedby'] = "Validée par l'enseignant.e référent.e";
+$string['conventioneditedby'] = 'Éditée par';
+$string['conventionsignedby'] = 'Signée par';
 $string['conventionrejectedexplain'] = 'Votre demande de convention a été refusée par la DEVE, pour le motif suivant : '
     . '"{$a}". Merci de corriger votre demande ci-dessous et de la soumettre à nouveau.';
 $string['conventionrejectednotifsubject'] = 'Convention de stage refusée : {$a}';
@@ -301,6 +435,9 @@ $string['noreferentteacheryet'] = "Aucun enseignant référent ne vous a encore 
 $string['conventionvalidatedpdferror'] = 'La demande a été validée, mais la génération du PDF a échoué : {$a} '
     . 'Vous pourrez retélécharger la convention depuis cette liste une fois le problème résolu.';
 $string['conventionstatus_teacherpending'] = "En attente de l'enseignant référent";
+$string['conventionstatus_exempt'] = 'Sans convention';
+$string['exemptfromconvention'] = 'Dispenser de convention';
+$string['exemptfromconvention_help'] = "Si coché, ce stage ne nécessite aucune convention : son statut de convention passe directement à « Sans convention » et l'auto-évaluation de l'étudiant est immédiatement ouverte, sans attendre de demande ni de signature.";
 $string['conventionrequireteachervalidation'] = "Exiger la validation de l'enseignant.e référent.e avant transmission à la DEVE";
 $string['conventionrequireteachervalidation_help'] = "Si activé, une demande de convention soumise par un étudiant "
     . "doit d'abord être validée par l'un de ses enseignants référents avant d'apparaître dans la liste des "
@@ -401,8 +538,59 @@ $string['noassignedstudents'] = "Aucun étudiant ne vous est attribué pour l'in
 $string['nopendingstages'] = 'Aucun stage en attente de validation.';
 $string['confirmdeletetheme'] = 'Supprimer cette thématique ?';
 $string['totalretained'] = 'Durée totale retenue : {$a} jours';
+$string['totalcomplementary'] = 'Dont stages complémentaires (EP) : {$a} jours (hors décompte)';
+$string['complementarystages'] = 'Stages complémentaires (EP)';
+$string['summary'] = 'Synthèse';
+$string['summaryitem'] = 'Indicateur';
+$string['summaryvalue'] = 'Valeur';
+$string['summarytotaldays'] = 'Durée totale retenue';
+$string['summaryyearsdone'] = 'Années validées';
+$string['summarythemesdone'] = 'Thématiques obligatoires validées';
+$string['summaryabroaddays'] = "Mobilité internationale";
+$string['summarycomplementarydays'] = 'Dont stages complémentaires (EP, hors décompte)';
+$string['progressofdays'] = '{$a->retained} / {$a->required} jours';
+$string['retaineddaysonly'] = '{$a} jours';
+$string['remainingduration'] = 'Reste à faire (jours)';
+$string['objective'] = 'Objectif';
+$string['yeartotalobjective'] = "Durée totale de l'année";
+$string['completebyyear'] = 'À compléter au plus tard en';
 $string['numstages'] = '{$a} stage(s) déclaré(s)';
 
 // Headings.
 $string['evaluatestage'] = 'Évaluer le stage de {$a}';
 $string['validatestage'] = 'Valider le stage de {$a}';
+
+// Évaluation du maître de stage et personnalisation des e-mails.
+$string['tutorevaluationenabled'] = 'Activer l\'évaluation par le maître de stage';
+$string['tutorevaluationenabled_help'] = "Si activé, le maître de stage (encadrant en entreprise, sans compte "
+    . "Moodle) reçoit par courriel un lien à jeton unique lui permettant de répondre au questionnaire "
+    . "d'évaluation défini pour la thématique du stage, dès que l'étudiant s'auto-évalue. Sa réponse est "
+    . "ensuite affichée à l'enseignant référent et à la DEVE au moment de leur propre évaluation.";
+$string['emailkeyselfeval'] = "Notification d'auto-évaluation (à l'enseignant référent)";
+$string['emailkeyteacherpending'] = "Notification de convention à valider (à l'enseignant référent)";
+$string['emailkeystudentrejected'] = "Notification de convention refusée (à l'étudiant)";
+$string['emailkeytutorrequest'] = "Invitation à évaluer le stage (au maître de stage)";
+$string['tutorevalnotifsubject'] = 'Évaluation du stage de {$a}';
+$string['tutorevalnotifbody'] = "Vous encadrez actuellement {\$a->student} dans le cadre de son stage "
+    . "\"{\$a->stage}\". Merci de bien vouloir évaluer ce stage en suivant ce lien, qui ne nécessite pas de "
+    . "compte :\n{\$a->url}";
+$string['evaltype_tutor'] = 'Maître de stage';
+$string['tutorevalheading'] = 'Évaluation du maître de stage';
+$string['notutoreval'] = "Le maître de stage n'a pas encore répondu à son questionnaire d'évaluation.";
+$string['tutorevalpagetitle'] = 'Évaluation du stage';
+$string['tutorevalinvalidtoken'] = "Ce lien d'évaluation n'est plus valide.";
+$string['tutorevalalreadysubmitted'] = 'Votre évaluation a bien été enregistrée, merci.';
+$string['tutorevalsubmit'] = 'Envoyer mon évaluation';
+$string['tutorevalintro'] = "Vous encadrez {\$a->student} dans le cadre de son stage \"{\$a->stage}\". "
+    . "Merci de bien vouloir répondre au questionnaire d'évaluation ci-dessous.";
+$string['notifications'] = 'Notifications et e-mails';
+$string['notificationssettings'] = 'Personnalisation des e-mails envoyés';
+$string['notificationssettings_help'] = "Pour chaque e-mail envoyé par l'activité, vous pouvez remplacer le "
+    . "sujet et le corps par un texte personnalisé. Laissez les deux champs vides pour revenir au texte par "
+    . "défaut. Le texte personnalisé n'est pas une chaîne de langue : utilisez la syntaxe {{variable}} (double "
+    . "accolades) pour insérer les variables disponibles, listées sous chaque e-mail.";
+$string['notificationssaved'] = 'Les e-mails personnalisés ont été enregistrés.';
+$string['emailsubject'] = 'Sujet';
+$string['emailbody'] = 'Corps du message';
+$string['emailavailablevars'] = 'Variables disponibles : {$a}';
+$string['emailresettodefault'] = 'Laissez les deux champs vides pour utiliser le texte par défaut.';

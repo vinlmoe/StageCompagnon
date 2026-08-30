@@ -67,7 +67,8 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('conventiontea
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$mform = new convention_review_form($baseurl, ['referentteachers' => $referentteachers]);
+$periods = array_values(stage_get_or_seed_entry_periods($entry));
+$mform = new convention_review_form($baseurl, ['referentteachers' => $referentteachers, 'periods' => $periods]);
 
 $detail = stage_get_convention_detail($entry->id);
 $formdata = (object) ['id' => $cm->id, 'entryid' => $entryid];
@@ -78,6 +79,12 @@ if ($detail) {
         }
     }
 }
+$formdata->perioddatestart = array_map(function($period) {
+    return $period->datestart;
+}, $periods);
+$formdata->perioddateend = array_map(function($period) {
+    return $period->dateend;
+}, $periods);
 $mform->set_data($formdata);
 
 if ($mform->is_cancelled()) {
@@ -111,6 +118,7 @@ if ($mform->is_cancelled()) {
     $newdetail->leavemodalities = $newdetail->hasleave ? $data->leavemodalities : '';
     $newdetail->gratificationamount = $data->gratificationamount;
     stage_save_convention_detail($entry->id, $newdetail);
+    stage_save_entry_periods($entry->id, stage_extract_submitted_periods($data));
 
     if (!empty($data->validateconvention)) {
         stage_teacher_validate_convention($entry, $USER->id);

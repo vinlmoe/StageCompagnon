@@ -64,11 +64,24 @@ $questions = stage_get_questions($entry->themeid, 'student');
 $conventionsigned = stage_convention_is_signed($entry->conventionstatus);
 $editable = $conventionsigned && ((int) $entry->status === STAGE_STATUS_ENREGISTRE);
 
+$periods = stage_get_or_seed_entry_periods($entry);
+
+// Sélection des jours de stage effectifs parmi les plages de la saisie : formulaire distinct de
+// l'auto-évaluation, avec son propre bouton, pour rester simple à intégrer aux deux formulaires
+// d'évaluation possibles (dynamique ou commentaire libre) ci-dessous.
+if ($editable && !empty($periods) && optional_param('saveworkdays', 0, PARAM_INT) && confirm_sesskey()) {
+    $workdays = optional_param_array('workdays', [], PARAM_INT);
+    stage_set_entry_workdays($entry->id, $workdays);
+    redirect(new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
+        get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+}
+
 // Traite la soumission du formulaire dynamique avant tout affichage, pour permettre la redirection.
 if ($editable && !empty($questions) && data_submitted() && confirm_sesskey()) {
     stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions));
     stage_apply_student_eval($entry);
     stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
+    stage_maybe_request_tutor_evaluation($stage, $cm, $entry);
 
     redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
         get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
@@ -78,26 +91,13 @@ if ($editable && !empty($questions) && data_submitted() && confirm_sesskey()) {
 // construit et traité avant tout affichage, pour permettre la redirection après soumission.
 $mform = null;
 if ($editable && empty($questions)) {
-    $entrytheme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
-    $customdata = [
-        'themes' => stage_get_themes($stage->id, true),
-        'locked' => true,
-        'themename' => $entrytheme ? format_string($entrytheme->name) : '',
-        'structure' => $entry->structure,
-        'datestart' => $entry->datestart,
-        'dateend' => $entry->dateend,
-        'declaredduration' => $entry->declaredduration,
-    ];
-    $mform = new entry_form(null, $customdata);
+    // Le formulaire ne porte que le commentaire : les caractéristiques du stage sont fixées par la
+    // DEVE et rappelées au-dessus par stage_render_entry_summary().
+    $mform = new entry_form(null, []);
 
     $toform = new stdClass();
     $toform->id = $cm->id;
     $toform->entryid = $entryid;
-    $toform->themeid = $entry->themeid;
-    $toform->structure = $entry->structure;
-    $toform->datestart = $entry->datestart;
-    $toform->dateend = $entry->dateend;
-    $toform->declaredduration = $entry->declaredduration;
     $toform->studentselfeval = ['text' => $entry->studentselfeval, 'format' => FORMAT_HTML];
     $mform->set_data($toform);
 
@@ -107,6 +107,7 @@ if ($editable && empty($questions)) {
         $selfeval = is_array($data->studentselfeval) ? $data->studentselfeval['text'] : $data->studentselfeval;
         stage_apply_student_eval($entry, $selfeval);
         stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
+        stage_maybe_request_tutor_evaluation($stage, $cm, $entry);
 
         redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
             get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
@@ -115,10 +116,19 @@ if ($editable && empty($questions)) {
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('selfeval', 'mod_stage'));
+echo html_writer::link(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]), get_string('back'));
+
+// Rappel de la saisie concernée : la page ne disait pas de quel stage il s'agissait, alors qu'un
+// étudiant peut en avoir plusieurs en cours d'auto-évaluation.
+echo stage_render_entry_summary($entry, $DB->get_record('stage_theme', ['id' => $entry->themeid]));
 
 if (!$editable) {
     $message = !$conventionsigned ? get_string('conventionnotsignedyet', 'mod_stage') : get_string('entrynoteditable', 'mod_stage');
     echo $OUTPUT->notification($message, 'info');
+    if (!empty($periods)) {
+        echo $OUTPUT->heading(get_string('workdays', 'mod_stage'), 4);
+        echo stage_render_workday_picker($periods, stage_get_entry_workdays($entry->id), false);
+    }
     $answers = stage_get_answers($entry->id);
     if (!empty($questions)) {
         echo stage_render_answers_readonly($questions, $answers);
@@ -127,6 +137,21 @@ if (!$editable) {
     }
     echo $OUTPUT->footer();
     exit;
+}
+
+if (!empty($periods)) {
+    echo $OUTPUT->heading(get_string('workdays', 'mod_stage'), 4);
+    echo html_writer::start_tag('form', [
+        'method' => 'post',
+        'action' => new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+    ]);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'saveworkdays', 'value' => 1]);
+    echo stage_render_workday_picker($periods, stage_get_entry_workdays($entry->id), true);
+    echo html_writer::empty_tag('input', [
+        'type' => 'submit', 'value' => get_string('savechanges'), 'class' => 'btn btn-primary mt-2',
+    ]);
+    echo html_writer::end_tag('form');
 }
 
 if (!empty($questions)) {

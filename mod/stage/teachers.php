@@ -74,18 +74,9 @@ if ($onlyunassigned) {
     });
 }
 $listurl = new moodle_url($baseurl, ['search' => $search, 'onlyunassigned' => $onlyunassigned]);
-[$pagestudents, $pagingbarhtml] = stage_paginate($students, $page, $listurl);
+$returnurl = new moodle_url($listurl, ['page' => $page]);
 
-// N'écrit que les affectations des étudiants réellement affichés sur la page soumise :
-// les autres pages ne sont pas concernées par cette soumission.
-if (data_submitted() && confirm_sesskey()) {
-    foreach ($pagestudents as $student) {
-        $selected = optional_param_array('teachers_' . $student->id, [], PARAM_INT);
-        stage_set_student_teachers($stage->id, $student->id, $selected);
-    }
-    redirect(new moodle_url($listurl, ['page' => $page]),
-        get_string('teachersassigned', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
-}
+[$pagestudents, $pagingbarhtml] = stage_paginate($students, $page, $listurl);
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('manageteachers', 'mod_stage'));
@@ -116,35 +107,36 @@ if (empty($allstudents)) {
     if (empty($students)) {
         echo $OUTPUT->notification(get_string('nostudents', 'mod_stage'), 'info');
     } else {
-        echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl]);
-        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'search', 'value' => s($search)]);
-        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'onlyunassigned', 'value' => $onlyunassigned]);
-        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'page', 'value' => $page]);
-
-        $teacheroptions = [];
+        $teachersbyid = [];
         foreach ($teachers as $teacher) {
-            $teacheroptions[$teacher->id] = fullname($teacher);
+            $teachersbyid[$teacher->id] = $teacher;
         }
 
         $table = new html_table();
-        $table->head = [get_string('student', 'mod_stage'), get_string('referentteachers', 'mod_stage')];
+        $table->head = [
+            get_string('student', 'mod_stage'),
+            get_string('currentreferentteachers', 'mod_stage'),
+            get_string('actions', 'mod_stage'),
+        ];
         foreach ($pagestudents as $student) {
-            $current = array_keys($assignments[$student->id] ?? []);
-            // Sélection multiple compacte (recherche native au clavier dans le select) : à cette
-            // échelle (80 enseignants), afficher toutes les cases à cocher par étudiant n'est pas
-            // praticable.
-            $select = html_writer::select($teacheroptions, 'teachers_' . $student->id . '[]', $current, false, [
-                'multiple' => 'multiple', 'size' => 3, 'class' => 'form-control',
-            ]);
-            $table->data[] = [fullname($student), $select];
+            $currentids = array_keys($assignments[$student->id] ?? []);
+            if (empty($currentids)) {
+                $currentlabel = html_writer::span(get_string('noreferentteacher', 'mod_stage'), 'text-muted');
+            } else {
+                $names = array_map(function($teacherid) use ($teachersbyid) {
+                    return isset($teachersbyid[$teacherid]) ? fullname($teachersbyid[$teacherid]) : '?';
+                }, $currentids);
+                $currentlabel = implode(', ', $names);
+            }
+            $editurl = new moodle_url('/mod/stage/teacher_assign.php',
+                ['id' => $cm->id, 'studentid' => $student->id, 'returnurl' => $returnurl->out_as_local_url(false)]);
+            $table->data[] = [
+                fullname($student),
+                $currentlabel,
+                html_writer::link($editurl, get_string('edit'), ['class' => 'btn btn-secondary btn-sm']),
+            ];
         }
         echo html_writer::table($table);
-
-        echo html_writer::empty_tag('input', [
-            'type' => 'submit', 'value' => get_string('savechanges'), 'class' => 'btn btn-primary mt-2',
-        ]);
-        echo html_writer::end_tag('form');
 
         echo $pagingbarhtml;
     }

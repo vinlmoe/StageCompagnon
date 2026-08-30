@@ -83,14 +83,20 @@ $mform = new student_register_form($baseurl, [
     'referentteachers' => $referentteachers,
     'stageid' => $stage->id,
     'userid' => $USER->id,
+    'stage' => $stage,
 ]);
 $mform->set_data((object) ['id' => $cm->id]);
 
 if ($mform->is_cancelled()) {
     redirect($viewurl);
 } else if ($data = $mform->get_data()) {
+    // Les dates du stage sont déduites des plages saisies, seul endroit où elles se renseignent
+    // (voir stage_save_entry_periods()). Le formulaire a déjà refusé une saisie sans plage ou avec
+    // des plages qui se recoupent.
+    $periods = stage_extract_submitted_periods($data);
     $entryid = stage_register_entry($stage->id, $USER->id, $data->themeid, $data->structure,
-        $data->datestart, $data->dateend, $data->declaredduration);
+        min(array_column($periods, 'datestart')), max(array_column($periods, 'dateend')),
+        $data->declaredduration, $data->studyyear, STAGE_CONVENTION_NONE, $data->abroad, $data->country);
     $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
 
     $requireteachervalidation = stage_convention_requires_teacher_validation($stage);
@@ -124,6 +130,7 @@ if ($mform->is_cancelled()) {
     $detail->leavemodalities = $detail->hasleave ? $data->leavemodalities : '';
     $detail->gratificationamount = $data->gratificationamount;
     stage_save_convention_detail($entry->id, $detail);
+    stage_save_entry_periods($entry->id, $periods);
 
     if ($requireteachervalidation) {
         stage_notify_teacher_convention_pending($stage, $cm, $entry);
@@ -138,6 +145,7 @@ echo $OUTPUT->heading(get_string('registerstageandconvention', 'mod_stage'));
 echo html_writer::link($viewurl, get_string('back'));
 
 echo $OUTPUT->box(get_string('registerstageandconvention_help', 'mod_stage'), 'generalbox mb-3');
+echo stage_render_abroad_rules($stage);
 
 $mform->display();
 

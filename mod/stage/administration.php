@@ -53,23 +53,80 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('administration', 'mod_stage'));
 echo html_writer::link(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]), get_string('back'));
 
-$links = [];
+// Les pages de paramétrage sont regroupées par objet (ce que l'étudiant doit faire, comment la
+// convention est produite, qui suit les étudiants, mise en route) plutôt que présentées en une
+// liste de boutons indifférenciée, et chacune est accompagnée de ce à quoi elle sert : ces pages
+// sont visitées ponctuellement, rarement par la même personne, et leurs intitulés seuls ne
+// suffisaient pas à savoir laquelle ouvrir.
+$sections = [];
 if ($canmanagethemes) {
-    $links[] = [get_string('managethemes', 'mod_stage'), new moodle_url('/mod/stage/themes.php', ['id' => $cm->id])];
-    $links[] = [get_string('conventiontemplates', 'mod_stage'),
-        new moodle_url('/mod/stage/convention_templates.php', ['id' => $cm->id])];
+    $sections[] = [get_string('adminsectionrequirements', 'mod_stage'), [
+        [
+            get_string('managethemes', 'mod_stage'),
+            get_string('managethemes_desc', 'mod_stage'),
+            new moodle_url('/mod/stage/themes.php', ['id' => $cm->id]),
+        ],
+        [
+            get_string('manageyearrequirements', 'mod_stage'),
+            get_string('manageyearrequirements_desc', 'mod_stage'),
+            new moodle_url('/mod/stage/year_requirements.php', ['id' => $cm->id]),
+        ],
+    ]];
+    $sections[] = [get_string('adminsectionconventions', 'mod_stage'), [
+        [
+            get_string('conventiontemplates', 'mod_stage'),
+            get_string('conventiontemplates_desc', 'mod_stage'),
+            new moodle_url('/mod/stage/convention_templates.php', ['id' => $cm->id]),
+        ],
+    ]];
+    $sections[] = [get_string('adminsectionnotifications', 'mod_stage'), [
+        [
+            get_string('notifications', 'mod_stage'),
+            get_string('notifications_desc', 'mod_stage'),
+            new moodle_url('/mod/stage/notifications.php', ['id' => $cm->id]),
+        ],
+    ]];
 }
 if ($canmanageteachers) {
-    $links[] = [get_string('manageteachers', 'mod_stage'), new moodle_url('/mod/stage/teachers.php', ['id' => $cm->id])];
+    $sections[] = [get_string('adminsectionteachers', 'mod_stage'), [
+        [
+            get_string('manageteachers', 'mod_stage'),
+            get_string('manageteachers_desc', 'mod_stage'),
+            new moodle_url('/mod/stage/teachers.php', ['id' => $cm->id]),
+        ],
+    ]];
 }
+$setuplinks = [];
 if ($canmanagethemes) {
-    $links[] = [get_string('importfromcourse', 'mod_stage'), new moodle_url('/mod/stage/administration_import.php', ['id' => $cm->id])];
+    $setuplinks[] = [
+        get_string('importfromcourse', 'mod_stage'),
+        get_string('importfromcourse_desc', 'mod_stage'),
+        new moodle_url('/mod/stage/administration_import.php', ['id' => $cm->id]),
+    ];
+}
+if (has_capability('mod/stage:registerstages', $context)) {
+    $setuplinks[] = [
+        get_string('transferstudent', 'mod_stage'),
+        get_string('transferstudent_desc', 'mod_stage'),
+        new moodle_url('/mod/stage/transfer.php', ['id' => $cm->id]),
+    ];
+}
+if (!empty($setuplinks)) {
+    $sections[] = [get_string('adminsectionsetup', 'mod_stage'), $setuplinks];
 }
 
-echo html_writer::start_tag('ul', ['class' => 'list-unstyled']);
-foreach ($links as [$label, $url]) {
-    echo html_writer::tag('li', html_writer::link($url, $label, ['class' => 'btn btn-secondary d-block mb-2', 'style' => 'width:fit-content']));
+foreach ($sections as [$sectiontitle, $entries]) {
+    echo $OUTPUT->heading($sectiontitle, 4);
+    $table = new html_table();
+    $table->attributes['class'] = 'generaltable';
+    $table->head = [get_string('adminsectionpage', 'mod_stage'), get_string('adminsectionpurpose', 'mod_stage')];
+    foreach ($entries as [$label, $description, $url]) {
+        $table->data[] = [
+            html_writer::link($url, $label, ['class' => 'btn btn-secondary']),
+            $description,
+        ];
+    }
+    echo html_writer::table($table);
 }
-echo html_writer::end_tag('ul');
 
 echo $OUTPUT->footer();

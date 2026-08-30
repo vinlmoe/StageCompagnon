@@ -68,17 +68,24 @@ class convention_pdf extends \pdf {
      *                         host{address, representative, representativetitle, service,
      *                         phone, email, location}, student{fullname, email, birthdate,
      *                         address, phone}, theme{name}, dates{start, end},
-     *                         duration{declared, retained}, statuslabel, referentteacher
-     *                         {name, email}, tutor{name, function, phone, email},
+     *                         duration{declared} (retained et statuslabel sont sans objet à ce
+     *                         stade : la convention se signe avant toute évaluation, la durée
+     *                         retenue et le statut de la saisie y sont donc encore à leur valeur
+     *                         initiale), referentteacher{name, email}, tutor{name, function, phone, email},
      *                         modalities{night, sunday, holiday, homebased (bool), other
      *                         (texte)}, gratification (texte), leave{has (bool), days,
      *                         modalities (texte)}.
      * @param string|null $logoleftpath Chemin d'un fichier PNG (logo haut gauche), ou null.
      * @param string|null $logorightpath Chemin d'un fichier PNG (logo haut droit), ou null.
      * @param string $lang Langue de la convention ('fr' ou 'en'), celle du gabarit choisi.
+     * @param bool $withsignatures Ajoute en bas de page 1 un cadre de signatures (stagiaire,
+     *                             maître de stage, responsable de l'organisme d'accueil,
+     *                             enseignant.e référent.e, établissement), pour une convention
+     *                             imprimée et signée à la main.
      * @return void
      */
-    public function generate_page1(array $stagedata, $logoleftpath = null, $logorightpath = null, $lang = 'fr') {
+    public function generate_page1(array $stagedata, $logoleftpath = null, $logorightpath = null, $lang = 'fr',
+            $withsignatures = false) {
         $this->lang = $lang;
 
         $this->SetCreator('Moodle mod_stage');
@@ -148,9 +155,10 @@ class convention_pdf extends \pdf {
         $this->field_row($this->str('theme'), $stagedata['theme']['name']);
         $this->field_row($this->str('datestart'), $stagedata['dates']['start']);
         $this->field_row($this->str('dateend'), $stagedata['dates']['end']);
+        if (!empty($stagedata['periods']) && count($stagedata['periods']) > 1) {
+            $this->field_row($this->str('periods'), implode("\n", $stagedata['periods']));
+        }
         $this->field_row($this->str('declaredduration'), $stagedata['duration']['declared']);
-        $this->field_row($this->str('retainedduration'), $stagedata['duration']['retained']);
-        $this->field_row($this->str('status'), $stagedata['statuslabel']);
         $this->Ln(3);
 
         $this->section_heading($this->str('conventionsupervision'));
@@ -185,6 +193,110 @@ class convention_pdf extends \pdf {
             $this->field_row($this->str('conventionleavedays'), $stagedata['leave']['days']);
             if (!empty($stagedata['leave']['modalities'])) {
                 $this->field_row($this->str('conventionleavemodalities'), $stagedata['leave']['modalities']);
+            }
+        }
+
+        if ($withsignatures) {
+            $this->signature_block($stagedata);
+        }
+    }
+
+    /**
+     * Cadre de signatures en bas de la page 1 : une case par signataire (stagiaire, maître de
+     * stage, responsable de l'organisme d'accueil, enseignant.e référent.e, personne ayant
+     * délégation de signature du chef d'établissement), réparties sur deux colonnes, avec le nom
+     * déjà connu préaffiché quand il est disponible. Chaque case comporte une ligne de date à
+     * remplir à la main : une convention n'engage qu'à compter de sa signature, et chaque
+     * signataire signe à sa propre date. Réservé aux conventions imprimées destinées à être
+     * signées à la main (voir generate_page1(), $withsignatures).
+     *
+     * @param array $stagedata Voir generate_page1() : utilisé ici pour préremplir les noms déjà
+     *                         connus (stagiaire, tuteur, enseignant.e référent.e, signataire de
+     *                         l'établissement).
+     * @return void
+     */
+    protected function signature_block(array $stagedata) {
+        $this->Ln(3);
+        $this->section_heading($this->str('conventionsignatures'));
+
+        $boxes = [
+            [$this->str('conventionsignaturestudent'), $stagedata['student']['fullname'] ?? '', false],
+            [$this->str('conventionsignaturetutor'), $stagedata['tutor']['name'] ?? '', false],
+            [$this->str('conventionsignaturehostrepresentative'), $stagedata['host']['representative'] ?? '', false],
+            [$this->str('conventionsignaturereferentteacher'), $stagedata['referentteacher']['name'] ?? '', false],
+            [$this->str('conventionsignatureestablishment'), $stagedata['establishment']['signatory'] ?? '', true],
+        ];
+
+        $cols = 2;
+        $gap = 4;
+        $lineheight = 5;
+        // Espace laissé libre sous les mentions pour la date et la signature manuscrite.
+        $signspace = 22;
+        $left = $this->getMargins()['left'];
+        $pagewidth = $this->getPageWidth() - $left - $this->getMargins()['right'];
+        $boxwidth = ($pagewidth - $gap * ($cols - 1)) / $cols;
+
+        // Les hauteurs de libellé et de mention sont mesurées, non supposées : la mention de
+        // délégation, plus longue que les autres, passe sur deux lignes et le cadre serait sinon
+        // tracé par-dessus. La hauteur retenue est celle de la case la plus haute de la rangée,
+        // pour que les cadres d'une même rangée s'alignent.
+        $this->SetFont('freesans', '', 9);
+        foreach ($boxes as $i => [$label, $name, $delegation]) {
+            if ($delegation) {
+                // La signature de l'établissement se fait par délégation du chef d'établissement,
+                // jamais directement en son nom : la mention doit l'indiquer explicitement, avec
+                // ou sans le nom de la personne déléguée.
+                $text = ($name !== '' && $name !== '-')
+                    ? $this->str('conventionsignaturedelegationname', $name)
+                    : $this->str('conventionsignaturedelegation');
+            } else {
+                $text = ($name !== '' && $name !== '-') ? $this->str('conventionsignaturename', $name) : '';
+            }
+            $boxes[$i][3] = $text;
+            // Compté en nombre de lignes puis multiplié par la hauteur de ligne effectivement
+            // utilisée ci-dessous : getStringHeight() renvoie la hauteur propre à la police, plus
+            // petite, et le cadre viendrait mordre la dernière ligne de texte.
+            $this->SetFont('freesans', 'B', 9);
+            $lines = $this->getNumLines($label, $boxwidth);
+            if ($text !== '') {
+                $this->SetFont('freesans', '', 9);
+                $lines += $this->getNumLines($text, $boxwidth);
+            }
+            $boxes[$i][4] = $lines * $lineheight;
+        }
+        $rowtextheight = [];
+        foreach ($boxes as $i => $box) {
+            $row = intdiv($i, $cols);
+            $rowtextheight[$row] = max($rowtextheight[$row] ?? 0, $box[4]);
+        }
+
+        $y = $this->GetY();
+        foreach ($boxes as $i => [$label, $name, $delegation, $text, $textheight]) {
+            $col = $i % $cols;
+            $rowheight = $rowtextheight[intdiv($i, $cols)] + 1 + $signspace;
+            if ($col === 0) {
+                $this->ensure_space($rowheight + 6);
+                $y = $this->GetY();
+            }
+            $x = $left + $col * ($boxwidth + $gap);
+
+            $this->SetFont('freesans', 'B', 9);
+            $this->MultiCell($boxwidth, $lineheight, $label, 0, 'L', false, 1, $x, $y);
+            if ($text !== '') {
+                $this->SetFont('freesans', '', 9);
+                $this->MultiCell($boxwidth, $lineheight, $text, 0, 'L', false, 1, $x, $this->GetY());
+            }
+
+            // La date est dans le cadre plutôt qu'au-dessus : elle fait partie de ce que le
+            // signataire remplit, au même titre que sa signature.
+            $boxtop = $y + $rowtextheight[intdiv($i, $cols)] + 1;
+            $this->Rect($x, $boxtop, $boxwidth, $signspace);
+            $this->SetFont('freesans', '', 8);
+            $this->MultiCell($boxwidth - 4, 4, $this->str('conventionsignaturedate'), 0, 'L', false, 0,
+                $x + 2, $boxtop + 1.5);
+
+            if ($col === $cols - 1 || $i === count($boxes) - 1) {
+                $this->SetY($y + $rowheight + 6);
             }
         }
     }

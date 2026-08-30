@@ -53,9 +53,13 @@ class theme_form extends \moodleform {
         $mform->addElement('text', 'requiredduration', get_string('requiredduration', 'mod_stage'));
         $mform->setType('requiredduration', PARAM_INT);
         $mform->setDefault('requiredduration', 0);
+        $mform->addHelpButton('requiredduration', 'requiredduration', 'mod_stage');
 
-        $mform->addElement('select', 'studyyear', get_string('studyyear', 'mod_stage'), stage_studyyear_options());
-        $mform->setDefault('studyyear', 0);
+        $mform->addElement('select', 'minstudyyear', get_string('minstudyyear', 'mod_stage'), stage_studyyear_options());
+        $mform->setDefault('minstudyyear', 0);
+
+        $mform->addElement('select', 'maxstudyyear', get_string('maxstudyyear', 'mod_stage'), stage_studyyear_options());
+        $mform->setDefault('maxstudyyear', 0);
 
         $mform->addElement('text', 'sortorder', get_string('sortorder', 'mod_stage'));
         $mform->setType('sortorder', PARAM_INT);
@@ -65,5 +69,22 @@ class theme_form extends \moodleform {
         $mform->setDefault('visible', 1);
 
         $this->add_action_buttons();
+    }
+
+    /**
+     * Validates that the minimum study year does not exceed the maximum one, unless either
+     * bound is left unspecified (0 = toutes années).
+     *
+     * @param array $data
+     * @param array $files
+     * @return array
+     */
+    public function validation($data, $files) {
+        $errors = parent::validation($data, $files);
+        if (!empty($data['minstudyyear']) && !empty($data['maxstudyyear'])
+                && $data['minstudyyear'] > $data['maxstudyyear']) {
+            $errors['maxstudyyear'] = get_string('studyyearrange_error', 'mod_stage');
+        }
+        return $errors;
     }
 }

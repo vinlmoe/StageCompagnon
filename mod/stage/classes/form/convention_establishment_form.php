@@ -57,6 +57,10 @@ class convention_establishment_form extends \moodleform {
         $mform->addElement('text', 'establishmentemail', get_string('conventionestablishmentemail', 'mod_stage'),
             ['size' => '64']);
         $mform->setType('establishmentemail', PARAM_TEXT);
+        $mform->addElement('text', 'establishmentsignatory', get_string('conventionestablishmentsignatory', 'mod_stage'),
+            ['size' => '64']);
+        $mform->setType('establishmentsignatory', PARAM_TEXT);
+        $mform->addHelpButton('establishmentsignatory', 'conventionestablishmentsignatory', 'mod_stage');
 
         $this->add_action_buttons();
     }

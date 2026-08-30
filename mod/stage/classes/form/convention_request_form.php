@@ -79,6 +79,10 @@ class convention_request_form extends \moodleform {
         $mform->addElement('select', 'stagetype', get_string('conventionstagetype', 'mod_stage'),
             stage_convention_stagetype_options());
 
+        // Plages de dates du stage (plusieurs plages non contiguës possibles), sur la même page
+        // que le reste des informations de convention (voir stage_add_period_fields()).
+        stage_add_period_fields($this, $mform, count($this->_customdata['periods'] ?? []));
+
         // Coordonnées de l'étudiant.
         $mform->addElement('header', 'studentheader', get_string('conventionstudent', 'mod_stage'));
         $mform->setExpanded('studentheader');
@@ -168,7 +172,8 @@ class convention_request_form extends \moodleform {
     }
 
     /**
-     * Validation serveur : le gabarit sélectionné doit être dans la langue choisie.
+     * Validation serveur : les plages de dates doivent être cohérentes (au moins une, sans
+     * chevauchement), et le gabarit sélectionné doit être dans la langue choisie.
      *
      * @param array $data
      * @param array $files
@@ -176,6 +181,11 @@ class convention_request_form extends \moodleform {
      */
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
+
+        $perioderror = stage_validate_periods(stage_extract_submitted_periods((object) $data));
+        if ($perioderror !== null) {
+            $errors['perioddatestart[0]'] = $perioderror;
+        }
 
         $templates = $this->_customdata['templates'];
         $template = $templates[$data['conventiontemplateid']] ?? null;

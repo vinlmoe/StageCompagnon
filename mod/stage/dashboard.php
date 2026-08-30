@@ -145,18 +145,43 @@ if (empty($rows)) {
         $progresslabel = $row->mandatorytotal > 0
             ? "{$row->mandatorydone} / {$row->mandatorytotal}"
             : get_string('nomandatorythemes', 'mod_stage');
-        $globalstatus = $row->complete
-            ? html_writer::span(get_string('themedone', 'mod_stage'), 'badge badge-success')
-            : html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
-        $detailurl = new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id, 'studentid' => $row->user->id]);
+        if ($row->complete) {
+            $globalstatus = html_writer::span(get_string('themedone', 'mod_stage'), 'badge badge-success');
+        } else {
+            // Plutôt qu'un simple "à compléter", indique quelles années sont déjà validées
+            // (voir stage_get_student_year_progress()), pour situer l'avancement en un coup d'œil.
+            // Le badge ne porte que le statut ; la liste des années le suit en clair, un badge
+            // devenant illisible dès qu'il contient une énumération.
+            $validatedyears = array_filter($row->yearprogress, function($yearrow) {
+                return $yearrow->done;
+            });
+            if (!empty($validatedyears)) {
+                $labels = array_map(function($yearrow) {
+                    return stage_studyyear_label($yearrow->studyyear);
+                }, $validatedyears);
+                $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning')
+                    . html_writer::div(get_string('validatedyears', 'mod_stage', implode(', ', $labels)),
+                        'text-muted small');
+            } else {
+                $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
+            }
+        }
+        // Une saisie en attente est ce sur quoi la DEVE a une action à faire : on la met en avant
+        // plutôt que de la noyer dans une colonne de zéros.
+        $pendingcell = $row->pendingcount > 0
+            ? html_writer::span($row->pendingcount, 'badge badge-info')
+            : html_writer::span('0', 'text-muted');
 
         $table->data[] = [
             fullname($row->user),
             $progresslabel,
-            $row->pendingcount,
-            $row->progress->totalretained,
+            $pendingcell,
+            get_string('retaineddaysonly', 'mod_stage', $row->progress->totalretained),
             $globalstatus,
-            html_writer::link($detailurl, get_string('viewdetails', 'mod_stage')),
+            stage_render_actions([
+                get_string('viewdetails', 'mod_stage') =>
+                    new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id, 'studentid' => $row->user->id]),
+            ]),
         ];
     }
     echo html_writer::table($table);

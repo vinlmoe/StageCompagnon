@@ -227,8 +227,19 @@ if (data_submitted() && confirm_sesskey()) {
                         continue;
                     }
 
+                    // Les dates de début et de fin de l'export constituent l'unique plage du
+                    // stage importé, et donc ses dates. Sans elles, ou si la fin précède le début,
+                    // la ligne est refusée : un stage sans plage n'aurait ni dates affichables ni
+                    // convention exploitable, et ne serait plus réenregistrable sans que la DEVE
+                    // invente des dates.
                     $start = stagevet_parse_date($getcol($row, 'datestartalt', 'datestart'));
                     $end = stagevet_parse_date($getcol($row, 'dateendalt', 'dateend'));
+                    if (empty($start) || empty($end) || $end < $start) {
+                        $results->errors[] = get_string('importstageveterrordates', 'mod_stage', (object) [
+                            'line' => $linenum, 'student' => fullname($student),
+                        ]);
+                        continue;
+                    }
 
                     $pairkey = stage_duplicate_key($student->id, $theme->id, $start, $end);
                     if (isset($existingpairs[$pairkey])) {
@@ -295,6 +306,15 @@ if (data_submitted() && confirm_sesskey()) {
 
                 foreach ($entryrecords as $rowkey => $record) {
                     $entryid = $DB->insert_record('stage_entry', $record);
+                    // Comme toute saisie créée par stage_register_entry(), celle-ci reçoit sa
+                    // plage : les dates de l'export en sont l'unique plage. Les lignes sans dates
+                    // exploitables ont été écartées plus haut, elle est donc toujours créée.
+                    $DB->insert_record('stage_entry_period', (object) [
+                        'entryid' => $entryid,
+                        'datestart' => $record->datestart,
+                        'dateend' => $record->dateend,
+                        'timecreated' => time(),
+                    ]);
                     $detailbyrowkey[$rowkey]->entryid = $entryid;
                     $detailbyrowkey[$rowkey]->timecreated = time();
                     $detailbyrowkey[$rowkey]->timemodified = time();

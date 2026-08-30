@@ -18,8 +18,20 @@
         <FIELD NAME="establishmentrepresentativetitle" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="establishmentphone" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="establishmentemail" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="establishmentsignatory" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Nom de la personne ayant délégation de signature du chef d'établissement, affiché dans le cadre de signatures de la convention imprimée"/>
         <FIELD NAME="conventionrequireteachervalidation" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"
             COMMENT="Si 1, une demande de convention doit être validée par l'enseignant.e référent.e avant d'être visible par la DEVE (voir STAGE_CONVENTION_TEACHERPENDING)"/>
+        <FIELD NAME="tutorevaluationenabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"
+            COMMENT="Si 1, le maître de stage est invité par courriel (lien à jeton, sans compte Moodle) à répondre au questionnaire d'évaluation de la thématique (evaltype 'tutor'), affiché à l'enseignant référent et à la DEVE lors de leur propre évaluation"/>
+        <FIELD NAME="currentstudyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0"
+            COMMENT="Année d'étude courante des étudiants (0 = non spécifiée) : sert de référence N pour les stages en année N-1 (dette) et N+1 (anticipation)"/>
+        <FIELD NAME="requiredabroaddays" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"
+            COMMENT="Obligation de mobilité internationale : nombre de jours de stage à l'étranger requis (0 = aucune obligation), tous stages confondus, quelle que soit la thématique"/>
+        <FIELD NAME="abroadbeforeyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0"
+            COMMENT="Année d'étude avant laquelle l'obligation de mobilité internationale doit être satisfaite (0 = non spécifiée)"/>
+        <FIELD NAME="abroadrule" TYPE="text" NOTNULL="false"
+            COMMENT="Consigne de mobilité internationale affichée aux étudiants"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
@@ -36,8 +48,10 @@
         <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="mandatory" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="requiredduration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Durée requise en jours"/>
-        <FIELD NAME="studyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" COMMENT="Année d'étude concernée (0 = non spécifiée)"/>
+        <FIELD NAME="requiredduration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"
+            COMMENT="Durée requise en jours pour l'ensemble de la thématique (0 = non utilisé, voir stage_theme_duration pour une durée par année à la place ; l'un ou l'autre, pas les deux)"/>
+        <FIELD NAME="minstudyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" COMMENT="Année d'étude minimale concernée (0 = non spécifiée)"/>
+        <FIELD NAME="maxstudyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" COMMENT="Année d'étude maximale concernée (0 = non spécifiée)"/>
         <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="visible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
@@ -47,6 +61,42 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
       </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_theme_duration" COMMENT="Durée de stage obligatoire requise pour une thématique, par année d'étude">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="studyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="requiredduration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Durée requise en jours"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="themeid-studyyear" UNIQUE="true" FIELDS="themeid, studyyear"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="stage_year_requirement" COMMENT="Durée totale de stage obligatoire requise pour une année d'étude, toutes thématiques confondues (hors stages complémentaires)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="studyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="requiredduration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Durée totale requise en jours"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="stageid-studyyear" UNIQUE="true" FIELDS="stageid, studyyear"/>
+      </INDEXES>
     </TABLE>
 
     <TABLE NAME="stage_convention_template" COMMENT="Gabarit de convention de stage (articles juridiques, pages 2 à 4) proposé au choix de l'étudiant">
@@ -69,8 +119,13 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="studyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0"
+            COMMENT="Année d'étude à laquelle ce stage est rattaché (N, N-1 dette ou N+1 anticipation)"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Étudiant"/>
         <FIELD NAME="structure" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Structure d'accueil"/>
+        <FIELD NAME="abroad" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" COMMENT="Stage effectué à l'étranger"/>
+        <FIELD NAME="country" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Pays du stage, renseigné quand abroad = 1"/>
         <FIELD NAME="datestart" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="dateend" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="declaredduration" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Durée déclarée par l'étudiant en jours"/>
@@ -80,6 +135,12 @@
         <FIELD NAME="teacherid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Enseignant ayant evalue"/>
         <FIELD NAME="teachereval" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="teachertime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tutortoken" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Jeton d'accès sans compte Moodle à l'évaluation du maître de stage (tutor_eval.php)"/>
+        <FIELD NAME="tutoreval" TYPE="text" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Réponse libre du maître de stage, si aucune question n'est définie pour la thématique"/>
+        <FIELD NAME="tutortime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Date de soumission de l'évaluation du maître de stage"/>
         <FIELD NAME="deveuserid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Utilisateur DEVE ayant valide"/>
         <FIELD NAME="devecomment" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="devetime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
@@ -127,6 +188,37 @@
       <INDEXES>
         <INDEX NAME="stageid-userid" UNIQUE="false" FIELDS="stageid, userid"/>
         <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="tutortoken" UNIQUE="true" FIELDS="tutortoken"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="stage_entry_period" COMMENT="Plage de dates d'une saisie de stage (une saisie peut comporter plusieurs plages non contiguës)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="datestart" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="dateend" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="entryid" TYPE="foreign" FIELDS="entryid" REFTABLE="stage_entry" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_entry_workday" COMMENT="Jour de stage effectif sélectionné par l'étudiant parmi les plages de sa saisie, lors de son auto-évaluation ; visible et modifiable par l'enseignant référent et la DEVE lors de la validation">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="workdate" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="entryid" TYPE="foreign" FIELDS="entryid" REFTABLE="stage_entry" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="entryid-workdate" UNIQUE="true" FIELDS="entryid, workdate"/>
       </INDEXES>
     </TABLE>
 
@@ -251,6 +343,25 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="entryid-questionid" UNIQUE="true" FIELDS="entryid, questionid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="stage_email_template" COMMENT="Personnalisation par la DEVE du sujet/corps d'un des e-mails envoyés par l'activité (voir stage_get_email_definitions()) ; une ligne absente pour une clé donnée signifie que le texte par défaut est utilisé">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="emailkey" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false"
+            COMMENT="Identifiant de l'e-mail personnalisé, voir stage_get_email_definitions()"/>
+        <FIELD NAME="subject" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="body" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="stageid-emailkey" UNIQUE="true" FIELDS="stageid, emailkey"/>
       </INDEXES>
     </TABLE>
   </TABLES>

@@ -42,6 +42,7 @@ class student_register_form extends \moodleform {
         $themes = $this->_customdata['themes'];
         $templates = $this->_customdata['templates'];
         $referentteachers = $this->_customdata['referentteachers'];
+        $stage = $this->_customdata['stage'];
 
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
@@ -57,12 +58,22 @@ class student_register_form extends \moodleform {
         $mform->addElement('select', 'themeid', get_string('theme', 'mod_stage'), $themeoptions);
         $mform->addRule('themeid', null, 'required', null, 'client');
 
+        // L'étudiant ne peut positionner son stage que sur l'année N (normale), N-1 (dette) ou
+        // N+1 (anticipation), par rapport à l'année d'étude courante définie pour ce cours.
+        $mform->addElement('select', 'studyyear', get_string('studyyear', 'mod_stage'),
+            stage_studyyear_selectable_options($stage));
+        $mform->addRule('studyyear', null, 'required', null, 'client');
+        $mform->setDefault('studyyear', $stage->currentstudyyear);
+
         $mform->addElement('text', 'structure', get_string('structure', 'mod_stage'), ['size' => '64']);
         $mform->setType('structure', PARAM_TEXT);
         $mform->addRule('structure', null, 'required', null, 'client');
 
-        $mform->addElement('date_selector', 'datestart', get_string('datestart', 'mod_stage'));
-        $mform->addElement('date_selector', 'dateend', get_string('dateend', 'mod_stage'));
+        $mform->addElement('advcheckbox', 'abroad', get_string('abroad', 'mod_stage'));
+
+        $mform->addElement('text', 'country', get_string('country', 'mod_stage'), ['size' => '32']);
+        $mform->setType('country', PARAM_TEXT);
+        $mform->hideIf('country', 'abroad', 'notchecked');
 
         $mform->addElement('text', 'declaredduration', get_string('declaredduration', 'mod_stage'));
         $mform->setType('declaredduration', PARAM_INT);
@@ -98,6 +109,12 @@ class student_register_form extends \moodleform {
             stage_convention_yearsituation_options());
         $mform->addElement('select', 'stagetype', get_string('conventionstagetype', 'mod_stage'),
             stage_convention_stagetype_options());
+
+        // Les plages de dates sont le seul endroit où se saisissent les dates du stage : ses dates
+        // de début et de fin en sont déduites (première et dernière date couvertes, voir
+        // stage_save_entry_periods()). Des champs de début/fin distincts n'auraient rien pu
+        // apporter de plus, et auraient pu les contredire.
+        stage_add_period_fields($this, $mform);
 
         // Coordonnées de l'étudiant.
         $mform->addElement('header', 'studentheader', get_string('conventionstudent', 'mod_stage'));
@@ -188,8 +205,9 @@ class student_register_form extends \moodleform {
     }
 
     /**
-     * Validation serveur : refuse un doublon (même thématique et mêmes dates pour l'étudiant
-     * connecté) et vérifie que le gabarit sélectionné est dans la langue choisie.
+     * Validation serveur : vérifie la cohérence des plages de dates, refuse un doublon (même
+     * thématique et mêmes dates pour l'étudiant connecté) et vérifie que le gabarit sélectionné
+     * est dans la langue choisie.
      *
      * @param array $data
      * @param array $files
@@ -198,12 +216,21 @@ class student_register_form extends \moodleform {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 
+        // Les dates du stage étant déduites des plages, leur cohérence conditionne tout le reste :
+        // le contrôle de doublon ci-dessous s'appuie sur elles.
+        $periods = stage_extract_submitted_periods((object) $data);
+        $perioderror = stage_validate_periods($periods);
+        if ($perioderror !== null) {
+            $errors['perioddatestart[0]'] = $perioderror;
+            return $errors;
+        }
+
         $duplicate = stage_entry_is_duplicate(
             $this->_customdata['stageid'],
             $this->_customdata['userid'],
             $data['themeid'],
-            $data['datestart'],
-            $data['dateend'],
+            min(array_column($periods, 'datestart')),
+            max(array_column($periods, 'dateend')),
             0
         );
         if ($duplicate) {

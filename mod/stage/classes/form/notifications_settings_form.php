@@ -21,19 +21,13 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->libdir . '/formslib.php');
 
 /**
- * Auto-évaluation libre d'un stage par l'étudiant (entry.php), quand la DEVE n'a défini aucune
- * question d'évaluation pour la thématique.
- *
- * Le formulaire ne porte que le commentaire d'auto-évaluation : les caractéristiques du stage
- * (thématique, structure, dates, durée) sont fixées par la DEVE et rappelées au-dessus du
- * formulaire par stage_render_entry_summary(). Elles y figuraient auparavant en champs statiques
- * doublés de champs cachés, que la page ne relisait pas à la soumission.
+ * Active ou désactive l'évaluation par le maître de stage (DEVE).
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class entry_form extends \moodleform {
+class notifications_settings_form extends \moodleform {
 
     /**
      * Defines the form fields.
@@ -43,11 +37,10 @@ class entry_form extends \moodleform {
 
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
-        $mform->addElement('hidden', 'entryid');
-        $mform->setType('entryid', PARAM_INT);
 
-        $mform->addElement('editor', 'studentselfeval', get_string('studentselfeval', 'mod_stage'));
-        $mform->setType('studentselfeval', PARAM_RAW);
+        $mform->addElement('advcheckbox', 'tutorevaluationenabled',
+            get_string('tutorevaluationenabled', 'mod_stage'));
+        $mform->addHelpButton('tutorevaluationenabled', 'tutorevaluationenabled', 'mod_stage');
 
         $this->add_action_buttons();
     }
