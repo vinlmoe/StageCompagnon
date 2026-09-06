@@ -19,7 +19,8 @@
  * rempli par l'étudiant, éditable, avec deux actions possibles : valider (enregistre les
  * éventuelles corrections, fait passer la convention au statut "éditée" et télécharge
  * immédiatement le PDF généré) ou refuser avec un commentaire obligatoire (envoyé par courriel à
- * l'étudiant, qui peut alors corriger et resoumettre sa demande depuis convention_request.php).
+ * l'étudiant, qui peut alors corriger et resoumettre sa demande depuis student_register.php, en
+ * mode édition).
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -35,6 +36,7 @@ use mod_stage\form\convention_review_form;
 
 $id = required_param('id', PARAM_INT);
 $entryid = required_param('entryid', PARAM_INT);
+$returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -47,7 +49,12 @@ require_capability('mod/stage:registerstages', $context);
 $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
 $student = $DB->get_record('user', ['id' => $entry->userid], '*', MUST_EXIST);
 
-$backurl = new moodle_url('/mod/stage/conventions.php', ['id' => $cm->id]);
+// Accessible depuis la liste des conventions mais aussi depuis register.php et
+// stage_render_entry_management_actions() (résumé de l'étudiant, tableau de pilotage...) : le
+// retour honore l'origine réelle si elle a été transmise, à défaut la liste des conventions.
+$backurl = $returnurlparam !== ''
+    ? new moodle_url($returnurlparam)
+    : new moodle_url('/mod/stage/conventions.php', ['id' => $cm->id]);
 
 if ((int) $entry->conventionstatus !== STAGE_CONVENTION_REQUESTED) {
     redirect($backurl, get_string('conventionnotrequested', 'mod_stage'), null,
@@ -56,11 +63,18 @@ if ((int) $entry->conventionstatus !== STAGE_CONVENTION_REQUESTED) {
 
 $referentteachers = stage_get_student_teachers($stage->id, $entry->userid);
 
-$baseurl = new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entryid]);
+// Le returnurl est intégré à l'URL d'action elle-même (et non ajouté en champ caché) : un
+// moodleform ne reporte pas automatiquement les paramètres GET de la requête d'origine sur sa
+// propre soumission, il serait donc perdu à la validation/au refus/à l'annulation sans cela.
+$baseurl = new moodle_url('/mod/stage/convention_review.php',
+    ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('conventionreview', 'mod_stage'));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
+
+$detail = stage_get_convention_detail($entry->id);
+$paperrequestedinfo = stage_convention_paper_requested_info($detail);
 
 $periods = array_values(stage_get_or_seed_entry_periods($entry));
 $mform = new convention_review_form($baseurl, [
@@ -69,9 +83,12 @@ $mform = new convention_review_form($baseurl, [
     // signatures se fait donc ici, et pas seulement lors d'une regénération ultérieure
     // (convention.php).
     'withsignatureoption' => true,
+    // Rappelle à la DEVE si l'étudiant et/ou l'enseignant référent a déjà demandé une convention
+    // papier, pour expliquer pourquoi la case juste en dessous est précochée le cas échéant.
+    'paperrequestedinfo' => $paperrequestedinfo !== null
+        ? html_writer::div($paperrequestedinfo, 'alert alert-info') : null,
 ]);
 
-$detail = stage_get_convention_detail($entry->id);
 $formdata = (object) ['id' => $cm->id, 'entryid' => $entryid];
 if ($detail) {
     foreach ($detail as $field => $value) {
@@ -86,6 +103,9 @@ $formdata->perioddatestart = array_map(function($period) {
 $formdata->perioddateend = array_map(function($period) {
     return $period->dateend;
 }, $periods);
+// Précoche la case d'impression si l'étudiant et/ou l'enseignant référent a demandé une convention
+// papier : la DEVE peut toujours la décocher si elle juge que ce n'est finalement pas nécessaire.
+$formdata->withsignatures = (!empty($detail->paperrequestedbystudent) || !empty($detail->paperrequestedbyteacher)) ? 1 : 0;
 $mform->set_data($formdata);
 
 if ($mform->is_cancelled()) {
@@ -118,6 +138,11 @@ if ($mform->is_cancelled()) {
     $newdetail->leavedays = $newdetail->hasleave ? $data->leavedays : null;
     $newdetail->leavemodalities = $newdetail->hasleave ? $data->leavemodalities : '';
     $newdetail->gratificationamount = $data->gratificationamount;
+    // Ni l'une ni l'autre de ces deux cases n'est éditable par la DEVE ici (voir
+    // convention_review_form, 'withsignatures' ci-dessous étant la seule à sa disposition) :
+    // reprises telles quelles depuis la demande initiale et sa validation par l'enseignant référent.
+    $newdetail->paperrequestedbystudent = !empty($detail->paperrequestedbystudent) ? 1 : 0;
+    $newdetail->paperrequestedbyteacher = !empty($detail->paperrequestedbyteacher) ? 1 : 0;
     stage_save_convention_detail($entry->id, $newdetail);
     stage_save_entry_periods($entry->id, stage_extract_submitted_periods($data));
 
@@ -127,13 +152,21 @@ if ($mform->is_cancelled()) {
         // Génère et télécharge immédiatement le PDF de la convention, plutôt que d'obliger la
         // DEVE à revenir ensuite sur la liste pour cliquer "Générer la convention" séparément.
         $entry = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
-        $result = stage_build_convention_pdf($stage, $entry, $context, !empty($data->withsignatures));
-        if ($result['error']) {
-            redirect($backurl, get_string('conventionvalidatedpdferror', 'mod_stage', get_string($result['error'], 'mod_stage')),
+        $error = stage_check_convention_pdf_prerequisites($entry, $context);
+        if ($error !== null) {
+            redirect($backurl, get_string('conventionvalidatedpdferror', 'mod_stage', get_string($error, 'mod_stage')),
                 null, \core\output\notification::NOTIFY_WARNING);
         }
-        $result['pdf']->Output($result['filename'], 'D');
-        exit;
+        // Le téléchargement passe par convention.php, qui lance le fichier puis ramène à la liste
+        // des conventions : envoyer le PDF directement en réponse à ce formulaire laisserait la
+        // DEVE sur l'écran de validation, cette convention étant pourtant traitée.
+        redirect(new moodle_url('/mod/stage/convention.php', [
+            'id' => $cm->id,
+            'entryid' => $entry->id,
+            'confirmgenerate' => 1,
+            'withsignatures' => !empty($data->withsignatures) ? 1 : 0,
+            'returnurl' => $backurl->out_as_local_url(false),
+        ]));
     } else if (!empty($data->rejectconvention)) {
         stage_reject_convention($entry, $USER->id, $data->rejectcomment);
         stage_notify_student_convention_rejected($stage, $cm, $entry, $data->rejectcomment);

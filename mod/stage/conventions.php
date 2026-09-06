@@ -105,12 +105,16 @@ if (empty($allentries)) {
         // Chaque statut n'ouvre qu'une action « suivante » dans le circuit (relire, marquer
         // signée...) : elle est mise en avant en bouton principal, les actions toujours
         // disponibles (regénérer le PDF, télécharger la convention signée) restant discrètes.
+        // Le retour ramène sur cette liste telle qu'affichée (recherche, tri, page).
         $status = (int) $entry->conventionstatus;
+        $rowreturnurl = (new moodle_url($listurl, ['page' => $page]))->out_as_local_url(false);
         $nextaction = stage_render_actions([
             get_string('conventionreview', 'mod_stage') => $status === STAGE_CONVENTION_REQUESTED
-                ? new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention_review.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]) : null,
             get_string('conventionmarksigned', 'mod_stage') => $status === STAGE_CONVENTION_EDITED
-                ? new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention_sign.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]) : null,
         ], 'btn btn-sm btn-primary mr-1 mb-1');
         $otheractions = stage_render_actions([
             get_string('downloadsignedconvention', 'mod_stage') =>
@@ -118,7 +122,8 @@ if (empty($allentries)) {
                     ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id])
                     : null,
             get_string('generateconvention', 'mod_stage') => $status >= STAGE_CONVENTION_EDITED
-                ? new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]) : null,
         ]);
         $actions = trim(($nextaction !== '-' ? $nextaction : '') . ($otheractions !== '-' ? $otheractions : ''));
         // Le motif de refus explique pourquoi il n'y a rien à faire ici : il suit les actions,

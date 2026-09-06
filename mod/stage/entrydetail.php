@@ -31,6 +31,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 $id = required_param('id', PARAM_INT);
 $entryid = required_param('entryid', PARAM_INT);
+$returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -44,7 +45,10 @@ $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->
 $isdeve = has_capability('mod/stage:viewall', $context);
 $isassignedteacher = has_capability('mod/stage:evaluateteacher', $context)
     && in_array($entry->userid, array_keys(stage_get_assigned_students($stage->id, $USER->id)));
-if (!$isdeve && !$isassignedteacher) {
+// L'enseignant responsable de la thématique du stage y a accès au même titre que l'enseignant
+// référent de l'étudiant : c'est sa vue de détail depuis theme_stages.php.
+$isthemeteacher = stage_is_theme_teacher($entry->themeid, $USER->id);
+if (!$isdeve && !$isassignedteacher && !$isthemeteacher) {
     throw new moodle_exception('nopermissions', 'error', '', get_string('viewdetails', 'mod_stage'));
 }
 
@@ -73,10 +77,25 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('viewdetails',
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
+// Relance du courriel au maître de stage, à la demande de la DEVE : mêmes modalités que sur la
+// page de validation (deve.php), mais accessible directement depuis cette vue de détail plutôt que
+// de devoir passer par l'écran de validation.
+if ($isdeve && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()) {
+    $sent = stage_resend_tutor_evaluation_request($stage, $cm, $entry);
+    redirect($baseurl, get_string($sent ? 'tutorevalresent' : 'tutorevalresentfailed', 'mod_stage'), null,
+        $sent ? \core\output\notification::NOTIFY_SUCCESS : \core\output\notification::NOTIFY_WARNING);
+}
+
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('viewdetails', 'mod_stage') . ' - ' . fullname($student));
 
-$backurl = new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id, 'studentid' => $student->id]);
+// Cette page est accessible depuis plusieurs origines (tableau de pilotage, résumé de l'étudiant,
+// liste d'un enseignant responsable de thématique...) : le retour honore l'origine réelle si elle
+// a été transmise (voir stage_render_entry_management_actions()), à défaut la vue détaillée de
+// l'étudiant dans le pilotage, seule origine possible pour la DEVE avant l'ajout de ce paramètre.
+$backurl = $returnurlparam !== ''
+    ? new moodle_url($returnurlparam)
+    : new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id, 'studentid' => $student->id]);
 echo html_writer::link($backurl, get_string('back'));
 
 $dateformat = get_string('strftimedate', 'langconfig');
@@ -218,17 +237,35 @@ if (!empty($teacherquestions) || $entry->teachereval) {
         : html_writer::div(format_text($entry->teachereval, FORMAT_PLAIN));
 }
 
-if (!empty($stage->tutorevaluationenabled)) {
+echo stage_render_report_section($cm, $context, $entry, $theme);
+
+if (stage_tutor_evaluation_enabled($stage, $theme)) {
     $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
-    if (!empty($tutorquestions) || $entry->tutoreval) {
+    // La section s'affiche aussi, pour la DEVE, tant qu'aucune évaluation n'est encore arrivée :
+    // c'est là qu'elle retrouve l'adresse du maître de stage et peut relancer l'envoi.
+    if (!empty($tutorquestions) || $entry->tutoreval || $isdeve) {
         echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
         if ($entry->tutortime) {
             echo html_writer::tag('p', html_writer::tag('strong', get_string('evaluatedby', 'mod_stage') . ' : ')
                 . userdate($entry->tutortime, $datetimeformat), ['class' => 'text-muted']);
+            echo (!empty($tutorquestions))
+                ? stage_render_answers_readonly($tutorquestions, $answers)
+                : html_writer::div(format_text((string) $entry->tutoreval, FORMAT_PLAIN));
+        } else if (!empty($entry->tutorbypassed)) {
+            echo $OUTPUT->notification(get_string('tutorevalbypassednotice', 'mod_stage'), 'warning');
+        } else if ($isdeve) {
+            echo $OUTPUT->notification(get_string('notutoreval', 'mod_stage'), 'info');
         }
-        echo (!empty($tutorquestions) && $entry->tutortime)
-            ? stage_render_answers_readonly($tutorquestions, $answers)
-            : html_writer::div(format_text((string) $entry->tutoreval, FORMAT_PLAIN));
+
+        // Coordonnées du maître de stage et relance manuelle du courriel d'invitation, réservées à
+        // la DEVE : les enseignants n'ont pas à connaître cette adresse ni à déclencher l'envoi.
+        if ($isdeve && empty($entry->tutortime) && empty($entry->tutorbypassed) && $detail && !empty($detail->tutoremail)) {
+            echo html_writer::tag('p',
+                html_writer::tag('strong', get_string('conventiontutoremail', 'mod_stage') . ' : ') . s($detail->tutoremail));
+            $resendurl = new moodle_url($baseurl, ['resendtutor' => 1, 'sesskey' => sesskey()]);
+            echo html_writer::link($resendurl, get_string('tutorevalresend', 'mod_stage'),
+                ['class' => 'btn btn-sm btn-secondary mb-2']);
+        }
     }
 }
 

@@ -16,9 +16,9 @@
 
 /**
  * Évaluation du stage par le maître de stage (encadrant en entreprise, sans compte Moodle),
- * accessible uniquement via le jeton unique envoyé par courriel (voir
- * stage_maybe_request_tutor_evaluation()). Aucune authentification Moodle : la validité du
- * jeton, à lui seul, fait foi.
+ * accessible uniquement via le jeton unique envoyé par courriel le jour du début du stage (voir
+ * \mod_stage\task\send_tutor_evaluation_requests et stage_maybe_request_tutor_evaluation()).
+ * Aucune authentification Moodle : la validité du jeton, à lui seul, fait foi.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -50,10 +50,14 @@ $context = context_module::instance($cm->id);
 $student = $DB->get_record('user', ['id' => $entry->userid], '*', MUST_EXIST);
 $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
 
+// La convention (FR ou EN selon le gabarit choisi par l'étudiant) fixe la langue dans laquelle le
+// maître de stage, qui n'a pas de compte Moodle et donc pas de langue personnelle, est adressé.
+$lang = stage_get_entry_convention_lang($entry);
+
 $PAGE->set_context($context);
 $PAGE->set_url(new moodle_url('/mod/stage/tutor_eval.php', ['token' => $token]));
 $PAGE->set_pagelayout('embedded');
-$PAGE->set_title(get_string('tutorevalpagetitle', 'mod_stage'));
+$PAGE->set_title(get_string('tutorevalpagetitle', 'mod_stage', null, $lang));
 $PAGE->set_heading(format_string($stage->name));
 
 $questions = stage_get_questions($entry->themeid, 'tutor');
@@ -70,12 +74,50 @@ if (empty($entry->tutortime) && data_submitted() && confirm_sesskey()) {
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('tutorevalpagetitle', 'mod_stage'));
+
+// En-tête « habillé » (logos de la convention, nom de l'étudiant, dates du stage), pour que la
+// page se présente comme un document officiel plutôt qu'un simple formulaire nu.
+$logoleft = stage_get_convention_logo_file($context, 'left');
+$logoright = stage_get_convention_logo_file($context, 'right');
+if ($logoleft || $logoright) {
+    echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3');
+    echo $logoleft
+        ? html_writer::empty_tag('img', [
+            'src' => 'data:' . $logoleft->get_mimetype() . ';base64,' . base64_encode($logoleft->get_content()),
+            'alt' => '', 'style' => 'max-height:60px;max-width:200px;',
+        ])
+        : html_writer::div('');
+    echo $logoright
+        ? html_writer::empty_tag('img', [
+            'src' => 'data:' . $logoright->get_mimetype() . ';base64,' . base64_encode($logoright->get_content()),
+            'alt' => '', 'style' => 'max-height:60px;max-width:200px;',
+        ])
+        : html_writer::div('');
+    echo html_writer::end_div();
+}
+
+echo $OUTPUT->heading(get_string('tutorevalpagetitle', 'mod_stage', null, $lang));
+
+$periods = stage_get_or_seed_entry_periods($entry);
+$dateformat = get_string('strftimedate', 'langconfig', null, $lang);
+$periodlabels = array_map(function($period) use ($dateformat) {
+    return userdate($period->datestart, $dateformat) . ' - ' . userdate($period->dateend, $dateformat);
+}, $periods);
+
+$infotable = new html_table();
+$infotable->attributes['class'] = 'generaltable stage-detailtable mb-3';
+$infotable->data[] = [html_writer::tag('strong', get_string('tutorevalstudentlabel', 'mod_stage', null, $lang)),
+    fullname($student)];
+if (!empty($periodlabels)) {
+    $infotable->data[] = [html_writer::tag('strong', get_string('tutorevaldateslabel', 'mod_stage', null, $lang)),
+        implode(html_writer::empty_tag('br'), $periodlabels)];
+}
+echo html_writer::table($infotable);
 
 if (!empty($entry->tutortime)) {
-    echo $OUTPUT->notification(get_string('tutorevalalreadysubmitted', 'mod_stage'), 'success');
+    echo $OUTPUT->notification(get_string('tutorevalalreadysubmitted', 'mod_stage', null, $lang), 'success');
     if (!empty($questions)) {
-        echo stage_render_answers_readonly($questions, stage_get_answers($entry->id));
+        echo stage_render_answers_readonly($questions, stage_get_answers($entry->id), $lang);
     } else if ($entry->tutoreval) {
         echo html_writer::div(format_text($entry->tutoreval, FORMAT_PLAIN));
     }
@@ -86,22 +128,22 @@ if (!empty($entry->tutortime)) {
 echo html_writer::tag('p', get_string('tutorevalintro', 'mod_stage', (object) [
     'student' => fullname($student),
     'stage' => format_string($stage->name) . ($theme ? ' - ' . format_string($theme->name) : ''),
-]));
+], $lang));
 
 $formurl = new moodle_url('/mod/stage/tutor_eval.php', ['token' => $token]);
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => $formurl]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
 if (!empty($questions)) {
-    echo stage_render_question_fields($questions, []);
+    echo stage_render_question_fields($questions, [], $lang);
 } else {
-    echo html_writer::tag('label', get_string('tutorevalheading', 'mod_stage'), ['for' => 'tutoreval']);
+    echo html_writer::tag('label', get_string('tutorevalheading', 'mod_stage', null, $lang), ['for' => 'tutoreval']);
     echo html_writer::tag('textarea', '',
         ['name' => 'tutoreval', 'id' => 'tutoreval', 'rows' => 6, 'class' => 'form-control']);
 }
 
 echo html_writer::empty_tag('input', [
-    'type' => 'submit', 'value' => get_string('tutorevalsubmit', 'mod_stage'), 'class' => 'btn btn-primary mt-2',
+    'type' => 'submit', 'value' => get_string('tutorevalsubmit', 'mod_stage', null, $lang), 'class' => 'btn btn-primary mt-2',
 ]);
 echo html_writer::end_tag('form');
 

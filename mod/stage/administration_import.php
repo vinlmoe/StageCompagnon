@@ -76,6 +76,7 @@ if ($mform->is_cancelled()) {
         'themes' => !empty($data->importthemes),
         'templates' => !empty($data->importtemplates),
         'logos' => !empty($data->importlogos),
+        'emails' => !empty($data->importemails),
         'establishment' => !empty($data->importestablishment),
     ]);
     $result->establishmenttext = get_string(

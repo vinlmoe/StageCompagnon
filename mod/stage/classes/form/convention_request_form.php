@@ -62,6 +62,13 @@ class convention_request_form extends \moodleform {
             $templateoptions);
         $mform->addRule('conventiontemplateid', null, 'required', null, 'client');
 
+        // Signalée dès la demande, cette case informe la DEVE qu'un exemplaire imprimé (avec cadre
+        // de signatures) sera nécessaire, en plus (ou à la place) de la convention signée
+        // électroniquement : voir stage_convention_paper_requested_info() pour son report jusqu'à
+        // la revue DEVE.
+        $mform->addElement('advcheckbox', 'paperrequestedbystudent', get_string('conventionpaperrequest', 'mod_stage'));
+        $mform->addHelpButton('paperrequestedbystudent', 'conventionpaperrequest', 'mod_stage');
+
         // Un seul enseignant référent par convention, choisi parmi ceux que la DEVE a attribués
         // à l'étudiant. Son courriel est lu sur son compte à la génération et la convention ne
         // demande pas de téléphone pour ce rôle : aucun des deux n'est saisi ici.
@@ -182,7 +189,9 @@ class convention_request_form extends \moodleform {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 
-        $perioderror = stage_validate_periods(stage_extract_submitted_periods((object) $data));
+        // Une convention ne se demande pas pour un stage déjà commencé : les dates passées sont
+        // refusées ici, contrairement aux formulaires de la DEVE (voir stage_validate_periods()).
+        $perioderror = stage_validate_periods(stage_extract_submitted_periods((object) $data), true);
         if ($perioderror !== null) {
             $errors['perioddatestart[0]'] = $perioderror;
         }

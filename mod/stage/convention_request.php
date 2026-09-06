@@ -139,6 +139,7 @@ if ($mform->is_cancelled()) {
     $detail->leavedays = $detail->hasleave ? $data->leavedays : null;
     $detail->leavemodalities = $detail->hasleave ? $data->leavemodalities : '';
     $detail->gratificationamount = $data->gratificationamount;
+    $detail->paperrequestedbystudent = !empty($data->paperrequestedbystudent) ? 1 : 0;
     stage_save_convention_detail($entry->id, $detail);
     stage_save_entry_periods($entry->id, stage_extract_submitted_periods($data));
 

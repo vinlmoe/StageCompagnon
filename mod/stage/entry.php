@@ -31,8 +31,10 @@ require(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/stage/lib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
 require_once($CFG->dirroot . '/mod/stage/classes/form/entry_form.php');
+require_once($CFG->dirroot . '/mod/stage/classes/form/report_form.php');
 
 use mod_stage\form\entry_form;
+use mod_stage\form\report_form;
 
 $id = required_param('id', PARAM_INT);
 $entryid = required_param('entryid', PARAM_INT);
@@ -56,15 +58,23 @@ $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
 $questions = stage_get_questions($entry->themeid, 'student');
+$theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
+$reportmode = stage_theme_report_mode($theme);
 
 // L'auto-évaluation n'est ouverte qu'une fois la convention de stage signée (voir
 // convention_request.php / conventions.php), et n'est modifiable que tant qu'elle n'a pas
 // encore été soumise : une fois soumise (ou la saisie rejetée), seule la DEVE peut réinitialiser
 // la saisie pour la rouvrir.
 $conventionsigned = stage_convention_is_signed($entry->conventionstatus);
-$editable = $conventionsigned && ((int) $entry->status === STAGE_STATUS_ENREGISTRE);
 
 $periods = stage_get_or_seed_entry_periods($entry);
+
+// Un stage ne s'auto-évalue pas avant d'avoir commencé : tant que la première plage n'a pas
+// débuté, l'étudiant n'a rien à évaluer et une saisie soumise d'avance passerait à l'évaluation
+// enseignant alors que le stage reste à faire. Le jour même du début est ouvert.
+$notstartedyet = stage_entry_not_started_yet($entry);
+
+$editable = $conventionsigned && !$notstartedyet && ((int) $entry->status === STAGE_STATUS_ENREGISTRE);
 
 // Sélection des jours de stage effectifs parmi les plages de la saisie : formulaire distinct de
 // l'auto-évaluation, avec son propre bouton, pour rester simple à intégrer aux deux formulaires
@@ -76,15 +86,56 @@ if ($editable && !empty($periods) && optional_param('saveworkdays', 0, PARAM_INT
         get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
-// Traite la soumission du formulaire dynamique avant tout affichage, pour permettre la redirection.
-if ($editable && !empty($questions) && data_submitted() && confirm_sesskey()) {
-    stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions));
-    stage_apply_student_eval($entry);
-    stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
-    stage_maybe_request_tutor_evaluation($stage, $cm, $entry);
+// Dépôt du rapport de stage, si la thématique en demande un : formulaire distinct de
+// l'auto-évaluation (comme les jours de stage effectifs), pour que l'étudiant puisse déposer ses
+// documents en plusieurs fois avant de soumettre définitivement son auto-évaluation.
+$reportform = null;
+if ($editable && $reportmode != STAGE_REPORT_NONE) {
+    $filemanageroptions = [
+        'subdirs' => 0,
+        'maxfiles' => 20,
+        'maxbytes' => $CFG->maxbytes,
+    ];
+    $reportform = new report_form(new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
+        ['filemanageroptions' => $filemanageroptions]);
 
-    redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
-        get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    $draftitemid = file_get_submitted_draft_itemid('reportfiles');
+    file_prepare_draft_area($draftitemid, $context->id, 'mod_stage', STAGE_REPORT_FILEAREA, $entry->id,
+        $filemanageroptions);
+    $reportform->set_data([
+        'id' => $cm->id, 'entryid' => $entryid, 'reportfiles' => $draftitemid,
+    ]);
+
+    if ($reportdata = $reportform->get_data()) {
+        file_save_draft_area_files($reportdata->reportfiles, $context->id, 'mod_stage', STAGE_REPORT_FILEAREA,
+            $entry->id, $filemanageroptions);
+        redirect(new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
+            get_string('reportfilessaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    }
+}
+
+// Le dépôt du rapport, quand la thématique l'exige, conditionne la soumission de
+// l'auto-évaluation : sans document déposé, le formulaire est réaffiché avec un message plutôt
+// que soumis, la saisie passant sinon hors de portée de l'étudiant sans son rapport.
+$reportmissing = $reportmode == STAGE_REPORT_REQUIRED && empty(stage_get_report_files($context, $entry->id));
+$reportblocked = false;
+
+// Traite la soumission du formulaire dynamique avant tout affichage, pour permettre la redirection.
+if ($editable && !empty($questions) && !optional_param('savereport', 0, PARAM_INT)
+        && data_submitted() && confirm_sesskey()) {
+    // Les réponses sont enregistrées dans tous les cas : seul le passage au statut « évalué par
+    // l'étudiant » est retenu faute de rapport, et l'étudiant retrouve sa saisie telle quelle
+    // après avoir déposé ses documents.
+    stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions));
+    if ($reportmissing) {
+        $reportblocked = true;
+    } else {
+        stage_apply_student_eval($entry);
+        stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
+
+        redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
+            get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    }
 }
 
 // Formulaire de repli (commentaire libre) si aucune question n'est définie pour la thématique :
@@ -104,13 +155,16 @@ if ($editable && empty($questions)) {
     if ($mform->is_cancelled()) {
         redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]));
     } else if ($data = $mform->get_data()) {
-        $selfeval = is_array($data->studentselfeval) ? $data->studentselfeval['text'] : $data->studentselfeval;
-        stage_apply_student_eval($entry, $selfeval);
-        stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
-        stage_maybe_request_tutor_evaluation($stage, $cm, $entry);
+        if ($reportmissing) {
+            $reportblocked = true;
+        } else {
+            $selfeval = is_array($data->studentselfeval) ? $data->studentselfeval['text'] : $data->studentselfeval;
+            stage_apply_student_eval($entry, $selfeval);
+            stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
 
-        redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
-            get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+            redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
+                get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        }
     }
 }
 
@@ -120,15 +174,22 @@ echo html_writer::link(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
 
 // Rappel de la saisie concernée : la page ne disait pas de quel stage il s'agissait, alors qu'un
 // étudiant peut en avoir plusieurs en cours d'auto-évaluation.
-echo stage_render_entry_summary($entry, $DB->get_record('stage_theme', ['id' => $entry->themeid]));
+echo stage_render_entry_summary($entry, $theme);
 
 if (!$editable) {
-    $message = !$conventionsigned ? get_string('conventionnotsignedyet', 'mod_stage') : get_string('entrynoteditable', 'mod_stage');
+    if (!$conventionsigned) {
+        $message = get_string('conventionnotsignedyet', 'mod_stage');
+    } else if ($notstartedyet) {
+        $message = get_string('selfevalnotstartedyet', 'mod_stage');
+    } else {
+        $message = get_string('entrynoteditable', 'mod_stage');
+    }
     echo $OUTPUT->notification($message, 'info');
     if (!empty($periods)) {
         echo $OUTPUT->heading(get_string('workdays', 'mod_stage'), 4);
         echo stage_render_workday_picker($periods, stage_get_entry_workdays($entry->id), false);
     }
+    echo stage_render_report_section($cm, $context, $entry, $theme);
     $answers = stage_get_answers($entry->id);
     if (!empty($questions)) {
         echo stage_render_answers_readonly($questions, $answers);
@@ -137,6 +198,16 @@ if (!$editable) {
     }
     echo $OUTPUT->footer();
     exit;
+}
+
+if ($reportform) {
+    echo $OUTPUT->heading(get_string('reportfiles', 'mod_stage'), 4);
+    if ($reportblocked) {
+        echo $OUTPUT->notification(get_string('reportrequiredmissing', 'mod_stage'), 'error');
+    } else if ($reportmode == STAGE_REPORT_REQUIRED) {
+        echo $OUTPUT->notification(get_string('reportrequirednotice', 'mod_stage'), 'info');
+    }
+    $reportform->display();
 }
 
 if (!empty($periods)) {

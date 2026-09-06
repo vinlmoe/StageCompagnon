@@ -28,6 +28,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 $id = required_param('id', PARAM_INT);
 $entryid = optional_param('entryid', 0, PARAM_INT);
+$returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 $search = optional_param('search', '', PARAM_TEXT);
 $filterthemeid = optional_param('themeid', 0, PARAM_INT);
 $filterstatus = optional_param('status', '', PARAM_RAW);
@@ -51,6 +52,14 @@ $PAGE->set_context($context);
 
 $assignedids = array_keys(stage_get_assigned_students($stage->id, $USER->id));
 
+// Écran de retour et de redirection finale après évaluation : la liste de cette page par défaut,
+// ou la page d'où l'on vient (résumé de l'étudiant, tableau de pilotage...) si elle a été
+// transmise (voir stage_render_entry_management_actions()).
+$backurl = $returnurlparam !== '' ? new moodle_url($returnurlparam) : $baseurl;
+// Url de la saisie elle-même, pour les actions qui doivent y revenir (jours effectifs...) sans
+// perdre l'écran de retour au passage.
+$entryurl = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]);
+
 // Traitement de l'évaluation d'une saisie.
 if ($entryid) {
     $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
@@ -70,8 +79,7 @@ if ($entryid) {
     if ($editable && !empty($periods) && optional_param('saveworkdays', 0, PARAM_INT) && confirm_sesskey()) {
         $workdays = optional_param_array('workdays', [], PARAM_INT);
         stage_set_entry_workdays($entry->id, $workdays);
-        redirect(new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entryid]),
-            get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        redirect($entryurl, get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     if ($editable && data_submitted() && confirm_sesskey()) {
@@ -85,7 +93,7 @@ if ($entryid) {
             $comment = optional_param('teachereval', '', PARAM_RAW);
             stage_apply_teacher_eval($entry, $USER->id, $comment);
         }
-        redirect($baseurl, get_string('evalsaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        redirect($backurl, get_string('evalsaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     $student = $DB->get_record('user', ['id' => $entry->userid]);
@@ -93,7 +101,7 @@ if ($entryid) {
 
     echo $OUTPUT->header();
     echo $OUTPUT->heading(get_string('evaluatestage', 'mod_stage', fullname($student)));
-    echo html_writer::link($baseurl, get_string('back'));
+    echo html_writer::link($backurl, get_string('back'));
 
     // Rappel de la saisie évaluée, en tableau plutôt qu'en paragraphes épars, et complété des
     // informations qui manquaient ici (année d'étude, mobilité, plages de dates, convention).
@@ -109,9 +117,13 @@ if ($entryid) {
         echo html_writer::div(format_text($entry->studentselfeval, FORMAT_HTML));
     }
 
+    // Rapport de stage déposé par l'étudiant, si la thématique en demande un : l'enseignant
+    // référent évalue sur pièces autant que sur l'auto-évaluation.
+    echo stage_render_report_section($cm, $context, $entry, $theme);
+
     // Évaluation du maître de stage, si l'option est activée : mêmes modalités que
     // l'auto-évaluation de l'étudiant, affichée en lecture seule.
-    if (!empty($stage->tutorevaluationenabled)) {
+    if (stage_tutor_evaluation_enabled($stage, $theme)) {
         echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
         $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
         if (!empty($tutorquestions) && $entry->tutortime) {
@@ -126,8 +138,7 @@ if ($entryid) {
     if (!empty($periods)) {
         echo $OUTPUT->heading(get_string('workdays', 'mod_stage'), 4);
         if ($editable) {
-            $workdaysformurl = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-            echo html_writer::start_tag('form', ['method' => 'post', 'action' => $workdaysformurl]);
+            echo html_writer::start_tag('form', ['method' => 'post', 'action' => $entryurl]);
             echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
             echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'saveworkdays', 'value' => 1]);
             echo stage_render_workday_picker($periods, stage_get_entry_workdays($entry->id), true);
@@ -155,8 +166,7 @@ if ($entryid) {
     // Les deux issues possibles (valider ou refuser) sont présentées comme deux blocs distincts,
     // chacun sous son propre titre avec son champ et son bouton : présentés à la suite, le
     // commentaire de refus semblait se rapporter au bouton de validation qui le précédait.
-    $formurl = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-    echo html_writer::start_tag('form', ['method' => 'post', 'action' => $formurl]);
+    echo html_writer::start_tag('form', ['method' => 'post', 'action' => $entryurl]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
     echo $OUTPUT->heading(get_string('teachereval', 'mod_stage'), 4);
@@ -223,7 +233,8 @@ if (empty($assignedids)) {
                 stage_render_actions([
                     get_string('conventionteachervalidate', 'mod_stage') =>
                         new moodle_url('/mod/stage/convention_teacher_validate.php',
-                            ['id' => $cm->id, 'entryid' => $pendingentry->id]),
+                            ['id' => $cm->id, 'entryid' => $pendingentry->id,
+                                'returnurl' => $baseurl->out_as_local_url(false)]),
                 ], 'btn btn-sm btn-primary mr-1 mb-1'),
             ];
         }
@@ -241,8 +252,13 @@ if (empty($assignedids)) {
     ]);
     echo stage_render_list_filters($listurl, $themes, $search, $filterthemeid, $filterstatus);
 
+    // Par défaut (aucun statut choisi dans le filtre), ne montre que les stages effectivement en
+    // attente d'évaluation : un stage déjà évalué (par cet enseignant ou rejeté) n'a plus rien à y
+    // faire. Le filtre de statut reste disponible pour retrouver explicitement un stage par son
+    // statut, y compris déjà évalué.
+    $liststatus = $filterstatus !== '' ? $filterstatus : STAGE_STATUS_EVAL_ETUDIANT;
     $allentries = stage_get_filtered_entries($stage->id,
-        ['search' => $search, 'themeid' => $filterthemeid, 'status' => $filterstatus], $tsort, $tdir, $assignedids);
+        ['search' => $search, 'themeid' => $filterthemeid, 'status' => $liststatus], $tsort, $tdir, $assignedids);
     [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
 
     $table = new html_table();
@@ -260,14 +276,21 @@ if (empty($assignedids)) {
         $badge = html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status));
         $signedavailable = (int) $entry->conventionstatus === STAGE_CONVENTION_SIGNED
             && stage_get_signed_convention_file($context, $entry->id);
+        // Une fois le stage évalué (ou rejeté) par l'enseignant référent, il n'est plus modifiable
+        // ici (voir $editable ci-dessus) : le lien mène à une consultation, pas à une évaluation.
+        $actionlabel = (int) $entry->status === STAGE_STATUS_EVAL_ETUDIANT
+            ? get_string('evaluate', 'mod_stage')
+            : get_string('viewevaluation', 'mod_stage');
         $table->data[] = [
             $student ? fullname($student) : '-',
             $themename,
             $entry->declaredduration,
             $badge,
             stage_render_actions([
-                get_string('evaluate', 'mod_stage') =>
-                    new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+                // Le retour ramène sur cette liste telle qu'affichée (recherche, tri, page), pas
+                // sur la liste "vierge" : voir $backurl ci-dessus, qui honore ce paramètre.
+                $actionlabel => new moodle_url('/mod/stage/teacher.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]),
                 get_string('downloadsignedconvention', 'mod_stage') => $signedavailable
                     ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id])
                     : null,

@@ -117,6 +117,29 @@ function stage_convention_is_signed($status) {
 }
 
 /**
+ * Message d'information à afficher à la DEVE (convention_review.php) quand une convention papier
+ * (cadre de signatures) a été demandée par l'étudiant lors de sa demande (convention_request.php)
+ * et/ou par l'enseignant référent lors de sa validation (convention_teacher_validate.php), pour
+ * qu'elle sache pourquoi la case "withsignatures" est précochée sans avoir à rouvrir leurs
+ * demandes respectives.
+ *
+ * @param stdClass|false $detail Retour de stage_get_convention_detail().
+ * @return string|null Texte, ou null si personne n'a demandé de convention papier.
+ */
+function stage_convention_paper_requested_info($detail) {
+    $bystudent = !empty($detail->paperrequestedbystudent);
+    $byteacher = !empty($detail->paperrequestedbyteacher);
+    if ($bystudent && $byteacher) {
+        return get_string('conventionpaperrequestedbyboth', 'mod_stage');
+    } else if ($bystudent) {
+        return get_string('conventionpaperrequestedbystudentonly', 'mod_stage');
+    } else if ($byteacher) {
+        return get_string('conventionpaperrequestedbyteacheronly', 'mod_stage');
+    }
+    return null;
+}
+
+/**
  * Retourne une classe CSS de badge selon le statut de convention.
  *
  * @param int $status
@@ -730,7 +753,11 @@ function stage_get_student_progress($stageid, $userid) {
 
     foreach ($progress->themes as $themeid => $t) {
         if ($t->theme->mandatory) {
-            if (empty($t->requiredyears)) {
+            if (!empty($t->theme->requiredduration)) {
+                // Durée globale (unique pour toute la thématique, quel que soit le nombre
+                // d'années sur lesquelles elle est saisie) : ne pas la sommer par année.
+                $t->requiredduration = (int) $t->theme->requiredduration;
+            } else if (empty($t->requiredyears)) {
                 // Pas encore de saisie sur cette thématique : on affiche la durée requise pour
                 // l'année minimale de sa plage, à titre indicatif.
                 $t->requiredduration = stage_get_theme_duration($themeid, $t->theme->minstudyyear ?: $t->theme->maxstudyyear);
@@ -980,6 +1007,22 @@ function stage_get_or_seed_entry_periods(stdClass $entry) {
  * @param array $periods Liste de tableaux ['datestart' => int, 'dateend' => int]
  * @return void
  */
+/**
+ * Indique si le stage d'une saisie n'a pas encore commencé, c'est-à-dire si sa date de début
+ * (celle de sa première plage, tenue à jour par stage_save_entry_periods()) est postérieure à
+ * aujourd'hui. Le jour même du début compte comme commencé : la comparaison se fait à minuit.
+ *
+ * Une saisie sans date de début connue (enregistrement DEVE sans dates, import) n'est jamais
+ * considérée comme « pas encore commencée » : rien ne permettrait de dire quand elle commence, et
+ * la bloquer sur cette base l'empêcherait d'être auto-évaluée un jour.
+ *
+ * @param stdClass $entry
+ * @return bool
+ */
+function stage_entry_not_started_yet(stdClass $entry) {
+    return !empty($entry->datestart) && $entry->datestart > usergetmidnight(time());
+}
+
 function stage_save_entry_periods($entryid, array $periods) {
     global $DB;
 
@@ -1026,9 +1069,14 @@ function stage_save_entry_periods($entryid, array $periods) {
  *
  * @param array $periods Liste de tableaux ['datestart' => int, 'dateend' => int], telle que
  *                       produite par stage_extract_submitted_periods().
+ * @param bool $nopast Refuse en plus une plage commençant avant aujourd'hui. Réservé aux
+ *                     formulaires par lesquels l'étudiant demande une convention : une convention
+ *                     ne peut pas couvrir un stage déjà commencé, alors que la DEVE enregistre au
+ *                     contraire couramment des stages passés (reprise d'historique, saisie a
+ *                     posteriori) et n'est donc pas soumise à cette règle.
  * @return string|null Message d'erreur à afficher, ou null si les plages sont cohérentes.
  */
-function stage_validate_periods(array $periods) {
+function stage_validate_periods(array $periods, $nopast = false) {
     if (empty($periods)) {
         return get_string('periodsrequired', 'mod_stage');
     }
@@ -1036,6 +1084,18 @@ function stage_validate_periods(array $periods) {
     foreach ($periods as $period) {
         if ($period['dateend'] < $period['datestart']) {
             return get_string('periodendbeforestart', 'mod_stage');
+        }
+    }
+
+    // Une plage commençant aujourd'hui reste acceptée : c'est le jour même, pas le passé. La
+    // comparaison se fait donc à minuit et non à l'heure courante, sans quoi une convention
+    // demandée pour le jour même serait refusée dès la première seconde de la journée écoulée.
+    if ($nopast) {
+        $today = usergetmidnight(time());
+        foreach ($periods as $period) {
+            if ($period['datestart'] < $today) {
+                return get_string('periodstartinpast', 'mod_stage');
+            }
         }
     }
 
@@ -1374,6 +1434,7 @@ function stage_reset_entry(stdClass $entry) {
     global $DB;
 
     $entry->status = STAGE_STATUS_ENREGISTRE;
+    $entry->tutorbypassed = 0;
     $entry->timemodified = time();
     $DB->update_record('stage_entry', $entry);
 }
@@ -1452,6 +1513,12 @@ function stage_get_email_definitions() {
             'subjectstring' => 'tutorevalnotifsubject',
             'bodystring' => 'tutorevalnotifbody',
             'vars' => ['student', 'stage', 'url'],
+        ],
+        'conventionreminder' => [
+            'label' => get_string('emailkeyconventionreminder', 'mod_stage'),
+            'subjectstring' => 'conventionremindernotifsubject',
+            'bodystring' => 'conventionremindernotifbody',
+            'vars' => ['student', 'stage', 'theme', 'datestart', 'days', 'url'],
         ],
     ];
 }
@@ -1537,9 +1604,13 @@ function stage_render_email_placeholders($text, array $vars) {
  * @param array $vars Valeurs des variables listées dans la définition de cet e-mail (voir
  *                    stage_get_email_definitions()['vars']), utilisées à la fois pour le texte
  *                    par défaut ({$a->xxx}) et pour un texte personnalisé ({{xxx}}).
+ * @param string|null $lang Langue à utiliser pour le texte par défaut ('fr', 'en', ...), en
+ *                    priorité sur la langue courante de la session. N'a d'effet que sur le texte
+ *                    par défaut : un texte personnalisé par la DEVE reste tel quel, quelle que
+ *                    soit la langue.
  * @return stdClass {subject, body}
  */
-function stage_resolve_email_text($stageid, $emailkey, array $vars) {
+function stage_resolve_email_text($stageid, $emailkey, array $vars, $lang = null) {
     $definitions = stage_get_email_definitions();
     $definition = $definitions[$emailkey];
     $custom = stage_get_custom_email_template($stageid, $emailkey);
@@ -1550,13 +1621,13 @@ function stage_resolve_email_text($stageid, $emailkey, array $vars) {
         // Les sujets par défaut existants n'utilisent qu'une seule variable (le nom du stage),
         // passée directement plutôt qu'en objet : on respecte ce format pour ne pas retoucher
         // ces chaînes de langue.
-        $subject = get_string($definition['subjectstring'], 'mod_stage', $vars['stage'] ?? null);
+        $subject = get_string($definition['subjectstring'], 'mod_stage', $vars['stage'] ?? null, $lang);
     }
 
     if ($custom && trim((string) $custom->body) !== '') {
         $body = stage_render_email_placeholders($custom->body, $vars);
     } else {
-        $body = get_string($definition['bodystring'], 'mod_stage', (object) $vars);
+        $body = get_string($definition['bodystring'], 'mod_stage', (object) $vars, $lang);
     }
 
     return (object) ['subject' => $subject, 'body' => $body];
@@ -1703,8 +1774,10 @@ function stage_get_reusable_questions($stageid, $themeid) {
  * @param stdClass $question
  * @return array
  */
-function stage_question_options(stdClass $question) {
-    $lines = preg_split('/\r\n|\r|\n/', (string) $question->options);
+function stage_question_options(stdClass $question, $lang = 'fr') {
+    $raw = $lang === 'en' && trim((string) ($question->optionsen ?? '')) !== ''
+        ? $question->optionsen : $question->options;
+    $lines = preg_split('/\r\n|\r|\n/', (string) $raw);
     $options = [];
     foreach ($lines as $line) {
         $line = trim($line);
@@ -1713,6 +1786,39 @@ function stage_question_options(stdClass $question) {
         }
     }
     return $options;
+}
+
+/**
+ * Intitulé d'une question dans la langue demandée : la version anglaise si elle a été saisie et
+ * demandée (maître de stage dont la convention est en anglais), la version française sinon.
+ *
+ * @param stdClass $question
+ * @param string $lang 'fr' ou 'en'
+ * @return string
+ */
+function stage_question_name(stdClass $question, $lang = 'fr') {
+    if ($lang === 'en' && trim((string) ($question->nameen ?? '')) !== '') {
+        return $question->nameen;
+    }
+    return $question->name;
+}
+
+/**
+ * Détermine la langue à utiliser pour s'adresser au maître de stage (courriel d'invitation,
+ * page d'évaluation, intitulés des questions) : celle du gabarit de convention utilisé pour la
+ * saisie, ou le français par défaut si la saisie n'a pas de convention ou de gabarit connu.
+ *
+ * @param stdClass $entry
+ * @return string 'fr' ou 'en'
+ */
+function stage_get_entry_convention_lang(stdClass $entry) {
+    global $DB;
+
+    if (empty($entry->conventiontemplateid)) {
+        return 'fr';
+    }
+    $lang = $DB->get_field('stage_convention_template', 'lang', ['id' => $entry->conventiontemplateid]);
+    return $lang === 'en' ? 'en' : 'fr';
 }
 
 /**
@@ -1784,7 +1890,7 @@ function stage_get_submitted_answers(array $questions) {
  * @param array $answers Réponses existantes, indexées par questionid
  * @return string
  */
-function stage_render_question_fields(array $questions, array $answers) {
+function stage_render_question_fields(array $questions, array $answers, $lang = 'fr') {
     $out = '';
 
     foreach ($questions as $question) {
@@ -1793,11 +1899,11 @@ function stage_render_question_fields(array $questions, array $answers) {
         $required = $question->required ? ['required' => 'required'] : [];
 
         $out .= html_writer::start_tag('div', ['class' => 'form-group mb-3']);
-        $out .= html_writer::tag('label', format_string($question->name) . ($question->required ? ' *' : ''),
+        $out .= html_writer::tag('label', format_string(stage_question_name($question, $lang)) . ($question->required ? ' *' : ''),
             ['for' => $fieldname]);
 
         if ($question->qtype === 'choice') {
-            foreach (stage_question_options($question) as $index => $option) {
+            foreach (stage_question_options($question, $lang) as $index => $option) {
                 $optionid = $fieldname . '_' . $index;
                 $out .= html_writer::start_tag('div', ['class' => 'form-check']);
                 $out .= html_writer::empty_tag('input', array_merge([
@@ -1976,7 +2082,7 @@ function stage_render_entry_summary(stdClass $entry, $theme = null, $student = n
  * @param array $answers Réponses existantes, indexées par questionid
  * @return string
  */
-function stage_render_answers_readonly(array $questions, array $answers) {
+function stage_render_answers_readonly(array $questions, array $answers, $lang = 'fr') {
     if (empty($questions)) {
         return '';
     }
@@ -1984,7 +2090,7 @@ function stage_render_answers_readonly(array $questions, array $answers) {
     $out = html_writer::start_tag('dl', ['class' => 'stage-answers']);
     foreach ($questions as $question) {
         $current = isset($answers[$question->id]) ? trim((string) $answers[$question->id]->answertext) : '';
-        $out .= html_writer::tag('dt', format_string($question->name));
+        $out .= html_writer::tag('dt', format_string(stage_question_name($question, $lang)));
         $out .= html_writer::tag('dd', $current !== ''
             ? nl2br(s($current))
             : html_writer::tag('em', get_string('noanswer', 'mod_stage')));
@@ -2417,6 +2523,8 @@ function stage_get_promotion_report(stdClass $stage, context $context, ?array $r
  * @return string HTML, chaîne vide si l'utilisateur n'a accès à aucun lien.
  */
 function stage_render_navlinks(stdClass $cm, context $context) {
+    global $USER;
+
     // Les destinations sont rendues en boutons, dans l'ordre du travail quotidien (enregistrer,
     // suivre les conventions, valider, piloter) puis les usages ponctuels (export, administration)
     // en fin de barre : en simples liens séparés par des barres verticales, elles se lisaient
@@ -2437,6 +2545,15 @@ function stage_render_navlinks(stdClass $cm, context $context) {
     }
     if (has_capability('mod/stage:viewall', $context) || has_capability('mod/stage:evaluateteacher', $context)) {
         $links[get_string('pilotage', 'mod_stage')] = new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id]);
+    }
+    // Vue par thématique : ouverte à la DEVE et à tout enseignant responsable d'au moins une
+    // thématique, y compris s'il n'est référent d'aucun étudiant. La requête n'est faite que pour
+    // les enseignants (seuls affectables comme responsables), et pas à chaque page d'un étudiant.
+    if (has_capability('mod/stage:viewall', $context)
+            || (has_capability('mod/stage:evaluateteacher', $context)
+                && stage_get_teacher_themes($cm->instance, $USER->id))) {
+        $links[get_string('mythemestages', 'mod_stage')] =
+            new moodle_url('/mod/stage/theme_stages.php', ['id' => $cm->id]);
     }
     if (has_capability('mod/stage:viewall', $context)) {
         $links[get_string('exportexcel', 'mod_stage')] = new moodle_url('/mod/stage/export.php', ['id' => $cm->id]);
@@ -2526,41 +2643,60 @@ function stage_progress_table_head() {
  * @return string HTML des boutons d'action, chaîne vide s'il n'y en a aucun.
  */
 function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, context $context, stdClass $rights) {
+    global $PAGE;
+
     $status = (int) $entry->status;
     $conventionstatus = (int) $entry->conventionstatus;
     $out = '';
 
     // Ce qui attend une action de l'utilisateur : mis en avant, c'est ce pour quoi il ouvre cette
-    // page. Chaque état n'en ouvre qu'une seule.
+    // page. Chaque état n'en ouvre qu'une seule. Le retour ramène sur la page courante (tableau de
+    // pilotage, résumé d'un étudiant...), et non sur la liste de teacher.php/deve.php dont on ne
+    // venait pas forcément.
     $out .= stage_render_actions([
         get_string('evaluate', 'mod_stage') =>
             $rights->assignedteacher && $status === STAGE_STATUS_EVAL_ETUDIANT
-                ? new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('conventionteachervalidate', 'mod_stage') =>
             $rights->assignedteacher && $conventionstatus === STAGE_CONVENTION_TEACHERPENDING
-                ? new moodle_url('/mod/stage/convention_teacher_validate.php',
-                    ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention_teacher_validate.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('validate', 'mod_stage') =>
             $rights->validatedeve && $status === STAGE_STATUS_EVAL_ENSEIGNANT
-                ? new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('conventionreview', 'mod_stage') =>
             $rights->register && $conventionstatus === STAGE_CONVENTION_REQUESTED
-                ? new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('conventionmarksigned', 'mod_stage') =>
             $rights->register && $conventionstatus === STAGE_CONVENTION_EDITED
-                ? new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
     ], 'btn btn-sm btn-primary mr-1 mb-1', '');
 
-    // Actions disponibles en permanence : consultation et retouches.
+    // Actions disponibles en permanence : consultation et retouches. Le retour ramène sur la page
+    // courante (tableau de pilotage, résumé d'un étudiant...), et non sur une liste fixe dont on
+    // ne venait pas forcément (voir aussi generateconvention/viewconvention ci-dessous).
     $out .= stage_render_actions([
         get_string('viewdetails', 'mod_stage') => $rights->viewdetail
-            ? new moodle_url('/mod/stage/entrydetail.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+            ? new moodle_url('/mod/stage/entrydetail.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('edit') => $rights->register
-            ? new moodle_url('/mod/stage/register.php',
-                ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entry->id]) : null,
+            ? new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entry->id,
+                'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('generateconvention', 'mod_stage') =>
             $rights->register && $conventionstatus >= STAGE_CONVENTION_EDITED
-                ? new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
+        // L'enseignant référent (sans le droit d'enregistrement des stages) ne fait que consulter
+        // la convention déjà éditée par la DEVE, tant qu'elle n'est pas encore signée : au-delà,
+        // c'est la convention signée ci-dessous qui prend le relais (voir convention.php).
+        get_string('viewconvention', 'mod_stage') =>
+            !$rights->register && $rights->assignedteacher && $conventionstatus === STAGE_CONVENTION_EDITED
+                ? new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         // Comme convention_signed.php, la convention signée est ouverte à la DEVE et à
         // l'enseignant référent de l'étudiant, mais pas à un simple droit de lecture.
         get_string('downloadsignedconvention', 'mod_stage') =>
@@ -2572,11 +2708,12 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
     ], 'btn btn-sm btn-secondary mr-1 mb-1', '');
 
     // Réinitialiser et annuler défont un travail déjà fait : en rouge et en dernier, comme dans la
-    // liste de register.php, pour ne pas être cliquées à la place de « Modifier ».
+    // liste de register.php, pour ne pas être cliquées à la place de « Modifier ». Le retour ramène
+    // sur la page courante, comme les autres actions ci-dessus.
     if ($rights->register && $status !== STAGE_STATUS_ENREGISTRE) {
         $out .= html_writer::link(
-            new moodle_url('/mod/stage/register.php',
-                ['id' => $cm->id, 'mode' => 'reset', 'entryid' => $entry->id, 'sesskey' => sesskey()]),
+            new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'reset', 'entryid' => $entry->id,
+                'sesskey' => sesskey(), 'returnurl' => $PAGE->url->out_as_local_url(false)]),
             get_string('resetentry', 'mod_stage'), [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
                 'onclick' => "return confirm('" . get_string('confirmresetentry', 'mod_stage') . "');",
@@ -2584,7 +2721,8 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
     }
     if ($rights->register && $status !== STAGE_STATUS_ANNULE) {
         $out .= html_writer::link(
-            new moodle_url('/mod/stage/cancel_entry.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+            new moodle_url('/mod/stage/cancel_entry.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                'returnurl' => $PAGE->url->out_as_local_url(false)]),
             get_string('cancelentry', 'mod_stage'), ['class' => 'btn btn-sm btn-outline-danger mr-1 mb-1']);
     }
 
@@ -2619,7 +2757,7 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
  * @return void
  */
 function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $selfevallink = false, $detaillink = false) {
-    global $OUTPUT, $USER;
+    global $OUTPUT, $PAGE, $USER;
 
     $progress = stage_get_student_progress($stage->id, $userid);
     $mandatorythemes = array_filter($progress->themes, function($t) {
@@ -2856,14 +2994,21 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
                 if ((int) $entry->conventionstatus === STAGE_CONVENTION_NONE
                         || (int) $entry->conventionstatus === STAGE_CONVENTION_REJECTED) {
                     $actions .= html_writer::link(
-                        new moodle_url('/mod/stage/convention_request.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+                        new moodle_url('/mod/stage/student_register.php', ['id' => $cm->id, 'entryid' => $entry->id]),
                         get_string('requestconvention', 'mod_stage'), $btn
                     );
                 } else if (stage_convention_is_signed($entry->conventionstatus)) {
-                    $actions .= html_writer::link(
-                        new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entry->id]),
-                        get_string('selfeval', 'mod_stage'), $btn
-                    );
+                    // Avant le début du stage, l'auto-évaluation est refusée par entry.php : la
+                    // date de début est annoncée à la place du bouton, un bouton qui mène à un
+                    // refus étant pire que pas de bouton du tout.
+                    $actions .= stage_entry_not_started_yet($entry)
+                        ? html_writer::span(get_string('selfevalfrom', 'mod_stage',
+                            userdate($entry->datestart, get_string('strftimedate', 'langconfig'))),
+                            'text-muted mr-1 mb-1 d-inline-block')
+                        : html_writer::link(
+                            new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+                            get_string('selfeval', 'mod_stage'), $btn
+                        );
                     // Le PDF de la convention signée n'existe que pour le circuit de gestion de
                     // convention de ce plugin (STAGE_CONVENTION_SIGNED), et seulement si la DEVE
                     // en a effectivement téléversé un (facultatif, voir convention_sign.php) : les
@@ -2875,9 +3020,17 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
                             get_string('downloadsignedconvention', 'mod_stage'), $btn
                         );
                     }
+                } else if ((int) $entry->conventionstatus === STAGE_CONVENTION_EDITED) {
+                    // Convention éditée par la DEVE, prête à être imprimée et signée : l'étudiant
+                    // peut déjà la consulter/télécharger, avant même sa signature.
+                    $actions .= html_writer::link(
+                        new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                            'returnurl' => $PAGE->url->out_as_local_url(false)]),
+                        get_string('viewconvention', 'mod_stage'), $btn
+                    );
                 }
-                // Convention demandée mais pas encore signée : rien à faire côté étudiant pour
-                // l'instant, le badge de statut ci-dessus suffit à le renseigner.
+                // Convention seulement demandée (pas encore éditée par la DEVE) : rien à faire côté
+                // étudiant pour l'instant, le badge de statut ci-dessus suffit à le renseigner.
             }
             // Actions de gestion de la DEVE et de l'enseignant référent : évaluer, valider,
             // relire la convention, modifier, annuler... selon leurs droits et l'état de la
@@ -3053,6 +3206,7 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
         'unmatchedthemes' => [],
         'unmatchedtemplates' => [],
         'droppedanswers' => 0,
+        'reportfiles' => 0,
         'referentteachers' => [],
         'blockers' => [],
         'warnings' => [],
@@ -3132,7 +3286,9 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
         if (!$targetthemeid) {
             continue;
         }
-        foreach (['student', 'teacher'] as $evaltype) {
+        // Les trois types d'évaluation, le maître de stage compris : ses réponses sont des
+        // réponses comme les autres et seraient sinon supprimées faute d'équivalent trouvé.
+        foreach (['student', 'teacher', 'tutor'] as $evaltype) {
             $targetquestions = [];
             foreach (stage_get_questions($targetthemeid, $evaltype) as $targetquestion) {
                 $targetquestions[stage_normalize_name($targetquestion->name)] = $targetquestion;
@@ -3154,6 +3310,16 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
     }
     if ($plan->droppedanswers > 0) {
         $plan->warnings[] = get_string('transferdroppedanswers', 'mod_stage', $plan->droppedanswers);
+    }
+
+    // Rapports de stage déposés : ils suivent la saisie (leur zone de fichiers est indexée sur
+    // l'identifiant de la saisie) mais changent de contexte de module, ce que fait
+    // stage_execute_student_transfer(). Leur nombre est annoncé au récapitulatif, le transfert
+    // n'étant pas réversible.
+    $sourcecm = get_coursemodule_from_instance('stage', $sourcestage->id, 0, false, MUST_EXIST);
+    $sourcecontext = context_module::instance($sourcecm->id);
+    foreach ($plan->entries as $entry) {
+        $plan->reportfiles += count(stage_get_report_files($sourcecontext, $entry->id));
     }
 
     // L'attribution des enseignants référents est propre au cours : elle n'est pas transférée,
@@ -3216,12 +3382,14 @@ function stage_execute_student_transfer(stdClass $sourcestage, context $sourceco
             }
         }
 
-        // La convention signée est stockée dans le contexte du module : elle deviendrait
-        // inaccessible depuis la cible si elle restait dans celui de la source.
-        foreach ($fs->get_area_files($sourcecontext->id, 'mod_stage', 'signedconvention', $entry->id, 'itemid', false)
-                as $file) {
-            $fs->create_file_from_storedfile(['contextid' => $targetcontext->id], $file);
-            $file->delete();
+        // La convention signée et le rapport de stage sont stockés dans le contexte du module :
+        // ils deviendraient inaccessibles depuis la cible s'ils restaient dans celui de la source.
+        foreach (['signedconvention', STAGE_REPORT_FILEAREA] as $filearea) {
+            foreach ($fs->get_area_files($sourcecontext->id, 'mod_stage', $filearea, $entry->id, 'itemid', false)
+                    as $file) {
+                $fs->create_file_from_storedfile(['contextid' => $targetcontext->id], $file);
+                $file->delete();
+            }
         }
     }
 
@@ -3258,6 +3426,13 @@ function stage_import_themes($sourcestageid, $targetstageid) {
             'maxstudyyear' => $theme->maxstudyyear,
             'sortorder' => $theme->sortorder,
             'visible' => $theme->visible,
+            // Les réglages d'évaluation par le maître de stage et de dépôt du rapport font partie
+            // de la définition de la thématique : sans eux, la copie repartirait des valeurs par
+            // défaut (évaluation réactivée, rapport plus demandé) sans que rien ne le signale.
+            // Les enseignants responsables, eux, ne sont pas copiés : comme les enseignants
+            // référents, ils sont propres au cours (voir stage_execute_student_transfer()).
+            'tutorevaluationenabled' => $theme->tutorevaluationenabled,
+            'reportmode' => $theme->reportmode,
             'timecreated' => time(),
             'timemodified' => time(),
         ]);
@@ -3353,21 +3528,61 @@ function stage_import_establishment_info($sourcestageid, $targetstageid) {
 }
 
 /**
- * Importe, selon les options choisies, les thématiques, gabarits de convention, logos et/ou
- * informations d'établissement d'une autre instance de mod_stage vers l'instance courante (voir
- * administration_import.php). L'appelant est responsable de vérifier au préalable que
- * l'utilisateur a la capacité de gérer les thématiques sur les deux instances.
+ * Copie les textes personnalisés des courriels (voir stage_get_email_definitions()) d'une
+ * instance source vers une instance cible.
+ *
+ * Contrairement aux thématiques et aux gabarits, ces textes ne s'ajoutent pas : il n'existe qu'un
+ * texte par courriel et par instance. Chaque courriel personnalisé dans la source remplace donc
+ * celui de la cible ; ceux que la source n'a pas personnalisés sont laissés tels quels dans la
+ * cible plutôt que d'y effacer une personnalisation existante.
+ *
+ * @param int $sourcestageid
+ * @param int $targetstageid
+ * @return int Nombre de courriels personnalisés copiés.
+ */
+function stage_import_email_templates($sourcestageid, $targetstageid) {
+    global $DB;
+
+    $definitions = stage_get_email_definitions();
+    $copied = 0;
+    foreach ($DB->get_records('stage_email_template', ['stageid' => $sourcestageid]) as $template) {
+        // Une clé inconnue est ignorée : elle proviendrait d'une version du plugin définissant un
+        // courriel que celle-ci ne connaît pas, et n'aurait aucun effet dans la cible.
+        if (!isset($definitions[$template->emailkey])) {
+            continue;
+        }
+        // Une ligne source vide des deux côtés ne personnalise rien : la recopier effacerait la
+        // personnalisation de la cible (stage_save_email_template() supprime alors la ligne),
+        // c'est-à-dire l'inverse de ce que l'import annonce.
+        if (trim((string) $template->subject) === '' && trim((string) $template->body) === '') {
+            continue;
+        }
+        stage_save_email_template($targetstageid, $template->emailkey, (string) $template->subject,
+            (string) $template->body);
+        $copied++;
+    }
+
+    return $copied;
+}
+
+/**
+ * Importe, selon les options choisies, les thématiques, gabarits de convention, logos, textes
+ * de courriels et/ou informations d'établissement d'une autre instance de mod_stage vers
+ * l'instance courante (voir administration_import.php). L'appelant est responsable de vérifier au
+ * préalable que l'utilisateur a la capacité de gérer les thématiques sur les deux instances.
  *
  * @param stdClass $sourcestage
  * @param context $sourcecontext
  * @param stdClass $targetstage
  * @param context $targetcontext
- * @param array $options ['themes' => bool, 'templates' => bool, 'logos' => bool, 'establishment' => bool]
- * @return stdClass Résumé : {themes: int, templates: int, logos: int, establishment: bool}
+ * @param array $options ['themes' => bool, 'templates' => bool, 'logos' => bool, 'emails' => bool,
+ *                        'establishment' => bool]
+ * @return stdClass Résumé : {themes: int, templates: int, logos: int, emails: int,
+ *                  establishment: bool}
  */
 function stage_import_from_stage(stdClass $sourcestage, context $sourcecontext, stdClass $targetstage,
         context $targetcontext, array $options) {
-    $result = (object) ['themes' => 0, 'templates' => 0, 'logos' => 0, 'establishment' => false];
+    $result = (object) ['themes' => 0, 'templates' => 0, 'logos' => 0, 'emails' => 0, 'establishment' => false];
 
     if (!empty($options['themes'])) {
         $result->themes = stage_import_themes($sourcestage->id, $targetstage->id);
@@ -3378,6 +3593,9 @@ function stage_import_from_stage(stdClass $sourcestage, context $sourcecontext, 
     }
     if (!empty($options['logos'])) {
         $result->logos = stage_import_convention_logos($sourcecontext, $targetcontext);
+    }
+    if (!empty($options['emails'])) {
+        $result->emails = stage_import_email_templates($sourcestage->id, $targetstage->id);
     }
     if (!empty($options['establishment'])) {
         stage_import_establishment_info($sourcestage->id, $targetstage->id);
@@ -3833,13 +4051,85 @@ function stage_notify_student_convention_rejected(stdClass $stage, stdClass $cm,
         return;
     }
 
-    $url = new moodle_url('/mod/stage/convention_request.php', ['id' => $cm->id, 'entryid' => $entry->id]);
+    $url = new moodle_url('/mod/stage/student_register.php', ['id' => $cm->id, 'entryid' => $entry->id]);
     $text = stage_resolve_email_text($stage->id, 'studentrejected', [
         'stage' => format_string($stage->name),
         'comment' => $comment,
         'url' => $url->out(false),
     ]);
     email_to_user($student, core_user::get_noreply_user(), $text->subject, $text->body);
+}
+
+/**
+ * Saisies dont le stage commence dans les jours qui viennent alors que la convention n'est
+ * toujours pas signée, et dont l'étudiant n'a pas encore été relancé.
+ *
+ * Les stages annulés ou déjà commencés sont exclus (relancer pour un stage commencé n'aiderait
+ * plus), ainsi que les conventions signées ou dispensées (voir stage_convention_is_signed()).
+ *
+ * @param int $days Fenêtre en jours avant le début du stage.
+ * @return array Saisies (stage_entry) indexées par id.
+ */
+function stage_get_entries_needing_convention_reminder($days = STAGE_CONVENTION_REMINDER_DAYS) {
+    global $DB;
+
+    // La fenêtre va de maintenant à la fin du jour situé $days plus tard : un stage commençant
+    // dans 7 jours doit être relancé quelle que soit l'heure de passage du cron ce jour-là.
+    $from = time();
+    $until = usergetmidnight($from) + ($days + 1) * DAYSECS - 1;
+
+    [$signedsql, $signedparams] = $DB->get_in_or_equal(
+        [STAGE_CONVENTION_SIGNED, STAGE_CONVENTION_SIGNVET, STAGE_CONVENTION_EXEMPT],
+        SQL_PARAMS_NAMED, 'cs', false);
+
+    $params = $signedparams + [
+        'from' => $from, 'until' => $until, 'cancelled' => STAGE_STATUS_ANNULE,
+    ];
+
+    return $DB->get_records_select('stage_entry',
+        "datestart > 0 AND datestart >= :from AND datestart <= :until
+         AND conventionstatus $signedsql
+         AND status <> :cancelled
+         AND conventionremindertime IS NULL", $params, 'datestart ASC');
+}
+
+/**
+ * Envoie à l'étudiant le rappel que son stage commence bientôt alors que sa convention n'est
+ * toujours pas signée. Appelée par la tâche planifiée
+ * \mod_stage\task\send_convention_reminders ; l'envoi n'est marqué que si le courriel part, pour
+ * qu'un échec ponctuel soit retenté au passage suivant.
+ *
+ * @param stdClass $stage
+ * @param stdClass $cm Course module.
+ * @param stdClass $entry
+ * @param stdClass $student
+ * @param stdClass|null $theme Thématique du stage, pour la variable {{theme}}.
+ * @return bool True si le courriel est parti.
+ */
+function stage_notify_student_convention_reminder(stdClass $stage, stdClass $cm, stdClass $entry,
+        stdClass $student, ?stdClass $theme) {
+    global $DB;
+
+    // Le lien mène là où l'étudiant peut agir : sa demande de convention, à faire ou à corriger.
+    // S'il en existe déjà une bien avancée (en cours de validation, signée...), la page redirige
+    // simplement vers la vue d'ensemble : ce lien ne fait rien de plus que convention_request.php
+    // ne le faisait déjà dans ce cas.
+    $url = new moodle_url('/mod/stage/student_register.php', ['id' => $cm->id, 'entryid' => $entry->id]);
+    $text = stage_resolve_email_text($stage->id, 'conventionreminder', [
+        'student' => fullname($student),
+        'stage' => format_string($stage->name),
+        'theme' => $theme ? format_string($theme->name) : '',
+        'datestart' => userdate($entry->datestart, get_string('strftimedate', 'langconfig')),
+        'days' => STAGE_CONVENTION_REMINDER_DAYS,
+        'url' => $url->out(false),
+    ]);
+
+    if (!email_to_user($student, core_user::get_noreply_user(), $text->subject, $text->body)) {
+        return false;
+    }
+
+    $DB->set_field('stage_entry', 'conventionremindertime', time(), ['id' => $entry->id]);
+    return true;
 }
 
 /**
@@ -3862,12 +4152,13 @@ function stage_notify_tutor_evaluation_request(stdClass $stage, stdClass $cm, st
         return;
     }
 
+    $lang = stage_get_entry_convention_lang($entry);
     $url = new moodle_url('/mod/stage/tutor_eval.php', ['token' => $entry->tutortoken]);
     $text = stage_resolve_email_text($stage->id, 'tutorrequest', [
         'student' => fullname($student),
         'stage' => format_string($stage->name),
         'url' => $url->out(false),
-    ]);
+    ], $lang);
 
     $names = explode(' ', trim($tutorname), 2);
     $tutoruser = (object) [
@@ -3882,16 +4173,62 @@ function stage_notify_tutor_evaluation_request(stdClass $stage, stdClass $cm, st
         'suspended' => 0,
         'deleted' => 0,
         'emailstop' => 0,
-        'lang' => current_language(),
+        'lang' => $lang,
     ];
 
     email_to_user($tutoruser, core_user::get_noreply_user(), $text->subject, $text->body);
 }
 
 /**
- * Si l'évaluation par le maître de stage est activée pour l'activité, génère (si besoin) un
- * jeton d'accès et envoie l'invitation par courriel au maître de stage. N'envoie jamais deux
- * fois l'invitation pour une même saisie (un jeton déjà présent est laissé tel quel).
+ * Indique si l'évaluation par le maître de stage est active pour une thématique donnée :
+ * l'option doit être activée à la fois globalement pour l'activité (notifications.php) et pour
+ * cette thématique (themes.php), la seconde n'ayant de sens que si la première l'est aussi.
+ *
+ * @param stdClass $stage
+ * @param stdClass|null $theme Thématique de la saisie concernée ; null (thématique supprimée
+ *                              entretemps, par exemple) est traité comme désactivé.
+ * @return bool
+ */
+function stage_tutor_evaluation_enabled(stdClass $stage, ?stdClass $theme) {
+    return !empty($stage->tutorevaluationenabled) && $theme !== null && !empty($theme->tutorevaluationenabled);
+}
+
+/**
+ * Liste les saisies dont le stage a commencé et dont le maître de stage n'a pas encore reçu son
+ * invitation à évaluer, filtrée directement en SQL sur les mêmes conditions que
+ * stage_maybe_request_tutor_evaluation() (évaluation activée, coordonnées connues) pour ne pas
+ * représenter indéfiniment, à chaque passage du cron, les saisies qui n'y sont pas éligibles.
+ *
+ * @return array stdClass[] Saisies (stage_entry), triées par date de début.
+ */
+function stage_get_entries_needing_tutor_request() {
+    global $DB;
+
+    $sql = "SELECT e.*
+              FROM {stage_entry} e
+              JOIN {stage} s ON s.id = e.stageid
+              JOIN {stage_theme} t ON t.id = e.themeid
+              JOIN {stage_convention_detail} d ON d.entryid = e.id
+             WHERE e.datestart > 0 AND e.datestart <= :now
+               AND e.status <> :cancelled
+               AND e.tutortoken IS NULL
+               AND s.tutorevaluationenabled = 1
+               AND t.tutorevaluationenabled = 1
+               AND d.tutoremail IS NOT NULL AND " . $DB->sql_compare_text('d.tutoremail') . " <> ''
+          ORDER BY e.datestart ASC";
+
+    return $DB->get_records_sql($sql, ['now' => time(), 'cancelled' => STAGE_STATUS_ANNULE]);
+}
+
+/**
+ * Si l'évaluation par le maître de stage est activée pour l'activité et le stage a commencé,
+ * génère (si besoin) un jeton d'accès et envoie l'invitation par courriel au maître de stage.
+ * N'envoie jamais deux fois l'invitation pour une même saisie (un jeton déjà présent est laissé
+ * tel quel). Appelée par la tâche planifiée \mod_stage\task\send_tutor_evaluation_requests, qui
+ * s'appuie sur stage_get_entries_needing_tutor_request() pour ne cibler que les saisies dont le
+ * premier jour de stage est arrivé : envoyer l'invitation dès l'auto-évaluation de l'étudiant (qui
+ * peut être saisie bien avant le début du stage) enverrait le questionnaire au maître de stage
+ * avant même que le stage ait commencé.
  *
  * @param stdClass $stage
  * @param stdClass $cm Course module.
@@ -3901,7 +4238,12 @@ function stage_notify_tutor_evaluation_request(stdClass $stage, stdClass $cm, st
 function stage_maybe_request_tutor_evaluation(stdClass $stage, stdClass $cm, stdClass $entry) {
     global $DB;
 
-    if (empty($stage->tutorevaluationenabled) || !empty($entry->tutortoken)) {
+    if (empty($entry->datestart) || $entry->datestart > time()) {
+        return;
+    }
+
+    $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
+    if (!stage_tutor_evaluation_enabled($stage, $theme) || !empty($entry->tutortoken)) {
         return;
     }
 
@@ -3929,6 +4271,80 @@ function stage_get_entry_by_tutor_token($token) {
         return false;
     }
     return $DB->get_record('stage_entry', ['tutortoken' => $token]);
+}
+
+/**
+ * URL à jeton permettant au maître de stage de répondre au questionnaire d'évaluation, à
+ * l'usage de la DEVE (récupération du lien pour le transmettre par un autre moyen que le
+ * courriel automatique, par exemple). Génère le jeton si besoin, comme
+ * stage_maybe_request_tutor_evaluation() mais sans envoyer de courriel.
+ *
+ * @param stdClass $entry
+ * @return moodle_url|null Null si l'évaluation par le maître de stage n'est pas activée ou si
+ *                          les coordonnées du maître de stage sont inconnues.
+ */
+function stage_get_tutor_eval_url(stdClass $stage, stdClass $entry) {
+    global $DB;
+
+    $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
+    if (!stage_tutor_evaluation_enabled($stage, $theme)) {
+        return null;
+    }
+
+    if (empty($entry->tutortoken)) {
+        $detail = stage_get_convention_detail($entry->id);
+        if (!$detail || empty($detail->tutoremail)) {
+            return null;
+        }
+        $token = bin2hex(random_bytes(32));
+        $DB->set_field('stage_entry', 'tutortoken', $token, ['id' => $entry->id]);
+        $entry->tutortoken = $token;
+    }
+
+    return new moodle_url('/mod/stage/tutor_eval.php', ['token' => $entry->tutortoken]);
+}
+
+/**
+ * Renvoie (relance) au maître de stage le courriel d'invitation à évaluer le stage, en
+ * réutilisant le jeton déjà généré (ou en le générant si besoin). Contrairement à
+ * stage_maybe_request_tutor_evaluation(), envoie systématiquement le courriel : à l'usage de la
+ * DEVE, qui décide elle-même de relancer.
+ *
+ * @param stdClass $stage
+ * @param stdClass $cm Course module.
+ * @param stdClass $entry
+ * @return bool True si le courriel a pu être envoyé.
+ */
+function stage_resend_tutor_evaluation_request(stdClass $stage, stdClass $cm, stdClass $entry) {
+    $detail = stage_get_convention_detail($entry->id);
+    if (!$detail || empty($detail->tutoremail)) {
+        return false;
+    }
+
+    if (!stage_get_tutor_eval_url($stage, $entry)) {
+        return false;
+    }
+
+    stage_notify_tutor_evaluation_request($stage, $cm, $entry, $detail->tutorname, $detail->tutoremail);
+    return true;
+}
+
+/**
+ * Ignore l'évaluation du maître de stage pour cette saisie (« shunt » DEVE) : marque la saisie
+ * comme telle pour que son absence n'empêche plus la validation finale. Réversible en
+ * réinitialisant la saisie (stage_reset_entry), qui remet tutorbypassed à 0.
+ *
+ * @param stdClass $entry
+ * @return void
+ */
+function stage_bypass_tutor_eval(stdClass $entry) {
+    global $DB;
+
+    $DB->update_record('stage_entry', (object) [
+        'id' => $entry->id,
+        'tutorbypassed' => 1,
+        'timemodified' => time(),
+    ]);
 }
 
 /**
@@ -4017,6 +4433,248 @@ function stage_get_signed_convention_file(context $context, $entryid) {
 }
 
 /**
+ * Rapports de stage (documents déposés par l'étudiant lors de son auto-évaluation) pour une
+ * saisie donnée.
+ *
+ * @param context $context Contexte du module stage.
+ * @param int $entryid
+ * @return \stored_file[] Indexés par pathnamehash, éventuellement vide.
+ */
+function stage_get_report_files(context $context, $entryid) {
+    $fs = get_file_storage();
+    return $fs->get_area_files($context->id, 'mod_stage', STAGE_REPORT_FILEAREA, $entryid, 'filename', false);
+}
+
+/**
+ * Mode de dépôt du rapport de stage défini pour une thématique (aucun / facultatif / obligatoire).
+ *
+ * @param stdClass|null $theme
+ * @return int Une des constantes STAGE_REPORT_*.
+ */
+function stage_theme_report_mode(?stdClass $theme) {
+    return $theme === null ? STAGE_REPORT_NONE : (int) $theme->reportmode;
+}
+
+/**
+ * Libellés des modes de dépôt du rapport de stage, pour les listes déroulantes de themes.php.
+ *
+ * @return array int => libellé
+ */
+function stage_report_mode_options() {
+    return [
+        STAGE_REPORT_NONE => get_string('reportmode_none', 'mod_stage'),
+        STAGE_REPORT_OPTIONAL => get_string('reportmode_optional', 'mod_stage'),
+        STAGE_REPORT_REQUIRED => get_string('reportmode_required', 'mod_stage'),
+    ];
+}
+
+/**
+ * Enseignants responsables d'une thématique (distincts des enseignants référents d'un étudiant) :
+ * ils accèdent aux stages faits sur leur thématique et aux rapports qui y sont déposés.
+ *
+ * @param int $themeid
+ * @return array userid => objet utilisateur, trié par nom.
+ */
+function stage_get_theme_teachers($themeid) {
+    global $DB;
+
+    $userfields = 'u.' . implode(', u.', \core_user\fields::get_name_fields());
+    return $DB->get_records_sql(
+        "SELECT u.id, $userfields
+           FROM {stage_theme_teacher} tt
+           JOIN {user} u ON u.id = tt.teacherid
+          WHERE tt.themeid = :themeid
+       ORDER BY u.lastname ASC, u.firstname ASC", ['themeid' => $themeid]);
+}
+
+/**
+ * Enregistre la liste des enseignants responsables d'une thématique, en remplacement de la
+ * précédente. Comme stage_set_student_teachers(), ne réécrit rien si la liste est inchangée.
+ *
+ * @param int $themeid
+ * @param array $teacherids
+ * @return void
+ */
+function stage_set_theme_teachers($themeid, array $teacherids) {
+    global $DB;
+
+    $teacherids = array_filter(array_unique(array_map('intval', $teacherids)));
+
+    $existing = array_map('intval',
+        $DB->get_fieldset_select('stage_theme_teacher', 'teacherid', 'themeid = ?', [$themeid]));
+    sort($existing);
+    $wanted = array_values($teacherids);
+    sort($wanted);
+    if ($existing === $wanted) {
+        return;
+    }
+
+    $DB->delete_records('stage_theme_teacher', ['themeid' => $themeid]);
+    foreach ($teacherids as $teacherid) {
+        $DB->insert_record('stage_theme_teacher', (object) [
+            'themeid' => $themeid,
+            'teacherid' => $teacherid,
+            'timecreated' => time(),
+        ]);
+    }
+}
+
+/**
+ * Thématiques d'une activité dont un utilisateur est enseignant responsable.
+ *
+ * @param int $stageid
+ * @param int $userid
+ * @return array themeid => objet thématique, dans l'ordre d'affichage habituel.
+ */
+function stage_get_teacher_themes($stageid, $userid) {
+    global $DB;
+
+    return $DB->get_records_sql(
+        "SELECT t.*
+           FROM {stage_theme} t
+           JOIN {stage_theme_teacher} tt ON tt.themeid = t.id
+          WHERE t.stageid = :stageid AND tt.teacherid = :userid
+       ORDER BY t.minstudyyear ASC, t.maxstudyyear ASC, t.sortorder ASC, t.name ASC",
+        ['stageid' => $stageid, 'userid' => $userid]);
+}
+
+/**
+ * Indique si un utilisateur est enseignant responsable d'une thématique donnée.
+ *
+ * @param int $themeid
+ * @param int $userid
+ * @return bool
+ */
+function stage_is_theme_teacher($themeid, $userid) {
+    global $DB;
+
+    return $DB->record_exists('stage_theme_teacher', ['themeid' => $themeid, 'teacherid' => $userid]);
+}
+
+/**
+ * Indique si un utilisateur a le droit de consulter les rapports de stage déposés pour une
+ * saisie : l'étudiant qui les a déposés, la DEVE, l'enseignant référent de l'étudiant et les
+ * enseignants responsables de la thématique du stage.
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @param context $context Contexte du module stage.
+ * @param int|null $userid Utilisateur concerné, l'utilisateur courant par défaut.
+ * @return bool
+ */
+function stage_can_access_reports(stdClass $stage, stdClass $entry, context $context, $userid = null) {
+    global $USER;
+
+    $userid = $userid ?: $USER->id;
+
+    if ((int) $entry->userid === (int) $userid && has_capability('mod/stage:submit', $context, $userid)) {
+        return true;
+    }
+    if (has_capability('mod/stage:viewall', $context, $userid)) {
+        return true;
+    }
+    if (has_capability('mod/stage:evaluateteacher', $context, $userid)
+            && array_key_exists($entry->userid, stage_get_assigned_students($stage->id, $userid))) {
+        return true;
+    }
+
+    return stage_is_theme_teacher($entry->themeid, $userid);
+}
+
+/**
+ * Liens de téléchargement des rapports de stage d'une saisie, pour les pages de consultation
+ * (détail d'une saisie, évaluation enseignant, validation DEVE). Chaîne vide si aucun document
+ * n'a été déposé.
+ *
+ * @param stdClass $cm Course module.
+ * @param context $context Contexte du module stage.
+ * @param stdClass $entry
+ * @return string HTML
+ */
+function stage_render_report_links(stdClass $cm, context $context, stdClass $entry) {
+    $files = stage_get_report_files($context, $entry->id);
+    if (empty($files)) {
+        return '';
+    }
+
+    $items = [];
+    foreach ($files as $file) {
+        $url = new moodle_url('/mod/stage/report_file.php', [
+            'id' => $cm->id, 'entryid' => $entry->id, 'pathnamehash' => $file->get_pathnamehash(),
+        ]);
+        $items[] = html_writer::link($url, $file->get_filename())
+            . html_writer::span(' (' . display_size($file->get_filesize()) . ')', 'text-muted');
+    }
+
+    return html_writer::alist($items);
+}
+
+/**
+ * Section « Rapport de stage » des pages de consultation d'une saisie (détail, évaluation
+ * enseignant, validation DEVE) : titre et liens de téléchargement, ou mention qu'aucun document
+ * n'a été déposé.
+ *
+ * La section est affichée dès qu'un document existe, même si la thématique ne demande plus de
+ * rapport : la DEVE peut avoir changé la thématique de la saisie (register.php) ou le mode de
+ * dépôt de la thématique depuis le dépôt, et des documents déjà déposés ne doivent pas
+ * disparaître de la vue pour autant.
+ *
+ * @param stdClass $cm Course module.
+ * @param context $context Contexte du module stage.
+ * @param stdClass $entry
+ * @param stdClass|null $theme Thématique de la saisie.
+ * @return string HTML, chaîne vide si la thématique ne demande aucun rapport et qu'aucun
+ *                document n'a été déposé.
+ */
+function stage_render_report_section(stdClass $cm, context $context, stdClass $entry, ?stdClass $theme) {
+    global $OUTPUT;
+
+    $links = stage_render_report_links($cm, $context, $entry);
+    if ($links === '' && stage_theme_report_mode($theme) == STAGE_REPORT_NONE) {
+        return '';
+    }
+
+    return $OUTPUT->heading(get_string('reportfiles', 'mod_stage'), 4)
+        . ($links !== '' ? $links : $OUTPUT->notification(get_string('noreportfiles', 'mod_stage'), 'info'));
+}
+
+/**
+ * Construit et envoie au navigateur une archive ZIP des rapports de stage des saisies données,
+ * un dossier par étudiant pour que les fichiers de même nom ne s'écrasent pas. Ne revient pas :
+ * termine la requête en envoyant le fichier.
+ *
+ * @param context $context Contexte du module stage.
+ * @param array $entries Saisies concernées (objets stage_entry).
+ * @param array $students Étudiants indexés par id, tels que renvoyés par stage_get_entry_users().
+ * @param string $zipname Nom de l'archive envoyée (sans extension).
+ * @return void
+ */
+function stage_send_reports_zip(context $context, array $entries, array $students, $zipname) {
+    $filesforzipping = [];
+    foreach ($entries as $entry) {
+        $student = $students[$entry->userid] ?? null;
+        $foldername = clean_filename(($student ? fullname($student) : 'etudiant-' . $entry->userid)
+            . '-' . $entry->id);
+        foreach (stage_get_report_files($context, $entry->id) as $file) {
+            $filesforzipping[$foldername . '/' . clean_filename($file->get_filename())] = $file;
+        }
+    }
+
+    if (empty($filesforzipping)) {
+        throw new moodle_exception('noreportstozip', 'mod_stage');
+    }
+
+    $tmpfile = tempnam(make_temp_directory('mod_stage'), 'stagereports_');
+    $packer = get_file_packer('application/zip');
+    if (!$packer->archive_to_pathname($filesforzipping, $tmpfile)) {
+        @unlink($tmpfile);
+        throw new moodle_exception('reportszipfailed', 'mod_stage');
+    }
+
+    send_temp_file($tmpfile, clean_filename($zipname) . '.zip');
+}
+
+/**
  * Copie un fichier stocké par l'API fichiers de Moodle vers un fichier temporaire sur disque,
  * pour les usages (TCPDF, FPDI) qui exigent un chemin de fichier réel plutôt qu'un contenu en
  * mémoire. L'appelant est responsable de supprimer le fichier retourné (unlink) une fois fini.
@@ -4028,6 +4686,74 @@ function stage_stored_file_to_temp(\stored_file $file) {
     $tmppath = tempnam(sys_get_temp_dir(), 'stageconv_');
     $file->copy_content_to($tmppath);
     return $tmppath;
+}
+
+/**
+ * Vérifie ce qui empêcherait de construire le PDF d'une convention (gabarit non choisi, fichier
+ * de gabarit absent, bibliothèque FPDI non installée), sans rien construire.
+ *
+ * Ces contrôles sont ceux de stage_build_convention_pdf(), isolés pour pouvoir être faits avant
+ * de lancer un téléchargement : une erreur survenant pendant le téléchargement lui-même
+ * (convention.php, cadre invisible) ne serait jamais montrée à l'utilisateur.
+ *
+ * @param stdClass $entry
+ * @param context $context Contexte du module stage.
+ * @return string|null Clé de chaîne de langue mod_stage décrivant l'empêchement, ou null si le
+ *                     PDF peut être construit.
+ */
+function stage_check_convention_pdf_prerequisites(stdClass $entry, context $context) {
+    global $CFG;
+
+    if (empty($entry->conventiontemplateid)) {
+        return 'conventionnotemplatechosen';
+    }
+    if (!stage_get_convention_template_file($context, $entry->conventiontemplateid)) {
+        return 'conventiontemplatemissing';
+    }
+    if (!is_readable($CFG->dirroot . '/mod/stage/thirdparty/vendor/autoload.php')) {
+        return 'conventionfpdimissing';
+    }
+
+    return null;
+}
+
+/**
+ * Page intermédiaire qui lance un téléchargement puis ramène l'utilisateur là d'où il venait.
+ *
+ * Un fichier envoyé en pièce jointe ne fait pas changer de page : sans cela, l'utilisateur reste
+ * sur le formulaire qui a déclenché le téléchargement. Le téléchargement est donc lancé dans un
+ * cadre invisible, ce qui laisse la page courante libre de naviguer ensuite vers l'écran de
+ * retour. Les deux liens restent proposés en clair : ils servent de recours si le navigateur
+ * bloque le cadre, si le script est désactivé, ou si le téléchargement tarde.
+ *
+ * @param moodle_url $downloadurl URL renvoyant le fichier en pièce jointe.
+ * @param moodle_url $returnurl Écran sur lequel revenir une fois le téléchargement lancé.
+ * @param int $delay Délai avant le retour, en secondes : le téléchargement doit avoir démarré,
+ *                   un retour trop prompt interromprait une génération encore en cours.
+ * @return string HTML
+ */
+function stage_render_download_and_return(moodle_url $downloadurl, moodle_url $returnurl, $delay = 5) {
+    global $OUTPUT;
+
+    $out = $OUTPUT->notification(get_string('downloadstarting', 'mod_stage'),
+        \core\output\notification::NOTIFY_INFO);
+
+    $out .= html_writer::tag('iframe', '', [
+        'src' => $downloadurl->out(false), 'title' => get_string('downloadstarting', 'mod_stage'),
+        'width' => '0', 'height' => '0', 'style' => 'border:0;position:absolute;visibility:hidden;',
+    ]);
+
+    $out .= html_writer::div(
+        html_writer::link($downloadurl, get_string('downloadrestart', 'mod_stage'),
+            ['class' => 'btn btn-secondary mr-2'])
+        . html_writer::link($returnurl, get_string('backtolist', 'mod_stage'),
+            ['class' => 'btn btn-primary']));
+
+    $out .= html_writer::script(
+        'setTimeout(function() { window.location.href = ' . json_encode($returnurl->out(false)) . '; }, '
+        . ((int) $delay * 1000) . ');');
+
+    return $out;
 }
 
 /**
@@ -4051,22 +4777,16 @@ function stage_stored_file_to_temp(\stored_file $file) {
 function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $context, $withsignatures = false) {
     global $DB, $CFG;
 
-    if (empty($entry->conventiontemplateid)) {
-        return ['error' => 'conventionnotemplatechosen', 'pdf' => null, 'filename' => null];
+    $error = stage_check_convention_pdf_prerequisites($entry, $context);
+    if ($error !== null) {
+        return ['error' => $error, 'pdf' => null, 'filename' => null];
     }
 
     $conventiontemplate = $DB->get_record('stage_convention_template', ['id' => $entry->conventiontemplateid]);
     $conventionlang = $conventiontemplate ? $conventiontemplate->lang : 'fr';
-
     $templatefile = stage_get_convention_template_file($context, $entry->conventiontemplateid);
-    if (!$templatefile) {
-        return ['error' => 'conventiontemplatemissing', 'pdf' => null, 'filename' => null];
-    }
 
     $fpdiautoload = $CFG->dirroot . '/mod/stage/thirdparty/vendor/autoload.php';
-    if (!is_readable($fpdiautoload)) {
-        return ['error' => 'conventionfpdimissing', 'pdf' => null, 'filename' => null];
-    }
     require_once($fpdiautoload);
     require_once($CFG->dirroot . '/mod/stage/classes/pdf/convention_pdf.php');
 
@@ -4229,4 +4949,44 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
     $filename = clean_filename('convention_stage_' . fullname($student) . '_' . $entry->id . '.pdf');
 
     return ['error' => null, 'pdf' => $merger, 'filename' => $filename];
+}
+
+/**
+ * Supprime définitivement des saisies de stage et tout ce qui leur est rattaché : périodes, jours
+ * ouvrés, détail de convention, réponses aux questionnaires, et — si le contexte du module est
+ * fourni — la convention signée et le rapport de stage stockés dans ses zones de fichiers.
+ *
+ * Factorisé ici pour que les deux appelants (suppression de l'instance dans stage_delete_instance()
+ * et suppression des données personnelles d'un étudiant dans \mod_stage\privacy\provider) ne
+ * puissent pas diverger : une table rattachée ajoutée plus tard n'a ainsi qu'un seul endroit à
+ * mettre à jour pour être purgée dans les deux cas.
+ *
+ * @param int[] $entryids Identifiants de saisies. Un tableau vide ne fait rien.
+ * @param context|null $context Contexte du module, pour purger aussi les fichiers. Peut être omis
+ *        lorsque Moodle s'apprête de toute façon à supprimer le contexte et ses fichiers (cas de
+ *        la suppression de l'instance).
+ * @return void
+ */
+function stage_delete_entries(array $entryids, ?context $context = null) {
+    global $DB;
+
+    $entryids = array_values(array_filter(array_unique(array_map('intval', $entryids))));
+    if (empty($entryids)) {
+        return;
+    }
+
+    if ($context) {
+        $fs = get_file_storage();
+        foreach ($entryids as $entryid) {
+            foreach (['signedconvention', STAGE_REPORT_FILEAREA] as $filearea) {
+                $fs->delete_area_files($context->id, 'mod_stage', $filearea, $entryid);
+            }
+        }
+    }
+
+    [$insql, $inparams] = $DB->get_in_or_equal($entryids);
+    foreach (['stage_answer', 'stage_convention_detail', 'stage_entry_period', 'stage_entry_workday'] as $table) {
+        $DB->delete_records_select($table, "entryid $insql", $inparams);
+    }
+    $DB->delete_records_select('stage_entry', "id $insql", $inparams);
 }

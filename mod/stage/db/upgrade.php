@@ -637,5 +637,91 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026082423, 'stage');
     }
 
+    if ($oldversion < 2026082426) {
+        $entrytable = new xmldb_table('stage_entry');
+        $field = new xmldb_field('tutorbypassed', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'tutortime');
+        if (!$dbman->field_exists($entrytable, $field)) {
+            $dbman->add_field($entrytable, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026082426, 'stage');
+    }
+
+    if ($oldversion < 2026082427) {
+        $themetable = new xmldb_table('stage_theme');
+        $field = new xmldb_field('tutorevaluationenabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1',
+            'visible');
+        if (!$dbman->field_exists($themetable, $field)) {
+            $dbman->add_field($themetable, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026082427, 'stage');
+    }
+
+    if ($oldversion < 2026082428) {
+        $themetable = new xmldb_table('stage_theme');
+        $field = new xmldb_field('reportmode', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0',
+            'tutorevaluationenabled');
+        if (!$dbman->field_exists($themetable, $field)) {
+            $dbman->add_field($themetable, $field);
+        }
+
+        $themeteachertable = new xmldb_table('stage_theme_teacher');
+        if (!$dbman->table_exists($themeteachertable)) {
+            $themeteachertable->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+            $themeteachertable->add_field('themeid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+            $themeteachertable->add_field('teacherid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+            $themeteachertable->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+            $themeteachertable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $themeteachertable->add_key('themeid', XMLDB_KEY_FOREIGN, ['themeid'], 'stage_theme', ['id']);
+            $themeteachertable->add_key('teacherid', XMLDB_KEY_FOREIGN, ['teacherid'], 'user', ['id']);
+            $themeteachertable->add_index('themeid-teacherid', XMLDB_INDEX_UNIQUE, ['themeid', 'teacherid']);
+            $dbman->create_table($themeteachertable);
+        }
+
+        upgrade_mod_savepoint(true, 2026082428, 'stage');
+    }
+
+    if ($oldversion < 2026082429) {
+        $entrytable = new xmldb_table('stage_entry');
+        $field = new xmldb_field('conventionremindertime', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
+            'conventionrequesttime');
+        if (!$dbman->field_exists($entrytable, $field)) {
+            $dbman->add_field($entrytable, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026082429, 'stage');
+    }
+
+    if ($oldversion < 2026082430) {
+        $detailtable = new xmldb_table('stage_convention_detail');
+        $field = new xmldb_field('paperrequestedbystudent', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0',
+            'gratificationamount');
+        if (!$dbman->field_exists($detailtable, $field)) {
+            $dbman->add_field($detailtable, $field);
+        }
+        $field = new xmldb_field('paperrequestedbyteacher', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0',
+            'paperrequestedbystudent');
+        if (!$dbman->field_exists($detailtable, $field)) {
+            $dbman->add_field($detailtable, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026082430, 'stage');
+    }
+
+    if ($oldversion < 2026090200) {
+        $questiontable = new xmldb_table('stage_question');
+        $field = new xmldb_field('nameen', XMLDB_TYPE_TEXT, null, null, null, null, null, 'name');
+        if (!$dbman->field_exists($questiontable, $field)) {
+            $dbman->add_field($questiontable, $field);
+        }
+        $field = new xmldb_field('optionsen', XMLDB_TYPE_TEXT, null, null, null, null, null, 'options');
+        if (!$dbman->field_exists($questiontable, $field)) {
+            $dbman->add_field($questiontable, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026090200, 'stage');
+    }
+
     return true;
 }
