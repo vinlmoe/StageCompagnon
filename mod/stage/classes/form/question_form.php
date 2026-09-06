@@ -72,6 +72,19 @@ class question_form extends \moodleform {
         $mform->setType('options', PARAM_TEXT);
         $mform->hideIf('options', 'qtype', 'eq', 'text');
 
+        // Version anglaise (maître de stage) : n'a d'utilité que pour ce type d'évaluation, dont
+        // les conventions peuvent être rédigées en anglais (voir stage_get_entry_convention_lang()).
+        $mform->addElement('text', 'nameen', get_string('questionlabelen', 'mod_stage'), ['size' => '64']);
+        $mform->setType('nameen', PARAM_TEXT);
+        $mform->addHelpButton('nameen', 'questionlangen', 'mod_stage');
+        $mform->hideIf('nameen', 'evaltype', 'neq', 'tutor');
+
+        $mform->addElement('textarea', 'optionsen', get_string('choiceoptionsen', 'mod_stage'),
+            ['rows' => 5, 'cols' => 50]);
+        $mform->setType('optionsen', PARAM_TEXT);
+        $mform->hideIf('optionsen', 'qtype', 'eq', 'text');
+        $mform->hideIf('optionsen', 'evaltype', 'neq', 'tutor');
+
         $mform->addElement('advcheckbox', 'required', get_string('questionrequired', 'mod_stage'));
         $mform->setDefault('required', 1);
 

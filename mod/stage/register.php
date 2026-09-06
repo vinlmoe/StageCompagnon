@@ -32,6 +32,7 @@ use mod_stage\form\deve_entry_form;
 
 $id = required_param('id', PARAM_INT);
 $entryid = optional_param('entryid', 0, PARAM_INT);
+$returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 $mode = optional_param('mode', 'list', PARAM_ALPHA);
 $search = optional_param('search', '', PARAM_TEXT);
 $filterthemeid = optional_param('themeid', 0, PARAM_INT);
@@ -54,6 +55,11 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('registerstage
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
+// Écran de retour et de redirection finale pour les modes "single" (édition) et "reset" : la
+// liste de cette page par défaut, ou la page d'où l'on vient (résumé de l'étudiant, tableau de
+// pilotage...) si elle a été transmise (voir stage_render_entry_management_actions()).
+$backurl = $returnurlparam !== '' ? new moodle_url($returnurlparam) : $baseurl;
+
 $themes = stage_get_themes($stage->id, true);
 $students = stage_get_enrolled_students($context);
 
@@ -74,7 +80,7 @@ if (empty($students)) {
 if ($mode === 'reset' && $entryid && confirm_sesskey()) {
     $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
     stage_reset_entry($entry);
-    redirect($baseurl, get_string('entryreset', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    redirect($backurl, get_string('entryreset', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 // Liste de toutes les saisies existantes, avec accès à l'édition.
@@ -92,6 +98,10 @@ if ($mode === 'list') {
             get_string('importcsv', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
         . html_writer::link(new moodle_url('/mod/stage/import_stagevet.php', ['id' => $cm->id]),
             get_string('importstagevetcsv', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
+        . html_writer::link(new moodle_url('/mod/stage/import_historical.php', ['id' => $cm->id]),
+            get_string('historicalimport', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
+        . html_writer::link(new moodle_url('/mod/stage/import_global.php', ['id' => $cm->id]),
+            get_string('globalimport', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
         . (has_capability('mod/stage:viewall', $context)
             ? html_writer::link(new moodle_url('/mod/stage/export.php', ['id' => $cm->id]),
                 get_string('exportexcel', 'mod_stage'), ['class' => 'btn btn-secondary'])
@@ -138,19 +148,26 @@ if ($mode === 'list') {
         // rendues en boutons et hiérarchisées en trois groupes — la saisie elle-même, sa
         // convention, puis les actions destructrices, visuellement mises à l'écart.
         $conventionstatus = (int) $entry->conventionstatus;
+        // Le retour ramène sur cette liste, filtres et page compris (comme generateconvention
+        // ci-dessous), pas sur la liste "vierge".
+        $rowreturnurl = (new moodle_url($listurl, ['page' => $page]))->out_as_local_url(false);
         $actions = stage_render_actions([
-            get_string('edit') =>
-                new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entry->id]),
+            get_string('edit') => new moodle_url('/mod/stage/register.php',
+                ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]),
         ], 'btn btn-sm btn-secondary mr-1 mb-1');
 
         $conventionactions = stage_render_actions([
             get_string('conventionreview', 'mod_stage') => $conventionstatus === STAGE_CONVENTION_REQUESTED
-                ? new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $rowreturnurl]) : null,
+            // Le retour après téléchargement ramène sur cette liste, filtres et page compris.
             get_string('generateconvention', 'mod_stage') =>
                 in_array($conventionstatus, [STAGE_CONVENTION_EDITED, STAGE_CONVENTION_SIGNED], true)
-                    ? new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                    ? new moodle_url('/mod/stage/convention.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                        'returnurl' => $rowreturnurl]) : null,
             get_string('conventionmarksigned', 'mod_stage') => $conventionstatus === STAGE_CONVENTION_EDITED
-                ? new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id]) : null,
+                ? new moodle_url('/mod/stage/convention_sign.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $rowreturnurl]) : null,
             get_string('downloadsignedconvention', 'mod_stage') =>
                 $conventionstatus === STAGE_CONVENTION_SIGNED && stage_get_signed_convention_file($context, $entry->id)
                     ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id])
@@ -163,8 +180,8 @@ if ($mode === 'list') {
         // Réinitialiser et annuler défont un travail déjà fait : en rouge et en dernier, pour ne
         // pas être cliquées par inadvertance à la place de « Modifier ».
         if ((int) $entry->status !== STAGE_STATUS_ENREGISTRE) {
-            $reseturl = new moodle_url('/mod/stage/register.php',
-                ['id' => $cm->id, 'mode' => 'reset', 'entryid' => $entry->id, 'sesskey' => sesskey()]);
+            $reseturl = new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'reset',
+                'entryid' => $entry->id, 'sesskey' => sesskey(), 'returnurl' => $rowreturnurl]);
             $actions .= html_writer::link($reseturl, get_string('resetentry', 'mod_stage'), [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
                 'onclick' => "return confirm('" . get_string('confirmresetentry', 'mod_stage') . "');",
@@ -172,7 +189,8 @@ if ($mode === 'list') {
         }
         if ((int) $entry->status !== STAGE_STATUS_ANNULE) {
             $actions .= html_writer::link(
-                new moodle_url('/mod/stage/cancel_entry.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+                new moodle_url('/mod/stage/cancel_entry.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]),
                 get_string('cancelentry', 'mod_stage'), ['class' => 'btn btn-sm btn-outline-danger mr-1 mb-1']);
         }
         $table->data[] = [
@@ -204,7 +222,8 @@ if ($mode === 'single') {
 
     $entrystudent = $entry ? $DB->get_record('user', ['id' => $entry->userid]) : null;
     $entryperiods = $entry ? array_values(stage_get_or_seed_entry_periods($entry)) : [];
-    $formurl = new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entryid]);
+    $formurl = new moodle_url('/mod/stage/register.php',
+        ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entryid, 'returnurl' => $returnurlparam]);
     $mform = new deve_entry_form($formurl, [
         'themes' => $themes,
         'students' => $students,
@@ -250,7 +269,7 @@ if ($mode === 'single') {
     $mform->set_data($toform);
 
     if ($mform->is_cancelled()) {
-        redirect($baseurl);
+        redirect($backurl);
     } else if ($data = $mform->get_data()) {
         // Les dates du stage sont déduites des plages, seul endroit où elles se saisissent : le
         // formulaire a déjà refusé une saisie sans plage ou avec des plages qui se recoupent.
@@ -276,12 +295,12 @@ if ($mode === 'single') {
             stage_save_entry_periods($newentryid, $periods);
             stage_set_entry_stagetype($newentryid, $data->stagetype);
         }
-        redirect($baseurl, get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        redirect($backurl, get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     echo $OUTPUT->header();
     echo $OUTPUT->heading($entry ? get_string('editstage', 'mod_stage') : get_string('registerstage', 'mod_stage'));
-    echo html_writer::link($baseurl, get_string('back'));
+    echo html_writer::link($backurl, get_string('back'));
     echo stage_render_abroad_rules($stage);
     $mform->display();
     echo $OUTPUT->footer();

@@ -79,7 +79,8 @@ if ($action === 'edit') {
 
     $formurl = new moodle_url('/mod/stage/questions.php',
         ['id' => $cm->id, 'themeid' => $theme->id, 'action' => 'edit', 'questionid' => $questionid]);
-    $mform = new question_form($formurl, ['themes' => $themeoptions, 'tutorenabled' => !empty($stage->tutorevaluationenabled)]);
+    $mform = new question_form($formurl,
+        ['themes' => $themeoptions, 'tutorenabled' => stage_tutor_evaluation_enabled($stage, $theme)]);
     $question = null;
     if ($questionid) {
         $question = $DB->get_record('stage_question', ['id' => $questionid, 'stageid' => $stage->id], '*', MUST_EXIST);
@@ -104,7 +105,9 @@ if ($action === 'edit') {
         $record->evaltype = $data->evaltype;
         $record->qtype = $data->qtype;
         $record->name = $data->name;
+        $record->nameen = $data->nameen ?? null;
         $record->options = $data->qtype === 'choice' ? $data->options : null;
+        $record->optionsen = $data->qtype === 'choice' ? ($data->optionsen ?? null) : null;
         $record->required = !empty($data->required) ? 1 : 0;
         $record->sortorder = $data->sortorder;
         $record->timemodified = time();
@@ -160,7 +163,7 @@ if (!empty($reusable)) {
 }
 
 $evaltypes = ['student', 'teacher'];
-if (!empty($stage->tutorevaluationenabled)) {
+if (stage_tutor_evaluation_enabled($stage, $theme)) {
     $evaltypes[] = 'tutor';
 }
 foreach ($evaltypes as $evaltype) {

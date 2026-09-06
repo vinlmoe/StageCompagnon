@@ -35,6 +35,7 @@ use mod_stage\form\convention_sign_form;
 
 $id = required_param('id', PARAM_INT);
 $entryid = required_param('entryid', PARAM_INT);
+$returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -47,7 +48,12 @@ require_capability('mod/stage:registerstages', $context);
 $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
 $student = $DB->get_record('user', ['id' => $entry->userid], '*', MUST_EXIST);
 
-$backurl = new moodle_url('/mod/stage/conventions.php', ['id' => $cm->id]);
+// Accessible depuis la liste des conventions mais aussi depuis register.php et
+// stage_render_entry_management_actions() (résumé de l'étudiant, tableau de pilotage...) : le
+// retour honore l'origine réelle si elle a été transmise, à défaut la liste des conventions.
+$backurl = $returnurlparam !== ''
+    ? new moodle_url($returnurlparam)
+    : new moodle_url('/mod/stage/conventions.php', ['id' => $cm->id]);
 
 if ((int) $entry->conventionstatus !== STAGE_CONVENTION_EDITED) {
     redirect($backurl);

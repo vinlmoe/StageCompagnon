@@ -33,6 +33,7 @@ use mod_stage\form\cancel_entry_form;
 
 $id = required_param('id', PARAM_INT);
 $entryid = required_param('entryid', PARAM_INT);
+$returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -45,7 +46,12 @@ require_capability('mod/stage:registerstages', $context);
 $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
 $student = $DB->get_record('user', ['id' => $entry->userid], '*', MUST_EXIST);
 
-$backurl = new moodle_url('/mod/stage/register.php', ['id' => $cm->id]);
+// Accessible depuis la liste de register.php mais aussi depuis stage_render_entry_management_actions()
+// (résumé de l'étudiant, tableau de pilotage...) : le retour honore l'origine réelle si elle a été
+// transmise, à défaut la liste de register.php.
+$backurl = $returnurlparam !== ''
+    ? new moodle_url($returnurlparam)
+    : new moodle_url('/mod/stage/register.php', ['id' => $cm->id]);
 
 if ((int) $entry->status === STAGE_STATUS_ANNULE) {
     redirect($backurl);

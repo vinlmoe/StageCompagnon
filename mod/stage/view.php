@@ -39,6 +39,12 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/stage:view', $context);
 
+// L'activité déclare FEATURE_COMPLETION_TRACKS_VIEWS : la consultation doit être enregistrée ici,
+// avant la redirection ci-dessous, sans quoi l'achèvement « consulter l'activité » ne serait
+// jamais atteint pour les rôles qui n'affichent jamais cette page.
+$completion = new completion_info($course);
+$completion->set_module_viewed($cm);
+
 // La DEVE et les enseignants référents ont pour page d'atterrissage le tableau de pilotage,
 // plutôt que cette page (tableau de bord de l'étudiant, sans intérêt pour eux).
 if (has_capability('mod/stage:viewall', $context) || has_capability('mod/stage:evaluateteacher', $context)) {

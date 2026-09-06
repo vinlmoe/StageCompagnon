@@ -49,6 +49,9 @@ class administration_import_form extends \moodleform {
         $mform->setDefault('importtemplates', 1);
         $mform->addElement('advcheckbox', 'importlogos', get_string('importlogos', 'mod_stage'));
         $mform->setDefault('importlogos', 1);
+        $mform->addElement('advcheckbox', 'importemails', get_string('importemails', 'mod_stage'));
+        $mform->setDefault('importemails', 1);
+        $mform->addHelpButton('importemails', 'importemails', 'mod_stage');
         $mform->addElement('advcheckbox', 'importestablishment', get_string('importestablishment', 'mod_stage'));
         $mform->setDefault('importestablishment', 1);
 
@@ -71,7 +74,7 @@ class administration_import_form extends \moodleform {
         }
 
         if (empty($data['importthemes']) && empty($data['importtemplates']) && empty($data['importlogos'])
-                && empty($data['importestablishment'])) {
+                && empty($data['importemails']) && empty($data['importestablishment'])) {
             $errors['importthemes'] = get_string('importnothingselected', 'mod_stage');
         }
 

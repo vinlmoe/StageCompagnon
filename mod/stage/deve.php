@@ -28,6 +28,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 $id = required_param('id', PARAM_INT);
 $entryid = optional_param('entryid', 0, PARAM_INT);
+$returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 $search = optional_param('search', '', PARAM_TEXT);
 $filterthemeid = optional_param('themeid', 0, PARAM_INT);
 $filterstatus = optional_param('status', '', PARAM_RAW);
@@ -49,12 +50,36 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('devevalidatio
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
+// Écran de retour et de redirection finale pour la validation unitaire ci-dessous : la liste de
+// cette page par défaut, ou la page d'où l'on vient (tableau de pilotage, résumé d'un étudiant...)
+// si elle a été transmise (voir stage_render_entry_management_actions()).
+$backurl = $returnurlparam !== '' ? new moodle_url($returnurlparam) : $baseurl;
+// Url de la saisie elle-même, pour les actions qui doivent y revenir (relance, contournement,
+// jours effectifs...) sans perdre l'écran de retour au passage.
+$entryurl = new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]);
+
 // Réinitialisation d'une saisie (DEVE uniquement) : redonne la main à l'étudiant et à
 // l'enseignant référent pour une nouvelle auto-évaluation / évaluation.
 if ($entryid && optional_param('resetentry', 0, PARAM_INT) && confirm_sesskey()) {
     $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
     stage_reset_entry($entry);
-    redirect($baseurl, get_string('entryreset', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    redirect($backurl, get_string('entryreset', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+}
+
+// Relance du courriel au maître de stage, à la demande de la DEVE.
+if ($entryid && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()) {
+    $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
+    $sent = stage_resend_tutor_evaluation_request($stage, $cm, $entry);
+    redirect($entryurl,
+        get_string($sent ? 'tutorevalresent' : 'tutorevalresentfailed', 'mod_stage'), null,
+        $sent ? \core\output\notification::NOTIFY_SUCCESS : \core\output\notification::NOTIFY_WARNING);
+}
+
+// Contourne l'évaluation du maître de stage (DEVE uniquement) : ne bloque plus la validation.
+if ($entryid && optional_param('bypasstutor', 0, PARAM_INT) && confirm_sesskey()) {
+    $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
+    stage_bypass_tutor_eval($entry);
+    redirect($entryurl, get_string('tutorevalbypassed', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 // Validation unitaire (formulaire dédié à une saisie).
@@ -67,8 +92,7 @@ if ($entryid) {
     if (!empty($periods) && optional_param('saveworkdays', 0, PARAM_INT) && confirm_sesskey()) {
         $workdays = optional_param_array('workdays', [], PARAM_INT);
         stage_set_entry_workdays($entry->id, $workdays);
-        redirect(new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entryid]),
-            get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        redirect($entryurl, get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     if (data_submitted() && confirm_sesskey()) {
@@ -80,7 +104,7 @@ if ($entryid) {
             $comment = optional_param('devecomment', '', PARAM_RAW);
             stage_apply_deve_validation($entry, $USER->id, $retained, $comment);
         }
-        redirect($baseurl, get_string('evalsaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        redirect($backurl, get_string('evalsaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     $student = $DB->get_record('user', ['id' => $entry->userid]);
@@ -88,7 +112,7 @@ if ($entryid) {
 
     echo $OUTPUT->header();
     echo $OUTPUT->heading(get_string('validatestage', 'mod_stage', fullname($student)));
-    echo html_writer::link($baseurl, get_string('back'));
+    echo html_writer::link($backurl, get_string('back'));
 
     // Rappel de la saisie validée, en tableau plutôt qu'en paragraphes épars, et complété des
     // informations qui manquaient ici (année d'étude, structure, mobilité, plages, convention).
@@ -113,22 +137,47 @@ if ($entryid) {
             : html_writer::div(format_text($entry->teachereval, FORMAT_PLAIN));
     }
 
-    if (!empty($stage->tutorevaluationenabled)) {
+    echo stage_render_report_section($cm, $context, $entry, $theme);
+
+    if (stage_tutor_evaluation_enabled($stage, $theme)) {
         $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
         echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
         if (!empty($tutorquestions) && $entry->tutortime) {
             echo stage_render_answers_readonly($tutorquestions, $answers);
         } else if ($entry->tutoreval) {
             echo html_writer::div(format_text($entry->tutoreval, FORMAT_PLAIN));
+        } else if (!empty($entry->tutorbypassed)) {
+            echo $OUTPUT->notification(get_string('tutorevalbypassednotice', 'mod_stage'), 'warning');
         } else {
             echo $OUTPUT->notification(get_string('notutoreval', 'mod_stage'), 'info');
+
+            // Outils DEVE pour ne pas rester bloqué en attente du maître de stage : récupérer le
+            // lien à jeton (pour le transmettre autrement que par courriel), relancer l'envoi, ou
+            // ignorer purement et simplement cette évaluation.
+            $tutorurl = stage_get_tutor_eval_url($stage, $entry);
+            if ($tutorurl) {
+                echo html_writer::tag('label', get_string('tutorevallink', 'mod_stage'), ['for' => 'tutorevallink']);
+                echo html_writer::empty_tag('input', [
+                    'type' => 'text', 'id' => 'tutorevallink', 'value' => $tutorurl->out(false),
+                    'readonly' => 'readonly', 'class' => 'form-control mb-2', 'onclick' => 'this.select();',
+                ]);
+
+                $resendurl = new moodle_url($entryurl, ['resendtutor' => 1, 'sesskey' => sesskey()]);
+                echo html_writer::link($resendurl, get_string('tutorevalresend', 'mod_stage'),
+                    ['class' => 'btn btn-sm btn-secondary mr-1 mb-2']);
+            }
+
+            $bypassurl = new moodle_url($entryurl, ['bypasstutor' => 1, 'sesskey' => sesskey()]);
+            echo html_writer::link($bypassurl, get_string('tutorevalbypass', 'mod_stage'), [
+                'class' => 'btn btn-sm btn-outline-secondary mb-2',
+                'onclick' => "return confirm('" . get_string('confirmtutorevalbypass', 'mod_stage') . "');",
+            ]);
         }
     }
 
     if (!empty($periods)) {
         echo $OUTPUT->heading(get_string('workdays', 'mod_stage'), 4);
-        $workdaysformurl = new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-        echo html_writer::start_tag('form', ['method' => 'post', 'action' => $workdaysformurl]);
+        echo html_writer::start_tag('form', ['method' => 'post', 'action' => $entryurl]);
         echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
         echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'saveworkdays', 'value' => 1]);
         echo stage_render_workday_picker($periods, stage_get_entry_workdays($entry->id), true);
@@ -138,8 +187,7 @@ if ($entryid) {
         echo html_writer::end_tag('form');
     }
 
-    $formurl = new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-    echo html_writer::start_tag('form', ['method' => 'post', 'action' => $formurl]);
+    echo html_writer::start_tag('form', ['method' => 'post', 'action' => $entryurl]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
     // Le nombre de jours proposé par défaut est celui coché par l'étudiant lors de son
     // auto-évaluation (jours de stage effectifs), s'il en a sélectionné ; sinon la durée déjà
@@ -164,8 +212,7 @@ if ($entryid) {
     ]);
     echo html_writer::end_tag('form');
 
-    $reseturl = new moodle_url('/mod/stage/deve.php',
-        ['id' => $cm->id, 'entryid' => $entry->id, 'resetentry' => 1, 'sesskey' => sesskey()]);
+    $reseturl = new moodle_url($entryurl, ['resetentry' => 1, 'sesskey' => sesskey()]);
     echo html_writer::div(
         html_writer::link($reseturl, get_string('resetentry', 'mod_stage'),
             ['class' => 'btn btn-outline-secondary mt-3',
@@ -228,7 +275,10 @@ if (empty($allentries)) {
         $themename = isset($themes[$entry->themeid]) ? format_string($themes[$entry->themeid]->name) : '-';
         $badge = html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status));
         $checkbox = html_writer::checkbox('selected[]', $entry->id, false, '', ['class' => 'stageselect']);
-        $action = html_writer::link(new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entry->id]),
+        // Le retour ramène sur cette liste telle qu'affichée (recherche, tri, page), pas sur la
+        // liste "vierge" : voir $backurl ci-dessus, qui honore ce paramètre.
+        $action = html_writer::link(new moodle_url('/mod/stage/deve.php',
+            ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]),
             get_string('validate', 'mod_stage'));
         $table->data[] = [
             $checkbox,

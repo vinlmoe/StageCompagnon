@@ -68,6 +68,15 @@ class theme_form extends \moodleform {
         $mform->addElement('advcheckbox', 'visible', get_string('visible'));
         $mform->setDefault('visible', 1);
 
+        $mform->addElement('advcheckbox', 'tutorevaluationenabled', get_string('tutorevaluationenabledtheme', 'mod_stage'));
+        $mform->setDefault('tutorevaluationenabled', 1);
+        $mform->addHelpButton('tutorevaluationenabled', 'tutorevaluationenabledtheme', 'mod_stage');
+
+        $mform->addElement('select', 'reportmode', get_string('reportmode', 'mod_stage'),
+            stage_report_mode_options());
+        $mform->setDefault('reportmode', STAGE_REPORT_NONE);
+        $mform->addHelpButton('reportmode', 'reportmode', 'mod_stage');
+
         $this->add_action_buttons();
     }
 

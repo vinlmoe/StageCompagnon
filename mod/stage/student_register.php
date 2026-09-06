@@ -20,6 +20,12 @@
  * sur la demande de convention (comme convention_request.php), plutôt que d'obliger l'étudiant à
  * attendre que la DEVE enregistre le stage avant de pouvoir demander sa convention.
  *
+ * Avec un entryid transmis, la page passe en mode édition : la saisie existante (enregistrée par
+ * la DEVE, ou sa propre demande refusée) est complétée/corrigée plutôt que dupliquée, en réutilisant
+ * le même formulaire pour ne maintenir qu'un seul jeu de champs. C'est ce mode, plutôt que
+ * convention_request.php, qu'utilise désormais le bouton « Demander la convention » (voir
+ * locallib.php, stage_render_entry_management_actions()).
+ *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -33,6 +39,7 @@ require_once($CFG->dirroot . '/mod/stage/classes/form/student_register_form.php'
 use mod_stage\form\student_register_form;
 
 $id = required_param('id', PARAM_INT);
+$entryid = optional_param('entryid', 0, PARAM_INT);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -42,13 +49,31 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/stage:submit', $context);
 
-$baseurl = new moodle_url('/mod/stage/student_register.php', ['id' => $cm->id]);
+$viewurl = new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
+
+// Mode édition : la saisie doit appartenir à l'étudiant connecté et ne pas déjà avoir de
+// convention en cours (mêmes conditions que convention_request.php, qu'il remplace pour ce cas).
+$existingentry = null;
+if ($entryid) {
+    $existingentry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
+    if ($existingentry->userid != $USER->id) {
+        throw new moodle_exception('nopermissions', 'error', '', get_string('registerstageandconvention', 'mod_stage'));
+    }
+    $existingstatus = (int) $existingentry->conventionstatus;
+    if ($existingstatus !== STAGE_CONVENTION_NONE && $existingstatus !== STAGE_CONVENTION_REJECTED) {
+        redirect($viewurl, get_string('conventionalreadyrequested', 'mod_stage'), null,
+            \core\output\notification::NOTIFY_INFO);
+    }
+}
+
+$pagetitle = get_string($existingentry ? 'requestconvention' : 'registerstageandconvention', 'mod_stage');
+
+$baseurl = new moodle_url('/mod/stage/student_register.php',
+    $existingentry ? ['id' => $cm->id, 'entryid' => $entryid] : ['id' => $cm->id]);
 $PAGE->set_url($baseurl);
-$PAGE->set_title(format_string($stage->name) . ' - ' . get_string('registerstageandconvention', 'mod_stage'));
+$PAGE->set_title(format_string($stage->name) . ' - ' . $pagetitle);
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
-
-$viewurl = new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
 
 $themes = stage_get_themes($stage->id, true);
 if (empty($themes)) {
@@ -77,6 +102,8 @@ if (empty($referentteachers)) {
     exit;
 }
 
+$existingperiods = $existingentry ? array_values(stage_get_or_seed_entry_periods($existingentry)) : [];
+
 $mform = new student_register_form($baseurl, [
     'themes' => $themes,
     'templates' => $templates,
@@ -84,8 +111,36 @@ $mform = new student_register_form($baseurl, [
     'stageid' => $stage->id,
     'userid' => $USER->id,
     'stage' => $stage,
+    'editing' => $existingentry !== null,
+    'excludeentryid' => $entryid,
+    'periods' => $existingperiods,
 ]);
-$mform->set_data((object) ['id' => $cm->id]);
+
+if ($existingentry) {
+    // Préremplit avec la saisie existante et sa convention déjà partiellement saisie, le cas
+    // échéant (demande refusée à corriger) : mêmes champs que convention_request.php, plus ceux de
+    // l'enregistrement du stage lui-même (thématique, dates, structure...), éditables ici aussi.
+    $periods = $existingperiods;
+    $formdata = (object) [
+        'id' => $cm->id, 'entryid' => $entryid,
+        'themeid' => $existingentry->themeid, 'studyyear' => $existingentry->studyyear,
+        'structure' => $existingentry->structure, 'abroad' => $existingentry->abroad,
+        'country' => $existingentry->country, 'declaredduration' => $existingentry->declaredduration,
+        'perioddatestart' => array_map(fn($period) => $period->datestart, $periods),
+        'perioddateend' => array_map(fn($period) => $period->dateend, $periods),
+    ];
+    $existingdetail = stage_get_convention_detail($existingentry->id);
+    if ($existingdetail) {
+        foreach ($existingdetail as $field => $value) {
+            if (!in_array($field, ['id', 'entryid', 'timecreated', 'timemodified'], true)) {
+                $formdata->$field = $value;
+            }
+        }
+    }
+    $mform->set_data($formdata);
+} else {
+    $mform->set_data((object) ['id' => $cm->id]);
+}
 
 if ($mform->is_cancelled()) {
     redirect($viewurl);
@@ -94,10 +149,26 @@ if ($mform->is_cancelled()) {
     // (voir stage_save_entry_periods()). Le formulaire a déjà refusé une saisie sans plage ou avec
     // des plages qui se recoupent.
     $periods = stage_extract_submitted_periods($data);
-    $entryid = stage_register_entry($stage->id, $USER->id, $data->themeid, $data->structure,
-        min(array_column($periods, 'datestart')), max(array_column($periods, 'dateend')),
-        $data->declaredduration, $data->studyyear, STAGE_CONVENTION_NONE, $data->abroad, $data->country);
-    $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
+
+    if ($existingentry) {
+        // Mode édition : on complète/corrige la saisie existante plutôt que d'en créer une autre.
+        $DB->update_record('stage_entry', (object) [
+            'id' => $existingentry->id,
+            'themeid' => $data->themeid,
+            'studyyear' => $data->studyyear,
+            'structure' => $data->structure,
+            'abroad' => !empty($data->abroad) ? 1 : 0,
+            'country' => !empty($data->abroad) ? $data->country : '',
+            'declaredduration' => $data->declaredduration,
+            'timemodified' => time(),
+        ]);
+        $entry = $DB->get_record('stage_entry', ['id' => $existingentry->id], '*', MUST_EXIST);
+    } else {
+        $newentryid = stage_register_entry($stage->id, $USER->id, $data->themeid, $data->structure,
+            min(array_column($periods, 'datestart')), max(array_column($periods, 'dateend')),
+            $data->declaredduration, $data->studyyear, STAGE_CONVENTION_NONE, $data->abroad, $data->country);
+        $entry = $DB->get_record('stage_entry', ['id' => $newentryid], '*', MUST_EXIST);
+    }
 
     $requireteachervalidation = stage_convention_requires_teacher_validation($stage);
     stage_request_convention($entry, $data->conventiontemplateid, $requireteachervalidation);
@@ -129,6 +200,7 @@ if ($mform->is_cancelled()) {
     $detail->leavedays = $detail->hasleave ? $data->leavedays : null;
     $detail->leavemodalities = $detail->hasleave ? $data->leavemodalities : '';
     $detail->gratificationamount = $data->gratificationamount;
+    $detail->paperrequestedbystudent = !empty($data->paperrequestedbystudent) ? 1 : 0;
     stage_save_convention_detail($entry->id, $detail);
     stage_save_entry_periods($entry->id, $periods);
 
@@ -136,16 +208,18 @@ if ($mform->is_cancelled()) {
         stage_notify_teacher_convention_pending($stage, $cm, $entry);
     }
 
-    redirect($viewurl, get_string('stageandconventionregistered', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect($viewurl, get_string($existingentry ? 'conventionrequested' : 'stageandconventionregistered', 'mod_stage'),
+        null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('registerstageandconvention', 'mod_stage'));
+echo $OUTPUT->heading($pagetitle);
 echo html_writer::link($viewurl, get_string('back'));
 
-echo $OUTPUT->box(get_string('registerstageandconvention_help', 'mod_stage'), 'generalbox mb-3');
-echo stage_render_abroad_rules($stage);
+if (!$existingentry) {
+    echo $OUTPUT->box(get_string('registerstageandconvention_help', 'mod_stage'), 'generalbox mb-3');
+    echo stage_render_abroad_rules($stage);
+}
 
 $mform->display();
 

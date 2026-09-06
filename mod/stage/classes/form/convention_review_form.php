@@ -124,6 +124,14 @@ class convention_review_form extends \moodleform {
         $mform->addElement('text', 'gratificationamount', get_string('conventiongratification', 'mod_stage'));
         $mform->setType('gratificationamount', PARAM_TEXT);
 
+        // Case propre à l'enseignant référent (convention_teacher_validate.php) : la DEVE, qui
+        // réutilise ce même formulaire, ne la voit pas ici, mais voit son résultat combiné à celui
+        // de l'étudiant plus bas (voir 'paperrequestedinfo' et le champ 'withsignatures').
+        if (!empty($this->_customdata['showpaperrequest'])) {
+            $mform->addElement('advcheckbox', 'paperrequestedbyteacher', get_string('conventionpaperrequest', 'mod_stage'));
+            $mform->addHelpButton('paperrequestedbyteacher', 'conventionpaperrequest', 'mod_stage');
+        }
+
         $mform->addElement('header', 'leaveheader', get_string('conventionleave', 'mod_stage'));
         $mform->setExpanded('leaveheader');
         $mform->addElement('advcheckbox', 'hasleave', get_string('conventionhasleave', 'mod_stage'));
@@ -137,10 +145,16 @@ class convention_review_form extends \moodleform {
 
         // Option de génération, proposée uniquement à la DEVE (convention_review.php), dont la
         // validation télécharge immédiatement le PDF : l'enseignant référent, lui, ne fait que
-        // transmettre la demande, sans rien générer.
+        // transmettre la demande, sans rien générer. La case est précochée si l'étudiant et/ou
+        // l'enseignant référent a demandé une convention papier (voir 'paperrequestedinfo',
+        // renseigné par le contrôleur à partir de leurs cases respectives), avec un rappel
+        // au-dessus pour que la DEVE sache pourquoi sans avoir à rouvrir les demandes précédentes.
         if (!empty($this->_customdata['withsignatureoption'])) {
             $mform->addElement('header', 'generationheader', get_string('generateconvention', 'mod_stage'));
             $mform->setExpanded('generationheader');
+            if (!empty($this->_customdata['paperrequestedinfo'])) {
+                $mform->addElement('static', 'paperrequestedinfo', '', $this->_customdata['paperrequestedinfo']);
+            }
             $mform->addElement('advcheckbox', 'withsignatures', get_string('includesignatureblock', 'mod_stage'));
         }
 

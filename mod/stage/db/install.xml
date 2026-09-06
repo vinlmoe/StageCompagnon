@@ -54,6 +54,10 @@
         <FIELD NAME="maxstudyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" COMMENT="Année d'étude maximale concernée (0 = non spécifiée)"/>
         <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="visible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="tutorevaluationenabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1"
+            COMMENT="Évaluation par le maître de stage proposée pour cette thématique (tant que l'option est aussi activée globalement pour l'activité)"/>
+        <FIELD NAME="reportmode" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0"
+            COMMENT="Dépôt du rapport de stage lors de l'auto-évaluation : 0 aucun, 1 facultatif, 2 obligatoire"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
@@ -61,6 +65,23 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
       </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_theme_teacher" COMMENT="Enseignant responsable d'une thématique de stage : accède aux stages faits sur cette thématique et aux rapports déposés">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="teacherid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+        <KEY NAME="teacherid" TYPE="foreign" FIELDS="teacherid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="themeid-teacherid" UNIQUE="true" FIELDS="themeid, teacherid"/>
+      </INDEXES>
     </TABLE>
 
     <TABLE NAME="stage_theme_duration" COMMENT="Durée de stage obligatoire requise pour une thématique, par année d'étude">
@@ -141,6 +162,8 @@
             COMMENT="Réponse libre du maître de stage, si aucune question n'est définie pour la thématique"/>
         <FIELD NAME="tutortime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
             COMMENT="Date de soumission de l'évaluation du maître de stage"/>
+        <FIELD NAME="tutorbypassed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"
+            COMMENT="L'évaluation du maître de stage a été ignorée par la DEVE (ne bloque plus la validation)"/>
         <FIELD NAME="deveuserid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Utilisateur DEVE ayant valide"/>
         <FIELD NAME="devecomment" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="devetime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
@@ -153,6 +176,8 @@
         <FIELD NAME="conventionrejecttime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="conventionrejectcomment" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="conventionrequesttime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventionremindertime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Date d'envoi du rappel de convention non signée à l'étudiant, pour ne l'envoyer qu'une fois par saisie (voir la tâche planifiée send_convention_reminders)"/>
         <FIELD NAME="conventionteachervalidatedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
             COMMENT="Enseignant référent ayant validé la demande de convention avant transmission à la DEVE"/>
         <FIELD NAME="conventionteachervalidatetime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
@@ -260,6 +285,10 @@
         <FIELD NAME="leavemodalities" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="gratificationamount" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false"
             COMMENT="Montant mensuel de la gratification, en euros (art. 5.13)"/>
+        <FIELD NAME="paperrequestedbystudent" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Convention papier (cadre de signatures) demandée par l'étudiant lors de sa demande de convention"/>
+        <FIELD NAME="paperrequestedbyteacher" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Convention papier (cadre de signatures) demandée par l'enseignant référent lors de sa validation"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
@@ -295,7 +324,9 @@
         <FIELD NAME="evaltype" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="student ou teacher"/>
         <FIELD NAME="qtype" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="choice ou text"/>
         <FIELD NAME="name" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Intitulé de la question"/>
+        <FIELD NAME="nameen" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Intitulé de la question en anglais (maître de stage, si convention en anglais)"/>
         <FIELD NAME="options" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Options du QCM, une par ligne"/>
+        <FIELD NAME="optionsen" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Options du QCM en anglais, une par ligne"/>
         <FIELD NAME="required" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>

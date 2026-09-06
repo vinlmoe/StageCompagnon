@@ -48,20 +48,25 @@ $string['stage:manageteachers'] = 'Assign referent teachers';
 $string['managethemes'] = 'Manage themes';
 $string['administration'] = 'Administration';
 $string['importfromcourse'] = 'Import from another course';
-$string['importfromcourse_help'] = 'Copy the themes, agreement templates, logos and/or establishment information from '
-    . "another instance of the activity (usually in another course) into this one, so you don't have to redo "
-    . "everything for each new course. Only instances where you yourself can manage themes are offered as a "
-    . 'source. Imported items are added to what is already here (themes and templates are not merged with '
-    . 'existing ones; logos and establishment information already set here are replaced).';
+$string['importfromcourse_help'] = 'Copy the themes, agreement templates, logos, email texts and/or establishment '
+    . "information from another instance of the activity (usually in another course) into this one, so you don't "
+    . 'have to redo everything for each new course. Only instances where you yourself can manage themes are '
+    . 'offered as a source. Imported items are added to what is already here (themes and templates are not '
+    . 'merged with existing ones; logos, email texts and establishment information already set here are '
+    . 'replaced).';
 $string['importsource'] = 'Source instance';
 $string['importthemes'] = 'Themes';
 $string['importtemplates'] = 'Agreement templates';
 $string['importlogos'] = 'Logos';
+$string['importemails'] = 'Email texts';
+$string['importemails_help'] = 'Copies the email subjects and bodies customised in the source instance (the '
+    . '"Notifications" page). Each email customised in the source replaces the one in this instance; emails the '
+    . 'source has not customised are left as they are here.';
 $string['importestablishment'] = 'Educational establishment information';
 $string['importnothingselected'] = 'Select at least one item to import.';
 $string['noimportsources'] = 'No other instance of the activity where you can manage themes was found.';
 $string['importdone'] = 'Import complete: {$a->themes} theme(s), {$a->templates} agreement template(s), '
-    . '{$a->logos} logo(s), establishment {$a->establishmenttext}.';
+    . '{$a->logos} logo(s), {$a->emails} email text(s), establishment {$a->establishmenttext}.';
 $string['importdoneestablishmentyes'] = 'imported';
 $string['importdoneestablishmentno'] = 'not imported';
 $string['manageteachers'] = 'Assign referent teachers';
@@ -71,6 +76,17 @@ $string['mystages'] = 'My internships';
 $string['registerstages'] = 'Register internships';
 $string['importcsv'] = 'Import a CSV file';
 $string['exportexcel'] = 'Export to Excel';
+$string['globalimport'] = 'Restore a global export';
+$string['globalimport_help'] = 'Upload the XLSX file produced by “Export to Excel”. A preview is always shown first. Students are matched by email and themes by name. Existing internships are skipped. Attachments, reports, detailed working days and questionnaire answers cannot be recreated because the global export does not contain their full contents.';
+$string['globalimportpreviewbutton'] = 'Analyse backup';
+$string['globalimportpreview'] = 'Preview: {$a} internship(s) ready to restore';
+$string['globalimportconfirm'] = 'Confirm restoration';
+$string['globalimportdone'] = '{$a} internship(s) restored.';
+$string['globalimportinvalid'] = 'This file does not contain the “Internships” sheet from a compatible global export.';
+$string['globalimportexpired'] = 'The preview has expired. Analyse the file again.';
+$string['globalimportunknownstudent'] = 'Row {$a->line}: student “{$a->value}” was not found; internship skipped.';
+$string['globalimportunknowntheme'] = 'Row {$a->line}: theme “{$a->value}” was not found; internship skipped.';
+$string['globalimportduplicate'] = 'Row {$a}: this internship already exists; row skipped.';
 $string['allstages'] = 'Internships';
 $string['promotionreport'] = 'Cohort report';
 $string['promotionreportpdf'] = 'Cohort report (PDF)';
@@ -122,6 +138,45 @@ $string['importstageveterrordates'] = 'Line {$a->line} ({$a->student}): start an
 $string['importstagevetunknownstudentsreport'] = '{$a} student(s) not found among those enrolled on the course';
 $string['importstagevetunknownthemesreport'] = '{$a} theme(s) not found';
 $string['importstagevetreportline'] = '{$a->value} (line(s) {$a->lines})';
+$string['historicalimport'] = 'Import a legacy Excel tracker';
+$string['historicalimport_desc'] = 'Bring validated internships and EP internships over from the legacy tracking '
+    . 'workbook after student email addresses have been added.';
+$string['historicalimport_help'] = 'Imports validated internships only from the “Stages - validation ER” and '
+    . '“Stage EP - validation ER” sheets of the legacy workbook. First add a column named exactly “Email” to row '
+    . '2 of both sheets and fill it in for every student. Internships are created as validated by the academic '
+    . 'office; the number of days becomes both the declared and retained duration. EP internships are stored as '
+    . 'complementary internships under the theme selected below. The academic-credit “EP - saisie DEVE” sheet is '
+    . 'not imported. A preview is always shown before records are inserted.';
+$string['historicalimportfile'] = 'Legacy workbook (.xlsx)';
+$string['historicalimporteptheme'] = 'Moodle theme for EP internships';
+$string['historicalimportpreviewbutton'] = 'Analyse and preview';
+$string['historicalimportpreview'] = 'Preview: {$a} internship(s) ready to import';
+$string['historicalimportconfirm'] = 'Confirm import of these internships';
+$string['historicalimportwarnings'] = '{$a} warning(s) to review';
+$string['historicalimportdone'] = '{$a} legacy internship(s) imported and validated.';
+$string['historicalimportcomment'] = 'Validation carried over from the legacy Excel tracker.';
+$string['historicalimportnodates'] = 'Dates not recognised — original text retained';
+$string['historicalimportnozip'] = 'The PHP ZIP extension required to read XLSX files is unavailable.';
+$string['historicalimportinvalidfile'] = 'The file cannot be read as a valid XLSX workbook.';
+$string['historicalimportnosheets'] = 'The expected legacy sheets are missing from the workbook.';
+$string['historicalimportmissingemail'] = 'Sheet “{$a}”: no “Email” column found in row 2.';
+$string['historicalimportrownoemail'] = '{$a->sheet}, row {$a->line} ({$a->student}): missing email; row skipped.';
+$string['historicalimportnotheme'] = '{$a->sheet}, row {$a->line}: missing theme name.';
+$string['historicalimportdateswarning'] = '{$a->sheet}, row {$a->line}: dates not recognised in “{$a->value}”.';
+$string['historicalimportunknownemail'] = '{$a->source}: no enrolled student with email “{$a->email}”.';
+$string['historicalimportunknownteacher'] = '{$a->source}: referent teacher “{$a->teacher}” was not recognised; '
+    . 'the internship will be imported without a referent.';
+$string['historicalimportunknowntheme'] = '{$a->source}: Moodle theme “{$a->theme}” not found.';
+$string['historicalimportduplicate'] = '{$a}: internship already present or repeated in the workbook; skipped.';
+$string['historicalimportselecteptheme'] = 'Select the Moodle theme into which EP internships will be imported.';
+$string['historicalimportexpired'] = 'The preview has expired. Upload and analyse the workbook again.';
+$string['historicalimportmapthemes'] = 'Map unrecognised themes';
+$string['historicalimportmapthemes_help'] = 'Select a Moodle theme for each Excel column heading. The selection will '
+    . 'be applied to every internship originating from that column.';
+$string['historicalimportexceltheme'] = 'Excel column heading';
+$string['historicalimportmoodletheme'] = 'Matching Moodle theme';
+$string['historicalimportapplymapping'] = 'Apply mappings';
+$string['historicalimportmapallthemes'] = 'A mapping must be selected for every unrecognised theme.';
 $string['importteacherscsv'] = 'Import a CSV file';
 $string['importteacherscsv_help'] = 'Import a CSV file (saved from Excel via "Save As > CSV"), with the following '
     . 'columns, separated by semicolons or commas, with an optional header row: '
@@ -215,6 +270,7 @@ $string['transferpreview'] = 'Prepare the transfer';
 $string['transfersummary'] = 'Transfer to perform';
 $string['transferentries'] = 'Internships that will be transferred';
 $string['transferentrycount'] = 'Number of internships';
+$string['transferreportcount'] = 'Internship report documents transferred';
 $string['transferconfirm'] = 'Confirm the transfer';
 $string['transferirreversible'] = 'The transfer cannot be undone: to bring the student back to this course, you will have to transfer them back from the destination activity.';
 $string['transferdone'] = '{$a->count} internship(s) of {$a->student} transferred to "{$a->target}".';
@@ -235,6 +291,11 @@ $string['removeperiod'] = 'Remove';
 $string['periods_help'] = 'An internship can have several non-contiguous date ranges (e.g. two separate stays). The student will pick their actual working days among these ranges during their self-evaluation.';
 $string['periodsrequired'] = 'Enter at least one date period: the internship dates are derived from them.';
 $string['periodendbeforestart'] = 'The end date of a period cannot come before its start date.';
+$string['periodstartinpast'] = 'An agreement cannot be requested for an internship that has already started: the '
+    . 'start date must be today or later. If the internship has already started, contact the administration office.';
+$string['selfevalnotstartedyet'] = 'Your internship has not started yet: self-assessment will be available from '
+    . 'its start date.';
+$string['selfevalfrom'] = 'Self-assessment from {$a}';
 $string['periodsoverlap'] = 'Two date periods overlap ({$a->first} and {$a->second}). The same days would be counted twice: adjust them so they do not overlap.';
 $string['conventionsignaturedate'] = 'Date: ............................';
 $string['noperiodsdefined'] = 'No date range has been defined for this internship yet.';
@@ -285,7 +346,13 @@ $string['qtype'] = 'Question type';
 $string['qtype_choice'] = 'Multiple choice';
 $string['qtype_text'] = 'Free comment';
 $string['questionlabel'] = 'Question label';
+$string['questionlabelen'] = 'Question label (English, workplace tutor)';
 $string['choiceoptions'] = 'Choice options (one per line)';
+$string['choiceoptionsen'] = 'Choice options in English (one per line, workplace tutor)';
+$string['questionlangen'] = 'English version';
+$string['questionlangen_help'] = "If the student's internship agreement is in English, the workplace tutor sees "
+    . 'this English version instead of the French one. Leave empty to fall back to the French text: there is no '
+    . 'automatic translation.';
 $string['choiceoptionsrequired'] = 'Please enter at least one option, one per line.';
 $string['questionrequired'] = 'Answer required';
 $string['questionsaved'] = 'Question saved.';
@@ -302,6 +369,7 @@ $string['selectexistingquestion'] = 'Reuse an existing question...';
 $string['savebulkchanges'] = 'Save changes';
 $string['toggle'] = 'Toggle mandatory';
 $string['evaluate'] = 'Evaluate';
+$string['viewevaluation'] = 'View the evaluation';
 $string['validate'] = 'Validate';
 $string['selectall'] = 'Select all';
 $string['bulkvalidateselected'] = 'Validate selection';
@@ -334,6 +402,10 @@ $string['selfevalnotifsubject'] = 'Internship self-assessment ready for review -
 $string['selfevalnotifbody'] = '{$a->student} has just self-assessed their internship "{$a->stage}". '
     . 'You can view and evaluate this entry here: {$a->url}';
 $string['generateconvention'] = 'Generate the convention';
+$string['viewconvention'] = 'View the convention';
+$string['downloadstarting'] = 'The download is starting. You will be taken back to the previous page.';
+$string['downloadrestart'] = 'Restart the download';
+$string['backtolist'] = 'Back to the list';
 $string['includesignatureblock'] = 'Add a signature block (student, workplace supervisor, host '
     . 'organisation representative, referent teacher, establishment) at the bottom of the first '
     . 'page, for a printed convention to be signed by hand.';
@@ -380,7 +452,16 @@ $string['requestconvention_help'] = 'Choose the agreement template matching your
     . 'be possible once the agreement has been signed.';
 $string['conventionalreadyrequested'] = 'The agreement for this internship has already been requested.';
 $string['conventionrequested'] = 'The agreement request has been sent to the DEVE.';
+$string['conventionnotedited'] = 'The agreement for this internship is not (or no longer) in the "edited" status, '
+    . 'so it is not accessible from this link.';
 $string['conventionnotemplatechosen'] = 'No agreement template has been chosen for this internship.';
+$string['conventionpaperrequest'] = 'Paper agreement (signature block)';
+$string['conventionpaperrequest_help'] = 'Tick if a printed copy of the agreement, with a signature block to fill '
+    . 'in by hand, is needed (for example if the host organisation cannot sign electronically). Otherwise, the '
+    . 'electronically signed agreement is enough.';
+$string['conventionpaperrequestedbystudentonly'] = 'Paper agreement requested by the student.';
+$string['conventionpaperrequestedbyteacheronly'] = 'Paper agreement requested by the referent teacher.';
+$string['conventionpaperrequestedbyboth'] = 'Paper agreement requested by both the student and the referent teacher.';
 $string['conventionnotsignedyet'] = 'The internship agreement must be signed by the DEVE before you can '
     . 'self-assess. Check your agreement status on your dashboard.';
 $string['conventionstatus'] = 'Agreement status';
@@ -416,6 +497,25 @@ $string['conventionrejectedby'] = 'Rejected by';
 $string['conventionvalidatedby'] = 'Validated by the referent teacher';
 $string['conventioneditedby'] = 'Edited by';
 $string['conventionsignedby'] = 'Signed by';
+// Column labels specific to the Excel export (export.php): the dates of the steps already named
+// above, and the information that appears nowhere else as a column.
+$string['conventionteachervalidatedby'] = 'Validated by the referent teacher';
+$string['conventionrequesttime'] = 'Agreement request date';
+$string['conventionteachervalidatetime'] = 'Referent teacher validation date';
+$string['conventionedittime'] = 'Agreement editing date';
+$string['conventionsigntime'] = 'Agreement signature date';
+$string['conventionrejecttime'] = 'Agreement rejection date';
+$string['workdayscount'] = 'Number of selected working days';
+$string['teachervalidationtime'] = 'Teacher evaluation date';
+$string['tutorevaltime'] = 'Workplace tutor evaluation date';
+$string['tutorevalbypassedcolumn'] = 'Workplace tutor evaluation skipped';
+$string['reportfilescount'] = 'Number of submitted documents';
+$string['devevalidatedby'] = 'Validated by the administration office';
+$string['devevalidationtime'] = 'Administration office validation date';
+$string['timecreated'] = 'Registration date';
+$string['exportanswers'] = 'Questionnaire answers';
+$string['exportentryid'] = 'Internship ID';
+$string['answer'] = 'Answer';
 $string['conventionrejectedexplain'] = 'Your agreement request was rejected by the DEVE, for the following '
     . 'reason: "{$a}". Please correct your request below and submit it again.';
 $string['conventionrejectednotifsubject'] = 'Internship agreement rejected: {$a}';
@@ -566,15 +666,71 @@ $string['tutorevalnotifsubject'] = 'Evaluation of {$a}\'s internship';
 $string['tutorevalnotifbody'] = 'You are currently supervising {$a->student} during their internship '
     . '"{$a->stage}". Please evaluate this internship by following this link, which does not require an '
     . "account:\n{\$a->url}";
+$string['emailkeyconventionreminder'] = 'Unsigned agreement reminder (to the student)';
+$string['conventionremindernotifsubject'] = 'Internship agreement not signed: {$a}';
+$string['conventionremindernotifbody'] = "Hello {\$a->student},\n\nYour internship \"{\$a->theme}\" starts on "
+    . "{\$a->datestart}, in less than {\$a->days} days, and its agreement is still not signed. Without a signed "
+    . "agreement, the internship cannot start.\n\nPlease sort out your agreement request as soon as "
+    . "possible:\n{\$a->url}";
+$string['taskconventionreminders'] = 'Send unsigned internship agreement reminders';
+$string['tasktutorevaluationrequests'] = 'Send workplace tutor evaluation invitations';
+$string['reportmode'] = 'Internship report';
+$string['reportmode_help'] = 'Document submission requested from the student during their self-assessment, '
+    . 'like an assignment. Submitted documents can be viewed by the administration office, by the student\'s '
+    . 'referent teacher and by the teachers responsible for the theme. "Required" prevents the student from '
+    . 'submitting their self-assessment until they have submitted at least one document.';
+$string['reportmode_none'] = 'None';
+$string['reportmode_optional'] = 'Optional';
+$string['reportmode_required'] = 'Required';
+$string['reportfiles'] = 'Internship report';
+$string['reportfiles_help'] = 'Submit your internship report and any supporting documents here. You can come '
+    . 'back to them until you submit your self-assessment.';
+$string['savereportfiles'] = 'Save documents';
+$string['reportfilessaved'] = 'The documents of your internship report have been saved.';
+$string['noreportfiles'] = 'No document submitted.';
+$string['reportfilemissing'] = 'This document does not exist or is no longer available.';
+$string['reportrequirednotice'] = 'At least one document must be submitted before you can submit your '
+    . 'self-assessment.';
+$string['reportrequiredmissing'] = 'Your self-assessment was not submitted: at least one document is required '
+    . 'for this theme. Submit your internship report below, then submit your self-assessment again.';
+$string['downloadallreports'] = 'Download all reports (.zip)';
+$string['reportszipname'] = 'internship-reports-{$a}';
+$string['noreportstozip'] = 'No document has been submitted for this theme.';
+$string['reportszipfailed'] = 'The archive of internship reports could not be built.';
+$string['themeteachers'] = 'Responsible teachers';
+$string['themeteachers_help'] = 'Teachers responsible for a theme have access to every internship carried out '
+    . 'on that theme (the "Internships by theme" tab) and to the reports submitted for them, whoever the '
+    . 'students\' referent teachers are. They do not evaluate the internships: evaluation remains the role of '
+    . 'each student\'s referent teacher.';
+$string['themeteacherssaved'] = 'The teachers responsible for the theme have been saved.';
+$string['themeteacherscount'] = '{$a} teacher(s)';
+$string['mythemestages'] = 'Internships by theme';
+$string['nostagesfortheme'] = 'No internship matches this theme.';
 $string['evaltype_tutor'] = 'Workplace tutor';
+$string['tutorevaluationenabledtheme'] = 'Workplace tutor evaluation for this theme';
+$string['tutorevaluationenabledtheme_help'] = 'Only takes effect if workplace tutor evaluation is also enabled '
+    . 'globally for this activity (the "Notifications" page). Once that global option is enabled, this lets '
+    . 'you offer it for only some themes rather than all of them.';
 $string['tutorevalheading'] = 'Workplace tutor evaluation';
 $string['notutoreval'] = 'The workplace tutor has not yet answered their evaluation questionnaire.';
+$string['tutorevallink'] = 'Evaluation link to send to the workplace tutor';
+$string['tutorevalresend'] = 'Resend the invitation email to the workplace tutor';
+$string['tutorevalresent'] = 'The reminder email was sent to the workplace tutor.';
+$string['tutorevalresentfailed'] = 'The email could not be sent: the workplace tutor\'s contact details are unknown.';
+$string['tutorevalbypass'] = 'Skip this evaluation (stop blocking validation)';
+$string['confirmtutorevalbypass'] = 'Skip the workplace tutor evaluation for this internship? '
+    . 'The DEVE validation will no longer be blocked by the lack of a response.';
+$string['tutorevalbypassed'] = 'The workplace tutor evaluation has been skipped for this internship.';
+$string['tutorevalbypassednotice'] = 'The workplace tutor evaluation was skipped by the administration office '
+    . 'and no longer blocks validation of this internship.';
 $string['tutorevalpagetitle'] = 'Internship evaluation';
 $string['tutorevalinvalidtoken'] = 'This evaluation link is no longer valid.';
 $string['tutorevalalreadysubmitted'] = 'Your evaluation has been recorded, thank you.';
 $string['tutorevalsubmit'] = 'Submit my evaluation';
 $string['tutorevalintro'] = 'You are supervising {$a->student} during their internship "{$a->stage}". '
     . 'Please answer the evaluation questionnaire below.';
+$string['tutorevalstudentlabel'] = 'Student';
+$string['tutorevaldateslabel'] = 'Internship dates';
 $string['notifications'] = 'Notifications and emails';
 $string['notificationssettings'] = 'Customize the emails sent';
 $string['notificationssettings_help'] = "For each email sent by the activity, you can replace the subject "
@@ -586,3 +742,51 @@ $string['emailsubject'] = 'Subject';
 $string['emailbody'] = 'Message body';
 $string['emailavailablevars'] = 'Available variables: {$a}';
 $string['emailresettodefault'] = 'Leave both fields empty to use the default text.';
+
+// Confidentialité (RGPD).
+$string['supervisedstages'] = 'Internships supervised or processed';
+$string['answers'] = 'Answers';
+$string['conventiondetails'] = 'Agreement details';
+$string['privacy:metadata:core_files'] = 'Files attached to an internship: the signed agreement and the internship report.';
+$string['privacy:metadata:stage_entry'] = 'One record per internship declared by or for a student, with its evaluations and the state of its agreement.';
+$string['privacy:metadata:stage_entry:userid'] = 'The student the internship belongs to.';
+$string['privacy:metadata:stage_entry:themeid'] = 'The internship theme.';
+$string['privacy:metadata:stage_entry:studyyear'] = 'The study year the internship counts towards.';
+$string['privacy:metadata:stage_entry:structure'] = 'The host organisation.';
+$string['privacy:metadata:stage_entry:country'] = 'The country, for an internship abroad.';
+$string['privacy:metadata:stage_entry:datestart'] = 'The internship start date.';
+$string['privacy:metadata:stage_entry:dateend'] = 'The internship end date.';
+$string['privacy:metadata:stage_entry:status'] = 'How far the internship has progressed through validation.';
+$string['privacy:metadata:stage_entry:studentselfeval'] = 'The self-evaluation written by the student.';
+$string['privacy:metadata:stage_entry:teacherid'] = 'The supervising teacher assigned to the internship.';
+$string['privacy:metadata:stage_entry:teachereval'] = 'The evaluation written by the supervising teacher.';
+$string['privacy:metadata:stage_entry:tutoreval'] = 'The evaluation written by the workplace tutor.';
+$string['privacy:metadata:stage_entry:deveuserid'] = 'The academic office member who validated the internship.';
+$string['privacy:metadata:stage_entry:devecomment'] = 'The comment written by the academic office.';
+$string['privacy:metadata:stage_entry:conventionstatus'] = 'The state of the internship agreement.';
+$string['privacy:metadata:stage_entry:cancelcomment'] = 'The reason given when the internship was cancelled.';
+$string['privacy:metadata:stage_entry:timecreated'] = 'When the internship was recorded.';
+$string['privacy:metadata:stage_convention_detail'] = 'The details gathered to produce the internship agreement.';
+$string['privacy:metadata:stage_convention_detail:studentbirthdate'] = 'The student date of birth.';
+$string['privacy:metadata:stage_convention_detail:studentaddress'] = 'The student postal address.';
+$string['privacy:metadata:stage_convention_detail:studentphone'] = 'The student phone number.';
+$string['privacy:metadata:stage_convention_detail:referentteacherid'] = 'The supervising teacher named in the agreement.';
+$string['privacy:metadata:stage_convention_detail:tutorname'] = 'The workplace tutor name.';
+$string['privacy:metadata:stage_convention_detail:tutorfunction'] = 'The workplace tutor role.';
+$string['privacy:metadata:stage_convention_detail:tutorphone'] = 'The workplace tutor phone number.';
+$string['privacy:metadata:stage_convention_detail:tutoremail'] = 'The workplace tutor email address.';
+$string['privacy:metadata:stage_convention_detail:gratificationamount'] = 'The allowance paid to the student.';
+$string['privacy:metadata:stage_entry_period'] = 'The individual periods making up an internship split over several dates.';
+$string['privacy:metadata:stage_entry_period:datestart'] = 'The period start date.';
+$string['privacy:metadata:stage_entry_period:dateend'] = 'The period end date.';
+$string['privacy:metadata:stage_entry_workday'] = 'The individual days worked, for internships counted day by day.';
+$string['privacy:metadata:stage_entry_workday:workdate'] = 'A day worked.';
+$string['privacy:metadata:stage_answer'] = 'The answers given to the internship questionnaires.';
+$string['privacy:metadata:stage_answer:questionid'] = 'The question answered.';
+$string['privacy:metadata:stage_answer:answertext'] = 'The answer given.';
+$string['privacy:metadata:stage_entry_teacher'] = 'Which supervising teacher is assigned to which student.';
+$string['privacy:metadata:stage_entry_teacher:studentid'] = 'The supervised student.';
+$string['privacy:metadata:stage_entry_teacher:teacherid'] = 'The supervising teacher.';
+$string['privacy:metadata:stage_theme_teacher'] = 'Which teachers are responsible for which internship themes.';
+$string['privacy:metadata:stage_theme_teacher:themeid'] = 'The internship theme.';
+$string['privacy:metadata:stage_theme_teacher:teacherid'] = 'The teacher responsible for the theme.';

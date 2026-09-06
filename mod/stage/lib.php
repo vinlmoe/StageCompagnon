@@ -73,6 +73,33 @@ define('STAGE_CONVENTION_TEACHERPENDING', 5);
 define('STAGE_CONVENTION_EXEMPT', 6);
 
 /**
+ * Rapport de stage : aucun dépôt de document n'est demandé à l'étudiant sur cette thématique.
+ */
+define('STAGE_REPORT_NONE', 0);
+/**
+ * Rapport de stage : le dépôt de documents est proposé lors de l'auto-évaluation, mais
+ * l'étudiant peut soumettre son auto-évaluation sans avoir rien déposé.
+ */
+define('STAGE_REPORT_OPTIONAL', 1);
+/**
+ * Rapport de stage : le dépôt d'au moins un document est exigé pour pouvoir soumettre
+ * l'auto-évaluation.
+ */
+define('STAGE_REPORT_REQUIRED', 2);
+
+/**
+ * Zone de fichiers (file area) des rapports de stage déposés par les étudiants, l'itemid étant
+ * l'identifiant de la saisie (stage_entry.id).
+ */
+define('STAGE_REPORT_FILEAREA', 'report');
+
+/**
+ * Nombre de jours avant le début d'un stage à partir duquel l'étudiant est relancé si sa
+ * convention n'est toujours pas signée (voir \mod_stage\task\send_convention_reminders).
+ */
+define('STAGE_CONVENTION_REMINDER_DAYS', 7);
+
+/**
  * Returns the list of features supported by this module.
  *
  * @param string $feature FEATURE_xx constant.
@@ -87,7 +114,10 @@ function stage_supports($feature) {
         case FEATURE_GRADE_HAS_GRADE:
             return false;
         case FEATURE_BACKUP_MOODLE2:
-            return true;
+            // Faux tant que backup/moodle2/ n'est pas fourni : déclarer la prise en charge sans
+            // les classes de sauvegarde correspondantes fait échouer la sauvegarde de tout cours
+            // contenant l'activité, au lieu de simplement l'en exclure.
+            return false;
         case FEATURE_COMPLETION_TRACKS_VIEWS:
             return true;
         case FEATURE_MOD_PURPOSE:
@@ -136,27 +166,37 @@ function stage_update_instance($moduleinstance, $mform = null) {
  * @return bool True on success.
  */
 function stage_delete_instance($id) {
-    global $DB;
+    global $CFG, $DB;
+
+    require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
     if (!$DB->get_record('stage', ['id' => $id])) {
         return false;
     }
 
-    $entries = $DB->get_records('stage_entry', ['stageid' => $id], '', 'id');
-    foreach ($entries as $entry) {
-        $DB->delete_records('stage_answer', ['entryid' => $entry->id]);
-        $DB->delete_records('stage_convention_detail', ['entryid' => $entry->id]);
-    }
+    // Saisies et tout ce qui leur est rattaché (périodes, jours ouvrés, détail de convention,
+    // réponses). Les fichiers sont laissés à Moodle, qui supprime le contexte du module et ses
+    // zones de fichiers juste après.
+    stage_delete_entries($DB->get_fieldset_select('stage_entry', 'id', 'stageid = ?', [$id]));
     $DB->delete_records('stage_entry_teacher', ['stageid' => $id]);
-    $DB->delete_records('stage_entry', ['stageid' => $id]);
     $questionids = $DB->get_fieldset_select('stage_question', 'id', 'stageid = ?', [$id]);
     if ($questionids) {
         [$insql, $inparams] = $DB->get_in_or_equal($questionids);
         $DB->delete_records_select('stage_question_theme', "questionid $insql", $inparams);
     }
     $DB->delete_records('stage_question', ['stageid' => $id]);
+    $themeids = $DB->get_fieldset_select('stage_theme', 'id', 'stageid = ?', [$id]);
+    if ($themeids) {
+        [$insql, $inparams] = $DB->get_in_or_equal($themeids);
+        $DB->delete_records_select('stage_theme_teacher', "themeid $insql", $inparams);
+        // Durées par année d'étude : rattachées à la thématique, elles doivent disparaître avec elle.
+        $DB->delete_records_select('stage_theme_duration', "themeid $insql", $inparams);
+    }
     $DB->delete_records('stage_theme', ['stageid' => $id]);
     $DB->delete_records('stage_convention_template', ['stageid' => $id]);
+    // Durées exigées par année et modèles de courriels sont rattachés à l'instance elle-même.
+    $DB->delete_records('stage_year_requirement', ['stageid' => $id]);
+    $DB->delete_records('stage_email_template', ['stageid' => $id]);
     $DB->delete_records('stage', ['id' => $id]);
 
     return true;

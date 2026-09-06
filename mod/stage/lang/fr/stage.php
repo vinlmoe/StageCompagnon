@@ -48,22 +48,27 @@ $string['stage:manageteachers'] = 'Attribuer les enseignants référents';
 $string['managethemes'] = 'Gérer les thématiques';
 $string['administration'] = 'Administration';
 $string['importfromcourse'] = 'Importer depuis un autre cours';
-$string['importfromcourse_help'] = "Copiez les thématiques, gabarits de convention, logos et/ou informations "
-    . "d'établissement d'une autre instance de l'activité (généralement dans un autre cours) vers celle-ci, "
-    . "pour éviter de tout ressaisir à chaque nouveau cours. Seules les instances sur lesquelles vous avez "
-    . "vous-même le droit de gérer les thématiques sont proposées comme source. Les éléments importés "
+$string['importfromcourse_help'] = "Copiez les thématiques, gabarits de convention, logos, textes de courriels "
+    . "et/ou informations d'établissement d'une autre instance de l'activité (généralement dans un autre cours) "
+    . "vers celle-ci, pour éviter de tout ressaisir à chaque nouveau cours. Seules les instances sur lesquelles "
+    . "vous avez vous-même le droit de gérer les thématiques sont proposées comme source. Les éléments importés "
     . "s'ajoutent à ceux déjà présents ici (les thématiques et gabarits ne sont pas fusionnés avec les "
-    . "existants ; les logos et informations d'établissement déjà renseignés sont remplacés).";
+    . "existants ; les logos, textes de courriels et informations d'établissement déjà renseignés sont "
+    . "remplacés).";
 $string['importsource'] = 'Instance source';
 $string['importthemes'] = 'Thématiques';
 $string['importtemplates'] = 'Gabarits de convention';
 $string['importlogos'] = 'Logos';
+$string['importemails'] = 'Textes des courriels';
+$string['importemails_help'] = "Copie les sujets et corps de courriels personnalisés dans l'instance source "
+    . "(page « Notifications »). Chaque courriel personnalisé dans la source remplace celui de cette instance ; "
+    . "les courriels que la source n'a pas personnalisés sont laissés tels quels ici.";
 $string['importestablishment'] = "Informations de l'établissement d'enseignement";
 $string['importnothingselected'] = 'Sélectionnez au moins un élément à importer.';
 $string['noimportsources'] = "Aucune autre instance de l'activité sur laquelle vous pouvez gérer les "
     . 'thématiques n\'a été trouvée.';
 $string['importdone'] = 'Import terminé : {$a->themes} thématique(s), {$a->templates} gabarit(s) de convention, '
-    . '{$a->logos} logo(s), établissement {$a->establishmenttext}.';
+    . '{$a->logos} logo(s), {$a->emails} texte(s) de courriel, établissement {$a->establishmenttext}.';
 $string['importdoneestablishmentyes'] = 'importé';
 $string['importdoneestablishmentno'] = 'non importé';
 $string['manageteachers'] = 'Attribuer les enseignants référents';
@@ -73,6 +78,17 @@ $string['mystages'] = 'Mes stages';
 $string['registerstages'] = 'Enregistrer des stages';
 $string['importcsv'] = 'Importer un fichier CSV';
 $string['exportexcel'] = 'Exporter en Excel';
+$string['globalimport'] = 'Restaurer un export global';
+$string['globalimport_help'] = "Importez ici le fichier XLSX produit par « Exporter en Excel ». Une prévisualisation précède toujours la restauration. Les étudiants sont rapprochés par courriel et les thématiques par leur nom. Les stages déjà présents sont ignorés. Les pièces jointes, rapports, jours effectifs détaillés et réponses aux questionnaires ne peuvent pas être recréés, car l’export global ne contient pas leur contenu complet.";
+$string['globalimportpreviewbutton'] = 'Analyser la sauvegarde';
+$string['globalimportpreview'] = 'Prévisualisation : {$a} stage(s) prêt(s) à restaurer';
+$string['globalimportconfirm'] = 'Confirmer la restauration';
+$string['globalimportdone'] = '{$a} stage(s) restauré(s).';
+$string['globalimportinvalid'] = 'Ce fichier ne contient pas la feuille « Stages » d’un export global compatible.';
+$string['globalimportexpired'] = 'La prévisualisation a expiré. Analysez de nouveau le fichier.';
+$string['globalimportunknownstudent'] = 'Ligne {$a->line} : étudiant « {$a->value} » introuvable, stage ignoré.';
+$string['globalimportunknowntheme'] = 'Ligne {$a->line} : thématique « {$a->value} » introuvable, stage ignoré.';
+$string['globalimportduplicate'] = 'Ligne {$a} : ce stage existe déjà, ligne ignorée.';
 $string['allstages'] = 'Stages';
 $string['promotionreport'] = 'Bilan de promotion';
 $string['promotionreportpdf'] = 'Bilan de promotion (PDF)';
@@ -127,6 +143,46 @@ $string['importstageveterrordates'] = 'Ligne {$a->line} ({$a->student}) : dates 
 $string['importstagevetunknownstudentsreport'] = '{$a} étudiant(s) introuvable(s) parmi les inscrits au cours';
 $string['importstagevetunknownthemesreport'] = '{$a} thématique(s) introuvable(s)';
 $string['importstagevetreportline'] = '{$a->value} (ligne(s) {$a->lines})';
+$string['historicalimport'] = 'Importer un ancien suivi Excel';
+$string['historicalimport_desc'] = 'Reprendre les stages et stages EP validés dans l’ancien classeur de suivi, '
+    . 'après ajout des adresses de courriel des étudiants.';
+$string['historicalimport_help'] = 'Importe uniquement les stages validés des feuilles « Stages - validation ER » '
+    . 'et « Stage EP - validation ER » de l’ancien classeur. Ajoutez auparavant une colonne intitulée exactement '
+    . '« Email » sur la ligne 2 de chacune de ces deux feuilles et renseignez-la pour chaque étudiant. Les stages '
+    . 'sont créés directement au statut validé DEVE ; le nombre de jours devient la durée déclarée et retenue. '
+    . 'Les EP sont enregistrées comme stages complémentaires dans la thématique choisie ci-dessous. La feuille '
+    . '« EP - saisie DEVE », constituée d’enseignements académiques en crédits, n’est pas importée. Une '
+    . 'prévisualisation est toujours affichée avant insertion.';
+$string['historicalimportfile'] = 'Classeur historique (.xlsx)';
+$string['historicalimporteptheme'] = 'Thématique Moodle pour les stages EP';
+$string['historicalimportpreviewbutton'] = 'Analyser et prévisualiser';
+$string['historicalimportpreview'] = 'Prévisualisation : {$a} stage(s) prêt(s) à importer';
+$string['historicalimportconfirm'] = 'Confirmer l’import de ces stages';
+$string['historicalimportwarnings'] = '{$a} avertissement(s) à vérifier';
+$string['historicalimportdone'] = '{$a} ancien(s) stage(s) importé(s) et validé(s).';
+$string['historicalimportcomment'] = 'Validation reprise du suivi Excel historique.';
+$string['historicalimportnodates'] = 'Dates non reconnues — texte original conservé';
+$string['historicalimportnozip'] = 'L’extension PHP ZIP nécessaire à la lecture des fichiers XLSX est indisponible.';
+$string['historicalimportinvalidfile'] = 'Le fichier ne peut pas être lu comme un classeur XLSX valide.';
+$string['historicalimportnosheets'] = 'Les feuilles historiques attendues sont absentes du classeur.';
+$string['historicalimportmissingemail'] = 'Feuille « {$a} » : aucune colonne « Email » trouvée sur la ligne 2.';
+$string['historicalimportrownoemail'] = '{$a->sheet}, ligne {$a->line} ({$a->student}) : email manquant, ligne ignorée.';
+$string['historicalimportnotheme'] = '{$a->sheet}, ligne {$a->line} : intitulé de thématique absent.';
+$string['historicalimportdateswarning'] = '{$a->sheet}, ligne {$a->line} : dates non reconnues dans « {$a->value} ».';
+$string['historicalimportunknownemail'] = '{$a->source} : aucun étudiant inscrit avec l’adresse « {$a->email} ».';
+$string['historicalimportunknownteacher'] = '{$a->source} : enseignant référent « {$a->teacher} » non reconnu ; '
+    . 'le stage sera importé sans référent.';
+$string['historicalimportunknowntheme'] = '{$a->source} : thématique Moodle « {$a->theme} » introuvable.';
+$string['historicalimportduplicate'] = '{$a} : stage déjà présent ou répété dans le classeur, ignoré.';
+$string['historicalimportselecteptheme'] = 'Choisissez la thématique Moodle dans laquelle importer les stages EP.';
+$string['historicalimportexpired'] = 'La prévisualisation a expiré. Téléversez et analysez de nouveau le classeur.';
+$string['historicalimportmapthemes'] = 'Associer les thématiques non reconnues';
+$string['historicalimportmapthemes_help'] = 'Choisissez une thématique Moodle pour chaque intitulé de colonne Excel. '
+    . 'Le choix sera appliqué à tous les stages provenant de cette colonne.';
+$string['historicalimportexceltheme'] = 'Intitulé de la colonne Excel';
+$string['historicalimportmoodletheme'] = 'Thématique Moodle correspondante';
+$string['historicalimportapplymapping'] = 'Appliquer les correspondances';
+$string['historicalimportmapallthemes'] = 'Une correspondance doit être choisie pour chaque thématique non reconnue.';
 $string['importteacherscsv'] = 'Importer un fichier CSV';
 $string['importteacherscsv_help'] = "Importez un fichier CSV (enregistré depuis Excel via « Enregistrer sous > CSV »), avec "
     . 'les colonnes suivantes, séparées par des points-virgules ou des virgules, avec une ligne d\'en-tête facultative : '
@@ -222,6 +278,7 @@ $string['transferpreview'] = 'Préparer le transfert';
 $string['transfersummary'] = 'Transfert à effectuer';
 $string['transferentries'] = 'Stages qui seront transférés';
 $string['transferentrycount'] = 'Nombre de stages';
+$string['transferreportcount'] = 'Documents de rapport de stage transférés';
 $string['transferconfirm'] = 'Confirmer le transfert';
 $string['transferirreversible'] = "Le transfert n'est pas réversible : pour ramener l'étudiant dans ce cours, il faudra refaire un transfert en sens inverse depuis l'activité de destination.";
 $string['transferdone'] = '{$a->count} stage(s) de {$a->student} transféré(s) vers « {$a->target} ».';
@@ -242,6 +299,11 @@ $string['removeperiod'] = 'Retirer';
 $string['periods_help'] = "Un stage peut comporter plusieurs plages de dates non contiguës (ex : deux séjours séparés). L'étudiant choisira ses jours de stage effectifs parmi ces plages lors de son auto-évaluation.";
 $string['periodsrequired'] = "Renseignez au moins une plage de dates : les dates du stage en sont déduites.";
 $string['periodendbeforestart'] = "La date de fin d'une plage ne peut pas précéder sa date de début.";
+$string['periodstartinpast'] = "Une convention ne peut pas être demandée pour un stage déjà commencé : la date "
+    . "de début doit être aujourd'hui ou plus tard. Si le stage a déjà commencé, adressez-vous à la DEVE.";
+$string['selfevalnotstartedyet'] = "Votre stage n'a pas encore commencé : l'auto-évaluation sera accessible à "
+    . 'partir de sa date de début.';
+$string['selfevalfrom'] = 'Auto-évaluation à partir du {$a}';
 $string['periodsoverlap'] = 'Deux plages de dates se recoupent ({$a->first} et {$a->second}). Les mêmes journées seraient comptées deux fois : corrigez-les pour qu\'elles ne se chevauchent pas.';
 $string['conventionsignaturedate'] = 'Date : ............................';
 $string['noperiodsdefined'] = "Aucune plage de dates n'a été définie pour ce stage.";
@@ -292,7 +354,14 @@ $string['qtype'] = 'Type de question';
 $string['qtype_choice'] = 'Choix multiples';
 $string['qtype_text'] = 'Commentaire libre';
 $string['questionlabel'] = 'Intitulé de la question';
+$string['questionlabelen'] = 'Intitulé de la question (anglais, maître de stage)';
 $string['choiceoptions'] = 'Options du QCM (une par ligne)';
+$string['choiceoptionsen'] = 'Options du QCM en anglais (une par ligne, maître de stage)';
+$string['questionlangen'] = 'Version anglaise';
+$string['questionlangen_help'] = "Si la convention de l'étudiant est en anglais, le maître de stage voit "
+    . "cette version anglaise à la place de la version française. Laissez vide pour utiliser une traduction "
+    . 'automatique littérale de la version française n\'est pas prévue : sans traduction, le texte français '
+    . "sera utilisé par défaut.";
 $string['choiceoptionsrequired'] = 'Veuillez saisir au moins une option, une par ligne.';
 $string['questionrequired'] = 'Réponse obligatoire';
 $string['questionsaved'] = 'La question a été enregistrée.';
@@ -309,6 +378,7 @@ $string['selectexistingquestion'] = 'Réutiliser une question existante...';
 $string['savebulkchanges'] = 'Enregistrer les modifications';
 $string['toggle'] = 'Basculer obligatoire';
 $string['evaluate'] = 'Évaluer';
+$string['viewevaluation'] = "Voir l'évaluation";
 $string['validate'] = 'Valider';
 $string['selectall'] = 'Tout sélectionner';
 $string['bulkvalidateselected'] = 'Valider la sélection';
@@ -341,6 +411,10 @@ $string['selfevalnotifsubject'] = 'Auto-évaluation de stage à évaluer - {$a}'
 $string['selfevalnotifbody'] = "{\$a->student} vient de s'auto-évaluer pour son stage \"{\$a->stage}\". "
     . "Vous pouvez consulter et évaluer cette saisie ici : {\$a->url}";
 $string['generateconvention'] = 'Générer la convention';
+$string['viewconvention'] = 'Consulter la convention';
+$string['downloadstarting'] = 'Le téléchargement démarre. Vous allez être ramené à la page précédente.';
+$string['downloadrestart'] = 'Relancer le téléchargement';
+$string['backtolist'] = 'Revenir à la liste';
 $string['includesignatureblock'] = "Ajouter un cadre de signatures (stagiaire, maître de stage, "
     . "responsable de l'organisme d'accueil, enseignant.e référent.e, établissement) en bas de la "
     . 'première page, pour une convention imprimée destinée à être signée à la main.';
@@ -390,7 +464,16 @@ $string['requestconvention_help'] = "Choisissez le modèle de convention corresp
     . 'possible qu\'une fois la convention signée.';
 $string['conventionalreadyrequested'] = 'La convention de ce stage a déjà été demandée.';
 $string['conventionrequested'] = 'La demande de convention a été envoyée à la DEVE.';
+$string['conventionnotedited'] = "La convention de ce stage n'est pas (ou plus) au statut « éditée » : elle n'est "
+    . 'donc pas accessible depuis ce lien.';
 $string['conventionnotemplatechosen'] = "Aucun modèle de convention n'a été choisi pour ce stage.";
+$string['conventionpaperrequest'] = 'Convention papier (cadre de signatures)';
+$string['conventionpaperrequest_help'] = "Cochez si un exemplaire imprimé de la convention, avec un cadre de "
+    . "signatures à remplir à la main, est nécessaire (par exemple si l'organisme d'accueil ne peut pas signer "
+    . 'électroniquement). Sinon, la convention signée électroniquement suffit.';
+$string['conventionpaperrequestedbystudentonly'] = "Convention papier demandée par l'étudiant.";
+$string['conventionpaperrequestedbyteacheronly'] = "Convention papier demandée par l'enseignant référent.";
+$string['conventionpaperrequestedbyboth'] = "Convention papier demandée par l'étudiant et par l'enseignant référent.";
 $string['conventionnotsignedyet'] = "La convention de stage doit être signée par la DEVE avant de pouvoir vous "
     . 'auto-évaluer. Consultez le statut de votre convention sur votre tableau de bord.';
 $string['conventionstatus'] = 'Statut de la convention';
@@ -428,6 +511,26 @@ $string['conventionrejectedby'] = 'Refusée par';
 $string['conventionvalidatedby'] = "Validée par l'enseignant.e référent.e";
 $string['conventioneditedby'] = 'Éditée par';
 $string['conventionsignedby'] = 'Signée par';
+// Libellés de colonnes propres à l'export Excel (export.php) : les dates des étapes déjà
+// nommées ci-dessus, et les informations qui n'apparaissent nulle part ailleurs sous forme de
+// colonne.
+$string['conventionteachervalidatedby'] = "Validée par l'enseignant.e référent.e";
+$string['conventionrequesttime'] = 'Date de demande de convention';
+$string['conventionteachervalidatetime'] = 'Date de validation enseignant.e';
+$string['conventionedittime'] = "Date d'édition de la convention";
+$string['conventionsigntime'] = 'Date de signature de la convention';
+$string['conventionrejecttime'] = 'Date de refus de la convention';
+$string['workdayscount'] = 'Nombre de jours effectifs sélectionnés';
+$string['teachervalidationtime'] = "Date d'évaluation enseignant.e";
+$string['tutorevaltime'] = "Date d'évaluation du maître de stage";
+$string['tutorevalbypassedcolumn'] = 'Évaluation du maître de stage ignorée';
+$string['reportfilescount'] = 'Nombre de documents déposés';
+$string['devevalidatedby'] = 'Validé par la DEVE';
+$string['devevalidationtime'] = 'Date de validation DEVE';
+$string['timecreated'] = "Date d'enregistrement";
+$string['exportanswers'] = 'Réponses aux questionnaires';
+$string['exportentryid'] = 'N° de stage';
+$string['answer'] = 'Réponse';
 $string['conventionrejectedexplain'] = 'Votre demande de convention a été refusée par la DEVE, pour le motif suivant : '
     . '"{$a}". Merci de corriger votre demande ci-dessous et de la soumettre à nouveau.';
 $string['conventionrejectednotifsubject'] = 'Convention de stage refusée : {$a}';
@@ -578,15 +681,72 @@ $string['tutorevalnotifsubject'] = 'Évaluation du stage de {$a}';
 $string['tutorevalnotifbody'] = "Vous encadrez actuellement {\$a->student} dans le cadre de son stage "
     . "\"{\$a->stage}\". Merci de bien vouloir évaluer ce stage en suivant ce lien, qui ne nécessite pas de "
     . "compte :\n{\$a->url}";
+$string['emailkeyconventionreminder'] = "Rappel de convention non signée (à l'étudiant)";
+$string['conventionremindernotifsubject'] = 'Convention de stage non signée : {$a}';
+$string['conventionremindernotifbody'] = "Bonjour {\$a->student},\n\nVotre stage \"{\$a->theme}\" commence le "
+    . "{\$a->datestart}, soit dans moins de {\$a->days} jours, et sa convention n'est toujours pas signée. Sans "
+    . "convention signée, le stage ne peut pas débuter.\n\nMerci de régulariser votre demande de convention au "
+    . "plus vite :\n{\$a->url}";
+$string['taskconventionreminders'] = 'Relance des conventions de stage non signées';
+$string['tasktutorevaluationrequests'] = 'Envoi des invitations à évaluer le stage aux maîtres de stage';
+$string['reportmode'] = 'Rapport de stage';
+$string['reportmode_help'] = "Dépôt de documents demandé à l'étudiant lors de son auto-évaluation, sur le "
+    . "modèle d'un devoir. Les documents déposés sont consultables par la DEVE, par l'enseignant référent de "
+    . "l'étudiant et par les enseignants responsables de la thématique. « Obligatoire » empêche l'étudiant de "
+    . "soumettre son auto-évaluation tant qu'il n'a déposé aucun document.";
+$string['reportmode_none'] = 'Aucun';
+$string['reportmode_optional'] = 'Facultatif';
+$string['reportmode_required'] = 'Obligatoire';
+$string['reportfiles'] = 'Rapport de stage';
+$string['reportfiles_help'] = "Déposez ici votre rapport de stage et les éventuelles pièces jointes. Vous "
+    . "pouvez y revenir tant que vous n'avez pas soumis votre auto-évaluation.";
+$string['savereportfiles'] = 'Enregistrer les documents';
+$string['reportfilessaved'] = 'Les documents de votre rapport de stage ont été enregistrés.';
+$string['noreportfiles'] = 'Aucun document déposé.';
+$string['reportfilemissing'] = "Ce document n'existe pas ou n'est plus disponible.";
+$string['reportrequirednotice'] = "Le dépôt d'au moins un document est nécessaire pour pouvoir soumettre "
+    . 'votre auto-évaluation.';
+$string['reportrequiredmissing'] = "Votre auto-évaluation n'a pas été soumise : le dépôt d'au moins un "
+    . "document est exigé pour cette thématique. Déposez votre rapport de stage ci-dessous, puis soumettez à "
+    . 'nouveau votre auto-évaluation.';
+$string['downloadallreports'] = 'Télécharger tous les rapports (.zip)';
+$string['reportszipname'] = 'rapports-de-stage-{$a}';
+$string['noreportstozip'] = "Aucun document n'a été déposé pour cette thématique.";
+$string['reportszipfailed'] = "L'archive des rapports de stage n'a pas pu être construite.";
+$string['themeteachers'] = 'Enseignants responsables';
+$string['themeteachers_help'] = "Les enseignants responsables d'une thématique accèdent à tous les stages "
+    . "faits sur cette thématique (onglet « Stages par thématique ») et aux rapports qui y sont déposés, quels "
+    . "que soient les enseignants référents des étudiants concernés. Ils n'évaluent pas les stages : "
+    . "l'évaluation reste le rôle de l'enseignant référent de chaque étudiant.";
+$string['themeteacherssaved'] = 'Les enseignants responsables de la thématique ont été enregistrés.';
+$string['themeteacherscount'] = '{$a} enseignant(s)';
+$string['mythemestages'] = 'Stages par thématique';
+$string['nostagesfortheme'] = 'Aucun stage ne correspond à cette thématique.';
 $string['evaltype_tutor'] = 'Maître de stage';
+$string['tutorevaluationenabledtheme'] = 'Évaluation par le maître de stage pour cette thématique';
+$string['tutorevaluationenabledtheme_help'] = "N'a d'effet que si l'évaluation par le maître de stage est "
+    . 'aussi activée globalement pour cette activité (page « Notifications »). Permet, une fois cette option '
+    . "globale activée, de ne la proposer que pour certaines thématiques plutôt que pour toutes.";
 $string['tutorevalheading'] = 'Évaluation du maître de stage';
 $string['notutoreval'] = "Le maître de stage n'a pas encore répondu à son questionnaire d'évaluation.";
+$string['tutorevallink'] = "Lien d'évaluation à transmettre au maître de stage";
+$string['tutorevalresend'] = "Relancer le maître de stage par courriel";
+$string['tutorevalresent'] = 'Le courriel de relance a été envoyé au maître de stage.';
+$string['tutorevalresentfailed'] = "Le courriel n'a pas pu être envoyé : les coordonnées du maître de stage sont inconnues.";
+$string['tutorevalbypass'] = "Ignorer cette évaluation (ne plus bloquer la validation)";
+$string['confirmtutorevalbypass'] = "Ignorer l'évaluation du maître de stage pour ce stage ? "
+    . "La validation par la DEVE ne sera plus bloquée par son absence de réponse.";
+$string['tutorevalbypassed'] = "L'évaluation du maître de stage a été ignorée pour ce stage.";
+$string['tutorevalbypassednotice'] = "L'évaluation du maître de stage a été ignorée par la DEVE et ne "
+    . 'bloque plus la validation de ce stage.';
 $string['tutorevalpagetitle'] = 'Évaluation du stage';
 $string['tutorevalinvalidtoken'] = "Ce lien d'évaluation n'est plus valide.";
 $string['tutorevalalreadysubmitted'] = 'Votre évaluation a bien été enregistrée, merci.';
 $string['tutorevalsubmit'] = 'Envoyer mon évaluation';
 $string['tutorevalintro'] = "Vous encadrez {\$a->student} dans le cadre de son stage \"{\$a->stage}\". "
     . "Merci de bien vouloir répondre au questionnaire d'évaluation ci-dessous.";
+$string['tutorevalstudentlabel'] = 'Étudiant';
+$string['tutorevaldateslabel'] = 'Dates du stage';
 $string['notifications'] = 'Notifications et e-mails';
 $string['notificationssettings'] = 'Personnalisation des e-mails envoyés';
 $string['notificationssettings_help'] = "Pour chaque e-mail envoyé par l'activité, vous pouvez remplacer le "
@@ -598,3 +758,51 @@ $string['emailsubject'] = 'Sujet';
 $string['emailbody'] = 'Corps du message';
 $string['emailavailablevars'] = 'Variables disponibles : {$a}';
 $string['emailresettodefault'] = 'Laissez les deux champs vides pour utiliser le texte par défaut.';
+
+// Confidentialité (RGPD).
+$string['supervisedstages'] = 'Stages suivis ou traités';
+$string['answers'] = 'Réponses';
+$string['conventiondetails'] = 'Détail de la convention';
+$string['privacy:metadata:core_files'] = 'Fichiers rattachés à un stage : la convention signée et le rapport de stage.';
+$string['privacy:metadata:stage_entry'] = "Un enregistrement par stage déclaré par ou pour un étudiant, avec ses évaluations et l'état de sa convention.";
+$string['privacy:metadata:stage_entry:userid'] = "L'étudiant à qui le stage appartient.";
+$string['privacy:metadata:stage_entry:themeid'] = 'La thématique du stage.';
+$string['privacy:metadata:stage_entry:studyyear'] = "L'année d'étude au titre de laquelle le stage compte.";
+$string['privacy:metadata:stage_entry:structure'] = "La structure d'accueil.";
+$string['privacy:metadata:stage_entry:country'] = "Le pays, pour un stage à l'étranger.";
+$string['privacy:metadata:stage_entry:datestart'] = 'La date de début du stage.';
+$string['privacy:metadata:stage_entry:dateend'] = 'La date de fin du stage.';
+$string['privacy:metadata:stage_entry:status'] = "L'avancement du stage dans le circuit de validation.";
+$string['privacy:metadata:stage_entry:studentselfeval'] = "L'auto-évaluation rédigée par l'étudiant.";
+$string['privacy:metadata:stage_entry:teacherid'] = "L'enseignant référent attribué au stage.";
+$string['privacy:metadata:stage_entry:teachereval'] = "L'évaluation rédigée par l'enseignant référent.";
+$string['privacy:metadata:stage_entry:tutoreval'] = "L'évaluation rédigée par le maître de stage.";
+$string['privacy:metadata:stage_entry:deveuserid'] = 'Le membre de la DEVE ayant validé le stage.';
+$string['privacy:metadata:stage_entry:devecomment'] = 'Le commentaire rédigé par la DEVE.';
+$string['privacy:metadata:stage_entry:conventionstatus'] = "L'état de la convention de stage.";
+$string['privacy:metadata:stage_entry:cancelcomment'] = "Le motif indiqué lors de l'annulation du stage.";
+$string['privacy:metadata:stage_entry:timecreated'] = "La date d'enregistrement du stage.";
+$string['privacy:metadata:stage_convention_detail'] = 'Les informations recueillies pour établir la convention de stage.';
+$string['privacy:metadata:stage_convention_detail:studentbirthdate'] = "La date de naissance de l'étudiant.";
+$string['privacy:metadata:stage_convention_detail:studentaddress'] = "L'adresse postale de l'étudiant.";
+$string['privacy:metadata:stage_convention_detail:studentphone'] = "Le numéro de téléphone de l'étudiant.";
+$string['privacy:metadata:stage_convention_detail:referentteacherid'] = "L'enseignant référent nommé dans la convention.";
+$string['privacy:metadata:stage_convention_detail:tutorname'] = 'Le nom du maître de stage.';
+$string['privacy:metadata:stage_convention_detail:tutorfunction'] = 'La fonction du maître de stage.';
+$string['privacy:metadata:stage_convention_detail:tutorphone'] = 'Le numéro de téléphone du maître de stage.';
+$string['privacy:metadata:stage_convention_detail:tutoremail'] = "L'adresse de courriel du maître de stage.";
+$string['privacy:metadata:stage_convention_detail:gratificationamount'] = "Le montant de la gratification versée à l'étudiant.";
+$string['privacy:metadata:stage_entry_period'] = "Les périodes composant un stage réparti sur plusieurs dates.";
+$string['privacy:metadata:stage_entry_period:datestart'] = 'La date de début de la période.';
+$string['privacy:metadata:stage_entry_period:dateend'] = 'La date de fin de la période.';
+$string['privacy:metadata:stage_entry_workday'] = 'Les jours travaillés, pour les stages comptés jour par jour.';
+$string['privacy:metadata:stage_entry_workday:workdate'] = 'Un jour travaillé.';
+$string['privacy:metadata:stage_answer'] = 'Les réponses apportées aux questionnaires de stage.';
+$string['privacy:metadata:stage_answer:questionid'] = 'La question à laquelle il est répondu.';
+$string['privacy:metadata:stage_answer:answertext'] = 'La réponse apportée.';
+$string['privacy:metadata:stage_entry_teacher'] = 'Le rattachement de chaque étudiant à son enseignant référent.';
+$string['privacy:metadata:stage_entry_teacher:studentid'] = "L'étudiant suivi.";
+$string['privacy:metadata:stage_entry_teacher:teacherid'] = "L'enseignant référent.";
+$string['privacy:metadata:stage_theme_teacher'] = 'Les enseignants responsables de chaque thématique de stage.';
+$string['privacy:metadata:stage_theme_teacher:themeid'] = 'La thématique de stage.';
+$string['privacy:metadata:stage_theme_teacher:teacherid'] = 'L\'enseignant responsable de la thématique.';

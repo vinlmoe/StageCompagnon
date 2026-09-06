@@ -109,6 +109,7 @@ if ($userid && $targetstageid) {
             format_string($course->fullname) . ' - ' . format_string($stage->name),
         get_string('transfertarget', 'mod_stage') => $targets[$targetstageid],
         get_string('transferentrycount', 'mod_stage') => count($plan->entries),
+        get_string('transferreportcount', 'mod_stage') => $plan->reportfiles,
     ]);
 
     // Ce qui sera transféré, stage par stage : la DEVE doit pouvoir vérifier que c'est bien de ces
