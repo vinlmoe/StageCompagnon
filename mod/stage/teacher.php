@@ -175,8 +175,11 @@ if ($entryid) {
         echo stage_render_question_fields($questions, stage_get_answers($entry->id));
     } else {
         echo html_writer::tag('label', get_string('teachereval', 'mod_stage'), ['for' => 'teachereval']);
-        echo html_writer::tag('textarea', s($entry->teachereval),
-            ['name' => 'teachereval', 'id' => 'teachereval', 'rows' => 5, 'class' => 'form-control']);
+        echo html_writer::tag(
+            'textarea',
+            s($entry->teachereval),
+            ['name' => 'teachereval', 'id' => 'teachereval', 'rows' => 5, 'class' => 'form-control']
+        );
     }
     echo html_writer::empty_tag('input', [
         'type' => 'submit', 'name' => 'validatestage', 'value' => get_string('validate', 'mod_stage'),
@@ -186,8 +189,11 @@ if ($entryid) {
     echo $OUTPUT->heading(get_string('rejectstageheading', 'mod_stage'), 4);
     echo html_writer::tag('p', get_string('rejectstageheading_help', 'mod_stage'), ['class' => 'text-muted']);
     echo html_writer::tag('label', get_string('rejectcomment', 'mod_stage'), ['for' => 'rejectcomment']);
-    echo html_writer::tag('textarea', '',
-        ['name' => 'rejectcomment', 'id' => 'rejectcomment', 'rows' => 3, 'class' => 'form-control']);
+    echo html_writer::tag(
+        'textarea',
+        '',
+        ['name' => 'rejectcomment', 'id' => 'rejectcomment', 'rows' => 3, 'class' => 'form-control']
+    );
     echo html_writer::empty_tag('input', [
         'type' => 'submit', 'name' => 'rejectstage', 'value' => get_string('markinvalid', 'mod_stage'),
         'class' => 'btn btn-danger mt-2',
@@ -232,9 +238,11 @@ if (empty($assignedids)) {
                     ? userdate($pendingentry->conventionrequesttime, get_string('strftimedatetimeshort')) : '-',
                 stage_render_actions([
                     get_string('conventionteachervalidate', 'mod_stage') =>
-                        new moodle_url('/mod/stage/convention_teacher_validate.php',
+                        new moodle_url(
+                            '/mod/stage/convention_teacher_validate.php',
                             ['id' => $cm->id, 'entryid' => $pendingentry->id,
-                                'returnurl' => $baseurl->out_as_local_url(false)]),
+                            'returnurl' => $baseurl->out_as_local_url(false)]
+                        ),
                 ], 'btn btn-sm btn-primary mr-1 mb-1'),
             ];
         }
@@ -257,8 +265,13 @@ if (empty($assignedids)) {
     // faire. Le filtre de statut reste disponible pour retrouver explicitement un stage par son
     // statut, y compris déjà évalué.
     $liststatus = $filterstatus !== '' ? $filterstatus : STAGE_STATUS_EVAL_ETUDIANT;
-    $allentries = stage_get_filtered_entries($stage->id,
-        ['search' => $search, 'themeid' => $filterthemeid, 'status' => $liststatus], $tsort, $tdir, $assignedids);
+    $allentries = stage_get_filtered_entries(
+        $stage->id,
+        ['search' => $search, 'themeid' => $filterthemeid, 'status' => $liststatus],
+        $tsort,
+        $tdir,
+        $assignedids
+    );
     [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
 
     $table = new html_table();
@@ -289,8 +302,10 @@ if (empty($assignedids)) {
             stage_render_actions([
                 // Le retour ramène sur cette liste telle qu'affichée (recherche, tri, page), pas
                 // sur la liste "vierge" : voir $backurl ci-dessus, qui honore ce paramètre.
-                $actionlabel => new moodle_url('/mod/stage/teacher.php',
-                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]),
+                $actionlabel => new moodle_url(
+                    '/mod/stage/teacher.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]
+                ),
                 get_string('downloadsignedconvention', 'mod_stage') => $signedavailable
                     ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id])
                     : null,

@@ -29,7 +29,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_logos_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -46,10 +45,20 @@ class convention_logos_form extends \moodleform {
             'accepted_types' => ['.png'],
         ];
 
-        $mform->addElement('filemanager', 'logoleft', get_string('conventionlogoleft', 'mod_stage'), null,
-            $filemanageroptions);
-        $mform->addElement('filemanager', 'logoright', get_string('conventionlogoright', 'mod_stage'), null,
-            $filemanageroptions);
+        $mform->addElement(
+            'filemanager',
+            'logoleft',
+            get_string('conventionlogoleft', 'mod_stage'),
+            null,
+            $filemanageroptions
+        );
+        $mform->addElement(
+            'filemanager',
+            'logoright',
+            get_string('conventionlogoright', 'mod_stage'),
+            null,
+            $filemanageroptions
+        );
 
         $this->add_action_buttons();
     }

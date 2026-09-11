@@ -38,7 +38,6 @@ use mod_stage\form\deve_entry_form;
  * @covers     \mod_stage\form\deve_entry_form
  */
 final class deve_entry_form_test extends \advanced_testcase {
-
     /**
      * Éditer une saisie sans changer ni sa thématique ni ses dates ne doit pas être rejeté comme
      * un doublon d'elle-même.
@@ -86,8 +85,11 @@ final class deve_entry_form_test extends \advanced_testcase {
 
         $errors = $mform->validation($submitted, []);
 
-        $this->assertArrayNotHasKey('themeid', $errors,
-            'La mise à jour d\'une saisie sans changement ne doit pas être signalée comme un doublon d\'elle-même.');
+        $this->assertArrayNotHasKey(
+            'themeid',
+            $errors,
+            'La mise à jour d\'une saisie sans changement ne doit pas être signalée comme un doublon d\'elle-même.'
+        );
     }
 
     /**

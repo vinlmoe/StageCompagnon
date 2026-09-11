@@ -25,10 +25,10 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_stagesynthesis';
-$plugin->version   = 2026090402;
+$plugin->version   = 2026091100;
 $plugin->requires  = 2022041900; // Moodle 4.0+.
 $plugin->maturity  = MATURITY_BETA;
-$plugin->release   = '0.1.5';
+$plugin->release   = '0.2.0';
 $plugin->dependencies = [
     // Version corrigeant la perte de returnurl dans convention_teacher_validate.php, dont la
     // cohérence des allers-retours vers cette synthèse dépend directement.

@@ -90,8 +90,10 @@ $listurl = new moodle_url($baseurl, ['search' => $search, 'status' => $filtersta
 // thématique est choisie par les onglets ci-dessus et doit être conservée à chaque recherche,
 // alors que le bandeau commun la propose lui-même en liste déroulante.
 $filterurl = new moodle_url('/mod/stage/theme_stages.php');
-echo html_writer::start_tag('form',
-    ['method' => 'get', 'action' => $filterurl, 'class' => 'form-inline stage-filters mb-3']);
+echo html_writer::start_tag(
+    'form',
+    ['method' => 'get', 'action' => $filterurl, 'class' => 'form-inline stage-filters mb-3']
+);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'id', 'value' => $cm->id]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'themeid', 'value' => $themeid]);
 echo html_writer::empty_tag('input', [
@@ -99,20 +101,29 @@ echo html_writer::empty_tag('input', [
     'placeholder' => get_string('searchstudent', 'mod_stage'), 'class' => 'form-control mr-2',
 ]);
 $statusoptions = ['' => get_string('allstatuses', 'mod_stage')];
-foreach ([STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
-        STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode) {
+foreach (
+    [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
+        STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode
+) {
     $statusoptions[$statuscode] = stage_status_label($statuscode);
 }
 echo html_writer::select($statusoptions, 'status', $filterstatus, false, ['class' => 'form-control mr-2']);
 echo html_writer::empty_tag('input', [
     'type' => 'submit', 'value' => get_string('search'), 'class' => 'btn btn-secondary mr-2',
 ]);
-echo html_writer::link(new moodle_url($filterurl, ['id' => $cm->id, 'themeid' => $themeid]),
-    get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
+echo html_writer::link(
+    new moodle_url($filterurl, ['id' => $cm->id, 'themeid' => $themeid]),
+    get_string('resetfilters', 'mod_stage'),
+    ['class' => 'btn btn-link']
+);
 echo html_writer::end_tag('form');
 
-$allentries = stage_get_filtered_entries($stage->id,
-    ['search' => $search, 'themeid' => $themeid, 'status' => $filterstatus], $tsort, $tdir);
+$allentries = stage_get_filtered_entries(
+    $stage->id,
+    ['search' => $search, 'themeid' => $themeid, 'status' => $filterstatus],
+    $tsort,
+    $tdir
+);
 [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
 
 if (empty($allentries)) {
@@ -137,8 +148,11 @@ if ($hasreports) {
         'id' => $cm->id, 'themeid' => $themeid, 'search' => $search, 'status' => $filterstatus,
         'sesskey' => sesskey(),
     ]);
-    echo html_writer::link($zipurl, get_string('downloadallreports', 'mod_stage'),
-        ['class' => 'btn btn-primary mb-3']);
+    echo html_writer::link(
+        $zipurl,
+        get_string('downloadallreports', 'mod_stage'),
+        ['class' => 'btn btn-primary mb-3']
+    );
 }
 
 $table = new html_table();
@@ -156,9 +170,13 @@ foreach ($entries as $entry) {
     // Le retour ramène sur cette liste telle qu'affichée (recherche, statut, tri), pas sur la
     // vue de pilotage à laquelle l'enseignant responsable de thématique n'a pas forcément accès.
     $action = html_writer::link(
-        new moodle_url('/mod/stage/entrydetail.php',
-            ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]),
-        get_string('viewdetails', 'mod_stage'), ['class' => 'btn btn-sm btn-secondary']);
+        new moodle_url(
+            '/mod/stage/entrydetail.php',
+            ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]
+        ),
+        get_string('viewdetails', 'mod_stage'),
+        ['class' => 'btn btn-sm btn-secondary']
+    );
 
     $table->data[] = [
         $student ? fullname($student) : '-',

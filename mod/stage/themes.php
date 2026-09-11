@@ -92,8 +92,12 @@ if ($action === 'togglevisible' && $themeid) {
     $theme->visible = $theme->visible ? 0 : 1;
     $theme->timemodified = time();
     $DB->update_record('stage_theme', $theme);
-    redirect($baseurl, get_string('themevisibilitytoggled', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $baseurl,
+        get_string('themevisibilitytoggled', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 // Formulaire d'ajout / édition d'une thématique.
@@ -171,8 +175,11 @@ echo $OUTPUT->heading(get_string('managethemes', 'mod_stage'));
 
 echo html_writer::link(new moodle_url('/mod/stage/administration.php', ['id' => $cm->id]), get_string('back'));
 
-echo html_writer::link(new moodle_url('/mod/stage/themes.php', ['id' => $cm->id, 'action' => 'edit']),
-    get_string('addtheme', 'mod_stage'), ['class' => 'btn btn-primary d-block mt-2 mb-3', 'style' => 'width:fit-content']);
+echo html_writer::link(
+    new moodle_url('/mod/stage/themes.php', ['id' => $cm->id, 'action' => 'edit']),
+    get_string('addtheme', 'mod_stage'),
+    ['class' => 'btn btn-primary d-block mt-2 mb-3', 'style' => 'width:fit-content']
+);
 echo $OUTPUT->notification(get_string('themevisible_help', 'mod_stage'), 'info');
 
 $themes = stage_get_themes($stage->id);
@@ -210,32 +217,63 @@ if (empty($themes)) {
         $durationlabel = !empty($theme->requiredduration)
             ? $theme->requiredduration
             : html_writer::span(get_string('durationperyear', 'mod_stage'), 'text-muted');
-        $minstudyyearselect = html_writer::select(stage_studyyear_options(), 'minstudyyear_' . $theme->id,
-            $theme->minstudyyear, false, ['class' => 'form-control']);
-        $maxstudyyearselect = html_writer::select(stage_studyyear_options(), 'maxstudyyear_' . $theme->id,
-            $theme->maxstudyyear, false, ['class' => 'form-control']);
-        $togglevisibleurl = new moodle_url('/mod/stage/themes.php',
-            ['id' => $cm->id, 'action' => 'togglevisible', 'themeid' => $theme->id, 'sesskey' => sesskey()]);
-        $visible = html_writer::link($togglevisibleurl,
+        $minstudyyearselect = html_writer::select(
+            stage_studyyear_options(),
+            'minstudyyear_' . $theme->id,
+            $theme->minstudyyear,
+            false,
+            ['class' => 'form-control']
+        );
+        $maxstudyyearselect = html_writer::select(
+            stage_studyyear_options(),
+            'maxstudyyear_' . $theme->id,
+            $theme->maxstudyyear,
+            false,
+            ['class' => 'form-control']
+        );
+        $togglevisibleurl = new moodle_url(
+            '/mod/stage/themes.php',
+            ['id' => $cm->id, 'action' => 'togglevisible', 'themeid' => $theme->id, 'sesskey' => sesskey()]
+        );
+        $visible = html_writer::link(
+            $togglevisibleurl,
             $theme->visible ? get_string('yes') : get_string('no'),
-            ['class' => $theme->visible ? 'badge badge-success' : 'badge badge-secondary']);
-        $tutorevalcb = html_writer::checkbox('tutorevaluationenabled_' . $theme->id, 1,
-            (bool) $theme->tutorevaluationenabled, '');
-        $reportmodeselect = html_writer::select($reportmodeoptions, 'reportmode_' . $theme->id,
-            $theme->reportmode, false, ['class' => 'form-control']);
+            ['class' => $theme->visible ? 'badge badge-success' : 'badge badge-secondary']
+        );
+        $tutorevalcb = html_writer::checkbox(
+            'tutorevaluationenabled_' . $theme->id,
+            1,
+            (bool) $theme->tutorevaluationenabled,
+            ''
+        );
+        $reportmodeselect = html_writer::select(
+            $reportmodeoptions,
+            'reportmode_' . $theme->id,
+            $theme->reportmode,
+            false,
+            ['class' => 'form-control']
+        );
 
         // Enseignants responsables de la thématique : le nombre actuel plutôt que la liste
         // complète, qui allongerait démesurément la ligne, et un lien vers la page d'affectation.
-        $themeteachersurl = new moodle_url('/mod/stage/theme_teachers.php',
-            ['id' => $cm->id, 'themeid' => $theme->id]);
-        $themeteachers = html_writer::link($themeteachersurl,
-            get_string('themeteacherscount', 'mod_stage', count(stage_get_theme_teachers($theme->id))));
+        $themeteachersurl = new moodle_url(
+            '/mod/stage/theme_teachers.php',
+            ['id' => $cm->id, 'themeid' => $theme->id]
+        );
+        $themeteachers = html_writer::link(
+            $themeteachersurl,
+            get_string('themeteacherscount', 'mod_stage', count(stage_get_theme_teachers($theme->id)))
+        );
 
         $editurl = new moodle_url('/mod/stage/themes.php', ['id' => $cm->id, 'action' => 'edit', 'themeid' => $theme->id]);
-        $toggleurl = new moodle_url('/mod/stage/themes.php',
-            ['id' => $cm->id, 'action' => 'togglemandatory', 'themeid' => $theme->id, 'sesskey' => sesskey()]);
-        $deleteurl = new moodle_url('/mod/stage/themes.php',
-            ['id' => $cm->id, 'action' => 'delete', 'themeid' => $theme->id, 'sesskey' => sesskey()]);
+        $toggleurl = new moodle_url(
+            '/mod/stage/themes.php',
+            ['id' => $cm->id, 'action' => 'togglemandatory', 'themeid' => $theme->id, 'sesskey' => sesskey()]
+        );
+        $deleteurl = new moodle_url(
+            '/mod/stage/themes.php',
+            ['id' => $cm->id, 'action' => 'delete', 'themeid' => $theme->id, 'sesskey' => sesskey()]
+        );
         $questionsurl = new moodle_url('/mod/stage/questions.php', ['id' => $cm->id, 'themeid' => $theme->id]);
         $durationsurl = new moodle_url('/mod/stage/theme_durations.php', ['id' => $cm->id, 'themeid' => $theme->id]);
 

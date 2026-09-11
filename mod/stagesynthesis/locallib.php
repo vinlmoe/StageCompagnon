@@ -46,8 +46,10 @@ function stagesynthesis_render_managelinks_notice(stdClass $stagesynthesis, stdC
     $links = stagesynthesis_get_links($stagesynthesis->id);
     return html_writer::div(
         get_string('linkedcount', 'mod_stagesynthesis', count($links)) . ' ' .
-        html_writer::link(new moodle_url('/mod/stagesynthesis/administration.php', ['id' => $cm->id]),
-            get_string('managelinks', 'mod_stagesynthesis')),
+        html_writer::link(
+            new moodle_url('/mod/stagesynthesis/administration.php', ['id' => $cm->id]),
+            get_string('managelinks', 'mod_stagesynthesis')
+        ),
         'mb-3'
     );
 }
@@ -247,8 +249,10 @@ function stagesynthesis_render_list_filters(moodle_url $baseurl, array $themeopt
     $formurl = new moodle_url($baseurl);
     $formurl->remove_params('search', 'themekey', 'status', 'tsort', 'tdir');
 
-    $out = html_writer::start_tag('form',
-        ['method' => 'get', 'action' => $formurl, 'class' => 'form-inline stage-filters mb-3']);
+    $out = html_writer::start_tag(
+        'form',
+        ['method' => 'get', 'action' => $formurl, 'class' => 'form-inline stage-filters mb-3']
+    );
     foreach ($formurl->params() as $key => $value) {
         $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $key, 'value' => $value]);
     }
@@ -257,12 +261,19 @@ function stagesynthesis_render_list_filters(moodle_url $baseurl, array $themeopt
         'placeholder' => get_string('searchstudent', 'mod_stage'), 'class' => 'form-control mr-2',
     ]);
 
-    $out .= html_writer::select(['' => get_string('allthemes', 'mod_stage')] + $themeoptions, 'themekey', $themekey,
-        false, ['class' => 'form-control mr-2']);
+    $out .= html_writer::select(
+        ['' => get_string('allthemes', 'mod_stage')] + $themeoptions,
+        'themekey',
+        $themekey,
+        false,
+        ['class' => 'form-control mr-2']
+    );
 
     $statusoptions = ['' => get_string('allstatuses', 'mod_stage')];
-    foreach ([STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
-            STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode) {
+    foreach (
+        [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
+            STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode
+    ) {
         $statusoptions[$statuscode] = stage_status_label($statuscode);
     }
     $out .= html_writer::select($statusoptions, 'status', $status, false, ['class' => 'form-control mr-2']);
@@ -336,7 +347,7 @@ function stagesynthesis_get_filtered_entries(array $activelinks, array $filters,
     $sortfield = $sortmap[$sort] ?? $sortmap['timecreated'];
     $reverse = strtoupper($dir) !== 'ASC';
 
-    usort($rows, function($a, $b) use ($sortfield, $reverse) {
+    usort($rows, function ($a, $b) use ($sortfield, $reverse) {
         $result = $a->$sortfield <=> $b->$sortfield;
         return $reverse ? -$result : $result;
     });
@@ -373,7 +384,7 @@ function stagesynthesis_get_pending_convention_entries(array $activelinks, $user
         }
     }
 
-    usort($rows, function($a, $b) {
+    usort($rows, function ($a, $b) {
         return $a->conventionrequesttime <=> $b->conventionrequesttime;
     });
 

@@ -50,8 +50,10 @@ $returnurl = $returnurlparam !== ''
     ? new moodle_url($returnurlparam)
     : new moodle_url('/mod/stage/teachers.php', ['id' => $cm->id]);
 
-$baseurl = new moodle_url('/mod/stage/teacher_assign.php',
-    ['id' => $cm->id, 'studentid' => $studentid, 'returnurl' => $returnurlparam]);
+$baseurl = new moodle_url(
+    '/mod/stage/teacher_assign.php',
+    ['id' => $cm->id, 'studentid' => $studentid, 'returnurl' => $returnurlparam]
+);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('manageteachers', 'mod_stage'));
 $PAGE->set_heading(format_string($course->fullname));
@@ -63,8 +65,12 @@ $currentids = array_keys(stage_get_student_teachers($stage->id, $studentid));
 if (data_submitted() && confirm_sesskey()) {
     $selected = optional_param_array('selectedteachers', [], PARAM_INT);
     stage_set_student_teachers($stage->id, $studentid, $selected);
-    redirect($returnurl, get_string('teachersassigned', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $returnurl,
+        get_string('teachersassigned', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 echo $OUTPUT->header();
@@ -101,10 +107,16 @@ echo html_writer::tag('select', $availableoptions, [
 echo html_writer::end_div();
 
 echo html_writer::start_div('col-md-2 d-flex flex-column justify-content-center align-items-center');
-echo html_writer::tag('button', get_string('addselected', 'mod_stage') . ' »',
-    ['type' => 'button', 'id' => 'stage-add-teachers', 'class' => 'btn btn-secondary mb-2 w-100']);
-echo html_writer::tag('button', '« ' . get_string('removeselected', 'mod_stage'),
-    ['type' => 'button', 'id' => 'stage-remove-teachers', 'class' => 'btn btn-secondary w-100']);
+echo html_writer::tag(
+    'button',
+    get_string('addselected', 'mod_stage') . ' »',
+    ['type' => 'button', 'id' => 'stage-add-teachers', 'class' => 'btn btn-secondary mb-2 w-100']
+);
+echo html_writer::tag(
+    'button',
+    '« ' . get_string('removeselected', 'mod_stage'),
+    ['type' => 'button', 'id' => 'stage-remove-teachers', 'class' => 'btn btn-secondary w-100']
+);
 echo html_writer::end_div();
 
 echo html_writer::start_div('col-md-5');

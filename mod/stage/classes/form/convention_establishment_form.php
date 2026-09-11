@@ -30,7 +30,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_establishment_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -40,25 +39,49 @@ class convention_establishment_form extends \moodleform {
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
 
-        $mform->addElement('text', 'establishmentname', get_string('conventionestablishmentname', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'establishmentname',
+            get_string('conventionestablishmentname', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('establishmentname', PARAM_TEXT);
-        $mform->addElement('text', 'establishmentaddress', get_string('conventionestablishmentaddress', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'establishmentaddress',
+            get_string('conventionestablishmentaddress', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('establishmentaddress', PARAM_TEXT);
-        $mform->addElement('text', 'establishmentrepresentative',
-            get_string('conventionestablishmentrepresentative', 'mod_stage'), ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'establishmentrepresentative',
+            get_string('conventionestablishmentrepresentative', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('establishmentrepresentative', PARAM_TEXT);
-        $mform->addElement('text', 'establishmentrepresentativetitle',
-            get_string('conventionestablishmentrepresentativetitle', 'mod_stage'), ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'establishmentrepresentativetitle',
+            get_string('conventionestablishmentrepresentativetitle', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('establishmentrepresentativetitle', PARAM_TEXT);
         $mform->addElement('text', 'establishmentphone', get_string('conventionestablishmentphone', 'mod_stage'));
         $mform->setType('establishmentphone', PARAM_TEXT);
-        $mform->addElement('text', 'establishmentemail', get_string('conventionestablishmentemail', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'establishmentemail',
+            get_string('conventionestablishmentemail', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('establishmentemail', PARAM_TEXT);
-        $mform->addElement('text', 'establishmentsignatory', get_string('conventionestablishmentsignatory', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'establishmentsignatory',
+            get_string('conventionestablishmentsignatory', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('establishmentsignatory', PARAM_TEXT);
         $mform->addHelpButton('establishmentsignatory', 'conventionestablishmentsignatory', 'mod_stage');
 

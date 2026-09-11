@@ -93,11 +93,24 @@ et de suppression correspondantes.
 
 ## Sauvegarde et restauration
 
-Comme `mod_stage`, le module ne fournit pas d'implémentation `backup/moodle2/`
-et déclare `FEATURE_BACKUP_MOODLE2` à `false` : une sauvegarde de cours
-n'emporte pas la liste des activités liées. Après restauration d'un cours
-contenant une synthèse, refaire le choix depuis **Gérer les liens** — l'opération
-prend quelques secondes et ne dépend d'aucune donnée perdue par ailleurs.
+Comme `mod_stage`, le module fournit une implémentation `backup/moodle2/` et
+déclare `FEATURE_BACKUP_MOODLE2` à `true` : la sauvegarde emporte l'instance et
+la liste des activités liées. L'activité n'ayant pas de données de suivi propres,
+il n'y a rien d'autre à sauvegarder.
+
+Les liens désignent des activités « Gestion des stages » par leur identifiant de
+course-module, qui change à la restauration. À la fin de la restauration, une
+fois toutes les activités du cours recréées :
+
+- un lien vers une activité stage **restaurée en même temps** pointe vers sa
+  copie ;
+- un lien vers une activité stage **absente de la sauvegarde** n'est conservé que
+  si la restauration a lieu sur le même site, où l'identifiant d'origine désigne
+  toujours la bonne activité ; ailleurs il est supprimé, faute de quoi il
+  désignerait une activité sans rapport.
+
+Après une restauration sur un autre site, vérifier donc la liste depuis
+**Gérer les liens** — l'opération prend quelques secondes.
 
 ## Tests unitaires
 
@@ -111,6 +124,7 @@ vendor/bin/phpunit --testsuite mod_stagesynthesis_testsuite
 | Fichier | Couvre |
 |---|---|
 | `managelinks_access_test.php` | Qui peut gérer les liens et qui voit le lien : l'enseignant non éditeur n'a ni l'un ni l'autre mais garde l'accès à la synthèse ; l'enseignant éditeur et le manager ont les deux. |
+| `backup_restore_test.php` | Restauration des liens : un lien vers une activité sauvegardée en même temps suit sa copie, un lien vers une activité extérieure reste en l'état sur le même site. |
 
 ## Licence
 

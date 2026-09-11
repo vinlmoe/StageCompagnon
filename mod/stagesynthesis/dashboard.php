@@ -77,8 +77,10 @@ if ($studentid) {
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($stagesynthesis->name));
-echo html_writer::link(new moodle_url('/mod/stagesynthesis/entries.php', ['id' => $cm->id]),
-    get_string('teachervalidation', 'mod_stage'));
+echo html_writer::link(
+    new moodle_url('/mod/stagesynthesis/entries.php', ['id' => $cm->id]),
+    get_string('teachervalidation', 'mod_stage')
+);
 
 if ($stagesynthesis->intro) {
     echo $OUTPUT->box(format_module_intro('stagesynthesis', $stagesynthesis, $cm->id), 'generalbox mod_introbox');
@@ -109,31 +111,31 @@ $rows = stagesynthesis_get_pilotage_rows($activelinks);
 
 if ($search !== '') {
     $needle = core_text::strtolower($search);
-    $rows = array_filter($rows, function($row) use ($needle) {
+    $rows = array_filter($rows, function ($row) use ($needle) {
         return core_text::strpos(core_text::strtolower(fullname($row->user)), $needle) !== false;
     });
 }
 
 $sortmap = [
-    'course' => function($row) {
+    'course' => function ($row) {
         return core_text::strtolower($row->coursename);
     },
-    'student' => function($row) {
+    'student' => function ($row) {
         return core_text::strtolower(fullname($row->user));
     },
-    'progress' => function($row) {
+    'progress' => function ($row) {
         return $row->mandatorytotal > 0 ? ($row->mandatorydone / $row->mandatorytotal) : -1;
     },
-    'pending' => function($row) {
+    'pending' => function ($row) {
         return $row->pendingcount;
     },
-    'retained' => function($row) {
+    'retained' => function ($row) {
         return $row->progress->totalretained;
     },
 ];
 $sortkey = array_key_exists($tsort, $sortmap) ? $tsort : 'student';
 $sortfn = $sortmap[$sortkey];
-usort($rows, function($a, $b) use ($sortfn) {
+usort($rows, function ($a, $b) use ($sortfn) {
     return $sortfn($a) <=> $sortfn($b);
 });
 if (strtoupper($tdir) === 'DESC') {
@@ -163,16 +165,18 @@ if (empty($rows)) {
         if ($row->complete) {
             $globalstatus = html_writer::span(get_string('themedone', 'mod_stage'), 'badge badge-success');
         } else {
-            $validatedyears = array_filter($row->yearprogress, function($yearrow) {
+            $validatedyears = array_filter($row->yearprogress, function ($yearrow) {
                 return $yearrow->done;
             });
             if (!empty($validatedyears)) {
-                $labels = array_map(function($yearrow) {
+                $labels = array_map(function ($yearrow) {
                     return stage_studyyear_label($yearrow->studyyear);
                 }, $validatedyears);
                 $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning')
-                    . html_writer::div(get_string('validatedyears', 'mod_stage', implode(', ', $labels)),
-                        'text-muted small');
+                    . html_writer::div(
+                        get_string('validatedyears', 'mod_stage', implode(', ', $labels)),
+                        'text-muted small'
+                    );
             } else {
                 $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
             }
@@ -191,8 +195,10 @@ if (empty($rows)) {
             $globalstatus,
             stage_render_actions([
                 get_string('viewdetails', 'mod_stage') =>
-                    new moodle_url('/mod/stagesynthesis/dashboard.php',
-                        ['id' => $cm->id, 'studentid' => $row->user->id, 'cmid' => $row->cmid]),
+                    new moodle_url(
+                        '/mod/stagesynthesis/dashboard.php',
+                        ['id' => $cm->id, 'studentid' => $row->user->id, 'cmid' => $row->cmid]
+                    ),
             ]),
         ];
     }

@@ -37,7 +37,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     \mod_stage\privacy\provider
  */
 final class privacy_provider_test extends \advanced_testcase {
-
     /**
      * Monte une activité avec un étudiant, un enseignant référent, et une saisie complète :
      * périodes, détail de convention, réponse à un questionnaire et évaluations.
@@ -201,9 +200,13 @@ final class privacy_provider_test extends \advanced_testcase {
 
         // L'étudiant est atteint par plusieurs des requêtes du fournisseur (saisie et attribution
         // de référent) : seule compte l'unicité du contexte remonté, pas le nombre de fois.
-        $this->assertEquals([$context->id],
-            array_values(array_unique(provider::get_contexts_for_userid($student->id)->get_contextids())));
-        $this->assertEquals([$context->id],
-            array_values(array_unique(provider::get_contexts_for_userid($teacher->id)->get_contextids())));
+        $this->assertEquals(
+            [$context->id],
+            array_values(array_unique(provider::get_contexts_for_userid($student->id)->get_contextids()))
+        );
+        $this->assertEquals(
+            [$context->id],
+            array_values(array_unique(provider::get_contexts_for_userid($teacher->id)->get_contextids()))
+        );
     }
 }

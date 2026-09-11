@@ -56,8 +56,12 @@ $settingsform->set_data((object) [
 ]);
 if ($settingsdata = $settingsform->get_data()) {
     stage_save_tutor_evaluation_setting($stage->id, !empty($settingsdata->tutorevaluationenabled));
-    redirect($baseurl, get_string('conventionsettingssaved', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $baseurl,
+        get_string('conventionsettingssaved', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 $definitions = stage_get_email_definitions();
@@ -75,8 +79,12 @@ if ($emailkey && isset($definitions[$emailkey])) {
     ]);
     if ($emaildata = $emailform->get_data()) {
         stage_save_email_template($stage->id, $emailkey, $emaildata->subject, $emaildata->body);
-        redirect($baseurl, get_string('notificationssaved', 'mod_stage'), null,
-            \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            $baseurl,
+            get_string('notificationssaved', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 }
 

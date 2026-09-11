@@ -37,7 +37,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_render_status_badge
  */
 final class helpers_test extends \advanced_testcase {
-
     /**
      * La normalisation ignore accents, casse et espaces multiples, pour rapprocher des noms
      * saisis dans des systèmes différents (StageVet, une autre instance de l'activité).

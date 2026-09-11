@@ -1,15 +1,33 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace mod_stage\local;
 
-defined('MOODLE_INTERNAL') || die();
-
-/** Transforme la feuille « Stages » de l'export global en données restaurables. */
+/**
+ * Transforme la feuille « Stages » de l'export global en données restaurables.
+ *
+ * @package   mod_stage
+ * @copyright 2026 Sébastien Lefebvre
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class global_export_importer {
-
     /**
-     * @param string $filepath
+     * Lit la feuille « Stages » du classeur et en tire une ligne restaurable par stage.
+     *
+     * @param string $filepath Chemin du classeur exporté.
      * @return array{records: array, warnings: array}
      */
     public static function read(string $filepath): array {
@@ -30,10 +48,12 @@ class global_export_importer {
                     $record->$field = trim((string) ($row[$column] ?? ''));
                 }
                 $record->line = $index + 1;
-                foreach (['datestart', 'dateend', 'studentbirthdate', 'teachertime', 'tutortime', 'devetime',
+                foreach (
+                    ['datestart', 'dateend', 'studentbirthdate', 'teachertime', 'tutortime', 'devetime',
                         'canceltime', 'timecreated', 'timemodified', 'conventionrequesttime',
                         'conventionteachervalidatetime', 'conventionedittime', 'conventionsigntime',
-                        'conventionrejecttime'] as $field) {
+                        'conventionrejecttime'] as $field
+                ) {
                     $record->$field = self::date($record->$field ?? '');
                 }
                 $records[] = $record;
@@ -43,7 +63,12 @@ class global_export_importer {
         throw new \moodle_exception('globalimportinvalid', 'mod_stage');
     }
 
-    /** Colonnes reconnues dans un export français ou anglais. */
+    /**
+     * Colonnes reconnues dans un export français ou anglais.
+     *
+     * @param array $headers Ligne d'intitulés du classeur.
+     * @return array Nom de champ => index de colonne.
+     */
     private static function columns(array $headers): array {
         $languagekeys = [
             'entryid' => 'exportentryid', 'email' => 'email', 'studyyear' => 'studyyear', 'theme' => 'theme',
@@ -90,7 +115,8 @@ class global_export_importer {
             'conventiontemplatename' => ['gabarit de convention', 'agreement template'],
             'yearsituation' => ['situation dans l annee', 'year situation'],
             'studentselfeval' => ['auto evaluation etudiant', 'student self evaluation'],
-            'evaluatedby' => ['evalue par', 'evaluated by'], 'teachertime' => ['date de validation enseignant', 'teacher validation date'],
+            'evaluatedby' => ['evalue par', 'evaluated by'],
+            'teachertime' => ['date de validation enseignant', 'teacher validation date'],
             'teachereval' => ['evaluation enseignant', 'teacher evaluation'],
             'tutoreval' => ['evaluation du maitre de stage', 'workplace tutor evaluation'],
             'tutortime' => ['date de l evaluation du maitre de stage', 'workplace tutor evaluation date'],
@@ -112,17 +138,22 @@ class global_export_importer {
             'conventionrejectedby' => ['convention refusee par', 'agreement rejected by'],
             'conventionrejecttime' => ['date de refus de la convention', 'agreement rejection date'],
             'conventionrejectcomment' => ['motif du refus de la convention', 'agreement rejection comment'],
-            'studentbirthdate' => ['date de naissance', 'birth date'], 'studentaddress' => ['adresse de l etudiant', 'student address'],
-            'studentphone' => ['telephone de l etudiant', 'student phone'], 'hostaddress' => ['adresse de l organisme', 'host address'],
+            'studentbirthdate' => ['date de naissance', 'birth date'],
+            'studentaddress' => ['adresse de l etudiant', 'student address'],
+            'studentphone' => ['telephone de l etudiant', 'student phone'],
+            'hostaddress' => ['adresse de l organisme', 'host address'],
             'hostrepresentative' => ['representant de l organisme', 'host representative'],
             'hostrepresentativetitle' => ['qualite du representant', 'host representative title'],
             'hostservice' => ['service d accueil', 'host service'], 'hostphone' => ['telephone de l organisme', 'host phone'],
             'hostemail' => ['courriel de l organisme', 'host email'], 'hostlocation' => ['lieu du stage', 'internship location'],
-            'tutorname' => ['maitre de stage', 'workplace tutor'], 'tutorfunction' => ['fonction du maitre de stage', 'workplace tutor function'],
+            'tutorname' => ['maitre de stage', 'workplace tutor'],
+            'tutorfunction' => ['fonction du maitre de stage', 'workplace tutor function'],
             'tutorphone' => ['telephone du maitre de stage', 'workplace tutor phone'],
             'tutoremail' => ['courriel du maitre de stage', 'workplace tutor email'],
-            'nightpresence' => ['presence de nuit', 'night presence'], 'sundaypresence' => ['presence le dimanche', 'sunday presence'],
-            'holidaypresence' => ['presence un jour ferie', 'public holiday presence'], 'homebased' => ['stage au domicile', 'home based'],
+            'nightpresence' => ['presence de nuit', 'night presence'],
+            'sundaypresence' => ['presence le dimanche', 'sunday presence'],
+            'holidaypresence' => ['presence un jour ferie', 'public holiday presence'],
+            'homebased' => ['stage au domicile', 'home based'],
             'othermodality' => ['autre modalite', 'other arrangement'], 'gratificationamount' => ['gratification', 'allowance'],
             'hasleave' => ['conges prevus', 'leave provided'], 'leavedays' => ['nombre de jours de conge', 'leave days'],
             'leavemodalities' => ['modalites des conges', 'leave arrangements'],
@@ -143,11 +174,24 @@ class global_export_importer {
         return $result;
     }
 
+    /**
+     * Valeur d'un champ dans une ligne, chaîne vide si la colonne est absente.
+     *
+     * @param array $row
+     * @param array $columns Voir columns().
+     * @param string $field
+     * @return string
+     */
     private static function value(array $row, array $columns, string $field): string {
         return isset($columns[$field]) ? (string) ($row[$columns[$field]] ?? '') : '';
     }
 
-    /** Convertit une date Excel ou une date textuelle issue du même export. */
+    /**
+     * Convertit une date Excel ou une date textuelle issue du même export.
+     *
+     * @param mixed $value
+     * @return int|null Horodatage, ou null si la valeur n'est pas une date.
+     */
     private static function date($value): ?int {
         if ($value === '' || $value === null) {
             return null;
@@ -159,6 +203,12 @@ class global_export_importer {
         return $timestamp === false ? null : $timestamp;
     }
 
+    /**
+     * Forme comparable d'un libellé : minuscules, sans accent ni ponctuation.
+     *
+     * @param string $value
+     * @return string
+     */
     public static function normalize(string $value): string {
         $value = \core_text::strtolower(trim($value));
         $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);

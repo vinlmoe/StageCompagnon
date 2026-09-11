@@ -29,7 +29,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class deve_entry_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -52,8 +51,12 @@ class deve_entry_form extends \moodleform {
         // doublé d'un champ caché, et non d'un select gelé : freeze() retire l'élément du
         // formulaire sans lever sa règle "required", ce qui bloque la soumission.
         if (!empty($this->_customdata['lockstudent'])) {
-            $mform->addElement('static', 'useridstatic', get_string('student', 'mod_stage'),
-                $this->_customdata['studentname'] ?? '');
+            $mform->addElement(
+                'static',
+                'useridstatic',
+                get_string('student', 'mod_stage'),
+                $this->_customdata['studentname'] ?? ''
+            );
             $mform->addElement('hidden', 'userid');
             $mform->setType('userid', PARAM_INT);
         } else {
@@ -77,8 +80,12 @@ class deve_entry_form extends \moodleform {
 
         // Un stage complémentaire (EP) ne compte pas dans le décompte des stages obligatoires de
         // l'année (voir stage_get_student_year_progress()), mais est affiché à part.
-        $mform->addElement('select', 'stagetype', get_string('conventionstagetype', 'mod_stage'),
-            stage_convention_stagetype_options());
+        $mform->addElement(
+            'select',
+            'stagetype',
+            get_string('conventionstagetype', 'mod_stage'),
+            stage_convention_stagetype_options()
+        );
         $mform->setDefault('stagetype', 'obligatoire');
 
         $mform->addElement('advcheckbox', 'abroad', get_string('abroad', 'mod_stage'));
@@ -95,8 +102,12 @@ class deve_entry_form extends \moodleform {
         // décompte doit pouvoir être corrigée ensuite depuis l'action « Modifier », sans
         // réinitialiser les évaluations ni faire repasser le stage dans le circuit de validation.
         if (!empty($this->_customdata['editretainedduration'])) {
-            $mform->addElement('text', 'retainedduration', get_string('retainedduration', 'mod_stage'),
-                ['type' => 'number', 'min' => 0]);
+            $mform->addElement(
+                'text',
+                'retainedduration',
+                get_string('retainedduration', 'mod_stage'),
+                ['type' => 'number', 'min' => 0]
+            );
             $mform->setType('retainedduration', PARAM_INT);
             $mform->addRule('retainedduration', null, 'required', null, 'client');
         }

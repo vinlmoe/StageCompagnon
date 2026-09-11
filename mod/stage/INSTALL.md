@@ -329,16 +329,39 @@ franchies), sans le dossier de l'étudiant, qui relève de l'export de ce dernie
 
 ## 12. Sauvegarde et restauration
 
-Le plugin **ne fournit pas** d'implémentation `backup/moodle2/` : il déclare
-donc `FEATURE_BACKUP_MOODLE2` à `false`. Conséquence pratique : une sauvegarde
-de cours Moodle s'exécute normalement mais **n'inclut pas** les données de
-l'activité (stages, conventions, évaluations). Une restauration recrée un cours
-sans elles.
+Le plugin fournit une implémentation `backup/moodle2/` et déclare donc
+`FEATURE_BACKUP_MOODLE2` à `true` : l'activité entre dans les sauvegardes et les
+restaurations de cours Moodle, ainsi que dans la duplication d'activité et
+l'import depuis un autre cours.
 
-Prévoir donc, pour la conservation des données :
+**Toujours sauvegardé** (paramétrage de l'activité) : les thématiques et leurs
+durées par année, les enseignants responsables de thématique, les exigences
+annuelles, les gabarits de convention et leurs PDF, les questions d'évaluation et
+leurs rattachements, les modèles de courriels, les logos de convention.
 
-- une sauvegarde de la base de données du site (tables `mdl_stage*`) ;
-- une sauvegarde du `moodledata` pour les fichiers (conventions signées,
+**Sauvegardé seulement si les données utilisateur sont demandées** : les stages
+et tout ce qui s'y rattache (plages de dates, jours retenus, complément de
+convention, réponses aux questions), les attributions d'enseignant référent, les
+conventions signées et les rapports déposés.
+
+Deux points à connaître :
+
+- le **jeton d'accès du maître de stage** (`tutortoken`) n'est pas recopié. C'est
+  un secret d'accès sans compte, soumis à un index unique : la copie restaurée en
+  régénère un à la demande, et les réponses déjà données sont conservées ;
+- les **dates de stage ne sont pas décalées** par le décalage de dates proposé à
+  la restauration : elles constatent une période réellement effectuée, et non une
+  échéance du cours à replacer dans le calendrier.
+
+Une restauration sur un autre site écarte les lignes dont le compte
+d'utilisateur n'a pas été inclus dans l'archive (enseignant responsable de
+thématique, enseignant référent) plutôt que de les rattacher à un compte
+arbitraire.
+
+Cela ne dispense pas, pour la conservation des données du site :
+
+- d'une sauvegarde de la base de données (tables `mdl_stage*`) ;
+- d'une sauvegarde du `moodledata` pour les fichiers (conventions signées,
   rapports, gabarits, logos).
 
 Pour déplacer les stages d'un étudiant d'une instance à une autre à
@@ -391,6 +414,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `historical_importer_test.php` | Transformation du suivi Excel historique en une ligne par stage. |
 | `privacy_provider_test.php` | Règles de suppression RGPD (voir §11) : effacement intégral pour l'étudiant, dissociation seule pour le personnel. |
 | `helpers_test.php` | Petites fonctions utilitaires pures (libellés, normalisation de nom, rendu d'actions/badges). |
+| `backup_restore_test.php` | Aller-retour sauvegarde/restauration de cours : le paramétrage, les stages et les fichiers suivent, et la copie désigne ses propres thématiques, questions et gabarits. |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :

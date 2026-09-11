@@ -29,7 +29,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class question_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -44,8 +43,13 @@ class question_form extends \moodleform {
         $mform->addElement('hidden', 'questionid');
         $mform->setType('questionid', PARAM_INT);
 
-        $mform->addElement('select', 'themeids', get_string('assignedthemes', 'mod_stage'), $themes,
-            ['multiple' => 'multiple', 'size' => min(8, max(3, count($themes)))]);
+        $mform->addElement(
+            'select',
+            'themeids',
+            get_string('assignedthemes', 'mod_stage'),
+            $themes,
+            ['multiple' => 'multiple', 'size' => min(8, max(3, count($themes)))]
+        );
         $mform->addRule('themeids', null, 'required', null, 'client');
         $mform->addHelpButton('themeids', 'assignedthemes', 'mod_stage');
 
@@ -67,8 +71,12 @@ class question_form extends \moodleform {
         $mform->setType('name', PARAM_TEXT);
         $mform->addRule('name', null, 'required', null, 'client');
 
-        $mform->addElement('textarea', 'options', get_string('choiceoptions', 'mod_stage'),
-            ['rows' => 5, 'cols' => 50]);
+        $mform->addElement(
+            'textarea',
+            'options',
+            get_string('choiceoptions', 'mod_stage'),
+            ['rows' => 5, 'cols' => 50]
+        );
         $mform->setType('options', PARAM_TEXT);
         $mform->hideIf('options', 'qtype', 'eq', 'text');
 
@@ -79,8 +87,12 @@ class question_form extends \moodleform {
         $mform->addHelpButton('nameen', 'questionlangen', 'mod_stage');
         $mform->hideIf('nameen', 'evaltype', 'neq', 'tutor');
 
-        $mform->addElement('textarea', 'optionsen', get_string('choiceoptionsen', 'mod_stage'),
-            ['rows' => 5, 'cols' => 50]);
+        $mform->addElement(
+            'textarea',
+            'optionsen',
+            get_string('choiceoptionsen', 'mod_stage'),
+            ['rows' => 5, 'cols' => 50]
+        );
         $mform->setType('optionsen', PARAM_TEXT);
         $mform->hideIf('optionsen', 'qtype', 'eq', 'text');
         $mform->hideIf('optionsen', 'evaltype', 'neq', 'tutor');

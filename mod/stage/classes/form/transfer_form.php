@@ -30,7 +30,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class transfer_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -40,12 +39,20 @@ class transfer_form extends \moodleform {
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
 
-        $mform->addElement('select', 'userid', get_string('student', 'mod_stage'),
-            $this->_customdata['students']);
+        $mform->addElement(
+            'select',
+            'userid',
+            get_string('student', 'mod_stage'),
+            $this->_customdata['students']
+        );
         $mform->addRule('userid', null, 'required', null, 'client');
 
-        $mform->addElement('select', 'targetstageid', get_string('transfertarget', 'mod_stage'),
-            $this->_customdata['targets']);
+        $mform->addElement(
+            'select',
+            'targetstageid',
+            get_string('transfertarget', 'mod_stage'),
+            $this->_customdata['targets']
+        );
         $mform->addRule('targetstageid', null, 'required', null, 'client');
         $mform->addHelpButton('targetstageid', 'transfertarget', 'mod_stage');
 

@@ -61,15 +61,21 @@ if ($entryid) {
     }
     $existingstatus = (int) $existingentry->conventionstatus;
     if ($existingstatus !== STAGE_CONVENTION_NONE && $existingstatus !== STAGE_CONVENTION_REJECTED) {
-        redirect($viewurl, get_string('conventionalreadyrequested', 'mod_stage'), null,
-            \core\output\notification::NOTIFY_INFO);
+        redirect(
+            $viewurl,
+            get_string('conventionalreadyrequested', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_INFO
+        );
     }
 }
 
 $pagetitle = get_string($existingentry ? 'requestconvention' : 'registerstageandconvention', 'mod_stage');
 
-$baseurl = new moodle_url('/mod/stage/student_register.php',
-    $existingentry ? ['id' => $cm->id, 'entryid' => $entryid] : ['id' => $cm->id]);
+$baseurl = new moodle_url(
+    '/mod/stage/student_register.php',
+    $existingentry ? ['id' => $cm->id, 'entryid' => $entryid] : ['id' => $cm->id]
+);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . $pagetitle);
 $PAGE->set_heading(format_string($course->fullname));
@@ -164,9 +170,19 @@ if ($mform->is_cancelled()) {
         ]);
         $entry = $DB->get_record('stage_entry', ['id' => $existingentry->id], '*', MUST_EXIST);
     } else {
-        $newentryid = stage_register_entry($stage->id, $USER->id, $data->themeid, $data->structure,
-            min(array_column($periods, 'datestart')), max(array_column($periods, 'dateend')),
-            $data->declaredduration, $data->studyyear, STAGE_CONVENTION_NONE, $data->abroad, $data->country);
+        $newentryid = stage_register_entry(
+            $stage->id,
+            $USER->id,
+            $data->themeid,
+            $data->structure,
+            min(array_column($periods, 'datestart')),
+            max(array_column($periods, 'dateend')),
+            $data->declaredduration,
+            $data->studyyear,
+            STAGE_CONVENTION_NONE,
+            $data->abroad,
+            $data->country
+        );
         $entry = $DB->get_record('stage_entry', ['id' => $newentryid], '*', MUST_EXIST);
     }
 
@@ -208,8 +224,12 @@ if ($mform->is_cancelled()) {
         stage_notify_teacher_convention_pending($stage, $cm, $entry);
     }
 
-    redirect($viewurl, get_string($existingentry ? 'conventionrequested' : 'stageandconventionregistered', 'mod_stage'),
-        null, \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $viewurl,
+        get_string($existingentry ? 'conventionrequested' : 'stageandconventionregistered', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 echo $OUTPUT->header();

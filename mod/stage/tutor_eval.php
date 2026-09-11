@@ -25,6 +25,11 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+// Pas de require_login() ici, et c'est volontaire : cette page est justement celle que le maître
+// de stage, qui n'a pas de compte Moodle, ouvre depuis le lien à jeton reçu par courriel. Le
+// contrôle d'accès est assuré par le jeton lui-même (64 caractères aléatoires tirés au hasard,
+// sous index unique, désignant une saisie et une seule), vérifié juste en dessous.
+// phpcs:ignore moodle.Files.RequireLogin.Missing
 require(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/stage/lib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
@@ -100,7 +105,7 @@ echo $OUTPUT->heading(get_string('tutorevalpagetitle', 'mod_stage', null, $lang)
 
 $periods = stage_get_or_seed_entry_periods($entry);
 $dateformat = get_string('strftimedate', 'langconfig', null, $lang);
-$periodlabels = array_map(function($period) use ($dateformat) {
+$periodlabels = array_map(function ($period) use ($dateformat) {
     return userdate($period->datestart, $dateformat) . ' - ' . userdate($period->dateend, $dateformat);
 }, $periods);
 
@@ -138,8 +143,11 @@ if (!empty($questions)) {
     echo stage_render_question_fields($questions, [], $lang);
 } else {
     echo html_writer::tag('label', get_string('tutorevalheading', 'mod_stage', null, $lang), ['for' => 'tutoreval']);
-    echo html_writer::tag('textarea', '',
-        ['name' => 'tutoreval', 'id' => 'tutoreval', 'rows' => 6, 'class' => 'form-control']);
+    echo html_writer::tag(
+        'textarea',
+        '',
+        ['name' => 'tutoreval', 'id' => 'tutoreval', 'rows' => 6, 'class' => 'form-control']
+    );
 }
 
 echo html_writer::empty_tag('input', [

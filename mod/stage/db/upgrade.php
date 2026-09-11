@@ -22,8 +22,6 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Executes the upgrade steps for mod_stage.
  *
@@ -92,8 +90,12 @@ function xmldb_stage_upgrade($oldversion) {
         // table d'association, qui permet d'en réutiliser une pour plusieurs thématiques.
         $existing = $DB->get_records('stage_question', null, '', 'id, themeid, timecreated');
         foreach ($existing as $question) {
-            if (!$DB->record_exists('stage_question_theme',
-                    ['questionid' => $question->id, 'themeid' => $question->themeid])) {
+            if (
+                !$DB->record_exists(
+                    'stage_question_theme',
+                    ['questionid' => $question->id, 'themeid' => $question->themeid]
+                )
+            ) {
                 $DB->insert_record('stage_question_theme', (object) [
                     'questionid' => $question->id,
                     'themeid' => $question->themeid,
@@ -134,39 +136,92 @@ function xmldb_stage_upgrade($oldversion) {
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionstatus', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0',
-            'conventiontemplateid');
+        $field = new xmldb_field(
+            'conventionstatus',
+            XMLDB_TYPE_INTEGER,
+            '2',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'conventiontemplateid'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionrequesttime', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionstatus');
+        $field = new xmldb_field(
+            'conventionrequesttime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionstatus'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventioneditedby', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionrequesttime');
+        $field = new xmldb_field(
+            'conventioneditedby',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionrequesttime'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionedittime', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventioneditedby');
+        $field = new xmldb_field(
+            'conventionedittime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventioneditedby'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionsignedby', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionedittime');
+        $field = new xmldb_field(
+            'conventionsignedby',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionedittime'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionsigntime', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionsignedby');
+        $field = new xmldb_field(
+            'conventionsigntime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionsignedby'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
 
-        $key = new xmldb_key('conventiontemplateid', XMLDB_KEY_FOREIGN, ['conventiontemplateid'],
-            'stage_convention_template', ['id']);
+        $key = new xmldb_key(
+            'conventiontemplateid',
+            XMLDB_KEY_FOREIGN,
+            ['conventiontemplateid'],
+            'stage_convention_template',
+            ['id']
+        );
         $dbman->add_key($entrytable, $key);
 
         upgrade_mod_savepoint(true, 2026082406, 'stage');
@@ -237,18 +292,42 @@ function xmldb_stage_upgrade($oldversion) {
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionrejectedby', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionstatus');
+        $field = new xmldb_field(
+            'conventionrejectedby',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionstatus'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionrejecttime', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionrejectedby');
+        $field = new xmldb_field(
+            'conventionrejecttime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionrejectedby'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionrejectcomment', XMLDB_TYPE_TEXT, null, null, null, null, null,
-            'conventionrejecttime');
+        $field = new xmldb_field(
+            'conventionrejectcomment',
+            XMLDB_TYPE_TEXT,
+            null,
+            null,
+            null,
+            null,
+            null,
+            'conventionrejecttime'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
@@ -276,28 +355,68 @@ function xmldb_stage_upgrade($oldversion) {
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
-        $field = new xmldb_field('establishmentaddress', XMLDB_TYPE_CHAR, '255', null, null, null, null,
-            'establishmentname');
+        $field = new xmldb_field(
+            'establishmentaddress',
+            XMLDB_TYPE_CHAR,
+            '255',
+            null,
+            null,
+            null,
+            null,
+            'establishmentname'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
-        $field = new xmldb_field('establishmentrepresentative', XMLDB_TYPE_CHAR, '255', null, null, null, null,
-            'establishmentaddress');
+        $field = new xmldb_field(
+            'establishmentrepresentative',
+            XMLDB_TYPE_CHAR,
+            '255',
+            null,
+            null,
+            null,
+            null,
+            'establishmentaddress'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
-        $field = new xmldb_field('establishmentrepresentativetitle', XMLDB_TYPE_CHAR, '255', null, null, null, null,
-            'establishmentrepresentative');
+        $field = new xmldb_field(
+            'establishmentrepresentativetitle',
+            XMLDB_TYPE_CHAR,
+            '255',
+            null,
+            null,
+            null,
+            null,
+            'establishmentrepresentative'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
-        $field = new xmldb_field('establishmentphone', XMLDB_TYPE_CHAR, '64', null, null, null, null,
-            'establishmentrepresentativetitle');
+        $field = new xmldb_field(
+            'establishmentphone',
+            XMLDB_TYPE_CHAR,
+            '64',
+            null,
+            null,
+            null,
+            null,
+            'establishmentrepresentativetitle'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
-        $field = new xmldb_field('establishmentemail', XMLDB_TYPE_CHAR, '255', null, null, null, null,
-            'establishmentphone');
+        $field = new xmldb_field(
+            'establishmentemail',
+            XMLDB_TYPE_CHAR,
+            '255',
+            null,
+            null,
+            null,
+            null,
+            'establishmentphone'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
@@ -307,25 +426,54 @@ function xmldb_stage_upgrade($oldversion) {
 
     if ($oldversion < 2026082412) {
         $stagetable = new xmldb_table('stage');
-        $field = new xmldb_field('conventionrequireteachervalidation', XMLDB_TYPE_INTEGER, '1', null,
-            XMLDB_NOTNULL, null, '0', 'establishmentemail');
+        $field = new xmldb_field(
+            'conventionrequireteachervalidation',
+            XMLDB_TYPE_INTEGER,
+            '1',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'establishmentemail'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
 
         $entrytable = new xmldb_table('stage_entry');
-        $field = new xmldb_field('conventionteachervalidatedby', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionrequesttime');
+        $field = new xmldb_field(
+            'conventionteachervalidatedby',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionrequesttime'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $field = new xmldb_field('conventionteachervalidatetime', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionteachervalidatedby');
+        $field = new xmldb_field(
+            'conventionteachervalidatetime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionteachervalidatedby'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
-        $key = new xmldb_key('conventionteachervalidatedby', XMLDB_KEY_FOREIGN, ['conventionteachervalidatedby'],
-            'user', ['id']);
+        $key = new xmldb_key(
+            'conventionteachervalidatedby',
+            XMLDB_KEY_FOREIGN,
+            ['conventionteachervalidatedby'],
+            'user',
+            ['id']
+        );
         $dbman->add_key($entrytable, $key);
 
         upgrade_mod_savepoint(true, 2026082412, 'stage');
@@ -334,13 +482,29 @@ function xmldb_stage_upgrade($oldversion) {
     if ($oldversion < 2026082415) {
         $table = new xmldb_table('stage_theme');
 
-        $minfield = new xmldb_field('minstudyyear', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0',
-            'requiredduration');
+        $minfield = new xmldb_field(
+            'minstudyyear',
+            XMLDB_TYPE_INTEGER,
+            '2',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'requiredduration'
+        );
         if (!$dbman->field_exists($table, $minfield)) {
             $dbman->add_field($table, $minfield);
         }
-        $maxfield = new xmldb_field('maxstudyyear', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0',
-            'minstudyyear');
+        $maxfield = new xmldb_field(
+            'maxstudyyear',
+            XMLDB_TYPE_INTEGER,
+            '2',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'minstudyyear'
+        );
         if (!$dbman->field_exists($table, $maxfield)) {
             $dbman->add_field($table, $maxfield);
         }
@@ -358,8 +522,16 @@ function xmldb_stage_upgrade($oldversion) {
     if ($oldversion < 2026082416) {
         // Année d'étude courante des étudiants (référence N pour les conventions en N-1/N+1).
         $stagetable = new xmldb_table('stage');
-        $field = new xmldb_field('currentstudyyear', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0',
-            'conventionrequireteachervalidation');
+        $field = new xmldb_field(
+            'currentstudyyear',
+            XMLDB_TYPE_INTEGER,
+            '2',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'conventionrequireteachervalidation'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
@@ -445,8 +617,16 @@ function xmldb_stage_upgrade($oldversion) {
     if ($oldversion < 2026082417) {
         // Obligation de mobilité internationale : nombre de jours de stage à l'étranger requis.
         $stagetable = new xmldb_table('stage');
-        $field = new xmldb_field('requiredabroaddays', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0',
-            'currentstudyyear');
+        $field = new xmldb_field(
+            'requiredabroaddays',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'currentstudyyear'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
@@ -465,8 +645,16 @@ function xmldb_stage_upgrade($oldversion) {
         // Réintroduit une durée requise unique pour une thématique, en alternative à une durée
         // par année (stage_theme_duration) : l'un ou l'autre, pas les deux.
         $table = new xmldb_table('stage_theme');
-        $field = new xmldb_field('requiredduration', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0',
-            'mandatory');
+        $field = new xmldb_field(
+            'requiredduration',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'mandatory'
+        );
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
@@ -478,8 +666,16 @@ function xmldb_stage_upgrade($oldversion) {
         // Obligation de mobilité internationale par thématique (jours à l'étranger requis, tous
         // stages confondus) et règle associée affichée à l'étudiant.
         $themetable = new xmldb_table('stage_theme');
-        $field = new xmldb_field('requiredabroaddays', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0',
-            'maxstudyyear');
+        $field = new xmldb_field(
+            'requiredabroaddays',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'maxstudyyear'
+        );
         if (!$dbman->field_exists($themetable, $field)) {
             $dbman->add_field($themetable, $field);
         }
@@ -529,8 +725,16 @@ function xmldb_stage_upgrade($oldversion) {
         // paramètres, gérés depuis la page "Durées de stage par année" (year_requirements.php),
         // migrent de stage_theme vers stage, avec une année limite et une consigne en plus.
         $stagetable = new xmldb_table('stage');
-        $field = new xmldb_field('abroadbeforeyear', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0',
-            'requiredabroaddays');
+        $field = new xmldb_field(
+            'abroadbeforeyear',
+            XMLDB_TYPE_INTEGER,
+            '2',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'requiredabroaddays'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
@@ -556,8 +760,16 @@ function xmldb_stage_upgrade($oldversion) {
         // Nom de la personne ayant délégation de signature du chef d'établissement, affiché dans
         // le cadre de signatures de la convention imprimée (voir generate_page1()).
         $stagetable = new xmldb_table('stage');
-        $field = new xmldb_field('establishmentsignatory', XMLDB_TYPE_CHAR, '255', null, null, null, null,
-            'establishmentemail');
+        $field = new xmldb_field(
+            'establishmentsignatory',
+            XMLDB_TYPE_CHAR,
+            '255',
+            null,
+            null,
+            null,
+            null,
+            'establishmentemail'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
@@ -596,8 +808,16 @@ function xmldb_stage_upgrade($oldversion) {
         // l'enseignant référent, accessible sans compte Moodle via un lien à jeton) et
         // personnalisation des e-mails envoyés par l'activité.
         $stagetable = new xmldb_table('stage');
-        $field = new xmldb_field('tutorevaluationenabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0',
-            'conventionrequireteachervalidation');
+        $field = new xmldb_field(
+            'tutorevaluationenabled',
+            XMLDB_TYPE_INTEGER,
+            '1',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'conventionrequireteachervalidation'
+        );
         if (!$dbman->field_exists($stagetable, $field)) {
             $dbman->add_field($stagetable, $field);
         }
@@ -649,8 +869,16 @@ function xmldb_stage_upgrade($oldversion) {
 
     if ($oldversion < 2026082427) {
         $themetable = new xmldb_table('stage_theme');
-        $field = new xmldb_field('tutorevaluationenabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1',
-            'visible');
+        $field = new xmldb_field(
+            'tutorevaluationenabled',
+            XMLDB_TYPE_INTEGER,
+            '1',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '1',
+            'visible'
+        );
         if (!$dbman->field_exists($themetable, $field)) {
             $dbman->add_field($themetable, $field);
         }
@@ -660,8 +888,16 @@ function xmldb_stage_upgrade($oldversion) {
 
     if ($oldversion < 2026082428) {
         $themetable = new xmldb_table('stage_theme');
-        $field = new xmldb_field('reportmode', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0',
-            'tutorevaluationenabled');
+        $field = new xmldb_field(
+            'reportmode',
+            XMLDB_TYPE_INTEGER,
+            '2',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'tutorevaluationenabled'
+        );
         if (!$dbman->field_exists($themetable, $field)) {
             $dbman->add_field($themetable, $field);
         }
@@ -684,8 +920,16 @@ function xmldb_stage_upgrade($oldversion) {
 
     if ($oldversion < 2026082429) {
         $entrytable = new xmldb_table('stage_entry');
-        $field = new xmldb_field('conventionremindertime', XMLDB_TYPE_INTEGER, '10', null, null, null, null,
-            'conventionrequesttime');
+        $field = new xmldb_field(
+            'conventionremindertime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionrequesttime'
+        );
         if (!$dbman->field_exists($entrytable, $field)) {
             $dbman->add_field($entrytable, $field);
         }
@@ -695,13 +939,29 @@ function xmldb_stage_upgrade($oldversion) {
 
     if ($oldversion < 2026082430) {
         $detailtable = new xmldb_table('stage_convention_detail');
-        $field = new xmldb_field('paperrequestedbystudent', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0',
-            'gratificationamount');
+        $field = new xmldb_field(
+            'paperrequestedbystudent',
+            XMLDB_TYPE_INTEGER,
+            '1',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'gratificationamount'
+        );
         if (!$dbman->field_exists($detailtable, $field)) {
             $dbman->add_field($detailtable, $field);
         }
-        $field = new xmldb_field('paperrequestedbyteacher', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0',
-            'paperrequestedbystudent');
+        $field = new xmldb_field(
+            'paperrequestedbyteacher',
+            XMLDB_TYPE_INTEGER,
+            '1',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'paperrequestedbystudent'
+        );
         if (!$dbman->field_exists($detailtable, $field)) {
             $dbman->add_field($detailtable, $field);
         }

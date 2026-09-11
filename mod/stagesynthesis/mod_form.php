@@ -30,7 +30,6 @@ require_once($CFG->dirroot . '/course/moodleform_mod.php');
  * Module instance settings form for mod_stagesynthesis.
  */
 class mod_stagesynthesis_mod_form extends moodleform_mod {
-
     /**
      * Defines the form fields.
      */

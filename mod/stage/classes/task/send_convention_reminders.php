@@ -28,7 +28,6 @@ namespace mod_stage\task;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class send_convention_reminders extends \core\task\scheduled_task {
-
     /**
      * Nom de la tâche tel qu'affiché dans l'administration des tâches planifiées.
      *

@@ -70,9 +70,12 @@ if ($entryid && optional_param('resetentry', 0, PARAM_INT) && confirm_sesskey())
 if ($entryid && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()) {
     $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
     $sent = stage_resend_tutor_evaluation_request($stage, $cm, $entry);
-    redirect($entryurl,
-        get_string($sent ? 'tutorevalresent' : 'tutorevalresentfailed', 'mod_stage'), null,
-        $sent ? \core\output\notification::NOTIFY_SUCCESS : \core\output\notification::NOTIFY_WARNING);
+    redirect(
+        $entryurl,
+        get_string($sent ? 'tutorevalresent' : 'tutorevalresentfailed', 'mod_stage'),
+        null,
+        $sent ? \core\output\notification::NOTIFY_SUCCESS : \core\output\notification::NOTIFY_WARNING
+    );
 }
 
 // Contourne l'évaluation du maître de stage (DEVE uniquement) : ne bloque plus la validation.
@@ -163,8 +166,11 @@ if ($entryid) {
                 ]);
 
                 $resendurl = new moodle_url($entryurl, ['resendtutor' => 1, 'sesskey' => sesskey()]);
-                echo html_writer::link($resendurl, get_string('tutorevalresend', 'mod_stage'),
-                    ['class' => 'btn btn-sm btn-secondary mr-1 mb-2']);
+                echo html_writer::link(
+                    $resendurl,
+                    get_string('tutorevalresend', 'mod_stage'),
+                    ['class' => 'btn btn-sm btn-secondary mr-1 mb-2']
+                );
             }
 
             $bypassurl = new moodle_url($entryurl, ['bypasstutor' => 1, 'sesskey' => sesskey()]);
@@ -200,8 +206,11 @@ if ($entryid) {
         'value' => $proposedduration, 'class' => 'form-control', 'min' => 0,
     ]);
     echo html_writer::tag('label', get_string('devecomment', 'mod_stage'), ['for' => 'devecomment']);
-    echo html_writer::tag('textarea', s($entry->devecomment),
-        ['name' => 'devecomment', 'id' => 'devecomment', 'rows' => 4, 'class' => 'form-control']);
+    echo html_writer::tag(
+        'textarea',
+        s($entry->devecomment),
+        ['name' => 'devecomment', 'id' => 'devecomment', 'rows' => 4, 'class' => 'form-control']
+    );
     echo html_writer::empty_tag('input', [
         'type' => 'submit', 'name' => 'validatestage', 'value' => get_string('validate', 'mod_stage'),
         'class' => 'btn btn-primary mt-2 mr-2',
@@ -214,9 +223,15 @@ if ($entryid) {
 
     $reseturl = new moodle_url($entryurl, ['resetentry' => 1, 'sesskey' => sesskey()]);
     echo html_writer::div(
-        html_writer::link($reseturl, get_string('resetentry', 'mod_stage'),
+        html_writer::link(
+            $reseturl,
+            get_string('resetentry', 'mod_stage'),
             ['class' => 'btn btn-outline-secondary mt-3',
-                'onclick' => "return confirm('" . get_string('confirmresetentry', 'mod_stage') . "');"]),
+            'onclick' => "return confirm('" . get_string(
+                'confirmresetentry',
+                'mod_stage'
+            ) . "');"]
+        ),
     );
 
     echo $OUTPUT->footer();
@@ -232,8 +247,12 @@ if (optional_param('bulkvalidate', 0, PARAM_INT) && confirm_sesskey()) {
             stage_apply_deve_validation($entry, $USER->id, $entry->declaredduration, '');
         }
     }
-    redirect($baseurl, get_string('bulkvalidated', 'mod_stage', count($ids)), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $baseurl,
+        get_string('bulkvalidated', 'mod_stage', count($ids)),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 // Liste de toutes les saisies non encore validées DEVE.
@@ -248,9 +267,12 @@ $listurl = new moodle_url($baseurl, [
 ]);
 echo stage_render_list_filters($listurl, $themes, $search, $filterthemeid, $filterstatus);
 
-$allentries = stage_get_filtered_entries($stage->id,
+$allentries = stage_get_filtered_entries(
+    $stage->id,
     ['search' => $search, 'themeid' => $filterthemeid, 'status' => $filterstatus, 'statuslt' => STAGE_STATUS_VALIDE_DEVE],
-    $tsort, $tdir);
+    $tsort,
+    $tdir
+);
 [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
 
 if (empty($allentries)) {
@@ -261,8 +283,13 @@ if (empty($allentries)) {
 
     $table = new html_table();
     $table->head = [
-        html_writer::checkbox('selectall', 1, false, get_string('selectall', 'mod_stage'),
-            ['onclick' => 'this.form.querySelectorAll(".stageselect").forEach(c=>c.checked=this.checked)']),
+        html_writer::checkbox(
+            'selectall',
+            1,
+            false,
+            get_string('selectall', 'mod_stage'),
+            ['onclick' => 'this.form.querySelectorAll(".stageselect").forEach(c=>c.checked=this.checked)']
+        ),
         stage_sort_header(get_string('student', 'mod_stage'), 'student', $listurl, $tsort, $tdir),
         stage_sort_header(get_string('theme', 'mod_stage'), 'theme', $listurl, $tsort, $tdir),
         stage_sort_header(get_string('declaredduration', 'mod_stage'), 'duration', $listurl, $tsort, $tdir),
@@ -277,9 +304,13 @@ if (empty($allentries)) {
         $checkbox = html_writer::checkbox('selected[]', $entry->id, false, '', ['class' => 'stageselect']);
         // Le retour ramène sur cette liste telle qu'affichée (recherche, tri, page), pas sur la
         // liste "vierge" : voir $backurl ci-dessus, qui honore ce paramètre.
-        $action = html_writer::link(new moodle_url('/mod/stage/deve.php',
-            ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]),
-            get_string('validate', 'mod_stage'));
+        $action = html_writer::link(
+            new moodle_url(
+                '/mod/stage/deve.php',
+                ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]
+            ),
+            get_string('validate', 'mod_stage')
+        );
         $table->data[] = [
             $checkbox,
             $student ? fullname($student) : '-',
@@ -291,8 +322,11 @@ if (empty($allentries)) {
     }
     echo html_writer::table($table);
 
-    echo html_writer::tag('button', get_string('bulkvalidateselected', 'mod_stage'),
-        ['type' => 'submit', 'name' => 'bulkvalidate', 'value' => 1, 'class' => 'btn btn-success mt-2']);
+    echo html_writer::tag(
+        'button',
+        get_string('bulkvalidateselected', 'mod_stage'),
+        ['type' => 'submit', 'name' => 'bulkvalidate', 'value' => 1, 'class' => 'btn btn-success mt-2']
+    );
     echo html_writer::end_tag('form');
 
     echo $pagingbarhtml;

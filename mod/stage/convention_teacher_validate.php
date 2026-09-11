@@ -70,8 +70,10 @@ $referentteachers = stage_get_student_teachers($stage->id, $entry->userid);
 // Le returnurl est intégré à l'URL d'action elle-même (et non ajouté en champ caché) : un
 // moodleform ne reporte pas automatiquement les paramètres GET de la requête d'origine sur sa
 // propre soumission, il serait donc perdu à la validation/au refus/à l'annulation sans cela.
-$baseurl = new moodle_url('/mod/stage/convention_teacher_validate.php',
-    ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]);
+$baseurl = new moodle_url(
+    '/mod/stage/convention_teacher_validate.php',
+    ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]
+);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('conventionteachervalidation', 'mod_stage'));
 $PAGE->set_heading(format_string($course->fullname));
@@ -94,10 +96,10 @@ if ($detail) {
         }
     }
 }
-$formdata->perioddatestart = array_map(function($period) {
+$formdata->perioddatestart = array_map(function ($period) {
     return $period->datestart;
 }, $periods);
-$formdata->perioddateend = array_map(function($period) {
+$formdata->perioddateend = array_map(function ($period) {
     return $period->dateend;
 }, $periods);
 $mform->set_data($formdata);
@@ -142,13 +144,21 @@ if ($mform->is_cancelled()) {
 
     if (!empty($data->validateconvention)) {
         stage_teacher_validate_convention($entry, $USER->id);
-        redirect($backurl, get_string('conventionteachervalidated', 'mod_stage'), null,
-            \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            $backurl,
+            get_string('conventionteachervalidated', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     } else if (!empty($data->rejectconvention)) {
         stage_reject_convention($entry, $USER->id, $data->rejectcomment);
         stage_notify_student_convention_rejected($stage, $cm, $entry, $data->rejectcomment);
-        redirect($backurl, get_string('conventionrejected', 'mod_stage'), null,
-            \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            $backurl,
+            get_string('conventionrejected', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 
     redirect($backurl);

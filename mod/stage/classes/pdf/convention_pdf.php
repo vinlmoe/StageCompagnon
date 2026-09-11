@@ -34,7 +34,6 @@ require_once($CFG->libdir . '/pdflib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_pdf extends \pdf {
-
     /** @var array Couleur du bandeau de section (RGB). */
     const BAND_COLOR = [0, 61, 100];
 
@@ -84,8 +83,13 @@ class convention_pdf extends \pdf {
      *                             imprimée et signée à la main.
      * @return void
      */
-    public function generate_page1(array $stagedata, $logoleftpath = null, $logorightpath = null, $lang = 'fr',
-            $withsignatures = false) {
+    public function generate_page1(
+        array $stagedata,
+        $logoleftpath = null,
+        $logorightpath = null,
+        $lang = 'fr',
+        $withsignatures = false
+    ) {
         $this->lang = $lang;
 
         $this->SetCreator('Moodle mod_stage');
@@ -124,10 +128,14 @@ class convention_pdf extends \pdf {
         $this->section_heading($this->str('conventionestablishment'));
         $this->field_row($this->str('conventionestablishmentname'), $stagedata['establishment']['name']);
         $this->field_row($this->str('conventionestablishmentaddress'), $stagedata['establishment']['address']);
-        $this->field_row($this->str('conventionestablishmentrepresentative'),
-            $stagedata['establishment']['representative']);
-        $this->field_row($this->str('conventionestablishmentrepresentativetitle'),
-            $stagedata['establishment']['representativetitle']);
+        $this->field_row(
+            $this->str('conventionestablishmentrepresentative'),
+            $stagedata['establishment']['representative']
+        );
+        $this->field_row(
+            $this->str('conventionestablishmentrepresentativetitle'),
+            $stagedata['establishment']['representativetitle']
+        );
         $this->field_row($this->str('conventionestablishmentphone'), $stagedata['establishment']['phone']);
         $this->field_row($this->str('conventionestablishmentemail'), $stagedata['establishment']['email']);
         $this->Ln(3);
@@ -162,11 +170,15 @@ class convention_pdf extends \pdf {
         $this->Ln(3);
 
         $this->section_heading($this->str('conventionsupervision'));
-        $this->field_row($this->str('conventionreferentteacher'),
-            !empty($stagedata['referentteacher']['name']) ? $stagedata['referentteacher']['name'] : '-');
+        $this->field_row(
+            $this->str('conventionreferentteacher'),
+            !empty($stagedata['referentteacher']['name']) ? $stagedata['referentteacher']['name'] : '-'
+        );
         $this->field_row($this->str('conventionreferentteacherstatus'), $this->str('conventionreferentteacherstatusvalue'));
-        $this->field_row($this->str('conventionreferentteacheremail'),
-            !empty($stagedata['referentteacher']['email']) ? $stagedata['referentteacher']['email'] : '-');
+        $this->field_row(
+            $this->str('conventionreferentteacheremail'),
+            !empty($stagedata['referentteacher']['email']) ? $stagedata['referentteacher']['email'] : '-'
+        );
         $this->field_row($this->str('conventiontutorname'), $stagedata['tutor']['name']);
         $this->field_row($this->str('conventiontutorfunction'), $stagedata['tutor']['function']);
         $this->field_row($this->str('conventiontutorphone'), $stagedata['tutor']['phone']);
@@ -292,8 +304,17 @@ class convention_pdf extends \pdf {
             $boxtop = $y + $rowtextheight[intdiv($i, $cols)] + 1;
             $this->Rect($x, $boxtop, $boxwidth, $signspace);
             $this->SetFont('freesans', '', 8);
-            $this->MultiCell($boxwidth - 4, 4, $this->str('conventionsignaturedate'), 0, 'L', false, 0,
-                $x + 2, $boxtop + 1.5);
+            $this->MultiCell(
+                $boxwidth - 4,
+                4,
+                $this->str('conventionsignaturedate'),
+                0,
+                'L',
+                false,
+                0,
+                $x + 2,
+                $boxtop + 1.5
+            );
 
             if ($col === $cols - 1 || $i === count($boxes) - 1) {
                 $this->SetY($y + $rowheight + 6);

@@ -53,8 +53,10 @@ $PAGE->set_context($context);
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($stagesynthesis->name));
-echo html_writer::link(new moodle_url('/mod/stagesynthesis/dashboard.php', ['id' => $cm->id]),
-    get_string('pilotage', 'mod_stage'));
+echo html_writer::link(
+    new moodle_url('/mod/stagesynthesis/dashboard.php', ['id' => $cm->id]),
+    get_string('pilotage', 'mod_stage')
+);
 
 echo stagesynthesis_render_managelinks_notice($stagesynthesis, $cm, $context);
 
@@ -90,9 +92,11 @@ if (empty($pendingconventions)) {
                 ? userdate($pendingentry->conventionrequesttime, get_string('strftimedatetimeshort')) : '-',
             stage_render_actions([
                 get_string('conventionteachervalidate', 'mod_stage') =>
-                    new moodle_url('/mod/stage/convention_teacher_validate.php',
+                    new moodle_url(
+                        '/mod/stage/convention_teacher_validate.php',
                         ['id' => $pendingentry->cmid, 'entryid' => $pendingentry->id,
-                            'returnurl' => $baseurl->out_as_local_url(false)]),
+                        'returnurl' => $baseurl->out_as_local_url(false)]
+                    ),
             ], 'btn btn-sm btn-primary mr-1 mb-1'),
         ];
     }
@@ -114,8 +118,12 @@ echo stagesynthesis_render_list_filters($listurl, $themeoptions, $search, $theme
 // disponible pour retrouver explicitement un stage par son statut, y compris déjà évalué.
 $liststatus = $filterstatus !== '' ? $filterstatus : STAGE_STATUS_EVAL_ETUDIANT;
 
-$allentries = stagesynthesis_get_filtered_entries($activelinks,
-    ['search' => $search, 'themefilter' => $themefilter, 'status' => $liststatus], $tsort, $tdir);
+$allentries = stagesynthesis_get_filtered_entries(
+    $activelinks,
+    ['search' => $search, 'themefilter' => $themefilter, 'status' => $liststatus],
+    $tsort,
+    $tdir
+);
 [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
 
 if (empty($allentries)) {
@@ -152,8 +160,10 @@ foreach ($entries as $entry) {
         $entry->declaredduration,
         $badge,
         stage_render_actions([
-            $actionlabel => new moodle_url('/mod/stage/teacher.php',
-                ['id' => $entry->cmid, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]),
+            $actionlabel => new moodle_url(
+                '/mod/stage/teacher.php',
+                ['id' => $entry->cmid, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]
+            ),
             get_string('downloadsignedconvention', 'mod_stage') => $signedavailable
                 ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $entry->cmid, 'entryid' => $entry->id])
                 : null,

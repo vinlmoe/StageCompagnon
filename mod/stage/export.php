@@ -60,7 +60,8 @@ $workbook->send($filename);
 $headerformat = new MoodleExcelFormat(['bold' => 1]);
 $dateformat = new MoodleExcelFormat(['num_format' => 'dd/mm/yyyy']);
 
-// --- Feuille 1 : bilan de promotion ---------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// Feuille 1 : bilan de promotion.
 
 $report = stage_get_promotion_report($stage, $context);
 
@@ -94,7 +95,7 @@ foreach ($report->rows as $reportrow) {
             ? '-'
             : ($reportrow->yearsdone[$year] ? get_string('yes') : get_string('no')));
     }
-    $sheet->write_string($row, $col++, implode(', ', array_map(function($year) {
+    $sheet->write_string($row, $col++, implode(', ', array_map(function ($year) {
         return stage_studyyear_label($year);
     }, $reportrow->failedyears)));
     $sheet->write_number($row, $col++, (int) $reportrow->progress->totalretained);
@@ -108,7 +109,8 @@ foreach ($report->rows as $reportrow) {
     $row++;
 }
 
-// --- Feuille 2 : détail des saisies ----------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// Feuille 2 : détail des saisies.
 
 $entries = $DB->get_records('stage_entry', ['stageid' => $stage->id], 'timecreated ASC');
 $students = stage_get_entry_users($entries);
@@ -125,14 +127,21 @@ $reportfilenames = [];
 if (!empty($entryids)) {
     [$insql, $inparams] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED);
 
-    $conventiondetails = $DB->get_records_select('stage_convention_detail', "entryid $insql", $inparams,
-        '', '*');
-    $conventiondetails = array_combine(array_map(function($detail) {
+    $conventiondetails = $DB->get_records_select(
+        'stage_convention_detail',
+        "entryid $insql",
+        $inparams,
+        '',
+        '*'
+    );
+    $conventiondetails = array_combine(array_map(function ($detail) {
         return $detail->entryid;
     }, $conventiondetails), $conventiondetails);
 
     $workdaycounts = $DB->get_records_sql_menu(
-        "SELECT entryid, COUNT(1) FROM {stage_entry_workday} WHERE entryid $insql GROUP BY entryid", $inparams);
+        "SELECT entryid, COUNT(1) FROM {stage_entry_workday} WHERE entryid $insql GROUP BY entryid",
+        $inparams
+    );
 
     // Les rapports de stage sont interrogés directement dans la table des fichiers : l'API
     // fichiers ne sait lire qu'une zone (donc une saisie) à la fois.
@@ -144,7 +153,9 @@ if (!empty($entryids)) {
            FROM {files}
           WHERE contextid = :contextid AND component = :component AND filearea = :filearea
                 AND filename <> '.' AND itemid $insql
-       ORDER BY filename ASC", $fileparams);
+       ORDER BY filename ASC",
+        $fileparams
+    );
     foreach ($filerecords as $filerecord) {
         $reportfilenames[$filerecord->itemid][] = $filerecord->filename;
     }
@@ -154,8 +165,10 @@ if (!empty($entryids)) {
 // thématique, même si elle porte des dizaines de saisies.
 $themeteachers = [];
 foreach ($themes as $exportedtheme) {
-    $themeteachers[$exportedtheme->id] = implode(', ',
-        array_map('fullname', stage_get_theme_teachers($exportedtheme->id)));
+    $themeteachers[$exportedtheme->id] = implode(
+        ', ',
+        array_map('fullname', stage_get_theme_teachers($exportedtheme->id))
+    );
 }
 
 // L'évaluateur (stage_entry.teacherid) et les enseignants référents attribués à l'étudiant sont
@@ -164,8 +177,10 @@ foreach ($themes as $exportedtheme) {
 // Les autres intervenants (DEVE, convention, annulation) sont résolus dans le même lot.
 $actorids = [];
 foreach ($entries as $entry) {
-    foreach ([$entry->teacherid, $entry->deveuserid, $entry->cancelledby, $entry->conventionrejectedby,
-            $entry->conventionteachervalidatedby, $entry->conventioneditedby, $entry->conventionsignedby] as $actorid) {
+    foreach (
+        [$entry->teacherid, $entry->deveuserid, $entry->cancelledby, $entry->conventionrejectedby,
+            $entry->conventionteachervalidatedby, $entry->conventioneditedby, $entry->conventionsignedby] as $actorid
+    ) {
         if (!empty($actorid)) {
             $actorids[(int) $actorid] = (int) $actorid;
         }
@@ -176,19 +191,21 @@ foreach ($conventiondetails as $detail) {
         $actorids[(int) $detail->referentteacherid] = (int) $detail->referentteacherid;
     }
 }
-$actors = $actorids ? $DB->get_records_list('user', 'id', $actorids, '', 'id, ' . implode(', ',
-    \core_user\fields::get_name_fields())) : [];
+$actors = $actorids ? $DB->get_records_list('user', 'id', $actorids, '', 'id, ' . implode(
+    ', ',
+    \core_user\fields::get_name_fields()
+)) : [];
 $referentsbyuser = [];
 
 // Nom d'un intervenant à partir de son id, vide s'il n'y en a pas (colonne laissée vide plutôt
 // qu'un identifiant numérique, illisible dans un tableur).
-$actorname = function($userid) use ($actors) {
+$actorname = function ($userid) use ($actors) {
     return !empty($userid) && isset($actors[$userid]) ? fullname($actors[$userid]) : '';
 };
 
 // Date au format du tableur, vide si l'étape n'a pas eu lieu : une cellule vide se filtre et se
 // trie, contrairement à un « - » ou à un horodatage à 0 affiché comme 01/01/1970.
-$writedate = function($sheet, $row, $col, $timestamp) use ($dateformat) {
+$writedate = function ($sheet, $row, $col, $timestamp) use ($dateformat) {
     if (!empty($timestamp)) {
         $sheet->write_date($row, $col, $timestamp, $dateformat);
     } else {
@@ -196,7 +213,7 @@ $writedate = function($sheet, $row, $col, $timestamp) use ($dateformat) {
     }
 };
 
-$yesno = function($value) {
+$yesno = function ($value) {
     return !empty($value) ? get_string('yes') : get_string('no');
 };
 
@@ -306,12 +323,14 @@ foreach ($entries as $entry) {
     // Les référents sont attribués par étudiant : une seule résolution par étudiant, même s'il a
     // plusieurs saisies.
     if (!array_key_exists($entry->userid, $referentsbyuser)) {
-        $referentsbyuser[$entry->userid] = implode(', ', array_map('fullname',
-            stage_get_student_teachers($stage->id, $entry->userid)));
+        $referentsbyuser[$entry->userid] = implode(', ', array_map(
+            'fullname',
+            stage_get_student_teachers($stage->id, $entry->userid)
+        ));
     }
 
     $periods = stage_get_or_seed_entry_periods($entry);
-    $periodlabels = array_map(function($period) use ($exportdateformat) {
+    $periodlabels = array_map(function ($period) use ($exportdateformat) {
         return userdate($period->datestart, $exportdateformat) . ' - ' . userdate($period->dateend, $exportdateformat);
     }, $periods);
     $stagetype = $stagetypes[$entry->id] ?? 'obligatoire';
@@ -324,7 +343,7 @@ foreach ($entries as $entry) {
         ? ($conventiontemplates[$entry->conventiontemplateid] ?? null) : null;
 
     // Une valeur du détail de convention, vide tant que l'étudiant n'a pas rempli sa demande.
-    $detailvalue = function($field) use ($detail) {
+    $detailvalue = function ($field) use ($detail) {
         return $detail !== null ? (string) $detail->$field : '';
     };
 
@@ -421,7 +440,8 @@ foreach ($entries as $entry) {
     $row++;
 }
 
-// --- Feuille 3 : réponses aux questionnaires -------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// Feuille 3 : réponses aux questionnaires.
 
 // Les questions étant définies par thématique, leurs réponses ne peuvent pas tenir en colonnes
 // fixes de la feuille 2 : une ligne par réponse, avec de quoi la rattacher à sa saisie et la
@@ -450,7 +470,9 @@ if (!empty($entryids)) {
            FROM {stage_answer} a
            JOIN {stage_question} q ON q.id = a.questionid
           WHERE a.entryid $insql
-       ORDER BY a.entryid ASC, q.evaltype ASC, q.sortorder ASC", $inparams);
+       ORDER BY a.entryid ASC, q.evaltype ASC, q.sortorder ASC",
+        $inparams
+    );
 
     foreach ($answerrecords as $answer) {
         $entry = $entries[$answer->entryid] ?? null;

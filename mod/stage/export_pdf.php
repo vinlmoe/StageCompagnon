@@ -43,7 +43,7 @@ require_capability('mod/stage:viewall', $context);
 $report = stage_get_promotion_report($stage, $context);
 
 // Une ligne par étudiant : nom, validation de chaque année retenue, puis les totaux.
-$buildrows = function(array $rows) use ($report) {
+$buildrows = function (array $rows) use ($report) {
     $out = [];
     foreach ($rows as $row) {
         $cells = [fullname($row->user)];
@@ -64,7 +64,7 @@ $buildrows = function(array $rows) use ($report) {
         // « Manque : » répété à chaque ligne ne ferait que déborder de la colonne.
         $cells[] = $row->uptodate
             ? get_string('promotionuptodate', 'mod_stage')
-            : implode(', ', array_map(function($year) {
+            : implode(', ', array_map(function ($year) {
                 return stage_studyyear_label($year);
             }, $row->failedyears));
         $out[] = $cells;
@@ -72,24 +72,27 @@ $buildrows = function(array $rows) use ($report) {
     return $out;
 };
 
-$failedrows = array_filter($report->rows, function($row) {
+$failedrows = array_filter($report->rows, function ($row) {
     return !$row->uptodate;
 });
-$uptodaterows = array_filter($report->rows, function($row) {
+$uptodaterows = array_filter($report->rows, function ($row) {
     return $row->uptodate;
 });
 
 $data = [
     'title' => get_string('promotionreport', 'mod_stage'),
     'subtitle' => format_string($course->fullname) . ' - ' . format_string($stage->name),
-    'generatedon' => get_string('promotiongeneratedon', 'mod_stage',
-        userdate(time(), get_string('strftimedatetime', 'langconfig'))),
+    'generatedon' => get_string(
+        'promotiongeneratedon',
+        'mod_stage',
+        userdate(time(), get_string('strftimedatetime', 'langconfig'))
+    ),
     'summary' => get_string('promotionsummary', 'mod_stage', (object) [
         'total' => $report->total,
         'failed' => $report->failedcount,
         'uptodate' => $report->total - $report->failedcount,
     ]),
-    'yearlabels' => array_map(function($year) {
+    'yearlabels' => array_map(function ($year) {
         return stage_studyyear_label($year);
     }, $report->years),
     // Libellés courts : les colonnes chiffrées sont étroites, les intitulés complets employés

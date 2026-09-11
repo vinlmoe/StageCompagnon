@@ -35,7 +35,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_review_form extends \moodleform {
-
     /** Champs requis uniquement en cas de validation (voir validation()). */
     const REQUIRED_FIELDS = [
         'referentteacherid', 'studentbirthdate', 'studentaddress', 'studentphone',
@@ -60,13 +59,25 @@ class convention_review_form extends \moodleform {
         foreach ($referentteachers as $teacher) {
             $referentoptions[$teacher->id] = fullname($teacher);
         }
-        $mform->addElement('select', 'referentteacherid', get_string('conventionreferentteacher', 'mod_stage'),
-            $referentoptions);
+        $mform->addElement(
+            'select',
+            'referentteacherid',
+            get_string('conventionreferentteacher', 'mod_stage'),
+            $referentoptions
+        );
 
-        $mform->addElement('select', 'yearsituation', get_string('conventionyearsituation', 'mod_stage'),
-            stage_convention_yearsituation_options());
-        $mform->addElement('select', 'stagetype', get_string('conventionstagetype', 'mod_stage'),
-            stage_convention_stagetype_options());
+        $mform->addElement(
+            'select',
+            'yearsituation',
+            get_string('conventionyearsituation', 'mod_stage'),
+            stage_convention_yearsituation_options()
+        );
+        $mform->addElement(
+            'select',
+            'stagetype',
+            get_string('conventionstagetype', 'mod_stage'),
+            stage_convention_stagetype_options()
+        );
 
         // Plages de dates du stage (plusieurs plages non contiguës possibles), consultables et
         // modifiables ici par la DEVE et l'enseignant référent (voir stage_add_period_fields()).
@@ -75,8 +86,12 @@ class convention_review_form extends \moodleform {
         $mform->addElement('header', 'studentheader', get_string('conventionstudent', 'mod_stage'));
         $mform->setExpanded('studentheader');
         $mform->addElement('date_selector', 'studentbirthdate', get_string('conventionbirthdate', 'mod_stage'));
-        $mform->addElement('text', 'studentaddress', get_string('conventionstudentaddress', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'studentaddress',
+            get_string('conventionstudentaddress', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('studentaddress', PARAM_TEXT);
         $mform->addElement('text', 'studentphone', get_string('conventionstudentphone', 'mod_stage'));
         $mform->setType('studentphone', PARAM_TEXT);
@@ -85,11 +100,19 @@ class convention_review_form extends \moodleform {
         $mform->setExpanded('hostheader');
         $mform->addElement('text', 'hostaddress', get_string('conventionhostaddress', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostaddress', PARAM_TEXT);
-        $mform->addElement('text', 'hostrepresentative', get_string('conventionhostrepresentative', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'hostrepresentative',
+            get_string('conventionhostrepresentative', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('hostrepresentative', PARAM_TEXT);
-        $mform->addElement('text', 'hostrepresentativetitle', get_string('conventionhostrepresentativetitle', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'hostrepresentativetitle',
+            get_string('conventionhostrepresentativetitle', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('hostrepresentativetitle', PARAM_TEXT);
         $mform->addElement('text', 'hostservice', get_string('conventionhostservice', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostservice', PARAM_TEXT);
@@ -138,8 +161,12 @@ class convention_review_form extends \moodleform {
         $mform->addElement('text', 'leavedays', get_string('conventionleavedays', 'mod_stage'));
         $mform->setType('leavedays', PARAM_INT);
         $mform->hideIf('leavedays', 'hasleave', 'notchecked');
-        $mform->addElement('textarea', 'leavemodalities', get_string('conventionleavemodalities', 'mod_stage'),
-            ['rows' => 3, 'cols' => 60]);
+        $mform->addElement(
+            'textarea',
+            'leavemodalities',
+            get_string('conventionleavemodalities', 'mod_stage'),
+            ['rows' => 3, 'cols' => 60]
+        );
         $mform->setType('leavemodalities', PARAM_TEXT);
         $mform->hideIf('leavemodalities', 'hasleave', 'notchecked');
 
@@ -160,8 +187,12 @@ class convention_review_form extends \moodleform {
 
         $mform->addElement('header', 'rejectheader', get_string('conventionrejectcomment', 'mod_stage'));
         $mform->setExpanded('rejectheader');
-        $mform->addElement('textarea', 'rejectcomment', get_string('conventionrejectcomment', 'mod_stage'),
-            ['rows' => 3, 'cols' => 60]);
+        $mform->addElement(
+            'textarea',
+            'rejectcomment',
+            get_string('conventionrejectcomment', 'mod_stage'),
+            ['rows' => 3, 'cols' => 60]
+        );
         $mform->setType('rejectcomment', PARAM_TEXT);
 
         $buttonarray = [];

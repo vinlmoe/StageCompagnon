@@ -82,8 +82,12 @@ $editable = $conventionsigned && !$notstartedyet && ((int) $entry->status === ST
 if ($editable && !empty($periods) && optional_param('saveworkdays', 0, PARAM_INT) && confirm_sesskey()) {
     $workdays = optional_param_array('workdays', [], PARAM_INT);
     stage_set_entry_workdays($entry->id, $workdays);
-    redirect(new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
-        get_string('workdayssaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
+        get_string('workdayssaved', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 // Dépôt du rapport de stage, si la thématique en demande un : formulaire distinct de
@@ -96,21 +100,39 @@ if ($editable && $reportmode != STAGE_REPORT_NONE) {
         'maxfiles' => 20,
         'maxbytes' => $CFG->maxbytes,
     ];
-    $reportform = new report_form(new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
-        ['filemanageroptions' => $filemanageroptions]);
+    $reportform = new report_form(
+        new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
+        ['filemanageroptions' => $filemanageroptions]
+    );
 
     $draftitemid = file_get_submitted_draft_itemid('reportfiles');
-    file_prepare_draft_area($draftitemid, $context->id, 'mod_stage', STAGE_REPORT_FILEAREA, $entry->id,
-        $filemanageroptions);
+    file_prepare_draft_area(
+        $draftitemid,
+        $context->id,
+        'mod_stage',
+        STAGE_REPORT_FILEAREA,
+        $entry->id,
+        $filemanageroptions
+    );
     $reportform->set_data([
         'id' => $cm->id, 'entryid' => $entryid, 'reportfiles' => $draftitemid,
     ]);
 
     if ($reportdata = $reportform->get_data()) {
-        file_save_draft_area_files($reportdata->reportfiles, $context->id, 'mod_stage', STAGE_REPORT_FILEAREA,
-            $entry->id, $filemanageroptions);
-        redirect(new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
-            get_string('reportfilessaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        file_save_draft_area_files(
+            $reportdata->reportfiles,
+            $context->id,
+            'mod_stage',
+            STAGE_REPORT_FILEAREA,
+            $entry->id,
+            $filemanageroptions
+        );
+        redirect(
+            new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
+            get_string('reportfilessaved', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 }
 
@@ -121,8 +143,10 @@ $reportmissing = $reportmode == STAGE_REPORT_REQUIRED && empty(stage_get_report_
 $reportblocked = false;
 
 // Traite la soumission du formulaire dynamique avant tout affichage, pour permettre la redirection.
-if ($editable && !empty($questions) && !optional_param('savereport', 0, PARAM_INT)
-        && data_submitted() && confirm_sesskey()) {
+if (
+    $editable && !empty($questions) && !optional_param('savereport', 0, PARAM_INT)
+        && data_submitted() && confirm_sesskey()
+) {
     // Les réponses sont enregistrées dans tous les cas : seul le passage au statut « évalué par
     // l'étudiant » est retenu faute de rapport, et l'étudiant retrouve sa saisie telle quelle
     // après avoir déposé ses documents.
@@ -133,8 +157,12 @@ if ($editable && !empty($questions) && !optional_param('savereport', 0, PARAM_IN
         stage_apply_student_eval($entry);
         stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
 
-        redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
-            get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
+            get_string('stagesaved', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 }
 
@@ -162,8 +190,12 @@ if ($editable && empty($questions)) {
             stage_apply_student_eval($entry, $selfeval);
             stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
 
-            redirect(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
-                get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+            redirect(
+                new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
+                get_string('stagesaved', 'mod_stage'),
+                null,
+                \core\output\notification::NOTIFY_SUCCESS
+            );
         }
     }
 }

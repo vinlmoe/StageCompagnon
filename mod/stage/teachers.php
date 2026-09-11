@@ -55,8 +55,8 @@ $teachers = stage_get_potential_teachers($context);
 
 // Toutes les affectations de l'activité en une requête, regroupées par étudiant.
 $assignments = [];
-foreach ($DB->get_records('stage_entry_teacher', ['stageid' => $stage->id], '', 'id, studentid, teacherid')
-        as $assignment) {
+$rawassignments = $DB->get_records('stage_entry_teacher', ['stageid' => $stage->id], '', 'id, studentid, teacherid');
+foreach ($rawassignments as $assignment) {
     $assignments[$assignment->studentid][$assignment->teacherid] = true;
 }
 
@@ -64,12 +64,12 @@ foreach ($DB->get_records('stage_entry_teacher', ['stageid' => $stage->id], '', 
 $students = $allstudents;
 if ($search !== '') {
     $needle = core_text::strtolower($search);
-    $students = array_filter($students, function($student) use ($needle) {
+    $students = array_filter($students, function ($student) use ($needle) {
         return core_text::strpos(core_text::strtolower(fullname($student)), $needle) !== false;
     });
 }
 if ($onlyunassigned) {
-    $students = array_filter($students, function($student) use ($assignments) {
+    $students = array_filter($students, function ($student) use ($assignments) {
         return empty($assignments[$student->id]);
     });
 }
@@ -82,8 +82,11 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('manageteachers', 'mod_stage'));
 echo html_writer::link(new moodle_url('/mod/stage/administration.php', ['id' => $cm->id]), get_string('back'));
 
-echo html_writer::link(new moodle_url('/mod/stage/teachers_import.php', ['id' => $cm->id]),
-    get_string('importteacherscsv', 'mod_stage'), ['class' => 'btn btn-secondary d-block mt-2 mb-3', 'style' => 'width:fit-content']);
+echo html_writer::link(
+    new moodle_url('/mod/stage/teachers_import.php', ['id' => $cm->id]),
+    get_string('importteacherscsv', 'mod_stage'),
+    ['class' => 'btn btn-secondary d-block mt-2 mb-3', 'style' => 'width:fit-content']
+);
 
 if (empty($allstudents)) {
     echo $OUTPUT->notification(get_string('nostudents', 'mod_stage'), 'info');
@@ -100,7 +103,11 @@ if (empty($allstudents)) {
     echo html_writer::start_tag('label', ['class' => 'mr-2']);
     echo html_writer::checkbox('onlyunassigned', 1, (bool) $onlyunassigned, ' ' . get_string('onlyunassigned', 'mod_stage'));
     echo html_writer::end_tag('label');
-    echo html_writer::empty_tag('input', ['type' => 'submit', 'value' => get_string('search'), 'class' => 'btn btn-secondary mr-2']);
+    echo html_writer::empty_tag('input', [
+        'type' => 'submit',
+        'value' => get_string('search'),
+        'class' => 'btn btn-secondary mr-2',
+    ]);
     echo html_writer::link($baseurl, get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
     echo html_writer::end_tag('form');
 
@@ -123,13 +130,15 @@ if (empty($allstudents)) {
             if (empty($currentids)) {
                 $currentlabel = html_writer::span(get_string('noreferentteacher', 'mod_stage'), 'text-muted');
             } else {
-                $names = array_map(function($teacherid) use ($teachersbyid) {
+                $names = array_map(function ($teacherid) use ($teachersbyid) {
                     return isset($teachersbyid[$teacherid]) ? fullname($teachersbyid[$teacherid]) : '?';
                 }, $currentids);
                 $currentlabel = implode(', ', $names);
             }
-            $editurl = new moodle_url('/mod/stage/teacher_assign.php',
-                ['id' => $cm->id, 'studentid' => $student->id, 'returnurl' => $returnurl->out_as_local_url(false)]);
+            $editurl = new moodle_url(
+                '/mod/stage/teacher_assign.php',
+                ['id' => $cm->id, 'studentid' => $student->id, 'returnurl' => $returnurl->out_as_local_url(false)]
+            );
             $table->data[] = [
                 fullname($student),
                 $currentlabel,

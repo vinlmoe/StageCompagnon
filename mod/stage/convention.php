@@ -76,8 +76,10 @@ $pagetitle = $isdeve ? get_string('generateconvention', 'mod_stage') : get_strin
 $backurl = $returnurlparam !== ''
     ? new moodle_url($returnurlparam)
     : new moodle_url('/mod/stage/conventions.php', ['id' => $cm->id]);
-$baseurl = new moodle_url('/mod/stage/convention.php',
-    ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]);
+$baseurl = new moodle_url(
+    '/mod/stage/convention.php',
+    ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]
+);
 
 // Demande d'abord si un cadre de signatures (stagiaire, maître de stage, responsable de
 // l'organisme d'accueil, enseignant.e référent.e, établissement) doit être ajouté en bas de la
@@ -95,17 +97,28 @@ if ($isdeve && !optional_param('confirmgenerate', 0, PARAM_BOOL)) {
     echo $OUTPUT->heading($pagetitle);
     echo html_writer::link($backurl, get_string('back'));
 
-    echo html_writer::start_tag('form',
-        ['method' => 'get', 'action' => new moodle_url('/mod/stage/convention.php'), 'class' => 'mt-3']);
+    echo html_writer::start_tag(
+        'form',
+        ['method' => 'get', 'action' => new moodle_url('/mod/stage/convention.php'), 'class' => 'mt-3']
+    );
     echo html_writer::input_hidden_params($baseurl);
     echo html_writer::start_div('form-check mb-3');
-    echo html_writer::checkbox('withsignatures', 1, false, get_string('includesignatureblock', 'mod_stage'),
-        ['id' => 'id_withsignatures', 'class' => 'form-check-input']);
+    echo html_writer::checkbox(
+        'withsignatures',
+        1,
+        false,
+        get_string('includesignatureblock', 'mod_stage'),
+        ['id' => 'id_withsignatures', 'class' => 'form-check-input']
+    );
     echo html_writer::end_div();
-    echo html_writer::empty_tag('input',
-        ['type' => 'hidden', 'name' => 'confirmgenerate', 'value' => 1]);
-    echo html_writer::empty_tag('input',
-        ['type' => 'submit', 'value' => $pagetitle, 'class' => 'btn btn-primary']);
+    echo html_writer::empty_tag(
+        'input',
+        ['type' => 'hidden', 'name' => 'confirmgenerate', 'value' => 1]
+    );
+    echo html_writer::empty_tag(
+        'input',
+        ['type' => 'submit', 'value' => $pagetitle, 'class' => 'btn btn-primary']
+    );
     echo html_writer::end_tag('form');
 
     echo $OUTPUT->footer();

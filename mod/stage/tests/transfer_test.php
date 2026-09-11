@@ -33,7 +33,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_execute_student_transfer
  */
 final class transfer_test extends \advanced_testcase {
-
     /**
      * Crée deux instances de l'activité, dans deux cours distincts, chacune avec un étudiant
      * inscrit correspondant.
@@ -150,7 +149,13 @@ final class transfer_test extends \advanced_testcase {
         $this->assertEmpty($plan->blockers);
 
         $count = stage_execute_student_transfer(
-            $sourcestage, $sourcecontext, $targetstage, $targetcontext, $student->id, $plan);
+            $sourcestage,
+            $sourcecontext,
+            $targetstage,
+            $targetcontext,
+            $student->id,
+            $plan
+        );
 
         $this->assertSame(1, $count);
 

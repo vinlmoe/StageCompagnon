@@ -57,8 +57,12 @@ $backurl = $returnurlparam !== ''
     : new moodle_url('/mod/stage/conventions.php', ['id' => $cm->id]);
 
 if ((int) $entry->conventionstatus !== STAGE_CONVENTION_REQUESTED) {
-    redirect($backurl, get_string('conventionnotrequested', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_INFO);
+    redirect(
+        $backurl,
+        get_string('conventionnotrequested', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_INFO
+    );
 }
 
 $referentteachers = stage_get_student_teachers($stage->id, $entry->userid);
@@ -66,8 +70,10 @@ $referentteachers = stage_get_student_teachers($stage->id, $entry->userid);
 // Le returnurl est intégré à l'URL d'action elle-même (et non ajouté en champ caché) : un
 // moodleform ne reporte pas automatiquement les paramètres GET de la requête d'origine sur sa
 // propre soumission, il serait donc perdu à la validation/au refus/à l'annulation sans cela.
-$baseurl = new moodle_url('/mod/stage/convention_review.php',
-    ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]);
+$baseurl = new moodle_url(
+    '/mod/stage/convention_review.php',
+    ['id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam]
+);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('conventionreview', 'mod_stage'));
 $PAGE->set_heading(format_string($course->fullname));
@@ -97,10 +103,10 @@ if ($detail) {
         }
     }
 }
-$formdata->perioddatestart = array_map(function($period) {
+$formdata->perioddatestart = array_map(function ($period) {
     return $period->datestart;
 }, $periods);
-$formdata->perioddateend = array_map(function($period) {
+$formdata->perioddateend = array_map(function ($period) {
     return $period->dateend;
 }, $periods);
 // Précoche la case d'impression si l'étudiant et/ou l'enseignant référent a demandé une convention
@@ -154,8 +160,12 @@ if ($mform->is_cancelled()) {
         $entry = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
         $error = stage_check_convention_pdf_prerequisites($entry, $context);
         if ($error !== null) {
-            redirect($backurl, get_string('conventionvalidatedpdferror', 'mod_stage', get_string($error, 'mod_stage')),
-                null, \core\output\notification::NOTIFY_WARNING);
+            redirect(
+                $backurl,
+                get_string('conventionvalidatedpdferror', 'mod_stage', get_string($error, 'mod_stage')),
+                null,
+                \core\output\notification::NOTIFY_WARNING
+            );
         }
         // Le téléchargement passe par convention.php, qui lance le fichier puis ramène à la liste
         // des conventions : envoyer le PDF directement en réponse à ce formulaire laisserait la
@@ -170,8 +180,12 @@ if ($mform->is_cancelled()) {
     } else if (!empty($data->rejectconvention)) {
         stage_reject_convention($entry, $USER->id, $data->rejectcomment);
         stage_notify_student_convention_rejected($stage, $cm, $entry, $data->rejectcomment);
-        redirect($backurl, get_string('conventionrejected', 'mod_stage'), null,
-            \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            $backurl,
+            get_string('conventionrejected', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 
     redirect($backurl);

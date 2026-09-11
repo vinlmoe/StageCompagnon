@@ -97,28 +97,28 @@ $rows = stage_get_pilotage_overview($stage->id, $context, $restrictuserids);
 
 if ($search !== '') {
     $needle = core_text::strtolower($search);
-    $rows = array_filter($rows, function($row) use ($needle) {
+    $rows = array_filter($rows, function ($row) use ($needle) {
         return core_text::strpos(core_text::strtolower(fullname($row->user)), $needle) !== false;
     });
 }
 
 $sortmap = [
-    'student' => function($row) {
+    'student' => function ($row) {
         return core_text::strtolower(fullname($row->user));
     },
-    'progress' => function($row) {
+    'progress' => function ($row) {
         return $row->mandatorytotal > 0 ? ($row->mandatorydone / $row->mandatorytotal) : -1;
     },
-    'pending' => function($row) {
+    'pending' => function ($row) {
         return $row->pendingcount;
     },
-    'retained' => function($row) {
+    'retained' => function ($row) {
         return $row->progress->totalretained;
     },
 ];
 $sortkey = array_key_exists($tsort, $sortmap) ? $tsort : 'student';
 $sortfn = $sortmap[$sortkey];
-usort($rows, function($a, $b) use ($sortfn) {
+usort($rows, function ($a, $b) use ($sortfn) {
     $va = $sortfn($a);
     $vb = $sortfn($b);
     return $va <=> $vb;
@@ -152,16 +152,18 @@ if (empty($rows)) {
             // (voir stage_get_student_year_progress()), pour situer l'avancement en un coup d'œil.
             // Le badge ne porte que le statut ; la liste des années le suit en clair, un badge
             // devenant illisible dès qu'il contient une énumération.
-            $validatedyears = array_filter($row->yearprogress, function($yearrow) {
+            $validatedyears = array_filter($row->yearprogress, function ($yearrow) {
                 return $yearrow->done;
             });
             if (!empty($validatedyears)) {
-                $labels = array_map(function($yearrow) {
+                $labels = array_map(function ($yearrow) {
                     return stage_studyyear_label($yearrow->studyyear);
                 }, $validatedyears);
                 $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning')
-                    . html_writer::div(get_string('validatedyears', 'mod_stage', implode(', ', $labels)),
-                        'text-muted small');
+                    . html_writer::div(
+                        get_string('validatedyears', 'mod_stage', implode(', ', $labels)),
+                        'text-muted small'
+                    );
             } else {
                 $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
             }

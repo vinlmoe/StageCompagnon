@@ -33,7 +33,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_get_student_abroad_progress
  */
 final class year_progress_test extends \advanced_testcase {
-
     /**
      * Prépare un stage, une thématique obligatoire bornée de A2 à A4 (30 jours requis au total)
      * et un étudiant.

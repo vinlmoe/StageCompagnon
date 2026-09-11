@@ -62,8 +62,12 @@ $viewurl = new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
 
 $requeststatus = (int) $entry->conventionstatus;
 if ($requeststatus !== STAGE_CONVENTION_NONE && $requeststatus !== STAGE_CONVENTION_REJECTED) {
-    redirect($viewurl, get_string('conventionalreadyrequested', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_INFO);
+    redirect(
+        $viewurl,
+        get_string('conventionalreadyrequested', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_INFO
+    );
 }
 
 $templates = stage_get_convention_templates($stage->id);
@@ -98,10 +102,10 @@ if ($existingdetail) {
         }
     }
 }
-$formdata->perioddatestart = array_map(function($period) {
+$formdata->perioddatestart = array_map(function ($period) {
     return $period->datestart;
 }, $periods);
-$formdata->perioddateend = array_map(function($period) {
+$formdata->perioddateend = array_map(function ($period) {
     return $period->dateend;
 }, $periods);
 $mform->set_data($formdata);

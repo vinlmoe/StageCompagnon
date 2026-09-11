@@ -77,11 +77,21 @@ $mform->set_data((object) ['id' => $cm->id, 'entryid' => $entryid, 'signedfile' 
 if ($mform->is_cancelled()) {
     redirect($backurl);
 } else if ($data = $mform->get_data()) {
-    file_save_draft_area_files($data->signedfile, $context->id, 'mod_stage', 'signedconvention', $entryid,
-        $filemanageroptions);
+    file_save_draft_area_files(
+        $data->signedfile,
+        $context->id,
+        'mod_stage',
+        'signedconvention',
+        $entryid,
+        $filemanageroptions
+    );
     stage_convention_mark_signed($entry, $USER->id);
-    redirect($backurl, get_string('conventionmarkedsigned', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $backurl,
+        get_string('conventionmarkedsigned', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 echo $OUTPUT->header();

@@ -30,7 +30,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class register_entries extends \external_api {
-
     /**
      * Parameters definition.
      *
@@ -47,10 +46,18 @@ class register_entries extends \external_api {
                     'datestart' => new \external_value(PARAM_INT, 'Date de début (timestamp)', VALUE_DEFAULT, 0),
                     'dateend' => new \external_value(PARAM_INT, 'Date de fin (timestamp)', VALUE_DEFAULT, 0),
                     'declaredduration' => new \external_value(PARAM_INT, 'Durée déclarée en jours'),
-                    'studyyear' => new \external_value(PARAM_INT,
-                        "Année d'étude à laquelle ce stage est rattaché (0 = non spécifiée)", VALUE_DEFAULT, 0),
-                    'abroad' => new \external_value(PARAM_INT, "Stage effectué à l'étranger (0 ou 1)",
-                        VALUE_DEFAULT, 0),
+                    'studyyear' => new \external_value(
+                        PARAM_INT,
+                        "Année d'étude à laquelle ce stage est rattaché (0 = non spécifiée)",
+                        VALUE_DEFAULT,
+                        0
+                    ),
+                    'abroad' => new \external_value(
+                        PARAM_INT,
+                        "Stage effectué à l'étranger (0 ou 1)",
+                        VALUE_DEFAULT,
+                        0
+                    ),
                     'country' => new \external_value(PARAM_TEXT, "Pays du stage, si abroad", VALUE_DEFAULT, ''),
                 ])
             ),
@@ -88,7 +95,10 @@ class register_entries extends \external_api {
                 continue;
             }
             $pairkey = stage_duplicate_key(
-                $entrydata['userid'], $entrydata['themeid'], $entrydata['datestart'] ?: null, $entrydata['dateend'] ?: null
+                $entrydata['userid'],
+                $entrydata['themeid'],
+                $entrydata['datestart'] ?: null,
+                $entrydata['dateend'] ?: null
             );
             if (isset($existingpairs[$pairkey])) {
                 $duplicates[] = $entrydata['userid'];

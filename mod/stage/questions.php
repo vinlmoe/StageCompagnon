@@ -77,10 +77,14 @@ if ($action === 'edit') {
         $themeoptions[$stagetheme->id] = stage_theme_option_label($stagetheme);
     }
 
-    $formurl = new moodle_url('/mod/stage/questions.php',
-        ['id' => $cm->id, 'themeid' => $theme->id, 'action' => 'edit', 'questionid' => $questionid]);
-    $mform = new question_form($formurl,
-        ['themes' => $themeoptions, 'tutorenabled' => stage_tutor_evaluation_enabled($stage, $theme)]);
+    $formurl = new moodle_url(
+        '/mod/stage/questions.php',
+        ['id' => $cm->id, 'themeid' => $theme->id, 'action' => 'edit', 'questionid' => $questionid]
+    );
+    $mform = new question_form(
+        $formurl,
+        ['themes' => $themeoptions, 'tutorenabled' => stage_tutor_evaluation_enabled($stage, $theme)]
+    );
     $question = null;
     if ($questionid) {
         $question = $DB->get_record('stage_question', ['id' => $questionid, 'stageid' => $stage->id], '*', MUST_EXIST);
@@ -136,8 +140,11 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('evalquestions', 'mod_stage') . ' - ' . format_string($theme->name));
 echo html_writer::link(new moodle_url('/mod/stage/themes.php', ['id' => $cm->id]), get_string('back'));
 
-echo html_writer::link(new moodle_url('/mod/stage/questions.php', ['id' => $cm->id, 'themeid' => $theme->id, 'action' => 'edit']),
-    get_string('addquestion', 'mod_stage'), ['class' => 'btn btn-primary d-block mt-2 mb-3', 'style' => 'width:fit-content']);
+echo html_writer::link(
+    new moodle_url('/mod/stage/questions.php', ['id' => $cm->id, 'themeid' => $theme->id, 'action' => 'edit']),
+    get_string('addquestion', 'mod_stage'),
+    ['class' => 'btn btn-primary d-block mt-2 mb-3', 'style' => 'width:fit-content']
+);
 
 // Réutilisation d'une question déjà définie pour une autre thématique de ce stage.
 $reusable = stage_get_reusable_questions($stage->id, $theme->id);
@@ -185,11 +192,15 @@ foreach ($evaltypes as $evaltype) {
     foreach ($questions as $question) {
         $qtypelabel = $question->qtype === 'choice'
             ? get_string('qtype_choice', 'mod_stage') : get_string('qtype_text', 'mod_stage');
-        $editurl = new moodle_url('/mod/stage/questions.php',
-            ['id' => $cm->id, 'themeid' => $theme->id, 'action' => 'edit', 'questionid' => $question->id]);
-        $deleteurl = new moodle_url('/mod/stage/questions.php',
+        $editurl = new moodle_url(
+            '/mod/stage/questions.php',
+            ['id' => $cm->id, 'themeid' => $theme->id, 'action' => 'edit', 'questionid' => $question->id]
+        );
+        $deleteurl = new moodle_url(
+            '/mod/stage/questions.php',
             ['id' => $cm->id, 'themeid' => $theme->id, 'action' => 'delete', 'questionid' => $question->id,
-                'sesskey' => sesskey()]);
+            'sesskey' => sesskey()]
+        );
         $actions = stage_render_actions([get_string('edit') => $editurl])
             . html_writer::link($deleteurl, get_string('delete'), [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',

@@ -30,7 +30,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_template_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
