@@ -40,13 +40,12 @@ Le module s'appuie sur les archétypes de rôles Moodle standard
 |---|---|---|
 | Étudiant (`student`) | Étudiant | Consulter ses stages, demander une convention, s'auto-évaluer |
 | Enseignant non-éditeur (`teacher`) | Enseignant référent | Évaluer les stages des étudiants qui lui sont attribués |
-| Enseignant éditeur (`editingteacher`) ou Manager | DEVE | Tout le reste : thématiques, conventions, référents, validation finale |
+| Enseignant (`editingteacher`) | Personnel DEVE | Enregistrer les stages et gérer les thématiques, conventions, référents et validations finales |
+| Manager (`manager`) | Administration | Tous les droits sur l'activité |
 
-Pour distinguer la DEVE des enseignants éditeurs de contenu, dupliquer le rôle
-« Enseignant » (**Administration du site > Utilisateurs > Permissions >
-Définir les rôles**), le renommer « DEVE » et n'y cocher que les capacités
-`mod/stage:*` (`managethemes`, `validatedeve`, `manageteachers`, `viewall`,
-`evaluateteacher`, `view`).
+La DEVE correspond directement au rôle Moodle standard « Enseignant »
+(`editingteacher`). Les autres enseignants utilisent le rôle « Enseignant non
+éditeur » (`teacher`). Aucun rôle Moodle « DEVE » spécifique ne doit être créé.
 
 ### Navigation
 

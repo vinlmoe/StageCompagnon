@@ -100,10 +100,10 @@ n'est que le référent et se limite à dissocier ses références. Si vos conve
 signées sont soumises à une obligation d'archivage, extrayez-les avant de traiter
 une demande de suppression. Détail en §11 de `mod/stage/INSTALL.md`.
 
-**Rôle DEVE.** Le module s'appuie sur les archétypes Moodle standard. Pour
-distinguer la scolarité des enseignants éditeurs de contenu, dupliquer le rôle
-« Enseignant » et n'y cocher que les capacités `mod/stage:*` (§2 de
-`mod/stage/INSTALL.md`).
+**Rôles Moodle.** Le module s'appuie sur les archétypes standard : le personnel
+DEVE utilise le rôle « Enseignant » (`editingteacher`) et les enseignants
+référents le rôle « Enseignant non éditeur » (`teacher`). Aucun rôle Moodle
+« DEVE » spécifique ne doit être créé (§2 de `mod/stage/INSTALL.md`).
 
 ## Développement
 
