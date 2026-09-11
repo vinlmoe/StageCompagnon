@@ -35,6 +35,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_studyyear_range_label
  * @covers     ::stage_render_actions
  * @covers     ::stage_render_status_badge
+ * @covers     ::stage_teacher_assignment_options
  */
 final class helpers_test extends \advanced_testcase {
     /**
@@ -114,5 +115,30 @@ final class helpers_test extends \advanced_testcase {
         $todo = stage_render_status_badge(false);
 
         $this->assertNotSame($done, $todo);
+    }
+
+    /**
+     * Les enseignants déjà attribués sont rechargés dans la liste sélectionnée même lorsque
+     * Moodle fournit leur identifiant sous forme de chaîne et l'affectation sous forme d'entier.
+     */
+    public function test_teacher_assignment_options_restore_existing_selection(): void {
+        $teachers = [
+            (object) [
+                'id' => '12', 'firstname' => 'Alice', 'lastname' => 'Martin',
+                'firstnamephonetic' => '', 'lastnamephonetic' => '', 'middlename' => '', 'alternatename' => '',
+            ],
+            (object) [
+                'id' => '34', 'firstname' => 'Bruno', 'lastname' => 'Durand',
+                'firstnamephonetic' => '', 'lastnamephonetic' => '', 'middlename' => '', 'alternatename' => '',
+            ],
+        ];
+
+        [$available, $selected] = stage_teacher_assignment_options($teachers, [12]);
+
+        $this->assertStringContainsString('Bruno', $available);
+        $this->assertStringNotContainsString('Alice', $available);
+        $this->assertStringContainsString('Alice', $selected);
+        $this->assertStringContainsString('selected="selected"', $selected);
+        $this->assertStringNotContainsString('Bruno', $selected);
     }
 }

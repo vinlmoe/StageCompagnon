@@ -83,16 +83,7 @@ if (empty($teachers)) {
     exit;
 }
 
-$availableoptions = '';
-$selectedoptions = '';
-foreach ($teachers as $teacher) {
-    $option = html_writer::tag('option', s(fullname($teacher)), ['value' => $teacher->id]);
-    if (in_array($teacher->id, $currentids, true)) {
-        $selectedoptions .= $option;
-    } else {
-        $availableoptions .= $option;
-    }
-}
+[$availableoptions, $selectedoptions] = stage_teacher_assignment_options($teachers, $currentids);
 
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl, 'id' => 'stage-teacher-assign-form']);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);

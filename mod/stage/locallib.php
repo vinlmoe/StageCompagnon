@@ -830,6 +830,36 @@ function stage_get_potential_teachers(context $context) {
 }
 
 /**
+ * Répartit les enseignants entre les deux listes du formulaire d'attribution.
+ *
+ * @param array $teachers Enseignants potentiels.
+ * @param array $currentids Identifiants des enseignants déjà attribués.
+ * @return array{0: string, 1: string} Options HTML disponibles et sélectionnées.
+ */
+function stage_teacher_assignment_options(array $teachers, array $currentids) {
+    $currentids = array_fill_keys(array_map('intval', $currentids), true);
+    $availableoptions = '';
+    $selectedoptions = '';
+
+    foreach ($teachers as $teacher) {
+        $isselected = isset($currentids[(int) $teacher->id]);
+        $attributes = ['value' => $teacher->id];
+        if ($isselected) {
+            // Le marquage HTML conserve aussi les affectations si le JavaScript est indisponible.
+            $attributes['selected'] = 'selected';
+        }
+        $option = html_writer::tag('option', s(fullname($teacher)), $attributes);
+        if ($isselected) {
+            $selectedoptions .= $option;
+        } else {
+            $availableoptions .= $option;
+        }
+    }
+
+    return [$availableoptions, $selectedoptions];
+}
+
+/**
  * Retourne les identifiants des étudiants attribués à un enseignant référent, pour ce stage.
  *
  * @param int $stageid
