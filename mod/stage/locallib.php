@@ -117,6 +117,19 @@ function stage_convention_is_signed($status) {
 }
 
 /**
+ * Indique si une demande de convention peut être créée ou soumise à nouveau.
+ *
+ * Une dispense de convention est volontairement exclue : elle ouvre l'évaluation sans passer par
+ * le circuit des conventions et ne doit pas pouvoir être contournée par une URL directe.
+ *
+ * @param int $status
+ * @return bool
+ */
+function stage_convention_can_be_requested($status) {
+    return in_array((int) $status, [STAGE_CONVENTION_NONE, STAGE_CONVENTION_REJECTED], true);
+}
+
+/**
  * Message d'information à afficher à la DEVE (convention_review.php) quand une convention papier
  * (cadre de signatures) a été demandée par l'étudiant lors de sa demande (convention_request.php)
  * et/ou par l'enseignant référent lors de sa validation (convention_teacher_validate.php), pour
@@ -2747,6 +2760,10 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
             $rights->assignedteacher && $conventionstatus === STAGE_CONVENTION_TEACHERPENDING
                 ? new moodle_url('/mod/stage/convention_teacher_validate.php', ['id' => $cm->id, 'entryid' => $entry->id,
                     'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
+        get_string('requestconvention', 'mod_stage') =>
+            $rights->register && stage_convention_can_be_requested($conventionstatus)
+                ? new moodle_url('/mod/stage/convention_request.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('validate', 'mod_stage') =>
             $rights->validatedeve && $status === STAGE_STATUS_EVAL_ENSEIGNANT
                 ? new moodle_url('/mod/stage/deve.php', ['id' => $cm->id, 'entryid' => $entry->id,
@@ -3087,10 +3104,7 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
             $btn = ['class' => 'btn btn-sm btn-secondary mr-1 mb-1'];
             $actions = '';
             if ($selfevallink) {
-                if (
-                    (int) $entry->conventionstatus === STAGE_CONVENTION_NONE
-                        || (int) $entry->conventionstatus === STAGE_CONVENTION_REJECTED
-                ) {
+                if (stage_convention_can_be_requested($entry->conventionstatus)) {
                     $actions .= html_writer::link(
                         new moodle_url('/mod/stage/student_register.php', ['id' => $cm->id, 'entryid' => $entry->id]),
                         get_string('requestconvention', 'mod_stage'),

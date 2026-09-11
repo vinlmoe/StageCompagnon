@@ -36,6 +36,11 @@ stocke aucune donnée de stage et n'accorde aucun droit supplémentaire — il r
 les attributions de référent déjà en place dans chaque activité liée et n'affiche
 que celles où l'enseignant a toujours ses droits à la source.
 
+La DEVE peut aussi déposer une demande de convention au nom d'un étudiant pour
+un stage déjà enregistré, sauf si celui-ci est dispensé de convention. Cette
+demande contourne l'éventuelle validation préalable de l'enseignant référent et
+arrive directement dans la file de traitement DEVE.
+
 ## Installation rapide
 
 ```bash

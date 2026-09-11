@@ -99,4 +99,60 @@ final class convention_access_test extends \advanced_testcase {
         $this->assertStringContainsString(get_string('generateconvention', 'mod_stage'), $html);
         $this->assertStringNotContainsString(get_string('viewconvention', 'mod_stage'), $html);
     }
+
+    /**
+     * La DEVE peut demander une convention au nom de l'étudiant tant qu'aucune demande n'est en
+     * cours, mais jamais pour un stage explicitement dispensé de convention.
+     */
+    public function test_deve_can_request_convention_except_for_exempt_entry(): void {
+        [$cm, $context, $entry] = $this->prepare_entry();
+
+        $rights = (object) ['register' => true, 'validatedeve' => false, 'assignedteacher' => false,
+            'viewdetail' => true];
+
+        $entry->conventionstatus = STAGE_CONVENTION_NONE;
+        $html = stage_render_entry_management_actions($entry, $cm, $context, $rights);
+        $this->assertStringContainsString(get_string('requestconvention', 'mod_stage'), $html);
+        $this->assertStringContainsString('convention_request.php', $html);
+
+        $entry->conventionstatus = STAGE_CONVENTION_REJECTED;
+        $html = stage_render_entry_management_actions($entry, $cm, $context, $rights);
+        $this->assertStringContainsString('convention_request.php', $html);
+
+        $entry->conventionstatus = STAGE_CONVENTION_EXEMPT;
+        $html = stage_render_entry_management_actions($entry, $cm, $context, $rights);
+        $this->assertStringNotContainsString('convention_request.php', $html);
+
+        $entry->conventionstatus = STAGE_CONVENTION_NONE;
+        $rights->register = false;
+        $html = stage_render_entry_management_actions($entry, $cm, $context, $rights);
+        $this->assertStringNotContainsString('convention_request.php', $html);
+    }
+
+    /**
+     * Une demande sans validation enseignant arrive directement dans la file de traitement DEVE.
+     *
+     * @covers ::stage_request_convention
+     */
+    public function test_request_can_bypass_teacher_validation(): void {
+        global $DB;
+
+        [, , $entry] = $this->prepare_entry();
+        $now = time();
+        $templateid = $DB->insert_record('stage_convention_template', (object) [
+            'stageid' => $entry->stageid,
+            'name' => 'Gabarit de test',
+            'lang' => 'fr',
+            'timecreated' => $now,
+            'timemodified' => $now,
+        ]);
+        stage_request_convention($entry, $templateid, false);
+
+        $savedentry = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
+        $this->assertSame(STAGE_CONVENTION_REQUESTED, (int) $savedentry->conventionstatus);
+
+        stage_request_convention($savedentry, $templateid, true);
+        $savedentry = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
+        $this->assertSame(STAGE_CONVENTION_TEACHERPENDING, (int) $savedentry->conventionstatus);
+    }
 }

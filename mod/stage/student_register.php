@@ -60,7 +60,7 @@ if ($entryid) {
         throw new moodle_exception('nopermissions', 'error', '', get_string('registerstageandconvention', 'mod_stage'));
     }
     $existingstatus = (int) $existingentry->conventionstatus;
-    if ($existingstatus !== STAGE_CONVENTION_NONE && $existingstatus !== STAGE_CONVENTION_REJECTED) {
+    if (!stage_convention_can_be_requested($existingstatus)) {
         redirect(
             $viewurl,
             get_string('conventionalreadyrequested', 'mod_stage'),

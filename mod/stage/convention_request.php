@@ -15,10 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Demande de convention de stage par l'étudiant : choix de la langue et d'un gabarit parmi ceux
- * proposés par la DEVE, ainsi que toutes les informations de la page 1 de la convention que la
- * DEVE ne connaît pas déjà (coordonnées de l'étudiant, organisme d'accueil, tuteur, modalités
- * particulières, gratification, congés). Si l'option est activée pour ce stage (voir
+ * Demande de convention de stage par l'étudiant ou par la DEVE agissant en son nom : choix de la
+ * langue et d'un gabarit, ainsi que toutes les informations de la page 1 de la convention
+ * (coordonnées de l'étudiant, organisme d'accueil, tuteur, modalités particulières, gratification,
+ * congés). Si l'option est activée pour ce stage (voir
  * stage_convention_requires_teacher_validation()), la demande doit d'abord être validée par un
  * enseignant.e référent.e (convention_teacher_validate.php) avant d'être visible par la DEVE, qui
  * la valide ensuite (passage au statut "éditée" puis "signée", ce qui ouvre le droit à
@@ -38,6 +38,7 @@ use mod_stage\form\convention_request_form;
 
 $id = required_param('id', PARAM_INT);
 $entryid = required_param('entryid', PARAM_INT);
+$returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -45,23 +46,37 @@ $stage = $DB->get_record('stage', ['id' => $cm->instance], '*', MUST_EXIST);
 
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
-require_capability('mod/stage:submit', $context);
+$cansubmit = has_capability('mod/stage:submit', $context);
+$canregister = has_capability('mod/stage:registerstages', $context);
+if (!$cansubmit && !$canregister) {
+    require_capability('mod/stage:submit', $context);
+}
 
 $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
-if ($entry->userid != $USER->id) {
+if (!$canregister && $entry->userid != $USER->id) {
     throw new moodle_exception('nopermissions', 'error', '', get_string('requestconvention', 'mod_stage'));
 }
 
-$baseurl = new moodle_url('/mod/stage/convention_request.php', ['id' => $cm->id, 'entryid' => $entryid]);
+if ((int) $entry->conventionstatus === STAGE_CONVENTION_EXEMPT) {
+    throw new moodle_exception('conventionrequestexempt', 'mod_stage');
+}
+
+$urlparams = ['id' => $cm->id, 'entryid' => $entryid];
+if ($returnurlparam !== '') {
+    $urlparams['returnurl'] = $returnurlparam;
+}
+$baseurl = new moodle_url('/mod/stage/convention_request.php', $urlparams);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('requestconvention', 'mod_stage'));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$viewurl = new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
+$viewurl = $returnurlparam !== ''
+    ? new moodle_url($returnurlparam)
+    : new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
 
 $requeststatus = (int) $entry->conventionstatus;
-if ($requeststatus !== STAGE_CONVENTION_NONE && $requeststatus !== STAGE_CONVENTION_REJECTED) {
+if (!stage_convention_can_be_requested($requeststatus)) {
     redirect(
         $viewurl,
         get_string('conventionalreadyrequested', 'mod_stage'),
@@ -113,7 +128,9 @@ $mform->set_data($formdata);
 if ($mform->is_cancelled()) {
     redirect($viewurl);
 } else if ($data = $mform->get_data()) {
-    $requireteachervalidation = stage_convention_requires_teacher_validation($stage);
+    // Une demande déposée par la DEVE est directement transmise à son propre circuit de
+    // traitement, même si les demandes étudiantes exigent normalement l'accord du référent.
+    $requireteachervalidation = !$canregister && stage_convention_requires_teacher_validation($stage);
     stage_request_convention($entry, $data->conventiontemplateid, $requireteachervalidation);
 
     $detail = new stdClass();
@@ -157,6 +174,10 @@ if ($mform->is_cancelled()) {
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('requestconvention', 'mod_stage'));
 echo html_writer::link($viewurl, get_string('back'));
+if ($canregister) {
+    $student = $DB->get_record('user', ['id' => $entry->userid], '*', MUST_EXIST);
+    echo $OUTPUT->box(get_string('requestconventionfor', 'mod_stage', fullname($student)), 'generalbox my-3');
+}
 
 if ($requeststatus === STAGE_CONVENTION_REJECTED && !empty($entry->conventionrejectcomment)) {
     echo $OUTPUT->notification(

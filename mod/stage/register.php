@@ -171,7 +171,7 @@ if ($mode === 'list') {
         }
         $badge = html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status));
         // phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Prose, que l'heuristique prend pour du code.
-        // Jusqu'à sept actions sont possibles sur une même saisie : présentées en liens séparés
+        // Jusqu'à huit actions sont possibles sur une même saisie : présentées en liens séparés
         // par des barres verticales, elles formaient une ligne indistincte. Elles sont désormais
         // rendues en boutons et hiérarchisées en trois groupes — la saisie elle-même, sa
         // convention, puis les actions destructrices, visuellement mises à l'écart.
@@ -187,6 +187,9 @@ if ($mode === 'list') {
         ], 'btn btn-sm btn-secondary mr-1 mb-1');
 
         $conventionactions = stage_render_actions([
+            get_string('requestconvention', 'mod_stage') => stage_convention_can_be_requested($conventionstatus)
+                ? new moodle_url('/mod/stage/convention_request.php', ['id' => $cm->id, 'entryid' => $entry->id,
+                    'returnurl' => $rowreturnurl]) : null,
             get_string('conventionreview', 'mod_stage') => $conventionstatus === STAGE_CONVENTION_REQUESTED
                 ? new moodle_url('/mod/stage/convention_review.php', ['id' => $cm->id, 'entryid' => $entry->id,
                     'returnurl' => $rowreturnurl]) : null,

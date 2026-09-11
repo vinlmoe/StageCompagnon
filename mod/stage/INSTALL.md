@@ -186,9 +186,14 @@ n'est ouverte qu'une fois la convention signée.**
   téléphone et courriel, affichés en tête de toutes les conventions.
 - **Logos** : deux images PNG placées en haut de la première page.
 
-### Demande par l'étudiant
+### Demande par l'étudiant ou la DEVE
 
-Formulaire couvrant les informations que la DEVE ne connaît pas déjà :
+L'étudiant peut déposer sa demande depuis « Mes stages ». La DEVE peut également
+la déposer en son nom depuis la liste des stages ou le tableau de pilotage, sauf
+si le stage est dispensé de convention. Une demande déposée par la DEVE passe
+directement à l'étape de traitement DEVE, sans validation préalable de
+l'enseignant référent, même lorsque cette validation est exigée pour les
+demandes étudiantes. Le même formulaire couvre :
 langue et gabarit, enseignant référent (choisi parmi ceux qui lui sont
 attribués — son courriel est repris automatiquement de son compte), situation
 et type de stage, coordonnées de l'étudiant, organisme d'accueil, tuteur,
@@ -406,7 +411,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `promotion_test.php` | Bilan de promotion : années échues uniquement, classement des étudiants en défaut par sévérité puis ancienneté du retard. |
 | `transfer_test.php` | Transfert d'un étudiant vers une autre instance : blocages (aucun stage, non-inscrit, thématique sans correspondance), rapprochement tolérant des noms, effets réels du transfert. |
 | `teacher_list_test.php` | Liste « Stages à évaluer » : sans filtre, seuls les stages réellement en attente d'évaluation apparaissent. |
-| `convention_access_test.php` | Accès à la convention générée non signée : lien « Générer » pour la DEVE, lien « Consulter » distinct pour le référent, et seulement entre l'édition et la signature. |
+| `convention_access_test.php` | Accès aux conventions : demande par la DEVE sauf dispense, lien « Générer » pour la DEVE et lien « Consulter » distinct pour le référent entre l'édition et la signature. |
 | `convention_paper_request_test.php` | Message rappelé à la DEVE selon qui, de l'étudiant ou du référent, a demandé une convention papier. |
 | `deve_entry_form_test.php` | Régression : la DEVE doit pouvoir modifier une saisie sans changer ses dates, sans être rejetée comme doublon d'elle-même. |
 | `entry_actions_returnurl_test.php` | Les liens d'action transmettent la page appelante en `returnurl`, pour revenir là d'où l'on vient. |

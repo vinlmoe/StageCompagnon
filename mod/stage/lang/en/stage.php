@@ -447,11 +447,13 @@ $string['conventionfpdimissing'] = 'The FPDI library required to generate conven
 // Conventions: request, templates, logos, DEVE workflow.
 $string['conventions'] = 'Internship agreements';
 $string['requestconvention'] = 'Request the agreement';
+$string['requestconventionfor'] = 'Agreement request for {$a}.';
 $string['requestconvention_help'] = 'Choose the agreement template matching your internship. '
-    . 'The DEVE will then process your request (edited, then signed); self-assessment will only '
+    . 'The request will then follow the approval, editing and signature workflow; self-assessment will only '
     . 'be possible once the agreement has been signed.';
 $string['conventionalreadyrequested'] = 'The agreement for this internship has already been requested.';
-$string['conventionrequested'] = 'The agreement request has been sent to the DEVE.';
+$string['conventionrequested'] = 'The agreement request has been saved.';
+$string['conventionrequestexempt'] = 'This internship is exempt from an agreement, so no request can be created.';
 $string['conventionnotedited'] = 'The agreement for this internship is not (or no longer) in the "edited" status, '
     . 'so it is not accessible from this link.';
 $string['conventionnotemplatechosen'] = 'No agreement template has been chosen for this internship.';

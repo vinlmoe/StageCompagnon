@@ -459,11 +459,13 @@ $string['conventionfpdimissing'] = "La librairie FPDI nécessaire à la généra
 // Conventions : demande, gabarits, logos, workflow DEVE.
 $string['conventions'] = 'Conventions de stage';
 $string['requestconvention'] = 'Demander la convention';
+$string['requestconventionfor'] = 'Demande de convention pour {$a}.';
 $string['requestconvention_help'] = "Choisissez le modèle de convention correspondant à votre stage. "
-    . "La DEVE traitera ensuite votre demande (édition puis signature) ; l'auto-évaluation ne sera "
+    . "La demande suivra ensuite le circuit de validation, d'édition et de signature ; l'auto-évaluation ne sera "
     . 'possible qu\'une fois la convention signée.';
 $string['conventionalreadyrequested'] = 'La convention de ce stage a déjà été demandée.';
-$string['conventionrequested'] = 'La demande de convention a été envoyée à la DEVE.';
+$string['conventionrequested'] = 'La demande de convention a été enregistrée.';
+$string['conventionrequestexempt'] = 'Ce stage est dispensé de convention : aucune demande ne peut être créée.';
 $string['conventionnotedited'] = "La convention de ce stage n'est pas (ou plus) au statut « éditée » : elle n'est "
     . 'donc pas accessible depuis ce lien.';
 $string['conventionnotemplatechosen'] = "Aucun modèle de convention n'a été choisi pour ce stage.";
