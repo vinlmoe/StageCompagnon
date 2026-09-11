@@ -80,7 +80,9 @@ if ($mform->is_cancelled()) {
         'establishment' => !empty($data->importestablishment),
     ]);
     $result->establishmenttext = get_string(
-        $result->establishment ? 'importdoneestablishmentyes' : 'importdoneestablishmentno', 'mod_stage');
+        $result->establishment ? 'importdoneestablishmentyes' : 'importdoneestablishmentno',
+        'mod_stage'
+    );
 
     redirect($backurl, get_string('importdone', 'mod_stage', $result), null, \core\output\notification::NOTIFY_SUCCESS);
 }

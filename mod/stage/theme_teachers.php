@@ -58,8 +58,12 @@ if (data_submitted() && confirm_sesskey()) {
     // filtre, un id arbitraire soumis à la main donnerait accès aux rapports de la thématique.
     $selected = array_intersect($selected, array_keys($teachers));
     stage_set_theme_teachers($theme->id, $selected);
-    redirect($returnurl, get_string('themeteacherssaved', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $returnurl,
+        get_string('themeteacherssaved', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 echo $OUTPUT->header();
@@ -97,10 +101,16 @@ echo html_writer::tag('select', $availableoptions, [
 echo html_writer::end_div();
 
 echo html_writer::start_div('col-md-2 d-flex flex-column justify-content-center align-items-center');
-echo html_writer::tag('button', get_string('addselected', 'mod_stage') . ' »',
-    ['type' => 'button', 'id' => 'stage-add-teachers', 'class' => 'btn btn-secondary mb-2 w-100']);
-echo html_writer::tag('button', '« ' . get_string('removeselected', 'mod_stage'),
-    ['type' => 'button', 'id' => 'stage-remove-teachers', 'class' => 'btn btn-secondary w-100']);
+echo html_writer::tag(
+    'button',
+    get_string('addselected', 'mod_stage') . ' »',
+    ['type' => 'button', 'id' => 'stage-add-teachers', 'class' => 'btn btn-secondary mb-2 w-100']
+);
+echo html_writer::tag(
+    'button',
+    '« ' . get_string('removeselected', 'mod_stage'),
+    ['type' => 'button', 'id' => 'stage-remove-teachers', 'class' => 'btn btn-secondary w-100']
+);
 echo html_writer::end_div();
 
 echo html_writer::start_div('col-md-5');

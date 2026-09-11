@@ -67,9 +67,11 @@ if (empty($targets) || empty($students)) {
     echo $OUTPUT->header();
     echo $OUTPUT->heading(get_string('transferstudent', 'mod_stage'));
     echo html_writer::link($backurl, get_string('back'));
-    echo $OUTPUT->notification(empty($targets)
+    echo $OUTPUT->notification(
+        empty($targets)
         ? get_string('transfernotargets', 'mod_stage') : get_string('nostudents', 'mod_stage'),
-        \core\output\notification::NOTIFY_INFO);
+        \core\output\notification::NOTIFY_INFO
+    );
     echo $OUTPUT->footer();
     exit;
 }
@@ -132,10 +134,14 @@ if ($userid && $targetstageid) {
                 stage_studyyear_label($entry->studyyear),
                 $entry->structure,
                 $entry->retainedduration,
-                html_writer::span(stage_status_label($entry->status),
-                    'badge ' . stage_status_badgeclass($entry->status)),
-                html_writer::span(stage_convention_status_label($entry->conventionstatus),
-                    'badge ' . stage_convention_status_badgeclass($entry->conventionstatus)),
+                html_writer::span(
+                    stage_status_label($entry->status),
+                    'badge ' . stage_status_badgeclass($entry->status)
+                ),
+                html_writer::span(
+                    stage_convention_status_label($entry->conventionstatus),
+                    'badge ' . stage_convention_status_badgeclass($entry->conventionstatus)
+                ),
             ];
         }
         echo $OUTPUT->heading(get_string('transferentries', 'mod_stage'), 4);
@@ -150,13 +156,18 @@ if ($userid && $targetstageid) {
     }
 
     if (empty($plan->blockers)) {
-        echo $OUTPUT->notification(get_string('transferirreversible', 'mod_stage'),
-            \core\output\notification::NOTIFY_INFO);
+        echo $OUTPUT->notification(
+            get_string('transferirreversible', 'mod_stage'),
+            \core\output\notification::NOTIFY_INFO
+        );
         $confirmurl = new moodle_url($baseurl, [
             'userid' => $userid, 'targetstageid' => $targetstageid, 'confirm' => 1, 'sesskey' => sesskey(),
         ]);
-        echo html_writer::link($confirmurl, get_string('transferconfirm', 'mod_stage'),
-            ['class' => 'btn btn-primary mr-2']);
+        echo html_writer::link(
+            $confirmurl,
+            get_string('transferconfirm', 'mod_stage'),
+            ['class' => 'btn btn-primary mr-2']
+        );
         echo html_writer::link($baseurl, get_string('cancel'), ['class' => 'btn btn-secondary']);
     }
 

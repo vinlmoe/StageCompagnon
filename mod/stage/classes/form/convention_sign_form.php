@@ -30,7 +30,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_sign_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -44,8 +43,12 @@ class convention_sign_form extends \moodleform {
         $mform->addElement('hidden', 'entryid');
         $mform->setType('entryid', PARAM_INT);
 
-        $mform->addElement('static', 'studentname', get_string('student', 'mod_stage'),
-            $this->_customdata['studentname'] ?? '');
+        $mform->addElement(
+            'static',
+            'studentname',
+            get_string('student', 'mod_stage'),
+            $this->_customdata['studentname'] ?? ''
+        );
 
         $mform->addElement('filemanager', 'signedfile', get_string('conventionsignedfile', 'mod_stage'), null, [
             'subdirs' => 0,

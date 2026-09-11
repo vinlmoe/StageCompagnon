@@ -33,13 +33,14 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_render_entry_management_actions
  */
 final class convention_access_test extends \advanced_testcase {
-
     /**
      * Prépare un stage, une thématique, une saisie et son contexte de module.
      *
      * @return array [stdClass $cm, context $context, stdClass $entry]
      */
     private function prepare_entry(): array {
+        global $PAGE;
+
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
         $stage = $this->getDataGenerator()->create_module('stage', ['course' => $course]);
@@ -50,6 +51,10 @@ final class convention_access_test extends \advanced_testcase {
         $theme = $generator->create_theme($stage);
         $student = $this->getDataGenerator()->create_user();
         $entry = $generator->create_entry($stage, $student->id, $theme);
+
+        // Les liens d'action encodent la page appelante ($PAGE->url) : hors requête web, elle
+        // n'est pas fixée et out_as_local_url() la rejette.
+        $PAGE->set_url(new \moodle_url('/mod/stage/view.php', ['id' => $cm->id]));
 
         return [$cm, $context, $entry];
     }

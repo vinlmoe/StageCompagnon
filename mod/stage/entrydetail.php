@@ -62,7 +62,7 @@ $refuserids = array_unique(array_filter([
     $entry->conventionteachervalidatedby, $entry->conventioneditedby, $entry->conventionsignedby,
 ]));
 $refusers = $refuserids ? $DB->get_records_list('user', 'id', $refuserids) : [];
-$userlabel = function($userid) use ($refusers) {
+$userlabel = function ($userid) use ($refusers) {
     return isset($refusers[$userid]) ? fullname($refusers[$userid]) : '-';
 };
 
@@ -82,8 +82,12 @@ $PAGE->set_context($context);
 // de devoir passer par l'écran de validation.
 if ($isdeve && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()) {
     $sent = stage_resend_tutor_evaluation_request($stage, $cm, $entry);
-    redirect($baseurl, get_string($sent ? 'tutorevalresent' : 'tutorevalresentfailed', 'mod_stage'), null,
-        $sent ? \core\output\notification::NOTIFY_SUCCESS : \core\output\notification::NOTIFY_WARNING);
+    redirect(
+        $baseurl,
+        get_string($sent ? 'tutorevalresent' : 'tutorevalresentfailed', 'mod_stage'),
+        null,
+        $sent ? \core\output\notification::NOTIFY_SUCCESS : \core\output\notification::NOTIFY_WARNING
+    );
 }
 
 echo $OUTPUT->header();
@@ -227,10 +231,13 @@ $teacherquestions = stage_get_questions($entry->themeid, 'teacher');
 if (!empty($teacherquestions) || $entry->teachereval) {
     echo $OUTPUT->heading(get_string('teachereval', 'mod_stage'), 4);
     if (!empty($entry->teacherid)) {
-        echo html_writer::tag('p', html_writer::tag('strong', get_string('evaluatedby', 'mod_stage') . ' : ')
+        echo html_writer::tag(
+            'p',
+            html_writer::tag('strong', get_string('evaluatedby', 'mod_stage') . ' : ')
             . $userlabel($entry->teacherid)
             . ($entry->teachertime ? ' - ' . userdate($entry->teachertime, $datetimeformat) : ''),
-            ['class' => 'text-muted']);
+            ['class' => 'text-muted']
+        );
     }
     echo !empty($teacherquestions)
         ? stage_render_answers_readonly($teacherquestions, $answers)
@@ -260,11 +267,16 @@ if (stage_tutor_evaluation_enabled($stage, $theme)) {
         // Coordonnées du maître de stage et relance manuelle du courriel d'invitation, réservées à
         // la DEVE : les enseignants n'ont pas à connaître cette adresse ni à déclencher l'envoi.
         if ($isdeve && empty($entry->tutortime) && empty($entry->tutorbypassed) && $detail && !empty($detail->tutoremail)) {
-            echo html_writer::tag('p',
-                html_writer::tag('strong', get_string('conventiontutoremail', 'mod_stage') . ' : ') . s($detail->tutoremail));
+            echo html_writer::tag(
+                'p',
+                html_writer::tag('strong', get_string('conventiontutoremail', 'mod_stage') . ' : ') . s($detail->tutoremail)
+            );
             $resendurl = new moodle_url($baseurl, ['resendtutor' => 1, 'sesskey' => sesskey()]);
-            echo html_writer::link($resendurl, get_string('tutorevalresend', 'mod_stage'),
-                ['class' => 'btn btn-sm btn-secondary mb-2']);
+            echo html_writer::link(
+                $resendurl,
+                get_string('tutorevalresend', 'mod_stage'),
+                ['class' => 'btn btn-sm btn-secondary mb-2']
+            );
         }
     }
 }
@@ -272,10 +284,13 @@ if (stage_tutor_evaluation_enabled($stage, $theme)) {
 if ($entry->devecomment || !empty($entry->deveuserid)) {
     echo $OUTPUT->heading(get_string('devecomment', 'mod_stage'), 4);
     if (!empty($entry->deveuserid)) {
-        echo html_writer::tag('p', html_writer::tag('strong', get_string('status_validedeve', 'mod_stage') . ' : ')
+        echo html_writer::tag(
+            'p',
+            html_writer::tag('strong', get_string('status_validedeve', 'mod_stage') . ' : ')
             . $userlabel($entry->deveuserid)
             . ($entry->devetime ? ' - ' . userdate($entry->devetime, $datetimeformat) : ''),
-            ['class' => 'text-muted']);
+            ['class' => 'text-muted']
+        );
     }
     if ($entry->devecomment) {
         echo html_writer::div(format_text($entry->devecomment, FORMAT_PLAIN));

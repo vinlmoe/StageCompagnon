@@ -1,9 +1,20 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace mod_stage\local;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Lecteur du classeur historique « Suivi des STAGES et EP ».
@@ -11,10 +22,11 @@ defined('MOODLE_INTERNAL') || die();
  * Le format est volontairement reconnu par les intitulés des feuilles et des colonnes plutôt
  * que par leurs positions : l'ajout demandé d'une colonne Email ne doit pas casser les blocs.
  *
- * @package mod_stage
+ * @package   mod_stage
+ * @copyright 2026 Sébastien Lefebvre
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class historical_importer {
-
     /** @var string Nom de la feuille des stages obligatoires. */
     const MANDATORY_SHEET = 'stages validation er';
 
@@ -35,8 +47,11 @@ class historical_importer {
         $result = ['records' => [], 'warnings' => []];
         foreach ($allsheets as $sheetname => $rows) {
             $normalized = self::normalize($sheetname);
-            $mandatory = in_array($normalized,
-                [self::MANDATORY_SHEET, self::MANDATORY_SHEET_SINGULAR], true);
+            $mandatory = in_array(
+                $normalized,
+                [self::MANDATORY_SHEET, self::MANDATORY_SHEET_SINGULAR],
+                true
+            );
             if (!$mandatory && $normalized !== self::COMPLEMENTARY_SHEET) {
                 continue;
             }
@@ -107,8 +122,10 @@ class historical_importer {
         $blockstarts = [];
         foreach ($headers as $col => $header) {
             $value = self::normalize((string) $header);
-            if ($value === 'lieu et date' || $value === 'lieu du stage'
-                    || $value === 'convention enregistree') {
+            if (
+                $value === 'lieu et date' || $value === 'lieu du stage'
+                    || $value === 'convention enregistree'
+            ) {
                 $blockstarts[] = $col;
             }
         }
@@ -171,7 +188,13 @@ class historical_importer {
         return ['records' => $records, 'warnings' => $warnings];
     }
 
-    /** @return bool */
+    /**
+     * Indique si la ligne porte au moins un bloc de stage renseigné.
+     *
+     * @param array $row Cellules de la ligne.
+     * @param array $starts Index de la première colonne de chaque bloc.
+     * @return bool
+     */
     private static function row_has_stage_data(array $row, array $starts): bool {
         foreach ($starts as $start) {
             if (trim((string) ($row[$start] ?? '')) !== '') {
@@ -181,7 +204,14 @@ class historical_importer {
         return false;
     }
 
-    /** @return array */
+    /**
+     * Repère, dans un bloc de stage, les colonnes lieu, validation, durée et année.
+     *
+     * @param array $headers Ligne d'intitulés.
+     * @param int $start Première colonne du bloc.
+     * @param int $end Première colonne du bloc suivant.
+     * @return array Nom de champ => index de colonne.
+     */
     private static function block_columns(array $headers, int $start, int $end): array {
         $found = ['location' => $start, 'validation' => $start + 1, 'duration' => $start + 2, 'year' => $end - 1];
         for ($col = $start; $col < $end; $col++) {
@@ -197,7 +227,13 @@ class historical_importer {
         return $found;
     }
 
-    /** @return int|null */
+    /**
+     * Index de la première colonne dont l'intitulé correspond à l'un des noms donnés.
+     *
+     * @param array $headers Ligne d'intitulés.
+     * @param array $names Intitulés recherchés, déjà normalisés.
+     * @return int|null Null si aucune colonne ne correspond.
+     */
     private static function find_header(array $headers, array $names): ?int {
         foreach ($headers as $col => $header) {
             if (in_array(self::normalize((string) $header), $names, true)) {
@@ -207,7 +243,13 @@ class historical_importer {
         return null;
     }
 
-    /** @return array */
+    /**
+     * Index de toutes les colonnes dont l'intitulé correspond à l'un des noms donnés.
+     *
+     * @param array $headers Ligne d'intitulés.
+     * @param array $names Intitulés recherchés, déjà normalisés.
+     * @return array Index de colonnes, dans l'ordre du classeur.
+     */
     private static function find_headers(array $headers, array $names): array {
         $columns = [];
         foreach ($headers as $col => $header) {
@@ -218,12 +260,22 @@ class historical_importer {
         return $columns;
     }
 
-    /** @return bool */
+    /**
+     * Interprète la case de validation du classeur (1, V, validé, oui...).
+     *
+     * @param mixed $value Contenu de la cellule.
+     * @return bool
+     */
     private static function is_validated($value): bool {
         return in_array(self::normalize((string) $value), ['1', 'v', 'valide', 'oui', 'true'], true);
     }
 
-    /** @return string */
+    /**
+     * Première ligne d'un intitulé de thématique, le classeur en cumulant parfois plusieurs.
+     *
+     * @param mixed $value Contenu de la cellule.
+     * @return string
+     */
     private static function theme_name($value): string {
         $line = preg_split('/[\r\n]+/', trim((string) $value))[0] ?? '';
         return trim($line);
@@ -237,11 +289,20 @@ class historical_importer {
      */
     private static function parse_dates(string $text): array {
         $text = \core_text::strtolower(trim(str_replace(['–', '—'], '-', $text)));
-        preg_match_all('/\b(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\b/', $text, $matches,
-            PREG_SET_ORDER);
-        if (count($matches) === 1
-                && preg_match('/\b(\d{1,2})\s+(?:au|a)\s+' . preg_quote($matches[0][0], '/') . '/u',
-                    $text, $shortstart)) {
+        preg_match_all(
+            '/\b(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\b/',
+            $text,
+            $matches,
+            PREG_SET_ORDER
+        );
+        if (
+            count($matches) === 1
+                && preg_match(
+                    '/\b(\d{1,2})\s+(?:au|a)\s+' . preg_quote($matches[0][0], '/') . '/u',
+                    $text,
+                    $shortstart
+                )
+        ) {
             array_unshift($matches, [$shortstart[1] . '/' . $matches[0][2], $shortstart[1], $matches[0][2],
                 $matches[0][3] ?? '']);
         }
@@ -267,7 +328,12 @@ class historical_importer {
         return ($start && $end && $end >= $start) ? [$start, $end] : [null, null];
     }
 
-    /** @return int */
+    /**
+     * Complète une année du classeur écrite sur deux chiffres.
+     *
+     * @param string $year Année telle que saisie.
+     * @return int Année sur quatre chiffres, 0 si la cellule est vide.
+     */
     private static function full_year(string $year): int {
         if ($year === '') {
             return 0;
@@ -276,7 +342,12 @@ class historical_importer {
         return $value < 100 ? 2000 + $value : $value;
     }
 
-    /** @return string */
+    /**
+     * Forme comparable d'un intitulé : minuscules, sans accent ni ponctuation.
+     *
+     * @param string $value
+     * @return string
+     */
     private static function normalize(string $value): string {
         $value = \core_text::strtolower(trim($value));
         $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
@@ -287,7 +358,12 @@ class historical_importer {
         return trim(preg_replace('/\s+/', ' ', $value));
     }
 
-    /** @return array */
+    /**
+     * Table des chaînes partagées du classeur (xl/sharedStrings.xml).
+     *
+     * @param \ZipArchive $zip Classeur ouvert.
+     * @return array Chaînes, indexées par leur position.
+     */
     private static function read_shared_strings(\ZipArchive $zip): array {
         $xml = $zip->getFromName('xl/sharedStrings.xml');
         if ($xml === false) {
@@ -307,7 +383,12 @@ class historical_importer {
         return $strings;
     }
 
-    /** @return array */
+    /**
+     * Feuilles du classeur et le chemin de leur XML dans l'archive.
+     *
+     * @param \ZipArchive $zip Classeur ouvert.
+     * @return array Nom de feuille => chemin dans l'archive.
+     */
     private static function read_workbook_sheets(\ZipArchive $zip): array {
         $workbook = self::xml($zip->getFromName('xl/workbook.xml'));
         $relations = self::xml($zip->getFromName('xl/_rels/workbook.xml.rels'));
@@ -323,7 +404,9 @@ class historical_importer {
         $sheets = [];
         foreach ($xpath->query('//x:sheet') as $sheet) {
             $target = $relmap[$sheet->getAttributeNS(
-                'http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id')] ?? '';
+                'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+                'id'
+            )] ?? '';
             if ($target !== '') {
                 $target = ltrim(preg_replace('#^\.\./#', '', $target), '/');
                 $sheets[$sheet->getAttribute('name')] = strpos($target, 'xl/') === 0 ? $target : 'xl/' . $target;
@@ -332,7 +415,14 @@ class historical_importer {
         return $sheets;
     }
 
-    /** @return array */
+    /**
+     * Lit une feuille et renvoie ses lignes sous forme de tableaux de cellules.
+     *
+     * @param \ZipArchive $zip Classeur ouvert.
+     * @param string $path Chemin de la feuille dans l'archive.
+     * @param array $sharedstrings Voir read_shared_strings().
+     * @return array Une entrée par ligne, chacune indexée par numéro de colonne.
+     */
     private static function read_sheet(\ZipArchive $zip, string $path, array $sharedstrings): array {
         $xml = $zip->getFromName($path);
         if ($xml === false) {
@@ -365,7 +455,12 @@ class historical_importer {
         return $rows;
     }
 
-    /** @return int */
+    /**
+     * Convertit une référence de colonne Excel (A, B, ..., AA) en index.
+     *
+     * @param string $letters Lettres de la référence de cellule.
+     * @return int Index de colonne à partir de 0.
+     */
     private static function column_index(string $letters): int {
         $index = 0;
         foreach (str_split($letters) as $letter) {
@@ -374,7 +469,12 @@ class historical_importer {
         return $index - 1;
     }
 
-    /** @return \DOMDocument */
+    /**
+     * Charge un fragment XML du classeur, en refusant tout accès réseau.
+     *
+     * @param string $content Contenu XML.
+     * @return \DOMDocument
+     */
     private static function xml(string $content): \DOMDocument {
         $doc = new \DOMDocument();
         if (!$doc->loadXML($content, LIBXML_NONET | LIBXML_NOBLANKS)) {

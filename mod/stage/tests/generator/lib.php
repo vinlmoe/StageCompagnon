@@ -25,7 +25,6 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mod_stage_generator extends testing_module_generator {
-
     /**
      * Crée une thématique de stage.
      *
@@ -86,9 +85,17 @@ class mod_stage_generator extends testing_module_generator {
         ], $record);
 
         $entryid = stage_register_entry(
-            $stageid, $userid, $themeid, $record['structure'],
-            $record['datestart'], $record['dateend'], $record['declaredduration'],
-            $record['studyyear'], $record['conventionstatus'], $record['abroad'], $record['country']
+            $stageid,
+            $userid,
+            $themeid,
+            $record['structure'],
+            $record['datestart'],
+            $record['dateend'],
+            $record['declaredduration'],
+            $record['studyyear'],
+            $record['conventionstatus'],
+            $record['abroad'],
+            $record['country']
         );
 
         return $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);

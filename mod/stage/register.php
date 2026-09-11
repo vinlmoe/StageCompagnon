@@ -90,21 +90,42 @@ if ($mode === 'list') {
     echo html_writer::link(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]), get_string('back'));
 
     echo html_writer::div(
-        html_writer::link(new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'single']),
-            get_string('registerstage', 'mod_stage'), ['class' => 'btn btn-primary mr-2'])
-        . html_writer::link(new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'bulk']),
-            get_string('bulkregisterstages', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
-        . html_writer::link(new moodle_url('/mod/stage/import.php', ['id' => $cm->id]),
-            get_string('importcsv', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
-        . html_writer::link(new moodle_url('/mod/stage/import_stagevet.php', ['id' => $cm->id]),
-            get_string('importstagevetcsv', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
-        . html_writer::link(new moodle_url('/mod/stage/import_historical.php', ['id' => $cm->id]),
-            get_string('historicalimport', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
-        . html_writer::link(new moodle_url('/mod/stage/import_global.php', ['id' => $cm->id]),
-            get_string('globalimport', 'mod_stage'), ['class' => 'btn btn-secondary mr-2'])
+        html_writer::link(
+            new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'single']),
+            get_string('registerstage', 'mod_stage'),
+            ['class' => 'btn btn-primary mr-2']
+        )
+        . html_writer::link(
+            new moodle_url('/mod/stage/register.php', ['id' => $cm->id, 'mode' => 'bulk']),
+            get_string('bulkregisterstages', 'mod_stage'),
+            ['class' => 'btn btn-secondary mr-2']
+        )
+        . html_writer::link(
+            new moodle_url('/mod/stage/import.php', ['id' => $cm->id]),
+            get_string('importcsv', 'mod_stage'),
+            ['class' => 'btn btn-secondary mr-2']
+        )
+        . html_writer::link(
+            new moodle_url('/mod/stage/import_stagevet.php', ['id' => $cm->id]),
+            get_string('importstagevetcsv', 'mod_stage'),
+            ['class' => 'btn btn-secondary mr-2']
+        )
+        . html_writer::link(
+            new moodle_url('/mod/stage/import_historical.php', ['id' => $cm->id]),
+            get_string('historicalimport', 'mod_stage'),
+            ['class' => 'btn btn-secondary mr-2']
+        )
+        . html_writer::link(
+            new moodle_url('/mod/stage/import_global.php', ['id' => $cm->id]),
+            get_string('globalimport', 'mod_stage'),
+            ['class' => 'btn btn-secondary mr-2']
+        )
         . (has_capability('mod/stage:viewall', $context)
-            ? html_writer::link(new moodle_url('/mod/stage/export.php', ['id' => $cm->id]),
-                get_string('exportexcel', 'mod_stage'), ['class' => 'btn btn-secondary'])
+            ? html_writer::link(
+                new moodle_url('/mod/stage/export.php', ['id' => $cm->id]),
+                get_string('exportexcel', 'mod_stage'),
+                ['class' => 'btn btn-secondary']
+            )
             : ''),
         'my-3'
     );
@@ -118,8 +139,12 @@ if ($mode === 'list') {
     ]);
     echo stage_render_list_filters($listurl, $allthemes, $search, $filterthemeid, $filterstatus);
 
-    $allentries = stage_get_filtered_entries($stage->id,
-        ['search' => $search, 'themeid' => $filterthemeid, 'status' => $filterstatus], $tsort, $tdir);
+    $allentries = stage_get_filtered_entries(
+        $stage->id,
+        ['search' => $search, 'themeid' => $filterthemeid, 'status' => $filterstatus],
+        $tsort,
+        $tdir
+    );
     [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
     $students = stage_get_entry_users($entries);
     $stagetypes = stage_get_entry_stagetypes(array_keys($entries));
@@ -139,10 +164,13 @@ if ($mode === 'list') {
             $themename .= ' ' . html_writer::span(get_string('abroad', 'mod_stage'), 'badge badge-info');
         }
         if (($stagetypes[$entry->id] ?? 'obligatoire') === 'complementaire') {
-            $themename .= ' ' . html_writer::span(get_string('conventionstagetype_complementaire', 'mod_stage'),
-                'badge badge-secondary');
+            $themename .= ' ' . html_writer::span(
+                get_string('conventionstagetype_complementaire', 'mod_stage'),
+                'badge badge-secondary'
+            );
         }
         $badge = html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status));
+        // phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- Prose, que l'heuristique prend pour du code.
         // Jusqu'à sept actions sont possibles sur une même saisie : présentées en liens séparés
         // par des barres verticales, elles formaient une ligne indistincte. Elles sont désormais
         // rendues en boutons et hiérarchisées en trois groupes — la saisie elle-même, sa
@@ -152,8 +180,10 @@ if ($mode === 'list') {
         // ci-dessous), pas sur la liste "vierge".
         $rowreturnurl = (new moodle_url($listurl, ['page' => $page]))->out_as_local_url(false);
         $actions = stage_render_actions([
-            get_string('edit') => new moodle_url('/mod/stage/register.php',
-                ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]),
+            get_string('edit') => new moodle_url(
+                '/mod/stage/register.php',
+                ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]
+            ),
         ], 'btn btn-sm btn-secondary mr-1 mb-1');
 
         $conventionactions = stage_render_actions([
@@ -189,9 +219,13 @@ if ($mode === 'list') {
         }
         if ((int) $entry->status !== STAGE_STATUS_ANNULE) {
             $actions .= html_writer::link(
-                new moodle_url('/mod/stage/cancel_entry.php',
-                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]),
-                get_string('cancelentry', 'mod_stage'), ['class' => 'btn btn-sm btn-outline-danger mr-1 mb-1']);
+                new moodle_url(
+                    '/mod/stage/cancel_entry.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]
+                ),
+                get_string('cancelentry', 'mod_stage'),
+                ['class' => 'btn btn-sm btn-outline-danger mr-1 mb-1']
+            );
         }
         $table->data[] = [
             $student ? fullname($student) : '-',
@@ -222,8 +256,10 @@ if ($mode === 'single') {
 
     $entrystudent = $entry ? $DB->get_record('user', ['id' => $entry->userid]) : null;
     $entryperiods = $entry ? array_values(stage_get_or_seed_entry_periods($entry)) : [];
-    $formurl = new moodle_url('/mod/stage/register.php',
-        ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entryid, 'returnurl' => $returnurlparam]);
+    $formurl = new moodle_url(
+        '/mod/stage/register.php',
+        ['id' => $cm->id, 'mode' => 'single', 'entryid' => $entryid, 'returnurl' => $returnurlparam]
+    );
     $mform = new deve_entry_form($formurl, [
         'themes' => $themes,
         'students' => $students,
@@ -254,10 +290,10 @@ if ($mode === 'single') {
             $toform->retainedduration = $entry->retainedduration;
         }
         $toform->exemptfromconvention = (int) $entry->conventionstatus === STAGE_CONVENTION_EXEMPT ? 1 : 0;
-        $toform->perioddatestart = array_map(function($period) {
+        $toform->perioddatestart = array_map(function ($period) {
             return $period->datestart;
         }, $entryperiods);
-        $toform->perioddateend = array_map(function($period) {
+        $toform->perioddateend = array_map(function ($period) {
             return $period->dateend;
         }, $entryperiods);
         // Le nombre de jours proposé par défaut est celui coché par l'étudiant lors de son
@@ -282,16 +318,35 @@ if ($mode === 'single') {
             if ($editretainedduration) {
                 $entry->retainedduration = max(0, (int) $data->retainedduration);
             }
-            stage_update_entry_details($entry, $data->themeid, $data->structure, $datestart, $dateend,
-                $data->declaredduration, $data->studyyear, $data->abroad, $data->country);
+            stage_update_entry_details(
+                $entry,
+                $data->themeid,
+                $data->structure,
+                $datestart,
+                $dateend,
+                $data->declaredduration,
+                $data->studyyear,
+                $data->abroad,
+                $data->country
+            );
             stage_save_entry_periods($entry->id, $periods);
             stage_set_entry_convention_exempt($entry, !empty($data->exemptfromconvention));
             stage_set_entry_stagetype($entry->id, $data->stagetype);
         } else {
             $conventionstatus = !empty($data->exemptfromconvention) ? STAGE_CONVENTION_EXEMPT : STAGE_CONVENTION_NONE;
-            $newentryid = stage_register_entry($stage->id, $data->userid, $data->themeid, $data->structure,
-                $datestart, $dateend, $data->declaredduration, $data->studyyear, $conventionstatus,
-                $data->abroad, $data->country);
+            $newentryid = stage_register_entry(
+                $stage->id,
+                $data->userid,
+                $data->themeid,
+                $data->structure,
+                $datestart,
+                $dateend,
+                $data->declaredduration,
+                $data->studyyear,
+                $conventionstatus,
+                $data->abroad,
+                $data->country
+            );
             stage_save_entry_periods($newentryid, $periods);
             stage_set_entry_stagetype($newentryid, $data->stagetype);
         }
@@ -348,8 +403,19 @@ if ($mode === 'bulk') {
             }
             // Les stages enregistrés en masse sont déjà signés sur SignVet au moment de leur
             // enregistrement : pas de gestion de convention à faire dans ce plugin pour eux.
-            stage_register_entry($stage->id, $studentid, $themeid, $structure, $start, $end, $declaredduration,
-                $studyyear, STAGE_CONVENTION_SIGNVET, $abroad, $country);
+            stage_register_entry(
+                $stage->id,
+                $studentid,
+                $themeid,
+                $structure,
+                $start,
+                $end,
+                $declaredduration,
+                $studyyear,
+                STAGE_CONVENTION_SIGNVET,
+                $abroad,
+                $country
+            );
             $existing[$key] = true;
             $bulkresults->created++;
         }
@@ -365,8 +431,10 @@ if ($mode === 'bulk') {
         // « 0 stage enregistré » sans expliquer pourquoi.
         echo $OUTPUT->notification($bulkresults->error, \core\output\notification::NOTIFY_ERROR);
     } else if ($bulkresults) {
-        echo $OUTPUT->notification(get_string('bulkregistered', 'mod_stage', $bulkresults->created),
-            \core\output\notification::NOTIFY_SUCCESS);
+        echo $OUTPUT->notification(
+            get_string('bulkregistered', 'mod_stage', $bulkresults->created),
+            \core\output\notification::NOTIFY_SUCCESS
+        );
         if (!empty($bulkresults->duplicates)) {
             echo $OUTPUT->notification(
                 get_string('bulkduplicatesskipped', 'mod_stage', implode(', ', $bulkresults->duplicates)),
@@ -387,15 +455,25 @@ if ($mode === 'bulk') {
     echo html_writer::select($themeoptions, 'themeid', '', false, ['id' => 'themeid', 'required' => 'required']);
 
     echo html_writer::tag('label', get_string('studyyear', 'mod_stage'), ['for' => 'studyyear']);
-    echo html_writer::select(stage_studyyear_options(), 'studyyear', '', false,
-        ['id' => 'studyyear', 'required' => 'required']);
+    echo html_writer::select(
+        stage_studyyear_options(),
+        'studyyear',
+        '',
+        false,
+        ['id' => 'studyyear', 'required' => 'required']
+    );
 
     echo html_writer::tag('label', get_string('structure', 'mod_stage'), ['for' => 'structure']);
     echo html_writer::empty_tag('input', ['type' => 'text', 'name' => 'structure', 'id' => 'structure', 'class' => 'form-control']);
 
     echo html_writer::start_tag('div', ['class' => 'form-check my-2']);
-    echo html_writer::checkbox('abroad', 1, false, ' ' . get_string('abroad', 'mod_stage'),
-        ['class' => 'form-check-input', 'id' => 'abroad']);
+    echo html_writer::checkbox(
+        'abroad',
+        1,
+        false,
+        ' ' . get_string('abroad', 'mod_stage'),
+        ['class' => 'form-check-input', 'id' => 'abroad']
+    );
     echo html_writer::end_tag('div');
 
     echo html_writer::start_tag('div', ['id' => 'countryfieldwrapper', 'style' => 'display:none']);
@@ -440,8 +518,11 @@ if ($mode === 'bulk') {
         echo html_writer::end_tag('div');
     }
 
-    echo html_writer::tag('button', get_string('bulkregisterselected', 'mod_stage'),
-        ['type' => 'submit', 'name' => 'bulkregister', 'value' => 1, 'class' => 'btn btn-primary mt-3']);
+    echo html_writer::tag(
+        'button',
+        get_string('bulkregisterselected', 'mod_stage'),
+        ['type' => 'submit', 'name' => 'bulkregister', 'value' => 1, 'class' => 'btn btn-primary mt-3']
+    );
     echo html_writer::end_tag('form');
 
     echo $OUTPUT->footer();

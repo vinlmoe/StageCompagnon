@@ -31,7 +31,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * Module instance settings form for mod_stage.
  */
 class mod_stage_mod_form extends moodleform_mod {
-
     /**
      * Defines the form fields.
      */
@@ -47,8 +46,12 @@ class mod_stage_mod_form extends moodleform_mod {
 
         $this->standard_intro_elements();
 
-        $mform->addElement('select', 'currentstudyyear', get_string('currentstudyyear', 'mod_stage'),
-            stage_studyyear_options());
+        $mform->addElement(
+            'select',
+            'currentstudyyear',
+            get_string('currentstudyyear', 'mod_stage'),
+            stage_studyyear_options()
+        );
         $mform->addHelpButton('currentstudyyear', 'currentstudyyear', 'mod_stage');
         $mform->setDefault('currentstudyyear', 0);
 

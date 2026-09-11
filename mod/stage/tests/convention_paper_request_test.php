@@ -33,7 +33,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_convention_paper_requested_info
  */
 final class convention_paper_request_test extends \advanced_testcase {
-
     public function test_no_request_returns_null(): void {
         $detail = (object) ['paperrequestedbystudent' => 0, 'paperrequestedbyteacher' => 0];
         $this->assertNull(stage_convention_paper_requested_info($detail));
@@ -42,19 +41,25 @@ final class convention_paper_request_test extends \advanced_testcase {
 
     public function test_student_only(): void {
         $detail = (object) ['paperrequestedbystudent' => 1, 'paperrequestedbyteacher' => 0];
-        $this->assertSame(get_string('conventionpaperrequestedbystudentonly', 'mod_stage'),
-            stage_convention_paper_requested_info($detail));
+        $this->assertSame(
+            get_string('conventionpaperrequestedbystudentonly', 'mod_stage'),
+            stage_convention_paper_requested_info($detail)
+        );
     }
 
     public function test_teacher_only(): void {
         $detail = (object) ['paperrequestedbystudent' => 0, 'paperrequestedbyteacher' => 1];
-        $this->assertSame(get_string('conventionpaperrequestedbyteacheronly', 'mod_stage'),
-            stage_convention_paper_requested_info($detail));
+        $this->assertSame(
+            get_string('conventionpaperrequestedbyteacheronly', 'mod_stage'),
+            stage_convention_paper_requested_info($detail)
+        );
     }
 
     public function test_both(): void {
         $detail = (object) ['paperrequestedbystudent' => 1, 'paperrequestedbyteacher' => 1];
-        $this->assertSame(get_string('conventionpaperrequestedbyboth', 'mod_stage'),
-            stage_convention_paper_requested_info($detail));
+        $this->assertSame(
+            get_string('conventionpaperrequestedbyboth', 'mod_stage'),
+            stage_convention_paper_requested_info($detail)
+        );
     }
 }

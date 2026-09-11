@@ -29,7 +29,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class administration_import_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -73,8 +72,10 @@ class administration_import_form extends \moodleform {
             $errors['sourcestageid'] = get_string('required');
         }
 
-        if (empty($data['importthemes']) && empty($data['importtemplates']) && empty($data['importlogos'])
-                && empty($data['importemails']) && empty($data['importestablishment'])) {
+        if (
+            empty($data['importthemes']) && empty($data['importtemplates']) && empty($data['importlogos'])
+                && empty($data['importemails']) && empty($data['importestablishment'])
+        ) {
             $errors['importthemes'] = get_string('importnothingselected', 'mod_stage');
         }
 

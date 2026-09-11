@@ -56,8 +56,11 @@ $PAGE->set_context($context);
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('conventions', 'mod_stage'));
 echo html_writer::link(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]), get_string('back'));
-echo html_writer::link(new moodle_url('/mod/stage/convention_templates.php', ['id' => $cm->id]),
-    get_string('conventiontemplates', 'mod_stage'), ['class' => 'btn btn-secondary d-block mt-2 mb-3', 'style' => 'width:fit-content']);
+echo html_writer::link(
+    new moodle_url('/mod/stage/convention_templates.php', ['id' => $cm->id]),
+    get_string('conventiontemplates', 'mod_stage'),
+    ['class' => 'btn btn-secondary d-block mt-2 mb-3', 'style' => 'width:fit-content']
+);
 
 $listurl = new moodle_url($baseurl, ['search' => $search, 'tsort' => $tsort, 'tdir' => $tdir]);
 $searchformurl = new moodle_url($listurl);
@@ -98,9 +101,13 @@ if (empty($allentries)) {
         $themename = isset($themes[$entry->themeid]) ? format_string($themes[$entry->themeid]->name) : '-';
         $templatename = isset($templates[$entry->conventiontemplateid])
             ? format_string($templates[$entry->conventiontemplateid]->name) : '-';
-        $badge = html_writer::span(stage_convention_status_label($entry->conventionstatus),
-            'badge ' . stage_convention_status_badgeclass($entry->conventionstatus));
-        $requestdate = $entry->conventionrequesttime ? userdate($entry->conventionrequesttime, get_string('strftimedatetimeshort')) : '-';
+        $badge = html_writer::span(
+            stage_convention_status_label($entry->conventionstatus),
+            'badge ' . stage_convention_status_badgeclass($entry->conventionstatus)
+        );
+        $requestdate = $entry->conventionrequesttime
+            ? userdate($entry->conventionrequesttime, get_string('strftimedatetimeshort'))
+            : '-';
 
         // Chaque statut n'ouvre qu'une action « suivante » dans le circuit (relire, marquer
         // signée...) : elle est mise en avant en bouton principal, les actions toujours
@@ -110,11 +117,15 @@ if (empty($allentries)) {
         $rowreturnurl = (new moodle_url($listurl, ['page' => $page]))->out_as_local_url(false);
         $nextaction = stage_render_actions([
             get_string('conventionreview', 'mod_stage') => $status === STAGE_CONVENTION_REQUESTED
-                ? new moodle_url('/mod/stage/convention_review.php',
-                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]) : null,
+                ? new moodle_url(
+                    '/mod/stage/convention_review.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]
+                ) : null,
             get_string('conventionmarksigned', 'mod_stage') => $status === STAGE_CONVENTION_EDITED
-                ? new moodle_url('/mod/stage/convention_sign.php',
-                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]) : null,
+                ? new moodle_url(
+                    '/mod/stage/convention_sign.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]
+                ) : null,
         ], 'btn btn-sm btn-primary mr-1 mb-1');
         $otheractions = stage_render_actions([
             get_string('downloadsignedconvention', 'mod_stage') =>
@@ -122,8 +133,10 @@ if (empty($allentries)) {
                     ? new moodle_url('/mod/stage/convention_signed.php', ['id' => $cm->id, 'entryid' => $entry->id])
                     : null,
             get_string('generateconvention', 'mod_stage') => $status >= STAGE_CONVENTION_EDITED
-                ? new moodle_url('/mod/stage/convention.php',
-                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]) : null,
+                ? new moodle_url(
+                    '/mod/stage/convention.php',
+                    ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $rowreturnurl]
+                ) : null,
         ]);
         $actions = trim(($nextaction !== '-' ? $nextaction : '') . ($otheractions !== '-' ? $otheractions : ''));
         // Le motif de refus explique pourquoi il n'y a rien à faire ici : il suit les actions,

@@ -34,7 +34,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class report_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -50,8 +49,13 @@ class report_form extends \moodleform {
         $mform->addElement('hidden', 'savereport', 1);
         $mform->setType('savereport', PARAM_INT);
 
-        $mform->addElement('filemanager', 'reportfiles', get_string('reportfiles', 'mod_stage'), null,
-            $this->_customdata['filemanageroptions']);
+        $mform->addElement(
+            'filemanager',
+            'reportfiles',
+            get_string('reportfiles', 'mod_stage'),
+            null,
+            $this->_customdata['filemanageroptions']
+        );
         $mform->addHelpButton('reportfiles', 'reportfiles', 'mod_stage');
 
         $this->add_action_buttons(false, get_string('savereportfiles', 'mod_stage'));

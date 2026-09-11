@@ -194,10 +194,8 @@ if (data_submitted() && confirm_sesskey()) {
                     }
                 }
 
-                /**
-                 * Lit une colonne de la ligne courante par clé interne (ou l'une de ses variantes,
-                 * la première non vide étant retenue), '' si absente/vide.
-                 */
+                // Lit une colonne de la ligne courante par clé interne (ou l'une de ses
+                // variantes, la première non vide étant retenue), '' si absente/vide.
                 $getcol = function (array $row, ...$keys) use ($colindex) {
                     foreach ($keys as $key) {
                         if (isset($colindex[$key]) && isset($row[$colindex[$key]])) {
@@ -383,40 +381,54 @@ if ($uploaderror !== null) {
 }
 
 if ($results) {
-    echo $OUTPUT->notification(get_string('importresult', 'mod_stage', $results->created),
-        \core\output\notification::NOTIFY_SUCCESS);
+    echo $OUTPUT->notification(
+        get_string('importresult', 'mod_stage', $results->created),
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 
     // Rapport groupé : un étudiant ou une thématique manquant sur cent lignes ne doit apparaître
     // qu'une fois, avec la liste des lignes concernées, plutôt que cent messages identiques.
     if (!empty($results->unknownstudents)) {
-        echo $OUTPUT->heading(get_string('importstagevetunknownstudentsreport', 'mod_stage',
-            count($results->unknownstudents)), 4);
+        echo $OUTPUT->heading(get_string(
+            'importstagevetunknownstudentsreport',
+            'mod_stage',
+            count($results->unknownstudents)
+        ), 4);
         $lines = [];
         foreach ($results->unknownstudents as $name => $linenums) {
             $lines[] = get_string('importstagevetreportline', 'mod_stage', (object) [
                 'value' => $name, 'lines' => implode(', ', $linenums),
             ]);
         }
-        echo $OUTPUT->notification(implode(html_writer::empty_tag('br'), $lines),
-            \core\output\notification::NOTIFY_WARNING);
+        echo $OUTPUT->notification(
+            implode(html_writer::empty_tag('br'), $lines),
+            \core\output\notification::NOTIFY_WARNING
+        );
     }
 
     if (!empty($results->unknownthemes)) {
-        echo $OUTPUT->heading(get_string('importstagevetunknownthemesreport', 'mod_stage',
-            count($results->unknownthemes)), 4);
+        echo $OUTPUT->heading(get_string(
+            'importstagevetunknownthemesreport',
+            'mod_stage',
+            count($results->unknownthemes)
+        ), 4);
         $lines = [];
         foreach ($results->unknownthemes as $name => $linenums) {
             $lines[] = get_string('importstagevetreportline', 'mod_stage', (object) [
                 'value' => $name, 'lines' => implode(', ', $linenums),
             ]);
         }
-        echo $OUTPUT->notification(implode(html_writer::empty_tag('br'), $lines),
-            \core\output\notification::NOTIFY_WARNING);
+        echo $OUTPUT->notification(
+            implode(html_writer::empty_tag('br'), $lines),
+            \core\output\notification::NOTIFY_WARNING
+        );
     }
 
     if (!empty($results->errors)) {
-        echo $OUTPUT->notification(implode(html_writer::empty_tag('br'), $results->errors),
-            \core\output\notification::NOTIFY_WARNING);
+        echo $OUTPUT->notification(
+            implode(html_writer::empty_tag('br'), $results->errors),
+            \core\output\notification::NOTIFY_WARNING
+        );
     }
 }
 
@@ -427,8 +439,11 @@ echo html_writer::start_tag('form', [
 ]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 echo html_writer::empty_tag('input', ['type' => 'file', 'name' => 'csvfile', 'accept' => '.csv', 'required' => 'required']);
-echo html_writer::tag('button', get_string('import', 'mod_stage'),
-    ['type' => 'submit', 'class' => 'btn btn-primary ml-2']);
+echo html_writer::tag(
+    'button',
+    get_string('import', 'mod_stage'),
+    ['type' => 'submit', 'class' => 'btn btn-primary ml-2']
+);
 echo html_writer::end_tag('form');
 
 echo $OUTPUT->footer();

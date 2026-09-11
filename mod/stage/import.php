@@ -168,11 +168,15 @@ if ($uploaderror !== null) {
 }
 
 if ($results) {
-    echo $OUTPUT->notification(get_string('importresult', 'mod_stage', $results->created),
-        \core\output\notification::NOTIFY_SUCCESS);
+    echo $OUTPUT->notification(
+        get_string('importresult', 'mod_stage', $results->created),
+        \core\output\notification::NOTIFY_SUCCESS
+    );
     if (!empty($results->errors)) {
-        echo $OUTPUT->notification(implode(html_writer::empty_tag('br'), $results->errors),
-            \core\output\notification::NOTIFY_WARNING);
+        echo $OUTPUT->notification(
+            implode(html_writer::empty_tag('br'), $results->errors),
+            \core\output\notification::NOTIFY_WARNING
+        );
     }
 }
 
@@ -183,8 +187,11 @@ echo html_writer::start_tag('form', [
 ]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 echo html_writer::empty_tag('input', ['type' => 'file', 'name' => 'csvfile', 'accept' => '.csv', 'required' => 'required']);
-echo html_writer::tag('button', get_string('import', 'mod_stage'),
-    ['type' => 'submit', 'class' => 'btn btn-primary ml-2']);
+echo html_writer::tag(
+    'button',
+    get_string('import', 'mod_stage'),
+    ['type' => 'submit', 'class' => 'btn btn-primary ml-2']
+);
 echo html_writer::end_tag('form');
 
 echo $OUTPUT->footer();

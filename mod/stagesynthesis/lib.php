@@ -22,8 +22,6 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Returns the list of features supported by this module.
  *
@@ -39,10 +37,7 @@ function stagesynthesis_supports($feature) {
         case FEATURE_GRADE_HAS_GRADE:
             return false;
         case FEATURE_BACKUP_MOODLE2:
-            // Faux tant que backup/moodle2/ n'est pas fourni : déclarer la prise en charge sans
-            // les classes de sauvegarde correspondantes fait échouer la sauvegarde de tout cours
-            // contenant l'activité, au lieu de simplement l'en exclure.
-            return false;
+            return true;
         case FEATURE_MOD_PURPOSE:
             return defined('MOD_PURPOSE_ADMINISTRATION') ? MOD_PURPOSE_ADMINISTRATION : MOD_PURPOSE_OTHER;
         default:

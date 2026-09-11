@@ -33,7 +33,6 @@ require_once($CFG->libdir . '/pdflib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class promotion_pdf extends \pdf {
-
     /** @var array Couleur du bandeau de section et de l'en-tête de tableau (RGB). */
     const BAND_COLOR = [0, 61, 100];
 
@@ -153,8 +152,23 @@ class promotion_pdf extends \pdf {
         $y = $this->GetY();
         $x = $this->getMargins()['left'];
         foreach ($cells as $i => $cell) {
-            $this->MultiCell($this->widths[$i], $height, $cell, 1, $i === 0 ? 'L' : 'C', true, 0,
-                $x, $y, true, 0, false, true, $height, 'M');
+            $this->MultiCell(
+                $this->widths[$i],
+                $height,
+                $cell,
+                1,
+                $i === 0 ? 'L' : 'C',
+                true,
+                0,
+                $x,
+                $y,
+                true,
+                0,
+                false,
+                true,
+                $height,
+                'M'
+            );
             $x += $this->widths[$i];
         }
         $this->SetY($y + $height);

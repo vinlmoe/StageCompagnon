@@ -55,10 +55,9 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  *   l'auteur effacés, la saisie de l'étudiant restant intacte.
  */
 class provider implements
-        \core_privacy\local\metadata\provider,
-        \core_privacy\local\request\plugin\provider,
-        \core_privacy\local\request\core_userlist_provider {
-
+    \core_privacy\local\metadata\provider,
+    \core_privacy\local\request\core_userlist_provider,
+    \core_privacy\local\request\plugin\provider {
     /**
      * Décrit les données personnelles stockées par le plugin.
      *
@@ -212,8 +211,10 @@ class provider implements
 
         $params = ['instanceid' => $context->instanceid, 'modname' => 'stage'];
 
-        foreach (['userid', 'teacherid', 'deveuserid', 'conventionteachervalidatedby', 'conventioneditedby',
-                'conventionsignedby', 'conventionrejectedby', 'cancelledby'] as $field) {
+        foreach (
+            ['userid', 'teacherid', 'deveuserid', 'conventionteachervalidatedby', 'conventioneditedby',
+                'conventionsignedby', 'conventionrejectedby', 'cancelledby'] as $field
+        ) {
             $userlist->add_from_sql($field, "SELECT e.$field
                                                FROM {course_modules} cm
                                                JOIN {modules} m ON m.id = cm.module AND m.name = :modname
@@ -260,8 +261,11 @@ class provider implements
                 continue;
             }
 
-            $entries = $DB->get_records('stage_entry', ['stageid' => $cm->instance, 'userid' => $user->id],
-                'datestart ASC');
+            $entries = $DB->get_records(
+                'stage_entry',
+                ['stageid' => $cm->instance, 'userid' => $user->id],
+                'datestart ASC'
+            );
             foreach ($entries as $entry) {
                 $subcontext = [get_string('mystages', 'mod_stage'), (string) $entry->id];
 
@@ -288,19 +292,23 @@ class provider implements
                 if ($detail) {
                     unset($detail->id, $detail->entryid);
                     writer::with_context($context)->export_data(
-                        array_merge($subcontext, [get_string('conventiondetails', 'mod_stage')]), $detail);
+                        array_merge($subcontext, [get_string('conventiondetails', 'mod_stage')]),
+                        $detail
+                    );
                 }
 
                 $periods = $DB->get_records('stage_entry_period', ['entryid' => $entry->id], 'datestart ASC');
                 if ($periods) {
-                    $rows = array_map(function($period) {
+                    $rows = array_map(function ($period) {
                         return (object) [
                             'datestart' => transform::datetime($period->datestart),
                             'dateend' => transform::datetime($period->dateend),
                         ];
                     }, array_values($periods));
                     writer::with_context($context)->export_data(
-                        array_merge($subcontext, [get_string('periods', 'mod_stage')]), (object) ['periods' => $rows]);
+                        array_merge($subcontext, [get_string('periods', 'mod_stage')]),
+                        (object) ['periods' => $rows]
+                    );
                 }
 
                 $answers = $DB->get_records('stage_answer', ['entryid' => $entry->id]);
@@ -314,7 +322,9 @@ class provider implements
                         ];
                     }
                     writer::with_context($context)->export_data(
-                        array_merge($subcontext, [get_string('answers', 'mod_stage')]), (object) ['answers' => $rows]);
+                        array_merge($subcontext, [get_string('answers', 'mod_stage')]),
+                        (object) ['answers' => $rows]
+                    );
                 }
 
                 foreach (['signedconvention', STAGE_REPORT_FILEAREA] as $filearea) {
@@ -381,7 +391,9 @@ class provider implements
                 'cancelcomment' => ((int) $entry->cancelledby === $userid) ? $entry->cancelcomment : null,
             ];
             writer::with_context($context)->export_data(
-                [get_string('supervisedstages', 'mod_stage'), (string) $entry->id], $data);
+                [get_string('supervisedstages', 'mod_stage'), (string) $entry->id],
+                $data
+            );
         }
     }
 
@@ -473,14 +485,20 @@ class provider implements
 
         // 1. En tant qu'étudiant : suppression intégrale des stages et de tout ce qui en dépend
         // (évaluations, détail de convention, périodes, jours ouvrés, réponses, fichiers).
-        $entryids = $DB->get_fieldset_select('stage_entry', 'id',
-            "stageid = :stageid AND userid $usersql", $params);
+        $entryids = $DB->get_fieldset_select(
+            'stage_entry',
+            'id',
+            "stageid = :stageid AND userid $usersql",
+            $params
+        );
         stage_delete_entries($entryids, $context);
 
         // Attributions de référent, que l'utilisateur y figure comme étudiant ou comme référent.
-        $DB->delete_records_select('stage_entry_teacher',
+        $DB->delete_records_select(
+            'stage_entry_teacher',
             "stageid = :stageid AND (studentid $usersql OR teacherid $usersql2)",
-            array_merge(['stageid' => $cm->instance], $userparams, $userparams2));
+            array_merge(['stageid' => $cm->instance], $userparams, $userparams2)
+        );
 
         // 2. En tant que personnel cité dans le stage d'un autre étudiant : le stage appartient à
         // cet étudiant et doit survivre, seules les références à l'utilisateur supprimé sautent.
@@ -495,8 +513,12 @@ class provider implements
             'cancelledby' => ['cancelcomment', 'canceltime'],
         ];
         foreach ($staffcolumns as $column => $authored) {
-            $affected = $DB->get_fieldset_select('stage_entry', 'id',
-                "stageid = :stageid AND $column $usersql", $params);
+            $affected = $DB->get_fieldset_select(
+                'stage_entry',
+                'id',
+                "stageid = :stageid AND $column $usersql",
+                $params
+            );
             foreach ($affected as $entryid) {
                 $update = (object) ['id' => $entryid, $column => null, 'timemodified' => time()];
                 // Les textes rédigés par cette personne partent avec la référence : les conserver
@@ -519,8 +541,11 @@ class provider implements
         $themeids = $DB->get_fieldset_select('stage_theme', 'id', 'stageid = ?', [$cm->instance]);
         if ($themeids) {
             [$themesql, $themeparams] = $DB->get_in_or_equal($themeids, SQL_PARAMS_NAMED, 'th');
-            $DB->delete_records_select('stage_theme_teacher',
-                "themeid $themesql AND teacherid $usersql", array_merge($themeparams, $userparams));
+            $DB->delete_records_select(
+                'stage_theme_teacher',
+                "themeid $themesql AND teacherid $usersql",
+                array_merge($themeparams, $userparams)
+            );
         }
     }
 }

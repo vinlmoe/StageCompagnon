@@ -48,8 +48,16 @@ if (!has_capability('mod/stage:viewall', $context) && !stage_is_theme_teacher($t
     throw new moodle_exception('nopermissions', 'error', '', get_string('reportfiles', 'mod_stage'));
 }
 
-$entries = stage_get_filtered_entries($stage->id,
-    ['search' => $search, 'themeid' => $theme->id, 'status' => $filterstatus], 'student', 'ASC');
+$entries = stage_get_filtered_entries(
+    $stage->id,
+    ['search' => $search, 'themeid' => $theme->id, 'status' => $filterstatus],
+    'student',
+    'ASC'
+);
 
-stage_send_reports_zip($context, $entries, stage_get_entry_users($entries),
-    get_string('reportszipname', 'mod_stage', format_string($theme->name)));
+stage_send_reports_zip(
+    $context,
+    $entries,
+    stage_get_entry_users($entries),
+    get_string('reportszipname', 'mod_stage', format_string($theme->name))
+);

@@ -61,16 +61,28 @@ $filemanageroptions = ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => $CFG->maxb
 // Suppression d'un gabarit (protégée si déjà utilisé par une demande de convention).
 if ($action === 'delete' && $templateid) {
     require_sesskey();
-    $template = $DB->get_record('stage_convention_template', ['id' => $templateid, 'stageid' => $stage->id], '*',
-        MUST_EXIST);
+    $template = $DB->get_record(
+        'stage_convention_template',
+        ['id' => $templateid, 'stageid' => $stage->id],
+        '*',
+        MUST_EXIST
+    );
     if (!$DB->record_exists('stage_entry', ['conventiontemplateid' => $template->id])) {
         get_file_storage()->delete_area_files($context->id, 'mod_stage', 'conventiontemplate', $template->id);
         $DB->delete_records('stage_convention_template', ['id' => $template->id]);
-        redirect($baseurl, get_string('conventiontemplatedeleted', 'mod_stage'), null,
-            \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            $baseurl,
+            get_string('conventiontemplatedeleted', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     } else {
-        redirect($baseurl, get_string('conventiontemplateinuse', 'mod_stage'), null,
-            \core\output\notification::NOTIFY_ERROR);
+        redirect(
+            $baseurl,
+            get_string('conventiontemplateinuse', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
     }
 }
 
@@ -78,17 +90,29 @@ if ($action === 'delete' && $templateid) {
 if ($action === 'edit') {
     $template = null;
     if ($templateid) {
-        $template = $DB->get_record('stage_convention_template', ['id' => $templateid, 'stageid' => $stage->id], '*',
-            MUST_EXIST);
+        $template = $DB->get_record(
+            'stage_convention_template',
+            ['id' => $templateid, 'stageid' => $stage->id],
+            '*',
+            MUST_EXIST
+        );
     }
 
-    $formurl = new moodle_url('/mod/stage/convention_templates.php',
-        ['id' => $cm->id, 'action' => 'edit', 'templateid' => $templateid]);
+    $formurl = new moodle_url(
+        '/mod/stage/convention_templates.php',
+        ['id' => $cm->id, 'action' => 'edit', 'templateid' => $templateid]
+    );
     $mform = new convention_template_form($formurl, ['editing' => (bool) $template]);
 
     $draftitemid = file_get_submitted_draft_itemid('templatefile');
-    file_prepare_draft_area($draftitemid, $template ? $context->id : null, 'mod_stage', 'conventiontemplate',
-        $template ? $template->id : null, $filemanageroptions);
+    file_prepare_draft_area(
+        $draftitemid,
+        $template ? $context->id : null,
+        'mod_stage',
+        'conventiontemplate',
+        $template ? $template->id : null,
+        $filemanageroptions
+    );
 
     $toform = new stdClass();
     $toform->id = $cm->id;
@@ -118,10 +142,20 @@ if ($action === 'edit') {
                 'timemodified' => time(),
             ]);
         }
-        file_save_draft_area_files($data->templatefile, $context->id, 'mod_stage', 'conventiontemplate',
-            $savedtemplateid, $filemanageroptions);
-        redirect($baseurl, get_string('conventiontemplatesaved', 'mod_stage'), null,
-            \core\output\notification::NOTIFY_SUCCESS);
+        file_save_draft_area_files(
+            $data->templatefile,
+            $context->id,
+            'mod_stage',
+            'conventiontemplate',
+            $savedtemplateid,
+            $filemanageroptions
+        );
+        redirect(
+            $baseurl,
+            get_string('conventiontemplatesaved', 'mod_stage'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 
     echo $OUTPUT->header();
@@ -160,25 +194,53 @@ $establishmentform->set_data((object) [
 
 if ($establishmentdata = $establishmentform->get_data()) {
     stage_save_establishment_info($stage->id, $establishmentdata);
-    redirect($baseurl, get_string('conventionestablishmentsaved', 'mod_stage'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $baseurl,
+        get_string('conventionestablishmentsaved', 'mod_stage'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 // Enregistrement des deux logos (formulaire séparé, affiché sous la liste des gabarits).
 $logosform = new convention_logos_form($baseurl);
 $logodraftleft = file_get_submitted_draft_itemid('logoleft');
 $logodraftright = file_get_submitted_draft_itemid('logoright');
-file_prepare_draft_area($logodraftleft, $context->id, 'mod_stage', 'conventionlogoleft', 0,
-    ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => 2 * 1024 * 1024, 'accepted_types' => ['.png']]);
-file_prepare_draft_area($logodraftright, $context->id, 'mod_stage', 'conventionlogoright', 0,
-    ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => 2 * 1024 * 1024, 'accepted_types' => ['.png']]);
+file_prepare_draft_area(
+    $logodraftleft,
+    $context->id,
+    'mod_stage',
+    'conventionlogoleft',
+    0,
+    ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => 2 * 1024 * 1024, 'accepted_types' => ['.png']]
+);
+file_prepare_draft_area(
+    $logodraftright,
+    $context->id,
+    'mod_stage',
+    'conventionlogoright',
+    0,
+    ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => 2 * 1024 * 1024, 'accepted_types' => ['.png']]
+);
 $logosform->set_data((object) ['id' => $cm->id, 'logoleft' => $logodraftleft, 'logoright' => $logodraftright]);
 
 if ($logosdata = $logosform->get_data()) {
-    file_save_draft_area_files($logosdata->logoleft, $context->id, 'mod_stage', 'conventionlogoleft', 0,
-        ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => 2 * 1024 * 1024, 'accepted_types' => ['.png']]);
-    file_save_draft_area_files($logosdata->logoright, $context->id, 'mod_stage', 'conventionlogoright', 0,
-        ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => 2 * 1024 * 1024, 'accepted_types' => ['.png']]);
+    file_save_draft_area_files(
+        $logosdata->logoleft,
+        $context->id,
+        'mod_stage',
+        'conventionlogoleft',
+        0,
+        ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => 2 * 1024 * 1024, 'accepted_types' => ['.png']]
+    );
+    file_save_draft_area_files(
+        $logosdata->logoright,
+        $context->id,
+        'mod_stage',
+        'conventionlogoright',
+        0,
+        ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => 2 * 1024 * 1024, 'accepted_types' => ['.png']]
+    );
     redirect($baseurl, get_string('conventionlogossaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
@@ -189,8 +251,11 @@ echo html_writer::link(new moodle_url('/mod/stage/administration.php', ['id' => 
 echo $OUTPUT->heading(get_string('generalsettings', 'mod_stage'), 4);
 $settingsform->display();
 
-echo html_writer::link(new moodle_url('/mod/stage/convention_templates.php', ['id' => $cm->id, 'action' => 'edit']),
-    get_string('addconventiontemplate', 'mod_stage'), ['class' => 'btn btn-primary d-block mt-2 mb-3', 'style' => 'width:fit-content']);
+echo html_writer::link(
+    new moodle_url('/mod/stage/convention_templates.php', ['id' => $cm->id, 'action' => 'edit']),
+    get_string('addconventiontemplate', 'mod_stage'),
+    ['class' => 'btn btn-primary d-block mt-2 mb-3', 'style' => 'width:fit-content']
+);
 
 $templates = stage_get_convention_templates($stage->id);
 if (empty($templates)) {
@@ -203,10 +268,14 @@ if (empty($templates)) {
         get_string('actions', 'mod_stage'),
     ];
     foreach ($templates as $template) {
-        $editurl = new moodle_url('/mod/stage/convention_templates.php',
-            ['id' => $cm->id, 'action' => 'edit', 'templateid' => $template->id]);
-        $deleteurl = new moodle_url('/mod/stage/convention_templates.php',
-            ['id' => $cm->id, 'action' => 'delete', 'templateid' => $template->id, 'sesskey' => sesskey()]);
+        $editurl = new moodle_url(
+            '/mod/stage/convention_templates.php',
+            ['id' => $cm->id, 'action' => 'edit', 'templateid' => $template->id]
+        );
+        $deleteurl = new moodle_url(
+            '/mod/stage/convention_templates.php',
+            ['id' => $cm->id, 'action' => 'delete', 'templateid' => $template->id, 'sesskey' => sesskey()]
+        );
         $actions = stage_render_actions([get_string('edit') => $editurl])
             . html_writer::link($deleteurl, get_string('delete'), [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',

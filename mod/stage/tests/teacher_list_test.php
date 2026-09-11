@@ -33,7 +33,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_get_filtered_entries
  */
 final class teacher_list_test extends \advanced_testcase {
-
     /**
      * Le filtre par défaut de teacher.php (status = STAGE_STATUS_EVAL_ETUDIANT) ne retient que les
      * saisies effectivement en attente d'évaluation, à l'exclusion des autres statuts.
@@ -61,7 +60,7 @@ final class teacher_list_test extends \advanced_testcase {
         stage_reject_by_teacher($rejected, 2, 'motif');
 
         $entries = stage_get_filtered_entries($stage->id, ['status' => STAGE_STATUS_EVAL_ETUDIANT]);
-        $ids = array_map(function($e) {
+        $ids = array_map(function ($e) {
             return (int) $e->id;
         }, $entries);
 

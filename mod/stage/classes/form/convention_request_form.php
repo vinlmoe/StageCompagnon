@@ -32,7 +32,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_request_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -47,8 +46,13 @@ class convention_request_form extends \moodleform {
         $mform->setType('entryid', PARAM_INT);
 
         // Langue et gabarit.
-        $mform->addElement('select', 'conventionlang', get_string('conventionlang', 'mod_stage'),
-            stage_convention_lang_options(), ['id' => 'id_conventionlang']);
+        $mform->addElement(
+            'select',
+            'conventionlang',
+            get_string('conventionlang', 'mod_stage'),
+            stage_convention_lang_options(),
+            ['id' => 'id_conventionlang']
+        );
         $mform->setDefault('conventionlang', 'fr');
 
         $templateoptions = [];
@@ -58,8 +62,12 @@ class convention_request_form extends \moodleform {
         }
         // Sélecteur unique, toutes langues confondues : la cohérence entre le gabarit et la
         // langue choisie est vérifiée par validation() plutôt que par un filtrage JS.
-        $mform->addElement('select', 'conventiontemplateid', get_string('conventiontemplatename', 'mod_stage'),
-            $templateoptions);
+        $mform->addElement(
+            'select',
+            'conventiontemplateid',
+            get_string('conventiontemplatename', 'mod_stage'),
+            $templateoptions
+        );
         $mform->addRule('conventiontemplateid', null, 'required', null, 'client');
 
         // Signalée dès la demande, cette case informe la DEVE qu'un exemplaire imprimé (avec cadre
@@ -76,15 +84,27 @@ class convention_request_form extends \moodleform {
         foreach ($referentteachers as $teacher) {
             $referentoptions[$teacher->id] = fullname($teacher);
         }
-        $mform->addElement('select', 'referentteacherid', get_string('conventionreferentteacher', 'mod_stage'),
-            $referentoptions);
+        $mform->addElement(
+            'select',
+            'referentteacherid',
+            get_string('conventionreferentteacher', 'mod_stage'),
+            $referentoptions
+        );
         $mform->addRule('referentteacherid', null, 'required', null, 'client');
 
         // Situation de l'étudiant, type de stage.
-        $mform->addElement('select', 'yearsituation', get_string('conventionyearsituation', 'mod_stage'),
-            stage_convention_yearsituation_options());
-        $mform->addElement('select', 'stagetype', get_string('conventionstagetype', 'mod_stage'),
-            stage_convention_stagetype_options());
+        $mform->addElement(
+            'select',
+            'yearsituation',
+            get_string('conventionyearsituation', 'mod_stage'),
+            stage_convention_yearsituation_options()
+        );
+        $mform->addElement(
+            'select',
+            'stagetype',
+            get_string('conventionstagetype', 'mod_stage'),
+            stage_convention_stagetype_options()
+        );
 
         // Plages de dates du stage (plusieurs plages non contiguës possibles), sur la même page
         // que le reste des informations de convention (voir stage_add_period_fields()).
@@ -94,8 +114,12 @@ class convention_request_form extends \moodleform {
         $mform->addElement('header', 'studentheader', get_string('conventionstudent', 'mod_stage'));
         $mform->setExpanded('studentheader');
         $mform->addElement('date_selector', 'studentbirthdate', get_string('conventionbirthdate', 'mod_stage'));
-        $mform->addElement('text', 'studentaddress', get_string('conventionstudentaddress', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'studentaddress',
+            get_string('conventionstudentaddress', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('studentaddress', PARAM_TEXT);
         $mform->addRule('studentaddress', null, 'required', null, 'client');
         $mform->addElement('text', 'studentphone', get_string('conventionstudentphone', 'mod_stage'));
@@ -108,12 +132,20 @@ class convention_request_form extends \moodleform {
         $mform->addElement('text', 'hostaddress', get_string('conventionhostaddress', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostaddress', PARAM_TEXT);
         $mform->addRule('hostaddress', null, 'required', null, 'client');
-        $mform->addElement('text', 'hostrepresentative', get_string('conventionhostrepresentative', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'hostrepresentative',
+            get_string('conventionhostrepresentative', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('hostrepresentative', PARAM_TEXT);
         $mform->addRule('hostrepresentative', null, 'required', null, 'client');
-        $mform->addElement('text', 'hostrepresentativetitle', get_string('conventionhostrepresentativetitle', 'mod_stage'),
-            ['size' => '64']);
+        $mform->addElement(
+            'text',
+            'hostrepresentativetitle',
+            get_string('conventionhostrepresentativetitle', 'mod_stage'),
+            ['size' => '64']
+        );
         $mform->setType('hostrepresentativetitle', PARAM_TEXT);
         $mform->addRule('hostrepresentativetitle', null, 'required', null, 'client');
         $mform->addElement('text', 'hostservice', get_string('conventionhostservice', 'mod_stage'), ['size' => '64']);
@@ -170,8 +202,12 @@ class convention_request_form extends \moodleform {
         $mform->addElement('text', 'leavedays', get_string('conventionleavedays', 'mod_stage'));
         $mform->setType('leavedays', PARAM_INT);
         $mform->hideIf('leavedays', 'hasleave', 'notchecked');
-        $mform->addElement('textarea', 'leavemodalities', get_string('conventionleavemodalities', 'mod_stage'),
-            ['rows' => 3, 'cols' => 60]);
+        $mform->addElement(
+            'textarea',
+            'leavemodalities',
+            get_string('conventionleavemodalities', 'mod_stage'),
+            ['rows' => 3, 'cols' => 60]
+        );
         $mform->setType('leavemodalities', PARAM_TEXT);
         $mform->hideIf('leavemodalities', 'hasleave', 'notchecked');
 

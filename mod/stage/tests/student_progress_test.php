@@ -32,7 +32,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_get_student_progress
  */
 final class student_progress_test extends \advanced_testcase {
-
     /**
      * Une thématique bornée sur plusieurs années avec une durée globale (ex : 30 jours, quelle que
      * soit l'année) ne doit pas voir cette durée sommée une fois par année sur laquelle l'étudiant a
@@ -51,8 +50,12 @@ final class student_progress_test extends \advanced_testcase {
         $student = $this->getDataGenerator()->create_user();
 
         foreach ([2, 3, 4] as $year) {
-            $entry = $generator->create_entry($stage, $student->id, $theme,
-                ['studyyear' => $year, 'declaredduration' => 10]);
+            $entry = $generator->create_entry(
+                $stage,
+                $student->id,
+                $theme,
+                ['studyyear' => $year, 'declaredduration' => 10]
+            );
             stage_apply_deve_validation($entry, 2, 10);
         }
 

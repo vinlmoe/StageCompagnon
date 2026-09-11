@@ -1,4 +1,9 @@
-# Moodle-stage
+# StageCompagnon
+
+[![CI](https://github.com/vinlmoe/StageCompagnon/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vinlmoe/StageCompagnon/actions/workflows/ci.yml)
+[![Moodle 4.0+](https://img.shields.io/badge/Moodle-4.0%2B-f98012?logo=moodle&logoColor=white)](https://moodle.org)
+[![PHP 8.2](https://img.shields.io/badge/PHP-8.2-777bb4?logo=php&logoColor=white)](https://www.php.net)
+[![Licence GPL v3+](https://img.shields.io/badge/licence-GPL%20v3%2B-blue)](https://www.gnu.org/licenses/gpl-3.0)
 
 Deux modules d'activité Moodle pour la gestion des stages étudiants en école
 vétérinaire : l'enregistrement et la validation des stages promotion par
@@ -49,12 +54,43 @@ php admin/cli/upgrade.php
 Les procédures détaillées — mise en place d'un cours, rôles à créer, imports,
 configuration des conventions et des courriels — sont dans les deux `INSTALL.md`.
 
+## Contrôle continu
+
+Chaque poussée déclenche `.github/workflows/ci.yml`, en deux temps :
+
+- **Style Moodle** — `phpcs` avec le standard `moodle` (`moodlehq/moodle-cs`), sur la
+  configuration `phpcs.xml` du dépôt. Le contrôle échoue au premier écart, avertissements
+  compris. Une seule règle est désactivée, et le fichier dit pourquoi : le sniff qui exige
+  qu'un commentaire commence par `[A-Z0-9]` ne reconnaît pas les capitales accentuées, et
+  s'y conformer imposerait d'écrire « Ecran » pour « Écran ».
+- **Moodle** — `moodle-plugin-ci` installe un Moodle 4.5 avec PostgreSQL et les modules du
+  dépôt, puis enchaîne analyse syntaxique, validation de la structure du module, points de
+  sauvegarde de la mise à jour, gabarits Mustache et tests PHPUnit. Le contrôle des blocs de
+  documentation (`phpdoc`) est présent mais non bloquant : son relevé reste à trier.
+
+Pour rejouer le contrôle de style en local :
+
+```bash
+mkdir -p /tmp/cs && composer --working-dir=/tmp/cs require moodlehq/moodle-cs
+/tmp/cs/vendor/bin/phpcs --config-set installed_paths \
+  /tmp/cs/vendor/moodlehq/moodle-cs/moodle,/tmp/cs/vendor/phpcsstandards/phpcsextra/Universal,\
+/tmp/cs/vendor/phpcsstandards/phpcsextra/NormalizedArrays,/tmp/cs/vendor/phpcsstandards/phpcsextra/Modernize
+/tmp/cs/vendor/bin/phpcs --standard=phpcs.xml -p
+```
+
+`phpcbf` (même chemin, mêmes options) corrige d'office la plus grande part des écarts.
+
 ## Points à connaître avant une mise en production
 
-**Sauvegarde.** Aucun des deux modules ne fournit d'implémentation
-`backup/moodle2/`. Une sauvegarde de cours Moodle s'exécute normalement mais
-n'emporte pas les données des activités. La conservation passe par une
-sauvegarde de la base (`mdl_stage*`) et du `moodledata`.
+**Sauvegarde.** Les deux modules fournissent une implémentation
+`backup/moodle2/` : une sauvegarde de cours Moodle emporte le paramétrage des
+activités et, si les données utilisateur sont demandées, les stages, conventions
+et évaluations, ainsi que les fichiers associés. Deux réserves : le jeton d'accès
+du maître de stage n'est pas recopié (la copie en régénère un à la demande), et
+les liens d'une synthèse vers une activité restée hors de la sauvegarde ne sont
+conservés que lors d'une restauration sur le même site. La sauvegarde de cours
+ne dispense pas pour autant d'une sauvegarde de la base (`mdl_stage*`) et du
+`moodledata`, qui reste le filet de sécurité du site.
 
 **Données personnelles.** `mod_stage` implémente le fournisseur de
 confidentialité Moodle. La suppression d'un étudiant efface l'intégralité de ses

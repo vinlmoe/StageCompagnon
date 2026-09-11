@@ -33,7 +33,6 @@ require_once($CFG->dirroot . '/mod/stagesynthesis/locallib.php');
  * @covers     ::stagesynthesis_render_managelinks_notice
  */
 final class managelinks_access_test extends \advanced_testcase {
-
     /**
      * Crée une activité de synthèse et renvoie de quoi tester les capacités dans son contexte.
      *
@@ -81,8 +80,10 @@ final class managelinks_access_test extends \advanced_testcase {
         $this->setUser($user);
 
         $this->assertTrue(has_capability('mod/stagesynthesis:managelinks', $context));
-        $this->assertStringContainsString('/mod/stagesynthesis/administration.php',
-            stagesynthesis_render_managelinks_notice($synthesis, $cm, $context));
+        $this->assertStringContainsString(
+            '/mod/stagesynthesis/administration.php',
+            stagesynthesis_render_managelinks_notice($synthesis, $cm, $context)
+        );
     }
 
     /**
@@ -104,7 +105,9 @@ final class managelinks_access_test extends \advanced_testcase {
         $this->setUser($manager);
 
         $this->assertTrue(has_capability('mod/stagesynthesis:managelinks', $context));
-        $this->assertStringContainsString('/mod/stagesynthesis/administration.php',
-            stagesynthesis_render_managelinks_notice($synthesis, $cm, $context));
+        $this->assertStringContainsString(
+            '/mod/stagesynthesis/administration.php',
+            stagesynthesis_render_managelinks_notice($synthesis, $cm, $context)
+        );
     }
 }

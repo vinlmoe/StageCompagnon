@@ -32,7 +32,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_get_promotion_report
  */
 final class promotion_test extends \advanced_testcase {
-
     /**
      * Seule l'année d'étude courante du stage et les précédentes sont retenues dans le bilan :
      * les objectifs des années à venir ne sont pas encore exigibles.
@@ -43,6 +42,8 @@ final class promotion_test extends \advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
         $stage = $this->getDataGenerator()->create_module('stage', ['course' => $course]);
         $DB->update_record('stage', (object) ['id' => $stage->id, 'currentstudyyear' => 3]);
+        // La fonction lit l'année courante sur l'objet qu'on lui passe, pas en base.
+        $stage->currentstudyyear = 3;
 
         $rows = [
             (object) ['yearprogress' => [
@@ -115,25 +116,40 @@ final class promotion_test extends \advanced_testcase {
         foreach ([2, 3, 4] as $year) {
             $generator->create_entry($stage, $alpha->id, $theme, ['studyyear' => $year, 'declaredduration' => 10]);
             stage_apply_deve_validation(
-                $DB->get_record('stage_entry', ['userid' => $alpha->id, 'studyyear' => $year]), 2, 10);
+                $DB->get_record('stage_entry', ['userid' => $alpha->id, 'studyyear' => $year]),
+                2,
+                10
+            );
         }
 
         // Beta : rien de validé nulle part (aucune saisie).
         // Zeta : en défaut seulement en A2.
         $generator->create_entry($stage, $zeta->id, $theme, ['studyyear' => 3, 'declaredduration' => 10]);
         stage_apply_deve_validation(
-            $DB->get_record('stage_entry', ['userid' => $zeta->id, 'studyyear' => 3]), 2, 10);
+            $DB->get_record('stage_entry', ['userid' => $zeta->id, 'studyyear' => 3]),
+            2,
+            10
+        );
         $generator->create_entry($stage, $zeta->id, $theme, ['studyyear' => 4, 'declaredduration' => 10]);
         stage_apply_deve_validation(
-            $DB->get_record('stage_entry', ['userid' => $zeta->id, 'studyyear' => 4]), 2, 10);
+            $DB->get_record('stage_entry', ['userid' => $zeta->id, 'studyyear' => 4]),
+            2,
+            10
+        );
 
         // Epsilon : en défaut seulement en A4.
         $generator->create_entry($stage, $epsilon->id, $theme, ['studyyear' => 2, 'declaredduration' => 10]);
         stage_apply_deve_validation(
-            $DB->get_record('stage_entry', ['userid' => $epsilon->id, 'studyyear' => 2]), 2, 10);
+            $DB->get_record('stage_entry', ['userid' => $epsilon->id, 'studyyear' => 2]),
+            2,
+            10
+        );
         $generator->create_entry($stage, $epsilon->id, $theme, ['studyyear' => 3, 'declaredduration' => 10]);
         stage_apply_deve_validation(
-            $DB->get_record('stage_entry', ['userid' => $epsilon->id, 'studyyear' => 3]), 2, 10);
+            $DB->get_record('stage_entry', ['userid' => $epsilon->id, 'studyyear' => 3]),
+            2,
+            10
+        );
 
         $report = stage_get_promotion_report($stage, $context);
 

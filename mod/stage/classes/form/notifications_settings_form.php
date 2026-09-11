@@ -28,7 +28,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class notifications_settings_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -38,8 +37,11 @@ class notifications_settings_form extends \moodleform {
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
 
-        $mform->addElement('advcheckbox', 'tutorevaluationenabled',
-            get_string('tutorevaluationenabled', 'mod_stage'));
+        $mform->addElement(
+            'advcheckbox',
+            'tutorevaluationenabled',
+            get_string('tutorevaluationenabled', 'mod_stage')
+        );
         $mform->addHelpButton('tutorevaluationenabled', 'tutorevaluationenabled', 'mod_stage');
 
         $this->add_action_buttons();

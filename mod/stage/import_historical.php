@@ -1,10 +1,25 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
  * Import de l'ancien classeur Excel « Suivi des STAGES et EP ».
  *
- * @package mod_stage
+ * @package   mod_stage
+ * @copyright 2026 Sébastien Lefebvre
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 use mod_stage\local\historical_importer;
@@ -40,12 +55,19 @@ $preview = null;
 $error = null;
 $unmatchedthemes = [];
 
-/**
- * Résout étudiants, enseignants et thématiques après lecture du classeur. Les thématiques non
- * reconnues sont conservées pour demander une correspondance, et non plus écartées.
- */
-$resolvepreview = function(array $rawrecords, int $epthemeid, array $thememap = [], array $basewarnings = []) use (
-        $context, $themes, $stage, $DB) {
+// Résout étudiants, enseignants et thématiques après lecture du classeur. Les thématiques non
+// reconnues sont conservées pour demander une correspondance, et non plus écartées.
+$resolvepreview = function (
+    array $rawrecords,
+    int $epthemeid,
+    array $thememap = [],
+    array $basewarnings = []
+) use (
+    $context,
+    $themes,
+    $stage,
+    $DB
+) {
     $resolvedwarnings = $basewarnings;
     $studentsbyemail = [];
     foreach (stage_get_enrolled_students($context) as $student) {
@@ -90,14 +112,16 @@ $resolvepreview = function(array $rawrecords, int $epthemeid, array $thememap = 
 
         $fingerprint = implode('|', [$student->id, $theme->id, $record->structure,
             $record->studyyear, $record->duration]);
-        if (isset($seen[$fingerprint]) || $DB->record_exists('stage_entry', [
+        if (
+            isset($seen[$fingerprint]) || $DB->record_exists('stage_entry', [
                 'stageid' => $stage->id,
                 'userid' => $student->id,
                 'themeid' => $theme->id,
                 'structure' => $record->structure,
                 'studyyear' => $record->studyyear,
                 'declaredduration' => $record->duration,
-            ])) {
+            ])
+        ) {
             $resolvedwarnings[] = get_string('historicalimportduplicate', 'mod_stage', $record->source);
             continue;
         }
@@ -152,14 +176,22 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
                 $assigned[] = $candidate->teacherid;
                 stage_set_student_teachers($stage->id, $candidate->userid, $assigned);
             }
-            stage_apply_deve_validation($entry, $USER->id, $candidate->duration,
-                get_string('historicalimportcomment', 'mod_stage'));
+            stage_apply_deve_validation(
+                $entry,
+                $USER->id,
+                $candidate->duration,
+                get_string('historicalimportcomment', 'mod_stage')
+            );
             stage_set_entry_stagetype($entryid, $candidate->stagetype);
             $created++;
         }
         $transaction->allow_commit();
-        redirect($backurl, get_string('historicalimportdone', 'mod_stage', $created), null,
-            \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            $backurl,
+            get_string('historicalimportdone', 'mod_stage', $created),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 }
 
@@ -172,11 +204,15 @@ if (optional_param('mapthemes', 0, PARAM_INT) && confirm_sesskey()) {
     } else {
         $thememap = optional_param_array('thememap', [], PARAM_INT);
         [$preview, $warnings, $unmatchedthemes] = $resolvepreview(
-            $pending['rawrecords'], (int) $pending['epthemeid'], $thememap, $pending['basewarnings'] ?? []);
+            $pending['rawrecords'],
+            (int) $pending['epthemeid'],
+            $thememap,
+            $pending['basewarnings'] ?? []
+        );
         if ($unmatchedthemes) {
             $error = get_string('historicalimportmapallthemes', 'mod_stage');
         }
-        $SESSION->stage_historical_import[$stage->id]['records'] = array_map(function($record) {
+        $SESSION->stage_historical_import[$stage->id]['records'] = array_map(function ($record) {
             return (array) $record;
         }, $preview);
         $SESSION->stage_historical_import[$stage->id]['ready'] = empty($unmatchedthemes);
@@ -195,14 +231,18 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
         try {
             $parsed = historical_importer::read($upload['tmp_name']);
             [$preview, $warnings, $unmatchedthemes] = $resolvepreview(
-                $parsed['records'], $epthemeid, [], $parsed['warnings']);
+                $parsed['records'],
+                $epthemeid,
+                [],
+                $parsed['warnings']
+            );
             $SESSION->stage_historical_import[$stage->id] = [
-                'rawrecords' => array_map(function($record) {
+                'rawrecords' => array_map(function ($record) {
                     return (array) $record;
                 }, $parsed['records']),
                 'basewarnings' => $parsed['warnings'],
                 'epthemeid' => $epthemeid,
-                'records' => array_map(function($record) {
+                'records' => array_map(function ($record) {
                     return (array) $record;
                 }, $preview),
                 'ready' => empty($unmatchedthemes),
@@ -225,8 +265,10 @@ if ($error !== null) {
 }
 if (!empty($warnings)) {
     echo $OUTPUT->heading(get_string('historicalimportwarnings', 'mod_stage', count($warnings)), 4);
-    echo $OUTPUT->notification(implode(html_writer::empty_tag('br'), array_map('s', $warnings)),
-        \core\output\notification::NOTIFY_WARNING);
+    echo $OUTPUT->notification(
+        implode(html_writer::empty_tag('br'), array_map('s', $warnings)),
+        \core\output\notification::NOTIFY_WARNING
+    );
 }
 
 if ($unmatchedthemes) {
@@ -248,8 +290,11 @@ if ($unmatchedthemes) {
         )];
     }
     echo html_writer::table($mappingtable);
-    echo html_writer::tag('button', get_string('historicalimportapplymapping', 'mod_stage'),
-        ['type' => 'submit', 'class' => 'btn btn-primary']);
+    echo html_writer::tag(
+        'button',
+        get_string('historicalimportapplymapping', 'mod_stage'),
+        ['type' => 'submit', 'class' => 'btn btn-primary']
+    );
     echo html_writer::end_tag('form');
 }
 
@@ -275,8 +320,11 @@ if ($preview !== null) {
             echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl]);
             echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
             echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'confirmimport', 'value' => 1]);
-            echo html_writer::tag('button', get_string('historicalimportconfirm', 'mod_stage'),
-                ['type' => 'submit', 'class' => 'btn btn-primary']);
+            echo html_writer::tag(
+                'button',
+                get_string('historicalimportconfirm', 'mod_stage'),
+                ['type' => 'submit', 'class' => 'btn btn-primary']
+            );
             echo html_writer::end_tag('form');
         }
     }
@@ -292,10 +340,18 @@ if ($preview !== null) {
         'required' => 'required', 'class' => 'form-control mb-3',
     ]);
     echo html_writer::tag('label', get_string('historicalimporteptheme', 'mod_stage'), ['for' => 'epthemeid']);
-    echo html_writer::select($themeoptions, 'epthemeid', 0, ['' => get_string('choosedots')],
-        ['id' => 'epthemeid', 'class' => 'form-control mb-3', 'required' => 'required']);
-    echo html_writer::tag('button', get_string('historicalimportpreviewbutton', 'mod_stage'),
-        ['type' => 'submit', 'class' => 'btn btn-primary']);
+    echo html_writer::select(
+        $themeoptions,
+        'epthemeid',
+        0,
+        ['' => get_string('choosedots')],
+        ['id' => 'epthemeid', 'class' => 'form-control mb-3', 'required' => 'required']
+    );
+    echo html_writer::tag(
+        'button',
+        get_string('historicalimportpreviewbutton', 'mod_stage'),
+        ['type' => 'submit', 'class' => 'btn btn-primary']
+    );
     echo html_writer::end_tag('form');
 }
 

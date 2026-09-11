@@ -29,7 +29,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_settings_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -39,8 +38,11 @@ class convention_settings_form extends \moodleform {
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
 
-        $mform->addElement('advcheckbox', 'conventionrequireteachervalidation',
-            get_string('conventionrequireteachervalidation', 'mod_stage'));
+        $mform->addElement(
+            'advcheckbox',
+            'conventionrequireteachervalidation',
+            get_string('conventionrequireteachervalidation', 'mod_stage')
+        );
         $mform->addHelpButton('conventionrequireteachervalidation', 'conventionrequireteachervalidation', 'mod_stage');
 
         $this->add_action_buttons();

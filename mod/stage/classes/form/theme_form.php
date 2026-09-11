@@ -29,7 +29,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class theme_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -72,8 +71,12 @@ class theme_form extends \moodleform {
         $mform->setDefault('tutorevaluationenabled', 1);
         $mform->addHelpButton('tutorevaluationenabled', 'tutorevaluationenabledtheme', 'mod_stage');
 
-        $mform->addElement('select', 'reportmode', get_string('reportmode', 'mod_stage'),
-            stage_report_mode_options());
+        $mform->addElement(
+            'select',
+            'reportmode',
+            get_string('reportmode', 'mod_stage'),
+            stage_report_mode_options()
+        );
         $mform->setDefault('reportmode', STAGE_REPORT_NONE);
         $mform->addHelpButton('reportmode', 'reportmode', 'mod_stage');
 
@@ -90,8 +93,10 @@ class theme_form extends \moodleform {
      */
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
-        if (!empty($data['minstudyyear']) && !empty($data['maxstudyyear'])
-                && $data['minstudyyear'] > $data['maxstudyyear']) {
+        if (
+            !empty($data['minstudyyear']) && !empty($data['maxstudyyear'])
+                && $data['minstudyyear'] > $data['maxstudyyear']
+        ) {
             $errors['maxstudyyear'] = get_string('studyyearrange_error', 'mod_stage');
         }
         return $errors;

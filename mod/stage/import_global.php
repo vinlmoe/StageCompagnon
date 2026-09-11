@@ -1,7 +1,26 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
-/** Restauration des stages depuis l'export Excel global du module. */
+/**
+ * Restauration des stages depuis l'export Excel global du module.
+ *
+ * @package   mod_stage
+ * @copyright 2026 Sébastien Lefebvre
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 use mod_stage\local\global_export_importer;
 
@@ -29,10 +48,10 @@ $error = null;
 $warnings = [];
 $preview = null;
 
-$normal = function($value) {
+$normal = function ($value) {
     return global_export_importer::normalize((string) $value);
 };
-$optionvalue = function($label, array $options, $default) use ($normal) {
+$optionvalue = function ($label, array $options, $default) use ($normal) {
     $needle = $normal($label);
     foreach ($options as $value => $optionlabel) {
         if ($needle === $normal($optionlabel) || $needle === $normal($value)) {
@@ -41,7 +60,7 @@ $optionvalue = function($label, array $options, $default) use ($normal) {
     }
     return $default;
 };
-$yes = function($value) use ($normal) {
+$yes = function ($value) use ($normal) {
     return in_array($normal($value), ['1', 'yes', 'oui', 'true'], true);
 };
 
@@ -73,8 +92,12 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
             }
         }
         $transaction->allow_commit();
-        redirect($backurl, get_string('globalimportdone', 'mod_stage', count($pending['records'])), null,
-            \core\output\notification::NOTIFY_SUCCESS);
+        redirect(
+            $backurl,
+            get_string('globalimportdone', 'mod_stage', count($pending['records'])),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 }
 
@@ -103,14 +126,18 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                 $templates[$normal($template->name)] = $template;
             }
             $statusoptions = [];
-            foreach ([STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE,
-                    STAGE_STATUS_EVAL_ETUDIANT, STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $value) {
+            foreach (
+                [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE,
+                    STAGE_STATUS_EVAL_ETUDIANT, STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $value
+            ) {
                 $statusoptions[$value] = stage_status_label($value);
             }
             $conventionoptions = [];
-            foreach ([STAGE_CONVENTION_REJECTED, STAGE_CONVENTION_NONE, STAGE_CONVENTION_REQUESTED,
+            foreach (
+                [STAGE_CONVENTION_REJECTED, STAGE_CONVENTION_NONE, STAGE_CONVENTION_REQUESTED,
                     STAGE_CONVENTION_EDITED, STAGE_CONVENTION_SIGNED, STAGE_CONVENTION_SIGNVET,
-                    STAGE_CONVENTION_TEACHERPENDING, STAGE_CONVENTION_EXEMPT] as $value) {
+                    STAGE_CONVENTION_TEACHERPENDING, STAGE_CONVENTION_EXEMPT] as $value
+            ) {
                 $conventionoptions[$value] = stage_convention_status_label($value);
             }
             $records = [];
@@ -118,8 +145,11 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                 $student = $students[$normal($raw->email)] ?? null;
                 $theme = $themes[$normal($raw->theme)] ?? null;
                 if (!$student || !$theme) {
-                    $warnings[] = get_string(!$student ? 'globalimportunknownstudent' : 'globalimportunknowntheme',
-                        'mod_stage', (object) ['line' => $raw->line, 'value' => !$student ? $raw->email : $raw->theme]);
+                    $warnings[] = get_string(
+                        !$student ? 'globalimportunknownstudent' : 'globalimportunknowntheme',
+                        'mod_stage',
+                        (object) ['line' => $raw->line, 'value' => !$student ? $raw->email : $raw->theme]
+                    );
                     continue;
                 }
                 $duplicate = $DB->record_exists('stage_entry', ['stageid' => $stage->id, 'userid' => $student->id,
@@ -128,7 +158,7 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     $warnings[] = get_string('globalimportduplicate', 'mod_stage', $raw->line);
                     continue;
                 }
-                $personid = function($field) use ($raw, $people, $normal) {
+                $personid = function ($field) use ($raw, $people, $normal) {
                     return !empty($raw->$field) && isset($people[$normal($raw->$field)])
                         ? $people[$normal($raw->$field)]->id : null;
                 };
@@ -160,8 +190,10 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     'conventionrequesttime' => $raw->conventionrequesttime ?? null,
                     'conventionteachervalidatedby' => $personid('conventionteachervalidatedby'),
                     'conventionteachervalidatetime' => $raw->conventionteachervalidatetime ?? null,
-                    'conventioneditedby' => $personid('conventioneditedby'), 'conventionedittime' => $raw->conventionedittime ?? null,
-                    'conventionsignedby' => $personid('conventionsignedby'), 'conventionsigntime' => $raw->conventionsigntime ?? null,
+                    'conventioneditedby' => $personid('conventioneditedby'),
+                    'conventionedittime' => $raw->conventionedittime ?? null,
+                    'conventionsignedby' => $personid('conventionsignedby'),
+                    'conventionsigntime' => $raw->conventionsigntime ?? null,
                     'cancelledby' => $personid('cancelledby'), 'canceltime' => $raw->canceltime ?? null,
                     'cancelcomment' => $raw->cancelcomment ?? '', 'timecreated' => $raw->timecreated ?? time(),
                     'timemodified' => $raw->timemodified ?? time(),
@@ -198,8 +230,10 @@ if ($error) {
     echo $OUTPUT->notification($error, \core\output\notification::NOTIFY_ERROR);
 }
 if ($warnings) {
-    echo $OUTPUT->notification(implode(html_writer::empty_tag('br'), array_map('s', $warnings)),
-        \core\output\notification::NOTIFY_WARNING);
+    echo $OUTPUT->notification(
+        implode(html_writer::empty_tag('br'), array_map('s', $warnings)),
+        \core\output\notification::NOTIFY_WARNING
+    );
 }
 if ($preview !== null) {
     echo $OUTPUT->heading(get_string('globalimportpreview', 'mod_stage', count($preview)), 4);
@@ -217,8 +251,11 @@ if ($preview !== null) {
         echo html_writer::start_tag('form', ['method' => 'post', 'action' => $url]);
         echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
         echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'confirmimport', 'value' => 1]);
-        echo html_writer::tag('button', get_string('globalimportconfirm', 'mod_stage'),
-            ['type' => 'submit', 'class' => 'btn btn-primary']);
+        echo html_writer::tag(
+            'button',
+            get_string('globalimportconfirm', 'mod_stage'),
+            ['type' => 'submit', 'class' => 'btn btn-primary']
+        );
         echo html_writer::end_tag('form');
     }
 } else {
@@ -227,8 +264,11 @@ if ($preview !== null) {
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'previewimport', 'value' => 1]);
     echo html_writer::empty_tag('input', ['type' => 'file', 'name' => 'xlsxfile', 'accept' => '.xlsx',
         'required' => 'required', 'class' => 'form-control mb-3']);
-    echo html_writer::tag('button', get_string('globalimportpreviewbutton', 'mod_stage'),
-        ['type' => 'submit', 'class' => 'btn btn-primary']);
+    echo html_writer::tag(
+        'button',
+        get_string('globalimportpreviewbutton', 'mod_stage'),
+        ['type' => 'submit', 'class' => 'btn btn-primary']
+    );
     echo html_writer::end_tag('form');
 }
 echo $OUTPUT->footer();

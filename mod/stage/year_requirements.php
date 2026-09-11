@@ -101,12 +101,20 @@ echo html_writer::empty_tag('input', [
 echo $OUTPUT->render(new \help_icon('requiredabroaddays', 'mod_stage'));
 
 echo html_writer::tag('label', get_string('abroadbeforeyear', 'mod_stage'), ['for' => 'abroadbeforeyear']);
-echo html_writer::select(stage_studyyear_options(), 'abroadbeforeyear', $stage->abroadbeforeyear, false,
-    ['id' => 'abroadbeforeyear', 'class' => 'form-control', 'style' => 'width:auto']);
+echo html_writer::select(
+    stage_studyyear_options(),
+    'abroadbeforeyear',
+    $stage->abroadbeforeyear,
+    false,
+    ['id' => 'abroadbeforeyear', 'class' => 'form-control', 'style' => 'width:auto']
+);
 
 echo html_writer::tag('label', get_string('abroadrule', 'mod_stage'), ['for' => 'abroadrule']);
-echo html_writer::tag('textarea', s($stage->abroadrule),
-    ['name' => 'abroadrule', 'id' => 'abroadrule', 'rows' => 3, 'class' => 'form-control']);
+echo html_writer::tag(
+    'textarea',
+    s($stage->abroadrule),
+    ['name' => 'abroadrule', 'id' => 'abroadrule', 'rows' => 3, 'class' => 'form-control']
+);
 echo $OUTPUT->render(new \help_icon('abroadrule', 'mod_stage'));
 
 echo html_writer::empty_tag('input', [

@@ -79,8 +79,13 @@ $table->head = [get_string('linked', 'mod_stagesynthesis'), get_string('course')
 
 foreach ($available as $activity) {
     $checked = isset($linked[(int) $activity->stagecmid]);
-    $checkbox = html_writer::checkbox('stagecmid[]', $activity->stagecmid, $checked, '',
-        ['id' => 'stagecmid_' . $activity->stagecmid]);
+    $checkbox = html_writer::checkbox(
+        'stagecmid[]',
+        $activity->stagecmid,
+        $checked,
+        '',
+        ['id' => 'stagecmid_' . $activity->stagecmid]
+    );
 
     $coursename = format_string($activity->coursename);
     if (!$activity->coursevisible) {

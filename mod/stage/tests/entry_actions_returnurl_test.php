@@ -34,7 +34,6 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_render_entry_management_actions
  */
 final class entry_actions_returnurl_test extends \advanced_testcase {
-
     /**
      * Chaque lien d'action porte bien un paramètre returnurl encodant la page appelante ($PAGE->url,
      * telle que fixée par view.php ou dashboard.php avant d'appeler stage_print_student_dashboard()).

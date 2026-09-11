@@ -30,7 +30,6 @@ require_once($CFG->libdir . '/formslib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class cancel_entry_form extends \moodleform {
-
     /**
      * Defines the form fields.
      */
@@ -42,11 +41,19 @@ class cancel_entry_form extends \moodleform {
         $mform->addElement('hidden', 'entryid');
         $mform->setType('entryid', PARAM_INT);
 
-        $mform->addElement('static', 'studentname', get_string('student', 'mod_stage'),
-            $this->_customdata['studentname'] ?? '');
+        $mform->addElement(
+            'static',
+            'studentname',
+            get_string('student', 'mod_stage'),
+            $this->_customdata['studentname'] ?? ''
+        );
 
-        $mform->addElement('textarea', 'cancelcomment', get_string('cancelcomment', 'mod_stage'),
-            ['rows' => 4, 'cols' => 60]);
+        $mform->addElement(
+            'textarea',
+            'cancelcomment',
+            get_string('cancelcomment', 'mod_stage'),
+            ['rows' => 4, 'cols' => 60]
+        );
         $mform->setType('cancelcomment', PARAM_TEXT);
         $mform->addRule('cancelcomment', null, 'required', null, 'client');
 
