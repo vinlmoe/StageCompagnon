@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  style:
+    name: Style Moodle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer
+          coverage: none
+
+      - name: Install Moodle coding standard
+        run: |
+          composer global config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer global require --no-interaction moodlehq/moodle-cs
+          echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
+
+      - name: Run phpcs
+        run: phpcs --standard=phpcs.xml -p
+
+  moodle:
+    name: Moodle PHPUnit
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: moodle
+          POSTGRES_USER: moodle
+          POSTGRES_PASSWORD: moodle
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pgsql, pdo_pgsql, gd, intl, mbstring, soap, zip
+          tools: composer
+          coverage: none
+
+      - name: Install moodle-plugin-ci
+        run: |
+          composer global require --no-interaction moodlehq/moodle-plugin-ci
+          echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
+
+      - name: Install Moodle
+        run: |
+          moodle-plugin-ci install \
+            --moodle=MOODLE_405_STABLE \
+            --db-type=pgsql \
+            --db-host=127.0.0.1 \
+            --db-name=moodle \
+            --db-user=moodle \
+            --db-pass=moodle \
+            --plugin=mod/stage \
+            --plugin=mod/stagesynthesis
+
+      - name: PHP lint
+        run: moodle-plugin-ci phplint
+
+      - name: Plugin validation
+        run: moodle-plugin-ci validate
+
+      - name: Upgrade savepoints
+        run: moodle-plugin-ci savepoints
+
+      - name: Mustache templates
+        run: moodle-plugin-ci mustache
+
+      - name: PHPUnit
+        run: moodle-plugin-ci phpunit
