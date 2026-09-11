@@ -62,6 +62,7 @@ jobs:
         with:
           php-version: "8.2"
           extensions: pgsql, pdo_pgsql, gd, intl, mbstring, soap, zip
+          ini-values: max_input_vars=5000
           tools: composer
           coverage: none
 
