@@ -76,7 +76,8 @@ jobs:
       - name: Install Moodle
         run: |
           moodle-plugin-ci install \
-            --moodle=MOODLE_405_STABLE \
+            --moodle=moodle \
+            --branch=MOODLE_405_STABLE \
             --db-type=pgsql \
             --db-host=127.0.0.1 \
             --db-name=moodle \
