@@ -663,6 +663,16 @@ $string['tutorevaluationenabled_help'] = "If enabled, the workplace tutor (the s
 $string['emailkeyselfeval'] = 'Self-assessment notification (to the referent teacher)';
 $string['emailkeyteacherpending'] = 'Agreement pending validation notification (to the referent teacher)';
 $string['emailkeystudentrejected'] = 'Agreement rejected notification (to the student)';
+$string['emailkeyconventionready'] = 'Agreement ready to download notification (to the student)';
+$string['conventionreadynotifsubject'] = 'Your internship agreement is available: {$a}';
+$string['conventionreadynotifbody'] = "Hello {\$a->student},\n\nYour internship agreement for the theme "
+    . "\"{\$a->theme}\" has been issued by the administration office: you can now download it from your "
+    . "internship dashboard.\n{\$a->url}\n\nPlease print it, have it signed by all parties, then return it "
+    . 'to the administration office.';
+$string['conventionreadynotified'] = 'The student has been informed by email that their agreement is ready to '
+    . 'download.';
+$string['conventionreadynotifyfailed'] = 'The email informing the student that their agreement is ready to '
+    . 'download could not be sent.';
 $string['emailkeytutorrequest'] = 'Invitation to evaluate the internship (to the workplace tutor)';
 $string['tutorevalnotifsubject'] = 'Evaluation of {$a}\'s internship';
 $string['tutorevalnotifbody'] = 'You are currently supervising {$a->student} during their internship '

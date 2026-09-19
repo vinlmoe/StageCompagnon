@@ -31,6 +31,10 @@
  * passer par l'écran de choix réservé à la DEVE ; au-delà (signée), ils doivent utiliser
  * convention_signed.php à la place (voir stage_print_student_dashboard()).
  *
+ * Une génération avec cadre de signatures (donc par la DEVE) prévient l'étudiant par courriel que
+ * sa convention est téléchargeable : voir stage_notify_student_convention_ready(), dont le texte
+ * est personnalisable par la DEVE depuis la page « Notifications ».
+ *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -165,7 +169,24 @@ $downloadurl = new moodle_url($baseurl, [
     'confirmgenerate' => 1, 'withsignatures' => $withsignatures ? 1 : 0, 'download' => 1,
 ]);
 
+// Générer la convention avec son cadre de signatures, c'est produire l'exemplaire à imprimer et
+// faire signer : la convention est prête, et l'étudiant a désormais quelque chose à télécharger.
+// L'avertir ici, et non dans le cadre de téléchargement invisible ci-dessus : celui-ci est
+// rejoué par le bouton « Relancer le téléchargement », qui n'a pas à renvoyer un courriel.
+// L'étudiant qui télécharge lui-même sa convention n'est évidemment pas concerné ($withsignatures
+// n'est de toute façon vrai que pour la DEVE, voir plus haut).
+$notified = null;
+if ($withsignatures) {
+    $notified = stage_notify_student_convention_ready($stage, $cm, $entry);
+}
+
 echo $OUTPUT->header();
 echo $OUTPUT->heading($pagetitle);
+if ($notified !== null) {
+    echo $OUTPUT->notification(
+        get_string($notified ? 'conventionreadynotified' : 'conventionreadynotifyfailed', 'mod_stage'),
+        $notified ? \core\output\notification::NOTIFY_SUCCESS : \core\output\notification::NOTIFY_WARNING
+    );
+}
 echo stage_render_download_and_return($downloadurl, $backurl);
 echo $OUTPUT->footer();

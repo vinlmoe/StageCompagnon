@@ -1617,6 +1617,12 @@ function stage_get_email_definitions() {
             'bodystring' => 'conventionrejectednotifbody',
             'vars' => ['stage', 'comment', 'url'],
         ],
+        'conventionready' => [
+            'label' => get_string('emailkeyconventionready', 'mod_stage'),
+            'subjectstring' => 'conventionreadynotifsubject',
+            'bodystring' => 'conventionreadynotifbody',
+            'vars' => ['student', 'stage', 'theme', 'url'],
+        ],
         'tutorrequest' => [
             'label' => get_string('emailkeytutorrequest', 'mod_stage'),
             'subjectstring' => 'tutorevalnotifsubject',
@@ -4280,6 +4286,41 @@ function stage_notify_student_convention_rejected(stdClass $stage, stdClass $cm,
         'url' => $url->out(false),
     ]);
     email_to_user($student, core_user::get_noreply_user(), $text->subject, $text->body);
+}
+
+/**
+ * Envoie un e-mail à l'étudiant lorsque la DEVE génère sa convention avec le cadre de signatures,
+ * c'est-à-dire l'exemplaire destiné à être imprimé et signé : c'est à ce moment que la convention
+ * est prête et que l'étudiant a quelque chose à télécharger (voir convention.php, seul appelant).
+ *
+ * Le lien mène au tableau de bord de l'étudiant plutôt qu'au fichier lui-même : la page de
+ * téléchargement de la convention éditée (convention.php) se ferme à l'étudiant dès que la
+ * convention passe au statut « signée », alors que son tableau de bord propose toujours le bon
+ * bouton, quel que soit l'état atteint entre-temps.
+ *
+ * @param stdClass $stage
+ * @param stdClass $cm Course module.
+ * @param stdClass $entry
+ * @return bool True si le courriel est parti.
+ */
+function stage_notify_student_convention_ready(stdClass $stage, stdClass $cm, stdClass $entry) {
+    global $DB;
+
+    $student = $DB->get_record('user', ['id' => $entry->userid]);
+    if (!$student) {
+        return false;
+    }
+
+    $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
+    $url = new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
+    $text = stage_resolve_email_text($stage->id, 'conventionready', [
+        'student' => fullname($student),
+        'stage' => format_string($stage->name),
+        'theme' => $theme ? format_string($theme->name) : '',
+        'url' => $url->out(false),
+    ]);
+
+    return (bool) email_to_user($student, core_user::get_noreply_user(), $text->subject, $text->body);
 }
 
 /**

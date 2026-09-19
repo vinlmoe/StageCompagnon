@@ -678,6 +678,15 @@ $string['tutorevaluationenabled_help'] = "Si activé, le maître de stage (encad
 $string['emailkeyselfeval'] = "Notification d'auto-évaluation (à l'enseignant référent)";
 $string['emailkeyteacherpending'] = "Notification de convention à valider (à l'enseignant référent)";
 $string['emailkeystudentrejected'] = "Notification de convention refusée (à l'étudiant)";
+$string['emailkeyconventionready'] = "Notification de convention prête à télécharger (à l'étudiant)";
+$string['conventionreadynotifsubject'] = 'Votre convention de stage est disponible : {$a}';
+$string['conventionreadynotifbody'] = "Bonjour {\$a->student},\n\nVotre convention de stage pour la thématique "
+    . "\"{\$a->theme}\" a été éditée par la scolarité : elle est désormais téléchargeable depuis votre espace "
+    . "de suivi des stages.\n{\$a->url}\n\nMerci de l'imprimer, de la faire signer par toutes les parties, "
+    . 'puis de la retourner à la scolarité.';
+$string['conventionreadynotified'] = "L'étudiant a été informé par courriel que sa convention est téléchargeable.";
+$string['conventionreadynotifyfailed'] = "Le courriel informant l'étudiant que sa convention est téléchargeable "
+    . "n'a pas pu être envoyé.";
 $string['emailkeytutorrequest'] = "Invitation à évaluer le stage (au maître de stage)";
 $string['tutorevalnotifsubject'] = 'Évaluation du stage de {$a}';
 $string['tutorevalnotifbody'] = "Vous encadrez actuellement {\$a->student} dans le cadre de son stage "

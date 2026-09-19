@@ -255,6 +255,21 @@ tri par colonne et affichage des plus récentes en premier.
 Le PDF produit reprend la première page générée à partir des données du stage,
 suivie des pages du gabarit choisi.
 
+À la génération, la DEVE choisit d'ajouter ou non un **cadre de signatures** en
+bas de la première page — l'exemplaire destiné à être imprimé et signé à la
+main. Sur l'écran de validation d'une demande, la case est précochée lorsque
+l'étudiant ou l'enseignant référent a signalé qu'une convention papier serait
+nécessaire ; lors d'une regénération ultérieure, elle est décochée par défaut.
+
+**Générer avec le cadre de signatures envoie à l'étudiant un courriel
+l'informant que sa convention est désormais téléchargeable**, avec un lien vers
+son espace de suivi des stages ; la page de génération confirme l'envoi, ou
+signale son échec. Le texte de ce courriel est personnalisable comme les autres
+(voir §8). Une nouvelle génération avec cadre de signatures renvoie le
+courriel : c'est voulu, une convention régénérée remplaçant la précédente. En
+revanche, ni le bouton « Relancer le téléchargement », ni le téléchargement par
+l'étudiant ou son enseignant référent n'envoient quoi que ce soit.
+
 ### Annulation
 
 Depuis **Enregistrer des stages**, la DEVE peut annuler un stage à tout moment,
@@ -278,9 +293,9 @@ Depuis **Administration > Notifications** :
   que dans le détail de la saisie.
 - **Personnalisation des e-mails** : un formulaire par e-mail envoyé par
   l'activité (auto-évaluation soumise, convention en attente de validation par
-  l'enseignant, convention refusée par la DEVE, invitation du maître de
-  stage), permettant de remplacer le sujet et le corps par un texte propre à
-  l'activité. Les variables disponibles pour chaque e-mail sont rappelées
+  l'enseignant, convention refusée par la DEVE, convention prête à télécharger,
+  invitation du maître de stage, relance de convention non signée), permettant
+  de remplacer le sujet et le corps par un texte propre à l'activité. Les variables disponibles pour chaque e-mail sont rappelées
   sous son formulaire, à insérer avec la syntaxe `{{variable}}` ; laisser les
   deux champs vides restaure le texte par défaut.
 
@@ -450,6 +465,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `helpers_test.php` | Petites fonctions utilitaires pures (libellés, normalisation de nom, rendu d'actions/badges). |
 | `backup_restore_test.php` | Aller-retour sauvegarde/restauration de cours : le paramétrage, les stages et les fichiers suivent, et la copie désigne ses propres thématiques, questions et gabarits. |
 | `theme_objectives_test.php` | Objectifs de stage : ordre et portée de la check-list, justification exigée pour un objectif décoché, purge des réponses devenues sans objet, droits de correction, copie des objectifs à l'import. |
+| `convention_ready_notification_test.php` | Courriel « convention téléchargeable » : présence dans les e-mails personnalisables, contenu par défaut, prise en compte d'un texte personnalisé. |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :
