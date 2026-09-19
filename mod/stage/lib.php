@@ -92,6 +92,14 @@ define('STAGE_REPORT_REQUIRED', 2);
 define('STAGE_REPORT_FILEAREA', 'report');
 
 /**
+ * Zone de fichiers (file area) des documents d'objectifs de stage déposés par la DEVE pour une
+ * thématique, l'itemid étant l'identifiant de la thématique (stage_theme.id). Ces documents sont
+ * téléchargeables par l'étudiant et les enseignants depuis la page de synthèse, et par le maître
+ * de stage depuis la page d'évaluation à jeton (tutor_eval.php).
+ */
+define('STAGE_THEME_OBJECTIVE_FILEAREA', 'themeobjective');
+
+/**
  * Nombre de jours avant le début d'un stage à partir duquel l'étudiant est relancé si sa
  * convention n'est toujours pas signée (voir \mod_stage\task\send_convention_reminders).
  */
@@ -186,6 +194,9 @@ function stage_delete_instance($id) {
         $DB->delete_records_select('stage_theme_teacher', "themeid $insql", $inparams);
         // Durées par année d'étude : rattachées à la thématique, elles doivent disparaître avec elle.
         $DB->delete_records_select('stage_theme_duration', "themeid $insql", $inparams);
+        // Check-list d'objectifs : idem. Les réponses des étudiants sont parties avec les saisies
+        // ci-dessus (stage_delete_entries()), les éléments eux-mêmes restent à supprimer.
+        $DB->delete_records_select('stage_theme_checklist', "themeid $insql", $inparams);
     }
     $DB->delete_records('stage_theme', ['stageid' => $id]);
     $DB->delete_records('stage_convention_template', ['stageid' => $id]);

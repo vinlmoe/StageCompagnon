@@ -983,5 +983,42 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090200, 'stage');
     }
 
+    if ($oldversion < 2026091900) {
+        // Check-list d'objectifs d'une thématique, et réponse de l'étudiant pour chaque saisie.
+        // Les documents d'objectifs, eux, sont des fichiers (zone STAGE_THEME_OBJECTIVE_FILEAREA,
+        // itemid = id de la thématique) et n'ont pas de table.
+        $checklisttable = new xmldb_table('stage_theme_checklist');
+        $checklisttable->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $checklisttable->add_field('themeid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $checklisttable->add_field('name', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $checklisttable->add_field('description', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $checklisttable->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $checklisttable->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $checklisttable->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $checklisttable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $checklisttable->add_key('themeid', XMLDB_KEY_FOREIGN, ['themeid'], 'stage_theme', ['id']);
+        if (!$dbman->table_exists($checklisttable)) {
+            $dbman->create_table($checklisttable);
+        }
+
+        $answertable = new xmldb_table('stage_entry_checklist');
+        $answertable->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $answertable->add_field('entryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $answertable->add_field('itemid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $answertable->add_field('checked', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $answertable->add_field('explanation', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $answertable->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $answertable->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $answertable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $answertable->add_key('entryid', XMLDB_KEY_FOREIGN, ['entryid'], 'stage_entry', ['id']);
+        $answertable->add_key('itemid', XMLDB_KEY_FOREIGN, ['itemid'], 'stage_theme_checklist', ['id']);
+        $answertable->add_index('entryid-itemid', XMLDB_INDEX_UNIQUE, ['entryid', 'itemid']);
+        if (!$dbman->table_exists($answertable)) {
+            $dbman->create_table($answertable);
+        }
+
+        upgrade_mod_savepoint(true, 2026091900, 'stage');
+    }
+
     return true;
 }

@@ -104,8 +104,12 @@ if (empty($referentteachers)) {
 }
 
 $periods = array_values(stage_get_or_seed_entry_periods($entry));
+// Check-list d'objectifs de la thématique du stage : la thématique est déjà fixée par la saisie,
+// seuls ses éléments sont donc proposés.
+$checklistitems = stage_get_theme_checklist($entry->themeid);
 $mform = new convention_request_form($baseurl, [
     'templates' => $templates, 'referentteachers' => $referentteachers, 'periods' => $periods,
+    'themeid' => (int) $entry->themeid, 'checklistitems' => $checklistitems,
 ]);
 
 $formdata = (object) ['id' => $cm->id, 'entryid' => $entryid];
@@ -123,6 +127,10 @@ $formdata->perioddatestart = array_map(function ($period) {
 $formdata->perioddateend = array_map(function ($period) {
     return $period->dateend;
 }, $periods);
+// Réponses déjà données à la check-list (demande refusée à corriger) : inutile de les ressaisir.
+foreach (stage_checklist_form_data($checklistitems, stage_get_entry_checklist($entry->id)) as $field => $value) {
+    $formdata->$field = $value;
+}
 $mform->set_data($formdata);
 
 if ($mform->is_cancelled()) {
@@ -163,6 +171,13 @@ if ($mform->is_cancelled()) {
     $detail->paperrequestedbystudent = !empty($data->paperrequestedbystudent) ? 1 : 0;
     stage_save_convention_detail($entry->id, $detail);
     stage_save_entry_periods($entry->id, stage_extract_submitted_periods($data));
+    // La check-list accompagne la demande sans figurer dans la convention elle-même : elle reste
+    // consultable et corrigeable ensuite par la DEVE et l'enseignant référent (entrydetail.php).
+    stage_save_entry_checklist(
+        $entry->id,
+        $checklistitems,
+        stage_extract_submitted_checklist($data, $checklistitems)
+    );
 
     if ($requireteachervalidation) {
         stage_notify_teacher_convention_pending($stage, $cm, $entry);

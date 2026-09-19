@@ -86,6 +86,29 @@ Depuis **Administration > Gérer les thématiques** :
   (choix multiples ou commentaire libre) qui remplacent le commentaire libre
   générique dans le formulaire d'auto-évaluation de l'étudiant et/ou celui de
   l'enseignant. Une question peut être réutilisée sur plusieurs thématiques.
+- **Objectifs de stage** (lien par thématique) : voir ci-dessous.
+
+### Objectifs de stage
+
+Depuis **Gérer les thématiques > Objectifs de stage**, chaque thématique reçoit
+ses objectifs, en deux volets complémentaires :
+
+- **Documents d'objectifs** : un ou plusieurs fichiers décrivant ce qui est
+  attendu du stage. Ils sont téléchargeables par l'étudiant et les enseignants
+  depuis la page de synthèse (« Mes stages » pour l'étudiant, situation
+  détaillée d'un étudiant pour la DEVE et l'enseignant référent), et par le
+  maître de stage depuis la page d'évaluation qu'il ouvre avec son jeton.
+- **Check-list d'objectifs** : une liste d'éléments que l'étudiant renseigne au
+  moment de sa demande de convention. Pour chaque élément, il coche l'objectif
+  que son stage permettra d'atteindre, ou laisse la case décochée et explique
+  pourquoi dans le champ libre qui l'accompagne — cette explication est alors
+  obligatoire.
+
+La check-list **ne figure pas dans la convention de stage**. Elle reste attachée
+au stage : elle est consultable dans le détail de la saisie, et la DEVE comme
+l'enseignant référent de l'étudiant peuvent la corriger après coup depuis cette
+même page. Les documents et la check-list suivent la thématique lors d'un import
+depuis un autre cours, comme lors d'une sauvegarde et restauration.
 
 ## 5. Enregistrement des stages
 
@@ -197,7 +220,9 @@ demandes étudiantes. Le même formulaire couvre :
 langue et gabarit, enseignant référent (choisi parmi ceux qui lui sont
 attribués — son courriel est repris automatiquement de son compte), situation
 et type de stage, coordonnées de l'étudiant, organisme d'accueil, tuteur,
-modalités particulières, gratification et congés.
+modalités particulières, gratification et congés. Si la thématique retenue a une
+check-list d'objectifs (voir § 4), elle est présentée en fin de formulaire :
+chaque élément laissé décoché doit être justifié dans son champ libre.
 
 Tous les champs sont obligatoires à l'exception du lieu du stage, à renseigner
 uniquement s'il diffère de l'adresse de l'organisme. Un rappel indique que la
@@ -307,15 +332,18 @@ et de suppression de données.
 **Ce qui est déclaré** : les stages (`stage_entry`) et leurs évaluations, le
 détail de convention (date de naissance, adresse et téléphone de l'étudiant,
 coordonnées du maître de stage), les périodes et jours ouvrés, les réponses aux
-questionnaires, les attributions de référent, les responsabilités de thématique,
-et les fichiers joints (convention signée, rapport de stage).
+questionnaires et à la check-list d'objectifs, les attributions de référent, les
+responsabilités de thématique, et les fichiers joints (convention signée,
+rapport de stage). Les documents d'objectifs, rattachés à une thématique et non
+à une personne, ne contiennent aucune donnée personnelle et ne sont donc pas
+concernés.
 
 **Règle de suppression**, différente selon le rôle sous lequel la personne
 apparaît :
 
 | Personne supprimée | Effet |
 |---|---|
-| Étudiant (propriétaire de la saisie) | Suppression intégrale de ses stages et de tout ce qui en dépend : auto-évaluation, évaluations du référent et du maître de stage, détail de convention, périodes, jours ouvrés, réponses, attributions de référent, convention signée et rapport. |
+| Étudiant (propriétaire de la saisie) | Suppression intégrale de ses stages et de tout ce qui en dépend : auto-évaluation, évaluations du référent et du maître de stage, détail de convention, périodes, jours ouvrés, réponses aux questionnaires et à la check-list d'objectifs, attributions de référent, convention signée et rapport. |
 | Personnel (référent, responsable de thématique, DEVE) | Le stage appartient à l'étudiant et **survit**. Seules les références à la personne supprimée sont dissociées, et les textes dont elle est l'auteur (appréciation, commentaire DEVE, motif de refus ou d'annulation) effacés avec elles. |
 
 Une même personne relevant des deux rôles subit les deux traitements : ses
@@ -339,14 +367,16 @@ restaurations de cours Moodle, ainsi que dans la duplication d'activité et
 l'import depuis un autre cours.
 
 **Toujours sauvegardé** (paramétrage de l'activité) : les thématiques et leurs
-durées par année, les enseignants responsables de thématique, les exigences
-annuelles, les gabarits de convention et leurs PDF, les questions d'évaluation et
-leurs rattachements, les modèles de courriels, les logos de convention.
+durées par année, leurs objectifs (documents déposés et check-list), les
+enseignants responsables de thématique, les exigences annuelles, les gabarits de
+convention et leurs PDF, les questions d'évaluation et leurs rattachements, les
+modèles de courriels, les logos de convention.
 
 **Sauvegardé seulement si les données utilisateur sont demandées** : les stages
 et tout ce qui s'y rattache (plages de dates, jours retenus, complément de
-convention, réponses aux questions), les attributions d'enseignant référent, les
-conventions signées et les rapports déposés.
+convention, réponses aux questions et à la check-list d'objectifs), les
+attributions d'enseignant référent, les conventions signées et les rapports
+déposés.
 
 Deux points à connaître :
 
@@ -366,7 +396,7 @@ Cela ne dispense pas, pour la conservation des données du site :
 
 - d'une sauvegarde de la base de données (tables `mdl_stage*`) ;
 - d'une sauvegarde du `moodledata` pour les fichiers (conventions signées,
-  rapports, gabarits, logos).
+  rapports, gabarits, logos, documents d'objectifs).
 
 Pour déplacer les stages d'un étudiant d'une instance à une autre à
 l'intérieur du même site, utiliser **Administration > Transférer un étudiant**,
@@ -419,6 +449,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `privacy_provider_test.php` | Règles de suppression RGPD (voir §11) : effacement intégral pour l'étudiant, dissociation seule pour le personnel. |
 | `helpers_test.php` | Petites fonctions utilitaires pures (libellés, normalisation de nom, rendu d'actions/badges). |
 | `backup_restore_test.php` | Aller-retour sauvegarde/restauration de cours : le paramétrage, les stages et les fichiers suivent, et la copie désigne ses propres thématiques, questions et gabarits. |
+| `theme_objectives_test.php` | Objectifs de stage : ordre et portée de la check-list, justification exigée pour un objectif décoché, purge des réponses devenues sans objet, droits de correction, copie des objectifs à l'import. |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :
@@ -426,6 +457,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 ```php
 $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
 $theme = $generator->create_theme($stage, ['name' => 'Thématique', 'mandatory' => 1]);
+$item = $generator->create_checklist_item($theme, ['name' => 'Objectif']);
 $entry = $generator->create_entry($stage, $userid, $theme);
 ```
 

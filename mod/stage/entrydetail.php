@@ -17,8 +17,12 @@
 /**
  * Détail en lecture seule d'une saisie de stage, pour la DEVE ou l'enseignant référent de
  * l'étudiant concerné (accessible notamment depuis le tableau de pilotage) : informations
- * générales du stage, détails de la convention le cas échéant, évaluations (étudiant, enseignant,
- * DEVE) quand elles existent, et motifs de refus de convention / annulation le cas échéant.
+ * générales du stage, détails de la convention le cas échéant, objectifs de la thématique et
+ * check-list renseignée par l'étudiant, évaluations (étudiant, enseignant, DEVE) quand elles
+ * existent, et motifs de refus de convention / annulation le cas échéant.
+ *
+ * La check-list y est en lecture seule ; sa correction par la DEVE ou l'enseignant référent passe
+ * par entry_checklist.php, vers lequel cette page renvoie.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -214,7 +218,17 @@ if ($detail) {
     ]);
 }
 
-// 5. Évaluations successives, dans l'ordre du circuit : l'étudiant s'auto-évalue, l'enseignant
+// 5. Objectifs de stage : les documents qui les définissent pour la thématique, et la check-list
+// renseignée par l'étudiant lors de sa demande de convention. Elle ne figure pas dans la
+// convention, mais la DEVE et l'enseignant référent peuvent la corriger depuis ici.
+$objectivelinks = stage_render_theme_objective_links($context, $entry->themeid, ['id' => $cm->id]);
+if ($objectivelinks !== '') {
+    echo $OUTPUT->heading(get_string('themeobjectives', 'mod_stage'), 4);
+    echo $objectivelinks;
+}
+echo stage_render_entry_checklist_section($stage, $cm, $context, $entry, $PAGE->url);
+
+// 6. Évaluations successives, dans l'ordre du circuit : l'étudiant s'auto-évalue, l'enseignant
 // référent évalue, la DEVE valide. Chaque section rappelle qui a évalué et quand, au-dessus du
 // contenu de l'évaluation.
 $answers = stage_get_answers($entry->id);

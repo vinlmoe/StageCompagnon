@@ -195,6 +195,8 @@ final class backup_restore_test extends \advanced_testcase {
             'timemodified' => $now,
         ]);
 
+        $checklistitem = $stagegen->create_checklist_item($theme, ['name' => 'Consultation en autonomie']);
+
         $entry = $stagegen->create_entry($stage, $student->id, $theme);
         $DB->set_field('stage_entry', 'conventiontemplateid', $templateid, ['id' => $entry->id]);
         $DB->set_field('stage_entry', 'tutortoken', bin2hex(random_bytes(32)), ['id' => $entry->id]);
@@ -202,6 +204,15 @@ final class backup_restore_test extends \advanced_testcase {
             'entryid' => $entry->id,
             'questionid' => $questionid,
             'answertext' => 'Beaucoup de choses.',
+            'timecreated' => $now,
+            'timemodified' => $now,
+        ]);
+
+        $DB->insert_record('stage_entry_checklist', (object) [
+            'entryid' => $entry->id,
+            'itemid' => $checklistitem->id,
+            'checked' => 0,
+            'explanation' => 'Structure trop petite.',
             'timecreated' => $now,
             'timemodified' => $now,
         ]);
@@ -217,6 +228,12 @@ final class backup_restore_test extends \advanced_testcase {
             'filearea' => STAGE_REPORT_FILEAREA, 'itemid' => $entry->id,
             'filepath' => '/', 'filename' => 'rapport.pdf',
         ], 'rapport');
+
+        $fs->create_file_from_string([
+            'contextid' => $context->id, 'component' => 'mod_stage',
+            'filearea' => STAGE_THEME_OBJECTIVE_FILEAREA, 'itemid' => $theme->id,
+            'filepath' => '/', 'filename' => 'objectifs.pdf',
+        ], 'objectifs');
 
         $newcourse = $this->backup_and_restore($course);
         $newcm = $this->single_instance($newcourse->id, 'stage');
@@ -295,6 +312,29 @@ final class backup_restore_test extends \advanced_testcase {
             'mod_stage',
             STAGE_REPORT_FILEAREA,
             $newentry->id,
+            'itemid',
+            false
+        ));
+
+        // Objectifs de la thématique : check-list, réponse de l'étudiant et document déposé, tous
+        // rattachés à la thématique ou à la saisie de la copie.
+        $newitems = $DB->get_records('stage_theme_checklist', ['themeid' => $newtheme->id]);
+        $this->assertCount(1, $newitems);
+        $newitem = reset($newitems);
+        $this->assertSame('Consultation en autonomie', $newitem->name);
+
+        $newchecklist = $DB->get_records('stage_entry_checklist', ['entryid' => $newentry->id]);
+        $this->assertCount(1, $newchecklist);
+        $newanswerrow = reset($newchecklist);
+        $this->assertEquals($newitem->id, $newanswerrow->itemid);
+        $this->assertEquals(0, $newanswerrow->checked);
+        $this->assertSame('Structure trop petite.', $newanswerrow->explanation);
+
+        $this->assertCount(1, $fs->get_area_files(
+            $newcontext->id,
+            'mod_stage',
+            STAGE_THEME_OBJECTIVE_FILEAREA,
+            $newtheme->id,
             'itemid',
             false
         ));

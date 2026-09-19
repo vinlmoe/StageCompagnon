@@ -2870,12 +2870,12 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
  * Utilisé par la page de l'étudiant lui-même (avec lien de saisie de l'auto-évaluation, si
  * $cm est fourni) et par le tableau de pilotage de la DEVE et des enseignants référents.
  *
- * L'information est présentée du général au particulier, en cinq sections : la synthèse (chiffres
+ * L'information est présentée du général au particulier, en six sections : la synthèse (chiffres
  * clés du dossier), le bilan par année d'étude, le bilan par thématique obligatoire, l'obligation
- * de mobilité internationale, puis le détail de chaque stage saisi. Les bilans par année et par
- * thématique tiennent chacun dans un seul tableau (l'année ou la plage d'années est une colonne,
- * non un titre de section) et affichent le reste à faire plutôt que d'obliger l'étudiant à le
- * calculer lui-même.
+ * de mobilité internationale, les documents d'objectifs des thématiques, puis le détail de chaque
+ * stage saisi. Les bilans par année et par thématique tiennent chacun dans un seul tableau
+ * (l'année ou la plage d'années est une colonne, non un titre de section) et affichent le reste à
+ * faire plutôt que d'obliger l'étudiant à le calculer lui-même.
  *
  * La colonne d'actions de la liste des stages est déduite des droits de l'utilisateur courant sur
  * l'étudiant affiché (voir stage_render_entry_management_actions()) : la DEVE et l'enseignant
@@ -3062,9 +3062,18 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
         echo html_writer::table($abroadtable);
     }
 
-    // 5. Détail de chaque stage saisi.
-    echo $OUTPUT->heading(get_string('allmystages', 'mod_stage'), 4);
     $themes = stage_get_themes($stage->id);
+
+    // 5. Objectifs de stage : les documents déposés par la DEVE pour chaque thématique, à
+    // télécharger. Ils décrivent ce qui est attendu sur la thématique entière et non sur un stage
+    // précis : ils sont donc présentés à part, au-dessus de la liste des saisies, et la section
+    // disparaît d'elle-même tant qu'aucun document n'a été déposé.
+    if ($cm) {
+        echo stage_render_theme_objectives_section(context_module::instance($cm->id), $cm, $themes);
+    }
+
+    // 6. Détail de chaque stage saisi.
+    echo $OUTPUT->heading(get_string('allmystages', 'mod_stage'), 4);
     $entries = stage_get_student_entries($stage->id, $userid);
 
     // Droits de l'utilisateur courant sur les stages de cet étudiant, calculés une seule fois
@@ -3575,11 +3584,17 @@ function stage_execute_student_transfer(
  * les originales ne sont pas modifiées). N'importe pas les questions d'évaluation personnalisées
  * associées.
  *
+ * Les objectifs de stage (documents à télécharger et check-list) font en revanche partie de la
+ * définition de la thématique et suivent la copie : les documents seulement si les deux contextes
+ * sont fournis, la check-list dans tous les cas.
+ *
  * @param int $sourcestageid
  * @param int $targetstageid
+ * @param context|null $sourcecontext Contexte du module source, pour copier les documents d'objectifs.
+ * @param context|null $targetcontext Contexte du module cible, pour copier les documents d'objectifs.
  * @return int Nombre de thématiques copiées.
  */
-function stage_import_themes($sourcestageid, $targetstageid) {
+function stage_import_themes($sourcestageid, $targetstageid, ?context $sourcecontext = null, ?context $targetcontext = null) {
     global $DB;
 
     $themes = stage_get_themes($sourcestageid);
@@ -3606,6 +3621,25 @@ function stage_import_themes($sourcestageid, $targetstageid) {
         ]);
         foreach (stage_get_theme_durations($theme->id) as $studyyear => $requiredduration) {
             stage_set_theme_duration($newthemeid, $studyyear, $requiredduration);
+        }
+        foreach (stage_get_theme_checklist($theme->id) as $item) {
+            $DB->insert_record('stage_theme_checklist', (object) [
+                'themeid' => $newthemeid,
+                'name' => $item->name,
+                'description' => $item->description,
+                'sortorder' => $item->sortorder,
+                'timecreated' => time(),
+                'timemodified' => time(),
+            ]);
+        }
+        if ($sourcecontext && $targetcontext) {
+            $fs = get_file_storage();
+            foreach (stage_get_theme_objective_files($sourcecontext, $theme->id) as $sourcefile) {
+                $fs->create_file_from_storedfile([
+                    'contextid' => $targetcontext->id,
+                    'itemid' => $newthemeid,
+                ], $sourcefile);
+            }
         }
     }
     return count($themes);
@@ -3766,7 +3800,7 @@ function stage_import_from_stage(
     $result = (object) ['themes' => 0, 'templates' => 0, 'logos' => 0, 'emails' => 0, 'establishment' => false];
 
     if (!empty($options['themes'])) {
-        $result->themes = stage_import_themes($sourcestage->id, $targetstage->id);
+        $result->themes = stage_import_themes($sourcestage->id, $targetstage->id, $sourcecontext, $targetcontext);
     }
     if (!empty($options['templates'])) {
         $result->templates = stage_import_convention_templates(
@@ -4674,6 +4708,522 @@ function stage_report_mode_options() {
 }
 
 /**
+ * Documents d'objectifs de stage déposés par la DEVE pour une thématique (voir
+ * theme_objectives.php) : ils décrivent ce qui est attendu de l'étudiant sur cette thématique et
+ * sont téléchargeables par l'étudiant, les enseignants et le maître de stage.
+ *
+ * @param context $context Contexte du module stage.
+ * @param int $themeid
+ * @return \stored_file[] Indexés par pathnamehash, éventuellement vide.
+ */
+function stage_get_theme_objective_files(context $context, $themeid) {
+    $fs = get_file_storage();
+    return $fs->get_area_files(
+        $context->id,
+        'mod_stage',
+        STAGE_THEME_OBJECTIVE_FILEAREA,
+        $themeid,
+        'filename',
+        false
+    );
+}
+
+/**
+ * Liens de téléchargement des documents d'objectifs d'une thématique.
+ *
+ * Les paramètres d'identification du demandeur sont laissés à l'appelant plutôt que déduits ici :
+ * une page Moodle passe l'identifiant du module ('id' => cm->id), la page d'évaluation du maître
+ * de stage passe son jeton ('token' => ...), seul justificatif dont il dispose (voir
+ * theme_objective_file.php, qui accepte les deux).
+ *
+ * @param context $context Contexte du module stage.
+ * @param int $themeid
+ * @param array $urlparams Paramètres identifiant le demandeur : ['id' => cmid] ou ['token' => jeton].
+ * @return string HTML, chaîne vide si aucun document n'a été déposé.
+ */
+function stage_render_theme_objective_links(context $context, $themeid, array $urlparams) {
+    $files = stage_get_theme_objective_files($context, $themeid);
+    if (empty($files)) {
+        return '';
+    }
+
+    $items = [];
+    foreach ($files as $file) {
+        $url = new moodle_url(
+            '/mod/stage/theme_objective_file.php',
+            $urlparams + ['themeid' => $themeid, 'pathnamehash' => $file->get_pathnamehash()]
+        );
+        $items[] = html_writer::link($url, $file->get_filename())
+            . html_writer::span(' (' . display_size($file->get_filesize()) . ')', 'text-muted');
+    }
+
+    return html_writer::alist($items);
+}
+
+/**
+ * Section « Objectifs de stage » listant, thématique par thématique, les documents à télécharger.
+ *
+ * Affichée sur la page de synthèse de l'étudiant (donc aussi pour la DEVE et les enseignants qui
+ * consultent cette synthèse, voir stage_print_student_dashboard()) : les objectifs sont attachés à
+ * la thématique et non à un stage précis, ils n'ont donc pas leur place dans la liste des saisies.
+ *
+ * @param context $context Contexte du module stage.
+ * @param stdClass $cm Course module.
+ * @param array $themes Thématiques à présenter (objets stage_theme).
+ * @return string HTML, chaîne vide si aucune thématique n'a de document.
+ */
+function stage_render_theme_objectives_section(context $context, stdClass $cm, array $themes) {
+    global $OUTPUT;
+
+    $table = new html_table();
+    $table->head = [get_string('theme', 'mod_stage'), get_string('themeobjectivefiles', 'mod_stage')];
+    foreach ($themes as $theme) {
+        $links = stage_render_theme_objective_links($context, $theme->id, ['id' => $cm->id]);
+        if ($links === '') {
+            // Une thématique sans document n'a rien à montrer ici : la lister vide ne ferait
+            // qu'allonger le tableau sans rien apprendre.
+            continue;
+        }
+        $table->data[] = [format_string($theme->name), $links];
+    }
+    if (empty($table->data)) {
+        return '';
+    }
+
+    return $OUTPUT->heading(get_string('themeobjectives', 'mod_stage'), 4)
+        . html_writer::table($table);
+}
+
+/**
+ * Éléments de la check-list d'objectifs d'une thématique, dans l'ordre d'affichage.
+ *
+ * @param int $themeid
+ * @return array id => enregistrement stage_theme_checklist.
+ */
+function stage_get_theme_checklist($themeid) {
+    global $DB;
+
+    return $DB->get_records('stage_theme_checklist', ['themeid' => $themeid], 'sortorder ASC, id ASC');
+}
+
+/**
+ * Check-lists de plusieurs thématiques en une requête, pour les formulaires qui doivent présenter
+ * les éléments de toutes les thématiques proposées (la thématique n'y étant choisie qu'au moment
+ * de la saisie, voir student_register_form).
+ *
+ * @param array $themeids
+ * @return array themeid => [éléments], une entrée par thématique demandée (éventuellement vide).
+ */
+function stage_get_theme_checklists(array $themeids) {
+    global $DB;
+
+    $themeids = array_values(array_filter(array_unique(array_map('intval', $themeids))));
+    $result = array_fill_keys($themeids, []);
+    if (empty($themeids)) {
+        return $result;
+    }
+
+    [$insql, $inparams] = $DB->get_in_or_equal($themeids);
+    $items = $DB->get_records_select(
+        'stage_theme_checklist',
+        "themeid $insql",
+        $inparams,
+        'sortorder ASC, id ASC'
+    );
+    foreach ($items as $item) {
+        $result[(int) $item->themeid][$item->id] = $item;
+    }
+
+    return $result;
+}
+
+/**
+ * Supprime un élément de check-list et, avec lui, les réponses déjà données par les étudiants :
+ * sans cela, elles resteraient rattachées à un objectif disparu, impossible à afficher.
+ *
+ * @param int $itemid
+ * @return void
+ */
+function stage_delete_theme_checklist_item($itemid) {
+    global $DB;
+
+    $DB->delete_records('stage_entry_checklist', ['itemid' => $itemid]);
+    $DB->delete_records('stage_theme_checklist', ['id' => $itemid]);
+}
+
+/**
+ * Supprime la check-list d'une thématique (ses éléments et les réponses associées), lorsque la
+ * thématique elle-même disparaît.
+ *
+ * @param int $themeid
+ * @return void
+ */
+function stage_delete_theme_checklist($themeid) {
+    global $DB;
+
+    foreach ($DB->get_fieldset_select('stage_theme_checklist', 'id', 'themeid = ?', [$themeid]) as $itemid) {
+        stage_delete_theme_checklist_item($itemid);
+    }
+}
+
+/**
+ * Réponses données à la check-list d'objectifs pour une saisie de stage.
+ *
+ * @param int $entryid
+ * @return array itemid => enregistrement stage_entry_checklist.
+ */
+function stage_get_entry_checklist($entryid) {
+    global $DB;
+
+    $rows = $DB->get_records('stage_entry_checklist', ['entryid' => $entryid]);
+    $result = [];
+    foreach ($rows as $row) {
+        $result[(int) $row->itemid] = $row;
+    }
+
+    return $result;
+}
+
+/**
+ * Enregistre les réponses à la check-list d'objectifs d'une saisie.
+ *
+ * Les réponses portant sur des éléments qui ne font plus partie de la check-list attendue sont
+ * supprimées : c'est le cas lorsque l'étudiant change la thématique de son stage avant que sa
+ * convention ne soit éditée, les objectifs de l'ancienne thématique n'ayant alors plus de sens.
+ *
+ * @param int $entryid
+ * @param array $items Éléments attendus (voir stage_get_theme_checklist()).
+ * @param array $submitted itemid => objet {checked, explanation}, tel que renvoyé par
+ *                         stage_extract_submitted_checklist().
+ * @return void
+ */
+function stage_save_entry_checklist($entryid, array $items, array $submitted) {
+    global $DB;
+
+    $now = time();
+    $existing = stage_get_entry_checklist($entryid);
+
+    $keptids = [];
+    foreach ($items as $item) {
+        $answer = $submitted[$item->id] ?? null;
+        if ($answer === null) {
+            continue;
+        }
+        $keptids[] = (int) $item->id;
+        $checked = !empty($answer->checked) ? 1 : 0;
+        // La justification n'a de sens que pour un objectif non coché : la conserver après coup
+        // laisserait un commentaire orphelin s'afficher à côté d'un objectif finalement atteint.
+        $explanation = $checked ? '' : (string) $answer->explanation;
+
+        $record = $existing[(int) $item->id] ?? null;
+        if ($record) {
+            if ((int) $record->checked === $checked && (string) $record->explanation === $explanation) {
+                continue;
+            }
+            $record->checked = $checked;
+            $record->explanation = $explanation;
+            $record->timemodified = $now;
+            $DB->update_record('stage_entry_checklist', $record);
+        } else {
+            $DB->insert_record('stage_entry_checklist', (object) [
+                'entryid' => $entryid,
+                'itemid' => $item->id,
+                'checked' => $checked,
+                'explanation' => $explanation,
+                'timecreated' => $now,
+                'timemodified' => $now,
+            ]);
+        }
+    }
+
+    $obsolete = array_diff(array_keys($existing), $keptids);
+    if (!empty($obsolete)) {
+        [$insql, $inparams] = $DB->get_in_or_equal($obsolete);
+        $DB->delete_records_select(
+            'stage_entry_checklist',
+            "entryid = ? AND itemid $insql",
+            array_merge([$entryid], $inparams)
+        );
+    }
+}
+
+/**
+ * Nom du champ de formulaire portant la case à cocher d'un élément de check-list.
+ *
+ * @param int $itemid
+ * @return string
+ */
+function stage_checklist_check_field($itemid) {
+    return 'checklistitem_' . $itemid;
+}
+
+/**
+ * Nom du champ de formulaire portant la justification libre d'un élément de check-list.
+ *
+ * @param int $itemid
+ * @return string
+ */
+function stage_checklist_comment_field($itemid) {
+    return 'checklistcomment_' . $itemid;
+}
+
+/**
+ * Ajoute à un formulaire la section « Objectifs de stage » : une case à cocher par élément de
+ * check-list, suivie du champ libre à remplir lorsque l'élément n'est pas coché.
+ *
+ * Lorsque la thématique est choisie dans le même formulaire (enregistrement d'un stage par
+ * l'étudiant), les éléments de toutes les thématiques proposées sont ajoutés et masqués par
+ * $themefield : seuls ceux de la thématique sélectionnée restent visibles. La validation et
+ * l'enregistrement ne retiennent de toute façon que les éléments de la thématique retenue, les
+ * champs masqués étant tout de même transmis par le navigateur.
+ *
+ * @param \MoodleQuickForm $mform
+ * @param array $itemsbytheme themeid => [éléments], voir stage_get_theme_checklists().
+ * @param string|null $themefield Nom du champ portant le choix de la thématique, si elle se
+ *                                choisit dans ce formulaire ; null si elle est déjà fixée.
+ * @return void
+ */
+function stage_add_checklist_fields(\MoodleQuickForm $mform, array $itemsbytheme, $themefield = null) {
+    $total = 0;
+    foreach ($itemsbytheme as $items) {
+        $total += count($items);
+    }
+    if ($total === 0) {
+        return;
+    }
+
+    $mform->addElement('header', 'checklistheader', get_string('themechecklist', 'mod_stage'));
+    $mform->setExpanded('checklistheader');
+    $mform->addElement(
+        'static',
+        'checklistintro',
+        '',
+        html_writer::div(get_string('themechecklistintro', 'mod_stage'), 'text-muted')
+    );
+
+    foreach ($itemsbytheme as $themeid => $items) {
+        foreach ($items as $item) {
+            $checkfield = stage_checklist_check_field($item->id);
+            $commentfield = stage_checklist_comment_field($item->id);
+            $descfield = 'checklistdesc_' . $item->id;
+
+            $mform->addElement(
+                'advcheckbox',
+                $checkfield,
+                format_string($item->name),
+                get_string('checklistchecked', 'mod_stage')
+            );
+            $hasdescription = trim((string) $item->description) !== '';
+            if ($hasdescription) {
+                $mform->addElement(
+                    'static',
+                    $descfield,
+                    '',
+                    html_writer::div(format_text($item->description, FORMAT_PLAIN), 'text-muted')
+                );
+            }
+            $mform->addElement(
+                'textarea',
+                $commentfield,
+                get_string('checklistcomment', 'mod_stage'),
+                ['rows' => 2, 'cols' => 60]
+            );
+            $mform->setType($commentfield, PARAM_TEXT);
+            // La justification ne se demande que pour un objectif non atteint : c'est tout l'objet
+            // du champ libre.
+            $mform->hideIf($commentfield, $checkfield, 'checked');
+
+            if ($themefield !== null) {
+                foreach ([$checkfield, $commentfield] as $field) {
+                    $mform->hideIf($field, $themefield, 'neq', $themeid);
+                }
+                if ($hasdescription) {
+                    $mform->hideIf($descfield, $themefield, 'neq', $themeid);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Valeurs de formulaire correspondant aux réponses déjà enregistrées pour une check-list, à
+ * passer à set_data() lorsqu'une demande de convention est reprise ou corrigée.
+ *
+ * @param array $items Éléments de la check-list.
+ * @param array $responses Réponses, voir stage_get_entry_checklist().
+ * @return array Nom de champ => valeur.
+ */
+function stage_checklist_form_data(array $items, array $responses) {
+    $data = [];
+    foreach ($items as $item) {
+        $response = $responses[(int) $item->id] ?? null;
+        if ($response === null) {
+            continue;
+        }
+        $data[stage_checklist_check_field($item->id)] = !empty($response->checked) ? 1 : 0;
+        $data[stage_checklist_comment_field($item->id)] = (string) $response->explanation;
+    }
+
+    return $data;
+}
+
+/**
+ * Extrait d'un formulaire soumis les réponses à la check-list des éléments donnés.
+ *
+ * @param stdClass|array $data Données du formulaire.
+ * @param array $items Éléments de la check-list attendus.
+ * @return array itemid => objet {checked, explanation}.
+ */
+function stage_extract_submitted_checklist($data, array $items) {
+    $data = (array) $data;
+    $result = [];
+    foreach ($items as $item) {
+        $result[(int) $item->id] = (object) [
+            'checked' => !empty($data[stage_checklist_check_field($item->id)]) ? 1 : 0,
+            'explanation' => trim((string) ($data[stage_checklist_comment_field($item->id)] ?? '')),
+        ];
+    }
+
+    return $result;
+}
+
+/**
+ * Validation serveur de la check-list : tout élément laissé décoché doit être justifié dans son
+ * champ libre, faute de quoi la case décochée ne dirait rien de la situation réelle.
+ *
+ * @param array $data Données du formulaire.
+ * @param array $items Éléments de la check-list attendus.
+ * @return array Erreurs indexées par nom de champ, éventuellement vide.
+ */
+function stage_validate_checklist(array $data, array $items) {
+    $errors = [];
+    foreach (stage_extract_submitted_checklist($data, $items) as $itemid => $answer) {
+        if (!$answer->checked && $answer->explanation === '') {
+            $errors[stage_checklist_comment_field($itemid)] = get_string('checklistcommentrequired', 'mod_stage');
+        }
+    }
+
+    return $errors;
+}
+
+/**
+ * Rend la check-list d'objectifs d'une saisie en lecture seule (détail d'une saisie).
+ *
+ * Un élément sans réponse enregistrée est présenté comme non renseigné plutôt que comme non
+ * atteint : la DEVE peut avoir ajouté l'objectif après la demande de convention, ou avoir changé
+ * la thématique de la saisie.
+ *
+ * @param array $items Éléments de la check-list de la thématique.
+ * @param array $responses Réponses, voir stage_get_entry_checklist().
+ * @return string HTML, chaîne vide si la thématique n'a pas de check-list.
+ */
+function stage_render_entry_checklist(array $items, array $responses) {
+    if (empty($items)) {
+        return '';
+    }
+
+    $table = new html_table();
+    $table->attributes['class'] = 'generaltable stage-checklist';
+    $table->head = [
+        get_string('checklistitem', 'mod_stage'),
+        get_string('checklistchecked', 'mod_stage'),
+        get_string('checklistcomment', 'mod_stage'),
+    ];
+    foreach ($items as $item) {
+        $response = $responses[(int) $item->id] ?? null;
+        if ($response === null) {
+            $status = html_writer::span(get_string('checklistnotanswered', 'mod_stage'), 'badge badge-secondary');
+            $comment = '-';
+        } else if (!empty($response->checked)) {
+            $status = html_writer::span(get_string('yes'), 'badge badge-success');
+            $comment = '-';
+        } else {
+            $status = html_writer::span(get_string('no'), 'badge badge-warning');
+            $comment = trim((string) $response->explanation) !== ''
+                ? format_text($response->explanation, FORMAT_PLAIN) : '-';
+        }
+
+        $label = format_string($item->name);
+        if (trim((string) $item->description) !== '') {
+            $label .= html_writer::div(format_text($item->description, FORMAT_PLAIN), 'text-muted small');
+        }
+        $table->data[] = [$label, $status, $comment];
+    }
+
+    return html_writer::table($table);
+}
+
+/**
+ * Section « Check-list d'objectifs » des pages qui portent sur une saisie précise (détail,
+ * validation de la convention par l'enseignant référent, revue de la convention par la DEVE) :
+ * les réponses de l'étudiant en lecture seule, suivies du bouton de correction pour ceux qui y
+ * ont droit.
+ *
+ * @param stdClass $stage
+ * @param stdClass $cm Course module.
+ * @param context $context Contexte du module stage.
+ * @param stdClass $entry
+ * @param moodle_url|null $returnurl Page d'où l'on vient, pour y revenir après correction.
+ * @return string HTML, chaîne vide si la thématique de la saisie n'a pas de check-list.
+ */
+function stage_render_entry_checklist_section(
+    stdClass $stage,
+    stdClass $cm,
+    context $context,
+    stdClass $entry,
+    ?moodle_url $returnurl = null
+) {
+    global $OUTPUT;
+
+    $items = stage_get_theme_checklist($entry->themeid);
+    if (empty($items)) {
+        return '';
+    }
+
+    $out = $OUTPUT->heading(get_string('themechecklist', 'mod_stage'), 4)
+        . stage_render_entry_checklist($items, stage_get_entry_checklist($entry->id));
+
+    if (stage_can_edit_entry_checklist($stage, $entry, $context)) {
+        $params = ['id' => $cm->id, 'entryid' => $entry->id];
+        if ($returnurl !== null) {
+            $params['returnurl'] = $returnurl->out_as_local_url(false);
+        }
+        $out .= html_writer::link(
+            new moodle_url('/mod/stage/entry_checklist.php', $params),
+            get_string('editchecklist', 'mod_stage'),
+            ['class' => 'btn btn-sm btn-secondary mb-2']
+        );
+    }
+
+    return $out;
+}
+
+/**
+ * Qui peut modifier la check-list d'objectifs d'une saisie après coup : la DEVE et l'enseignant
+ * référent de l'étudiant, et eux seuls. L'étudiant la renseigne lors de sa demande de convention
+ * et ne la reprend plus ensuite ; l'enseignant responsable de la thématique, qui accède pourtant
+ * au détail de la saisie, n'a pas à la corriger.
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @param context $context Contexte du module stage.
+ * @param int|null $userid Utilisateur concerné, l'utilisateur courant par défaut.
+ * @return bool
+ */
+function stage_can_edit_entry_checklist(stdClass $stage, stdClass $entry, context $context, $userid = null) {
+    global $USER;
+
+    $userid = $userid ?: $USER->id;
+
+    if (has_capability('mod/stage:viewall', $context, $userid)) {
+        return true;
+    }
+
+    return has_capability('mod/stage:evaluateteacher', $context, $userid)
+        && array_key_exists($entry->userid, stage_get_assigned_students($stage->id, $userid));
+}
+
+/**
  * Enseignants responsables d'une thématique (distincts des enseignants référents d'un étudiant) :
  * ils accèdent aux stages faits sur leur thématique et aux rapports qui y sont déposés.
  *
@@ -5207,7 +5757,10 @@ function stage_delete_entries(array $entryids, ?context $context = null) {
     }
 
     [$insql, $inparams] = $DB->get_in_or_equal($entryids);
-    foreach (['stage_answer', 'stage_convention_detail', 'stage_entry_period', 'stage_entry_workday'] as $table) {
+    foreach (
+        ['stage_answer', 'stage_convention_detail', 'stage_entry_period', 'stage_entry_workday',
+            'stage_entry_checklist'] as $table
+    ) {
         $DB->delete_records_select($table, "entryid $insql", $inparams);
     }
     $DB->delete_records_select('stage_entry', "id $insql", $inparams);

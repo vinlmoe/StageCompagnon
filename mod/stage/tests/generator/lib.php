@@ -57,6 +57,31 @@ class mod_stage_generator extends testing_module_generator {
     }
 
     /**
+     * Crée un élément de la check-list d'objectifs d'une thématique.
+     *
+     * @param stdClass|int $theme Thématique (ou son id).
+     * @param array $record Champs à surcharger : name, description, sortorder.
+     * @return stdClass L'élément créé.
+     */
+    public function create_checklist_item($theme, array $record = []) {
+        global $DB;
+
+        $themeid = is_object($theme) ? $theme->id : $theme;
+
+        $record = array_merge([
+            'themeid' => $themeid,
+            'name' => 'Objectif ' . ($DB->count_records('stage_theme_checklist', ['themeid' => $themeid]) + 1),
+            'description' => '',
+            'sortorder' => 0,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ], $record);
+
+        $id = $DB->insert_record('stage_theme_checklist', (object) $record);
+        return $DB->get_record('stage_theme_checklist', ['id' => $id], '*', MUST_EXIST);
+    }
+
+    /**
      * Enregistre un stage pour un étudiant, avec sa plage de dates (voir stage_register_entry(),
      * qui la crée automatiquement à partir de datestart/dateend).
      *

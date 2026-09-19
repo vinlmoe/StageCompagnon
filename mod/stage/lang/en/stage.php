@@ -749,6 +749,38 @@ $string['emailresettodefault'] = 'Leave both fields empty to use the default tex
 $string['supervisedstages'] = 'Internships supervised or processed';
 $string['answers'] = 'Answers';
 $string['conventiondetails'] = 'Agreement details';
+// Internship objectives (documents and checklist per theme).
+$string['themeobjectives'] = 'Internship objectives';
+$string['themeobjectivefiles'] = 'Objective documents';
+$string['themeobjectivefiles_help'] = 'Upload here the documents defining the internship objectives for '
+    . 'this theme. Students and teachers can download them from the summary page, and the internship '
+    . 'supervisor from the evaluation page they receive by email.';
+$string['themeobjectivessaved'] = 'The objective documents have been saved.';
+$string['themeobjectivefilemissing'] = 'This document does not exist or is no longer available.';
+$string['themechecklist'] = 'Objectives checklist';
+$string['themechecklist_help'] = 'The items defined here are shown to the student when they request their '
+    . 'agreement: they tick the ones their internship will allow them to achieve and explain, in a free text '
+    . 'field, each item left unticked. The checklist is not part of the agreement; it stays attached to the '
+    . 'internship, visible in its details and editable by the registrar and the supervising teacher.';
+$string['themechecklistintro'] = 'Tick the objectives your internship will allow you to achieve. For each '
+    . 'objective left unticked, explain why in the field provided.';
+$string['addchecklistitem'] = 'Add an objective';
+$string['nochecklistitemsyet'] = 'No objective is defined for this theme.';
+$string['checklistitem'] = 'Objective';
+$string['checklistitemdescription'] = 'Details';
+$string['checklistitemdescription_help'] = 'Optional text displayed below the objective, to make clear to '
+    . 'the student what is expected.';
+$string['checklistitemsaved'] = 'The objective has been saved.';
+$string['checklistitemdeleted'] = 'The objective has been deleted.';
+$string['confirmdeletechecklistitem'] = 'Delete this objective? The answers already given by students will '
+    . 'be deleted as well.';
+$string['checklistchecked'] = 'Achievable';
+$string['checklistcomment'] = 'If not, why?';
+$string['checklistcommentrequired'] = 'Explain why this objective will not be achieved.';
+$string['checklistnotanswered'] = 'Not answered';
+$string['checklistsaved'] = 'The objectives checklist has been saved.';
+$string['editchecklist'] = 'Edit the checklist';
+
 $string['privacy:metadata:core_files'] = 'Files attached to an internship: the signed agreement and the internship report.';
 $string['privacy:metadata:stage_entry'] = 'One record per internship declared by or for a student, with its evaluations and the state of its agreement.';
 $string['privacy:metadata:stage_entry:userid'] = 'The student the internship belongs to.';
@@ -792,3 +824,7 @@ $string['privacy:metadata:stage_entry_teacher:teacherid'] = 'The supervising tea
 $string['privacy:metadata:stage_theme_teacher'] = 'Which teachers are responsible for which internship themes.';
 $string['privacy:metadata:stage_theme_teacher:themeid'] = 'The internship theme.';
 $string['privacy:metadata:stage_theme_teacher:teacherid'] = 'The teacher responsible for the theme.';
+$string['privacy:metadata:stage_entry_checklist'] = 'The answers given by the student to the objectives checklist of their internship theme.';
+$string['privacy:metadata:stage_entry_checklist:itemid'] = 'The objective being answered.';
+$string['privacy:metadata:stage_entry_checklist:checked'] = 'Whether the objective is reported as achievable.';
+$string['privacy:metadata:stage_entry_checklist:explanation'] = 'The explanation given when the objective is not ticked.';

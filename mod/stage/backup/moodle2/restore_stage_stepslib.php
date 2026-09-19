@@ -48,6 +48,10 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
             '/activity/stage/themes/theme/themeteachers/themeteacher'
         );
         $paths[] = new restore_path_element(
+            'stage_theme_checklist',
+            '/activity/stage/themes/theme/themechecklists/themechecklist'
+        );
+        $paths[] = new restore_path_element(
             'stage_theme_duration',
             '/activity/stage/themes/theme/themedurations/themeduration'
         );
@@ -91,6 +95,10 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
                 'stage_answer',
                 '/activity/stage/entries/entry/answers/answer'
             );
+            $paths[] = new restore_path_element(
+                'stage_entry_checklist',
+                '/activity/stage/entries/entry/entrychecklists/entrychecklist'
+            );
         }
 
         return $this->prepare_activity_structure($paths);
@@ -123,8 +131,10 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         $oldid = $data->id;
         $data->stageid = $this->get_new_parentid('stage');
 
+        // La thématique porte désormais des fichiers (les documents d'objectifs) : la
+        // correspondance doit le déclarer pour qu'after_execute() puisse les rattacher.
         $newitemid = $DB->insert_record('stage_theme', $data);
-        $this->set_mapping('stage_theme', $oldid, $newitemid);
+        $this->set_mapping('stage_theme', $oldid, $newitemid, true);
     }
 
     /**
@@ -154,6 +164,22 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         }
 
         $DB->insert_record('stage_theme_teacher', $data);
+    }
+
+    /**
+     * Restaure un élément de la check-list d'objectifs d'une thématique.
+     *
+     * @param array $data
+     */
+    protected function process_stage_theme_checklist($data) {
+        global $DB;
+
+        $data = (object) $data;
+        $oldid = $data->id;
+        $data->themeid = $this->get_new_parentid('stage_theme');
+
+        $newitemid = $DB->insert_record('stage_theme_checklist', $data);
+        $this->set_mapping('stage_theme_checklist', $oldid, $newitemid);
     }
 
     /**
@@ -396,6 +422,29 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
     }
 
     /**
+     * Restaure une réponse à un élément de la check-list d'objectifs. La ligne est écartée si
+     * l'objectif lui-même n'a pas été restauré (thématique absente de la sauvegarde).
+     *
+     * @param array $data
+     */
+    protected function process_stage_entry_checklist($data) {
+        global $DB;
+
+        $data = (object) $data;
+        unset($data->id);
+
+        $itemid = $this->get_mappingid('stage_theme_checklist', $data->itemid);
+        if (!$itemid) {
+            return;
+        }
+
+        $data->entryid = $this->get_new_parentid('stage_entry');
+        $data->itemid = $itemid;
+
+        $DB->insert_record('stage_entry_checklist', $data);
+    }
+
+    /**
      * Rattache les fichiers une fois toutes les correspondances établies.
      */
     protected function after_execute() {
@@ -406,6 +455,9 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
 
         // Gabarits de convention : un PDF par gabarit.
         $this->add_related_files('mod_stage', 'conventiontemplate', 'stage_convention_template');
+
+        // Documents d'objectifs : un ou plusieurs fichiers par thématique.
+        $this->add_related_files('mod_stage', STAGE_THEME_OBJECTIVE_FILEAREA, 'stage_theme');
 
         if ($this->get_setting_value('userinfo')) {
             $this->add_related_files('mod_stage', 'signedconvention', 'stage_entry');

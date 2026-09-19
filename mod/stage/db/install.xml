@@ -395,5 +395,42 @@
         <INDEX NAME="stageid-emailkey" UNIQUE="true" FIELDS="stageid, emailkey"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="stage_theme_checklist" COMMENT="Élément de la check-list d'objectifs d'une thématique, renseigné par l'étudiant lors de sa demande de convention, puis modifiable par la DEVE et l'enseignant référent">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Intitulé de l'objectif à cocher"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Précision affichée sous l'intitulé (facultative)"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_entry_checklist" COMMENT="Réponse à un élément de la check-list d'objectifs pour une saisie de stage : coché, ou non coché avec la justification libre exigée dans ce cas">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="itemid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="checked" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="explanation" TYPE="text" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Justification libre, demandée lorsque l'élément n'est pas coché ; « comment » serait un mot réservé"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="entryid" TYPE="foreign" FIELDS="entryid" REFTABLE="stage_entry" REFFIELDS="id"/>
+        <KEY NAME="itemid" TYPE="foreign" FIELDS="itemid" REFTABLE="stage_theme_checklist" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="entryid-itemid" UNIQUE="true" FIELDS="entryid, itemid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

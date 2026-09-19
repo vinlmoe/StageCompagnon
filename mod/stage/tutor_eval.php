@@ -20,6 +20,9 @@
  * \mod_stage\task\send_tutor_evaluation_requests et stage_maybe_request_tutor_evaluation()).
  * Aucune authentification Moodle : la validité du jeton, à lui seul, fait foi.
  *
+ * La page propose aussi, au téléchargement, les documents d'objectifs de la thématique du stage :
+ * c'est le seul endroit où le maître de stage peut y accéder, n'ayant pas de compte Moodle.
+ *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -118,6 +121,16 @@ if (!empty($periodlabels)) {
         implode(html_writer::empty_tag('br'), $periodlabels)];
 }
 echo html_writer::table($infotable);
+
+// Objectifs de la thématique : les mêmes documents que ceux proposés à l'étudiant et aux
+// enseignants sur la page de synthèse. Ils disent au maître de stage ce qui était attendu du
+// stage qu'il s'apprête à évaluer. Les liens portent son jeton, seul justificatif dont il
+// dispose (voir theme_objective_file.php).
+$objectivelinks = stage_render_theme_objective_links($context, $entry->themeid, ['token' => $token]);
+if ($objectivelinks !== '') {
+    echo $OUTPUT->heading(get_string('themeobjectives', 'mod_stage', null, $lang), 4);
+    echo $objectivelinks;
+}
 
 if (!empty($entry->tutortime)) {
     echo $OUTPUT->notification(get_string('tutorevalalreadysubmitted', 'mod_stage', null, $lang), 'success');

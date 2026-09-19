@@ -110,6 +110,11 @@ if (empty($referentteachers)) {
 
 $existingperiods = $existingentry ? array_values(stage_get_or_seed_entry_periods($existingentry)) : [];
 
+// Check-list d'objectifs de chaque thématique proposée : la thématique se choisissant dans ce
+// formulaire, toutes sont chargées, et le formulaire ne montre que celle de la thématique
+// sélectionnée (voir stage_add_checklist_fields()).
+$checklistsbytheme = stage_get_theme_checklists(array_keys($themes));
+
 $mform = new student_register_form($baseurl, [
     'themes' => $themes,
     'templates' => $templates,
@@ -120,6 +125,7 @@ $mform = new student_register_form($baseurl, [
     'editing' => $existingentry !== null,
     'excludeentryid' => $entryid,
     'periods' => $existingperiods,
+    'checklistsbytheme' => $checklistsbytheme,
 ]);
 
 if ($existingentry) {
@@ -142,6 +148,16 @@ if ($existingentry) {
                 $formdata->$field = $value;
             }
         }
+    }
+    // Réponses déjà données à la check-list de la thématique actuelle de la saisie (demande
+    // refusée à corriger) : inutile de les ressaisir.
+    foreach (
+        stage_checklist_form_data(
+            $checklistsbytheme[(int) $existingentry->themeid] ?? [],
+            stage_get_entry_checklist($existingentry->id)
+        ) as $field => $value
+    ) {
+        $formdata->$field = $value;
     }
     $mform->set_data($formdata);
 } else {
@@ -219,6 +235,15 @@ if ($mform->is_cancelled()) {
     $detail->paperrequestedbystudent = !empty($data->paperrequestedbystudent) ? 1 : 0;
     stage_save_convention_detail($entry->id, $detail);
     stage_save_entry_periods($entry->id, $periods);
+
+    // Check-list d'objectifs de la thématique retenue : elle accompagne la demande sans figurer
+    // dans la convention, et reste corrigeable ensuite par la DEVE et l'enseignant référent.
+    $checklistitems = $checklistsbytheme[(int) $data->themeid] ?? [];
+    stage_save_entry_checklist(
+        $entry->id,
+        $checklistitems,
+        stage_extract_submitted_checklist($data, $checklistitems)
+    );
 
     if ($requireteachervalidation) {
         stage_notify_teacher_convention_pending($stage, $cm, $entry);

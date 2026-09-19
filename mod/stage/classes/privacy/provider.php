@@ -48,7 +48,8 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * - **l'étudiant**, propriétaire de la saisie (stage_entry.userid) : toutes ses données de stage
  *   lui sont rattachées, et la suppression les efface intégralement (stages, auto-évaluation,
  *   évaluations enseignant et maître de stage, détail de convention, périodes, jours ouvrés,
- *   réponses aux questionnaires, convention signée et rapport de stage) ;
+ *   réponses aux questionnaires et à la check-list d'objectifs, convention signée et rapport de
+ *   stage) ;
  * - **le personnel** (enseignant référent, responsable de thématique, DEVE), simplement *cité*
  *   dans la saisie d'un étudiant : sa suppression ne doit pas emporter le stage de l'étudiant,
  *   qui ne lui appartient pas. Ses références sont donc dissociées et les textes dont il est
@@ -110,6 +111,12 @@ class provider implements
             'questionid' => 'privacy:metadata:stage_answer:questionid',
             'answertext' => 'privacy:metadata:stage_answer:answertext',
         ], 'privacy:metadata:stage_answer');
+
+        $collection->add_database_table('stage_entry_checklist', [
+            'itemid' => 'privacy:metadata:stage_entry_checklist:itemid',
+            'checked' => 'privacy:metadata:stage_entry_checklist:checked',
+            'explanation' => 'privacy:metadata:stage_entry_checklist:explanation',
+        ], 'privacy:metadata:stage_entry_checklist');
 
         $collection->add_database_table('stage_entry_teacher', [
             'studentid' => 'privacy:metadata:stage_entry_teacher:studentid',
@@ -324,6 +331,23 @@ class provider implements
                     writer::with_context($context)->export_data(
                         array_merge($subcontext, [get_string('answers', 'mod_stage')]),
                         (object) ['answers' => $rows]
+                    );
+                }
+
+                $checklist = stage_get_entry_checklist($entry->id);
+                if ($checklist) {
+                    $rows = [];
+                    foreach ($checklist as $itemid => $answer) {
+                        $item = $DB->get_record('stage_theme_checklist', ['id' => $itemid]);
+                        $rows[] = (object) [
+                            'objective' => $item ? $item->name : '',
+                            'checked' => transform::yesno($answer->checked),
+                            'explanation' => $answer->explanation,
+                        ];
+                    }
+                    writer::with_context($context)->export_data(
+                        array_merge($subcontext, [get_string('themechecklist', 'mod_stage')]),
+                        (object) ['checklist' => $rows]
                     );
                 }
 

@@ -59,6 +59,15 @@ if ($action === 'delete' && $themeid) {
         $DB->delete_records('stage_theme_teacher', ['themeid' => $theme->id]);
         // Même raisonnement pour les durées par année d'étude, rattachées à la thématique.
         $DB->delete_records('stage_theme_duration', ['themeid' => $theme->id]);
+        // Objectifs de stage : la check-list (et les réponses qui s'y rattachent) et les documents
+        // déposés disparaissent avec la thématique qu'ils décrivaient.
+        stage_delete_theme_checklist($theme->id);
+        get_file_storage()->delete_area_files(
+            $context->id,
+            'mod_stage',
+            STAGE_THEME_OBJECTIVE_FILEAREA,
+            $theme->id
+        );
         // Les questions passent par stage_unlink_question_theme() plutôt que par une suppression
         // directe des rattachements : une question partagée avec une autre thématique doit
         // survivre, une question qui n'était plus rattachée qu'à celle-ci doit disparaître avec
@@ -276,6 +285,7 @@ if (empty($themes)) {
         );
         $questionsurl = new moodle_url('/mod/stage/questions.php', ['id' => $cm->id, 'themeid' => $theme->id]);
         $durationsurl = new moodle_url('/mod/stage/theme_durations.php', ['id' => $cm->id, 'themeid' => $theme->id]);
+        $objectivesurl = new moodle_url('/mod/stage/theme_objectives.php', ['id' => $cm->id, 'themeid' => $theme->id]);
 
         // La suppression est isolée en rouge, à la fin : parmi cinq liens indifférenciés séparés
         // par des barres verticales, elle était trop facile à cliquer par erreur.
@@ -283,6 +293,7 @@ if (empty($themes)) {
             get_string('edit') => $editurl,
             get_string('toggle', 'mod_stage') => $toggleurl,
             get_string('managethemedurations', 'mod_stage') => $durationsurl,
+            get_string('themeobjectives', 'mod_stage') => $objectivesurl,
             get_string('evalquestions', 'mod_stage') => $questionsurl,
         ]) . html_writer::link($deleteurl, get_string('delete'), [
             'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',

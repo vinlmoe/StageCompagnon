@@ -765,6 +765,38 @@ $string['emailresettodefault'] = 'Laissez les deux champs vides pour utiliser le
 $string['supervisedstages'] = 'Stages suivis ou traités';
 $string['answers'] = 'Réponses';
 $string['conventiondetails'] = 'Détail de la convention';
+// Objectifs de stage (documents et check-list par thématique).
+$string['themeobjectives'] = 'Objectifs de stage';
+$string['themeobjectivefiles'] = "Documents d'objectifs";
+$string['themeobjectivefiles_help'] = "Déposez ici les documents qui définissent les objectifs de "
+    . "stage de cette thématique. Ils sont téléchargeables par les étudiants et les enseignants depuis la page "
+    . 'de synthèse, et par le maître de stage depuis la page d\'évaluation qu\'il reçoit par courriel.';
+$string['themeobjectivessaved'] = "Les documents d'objectifs ont été enregistrés.";
+$string['themeobjectivefilemissing'] = "Ce document n'existe pas ou n'est plus disponible.";
+$string['themechecklist'] = "Check-list d'objectifs";
+$string['themechecklist_help'] = "Les éléments définis ici sont présentés à l'étudiant lors de sa demande "
+    . "de convention : il coche ceux que son stage permettra d'atteindre et justifie dans un champ libre ceux "
+    . "qu'il laisse décochés. La check-list ne figure pas dans la convention ; elle reste attachée au stage, "
+    . "consultable dans son détail et modifiable par la DEVE et l'enseignant référent.";
+$string['themechecklistintro'] = "Cochez les objectifs que votre stage permettra d'atteindre. Pour chaque "
+    . 'objectif laissé décoché, expliquez pourquoi dans le champ prévu à cet effet.';
+$string['addchecklistitem'] = 'Ajouter un objectif';
+$string['nochecklistitemsyet'] = "Aucun objectif n'est défini pour cette thématique.";
+$string['checklistitem'] = 'Objectif';
+$string['checklistitemdescription'] = 'Précision';
+$string['checklistitemdescription_help'] = "Texte facultatif affiché sous l'intitulé de l'objectif, pour "
+    . "préciser à l'étudiant ce qui est attendu.";
+$string['checklistitemsaved'] = "L'objectif a été enregistré.";
+$string['checklistitemdeleted'] = "L'objectif a été supprimé.";
+$string['confirmdeletechecklistitem'] = "Supprimer cet objectif ? Les réponses déjà données par les "
+    . 'étudiants seront également supprimées.';
+$string['checklistchecked'] = 'Atteint';
+$string['checklistcomment'] = 'Si non atteint, pourquoi ?';
+$string['checklistcommentrequired'] = 'Expliquez pourquoi cet objectif ne sera pas atteint.';
+$string['checklistnotanswered'] = 'Non renseigné';
+$string['checklistsaved'] = "La check-list d'objectifs a été enregistrée.";
+$string['editchecklist'] = "Modifier la check-list";
+
 $string['privacy:metadata:core_files'] = 'Fichiers rattachés à un stage : la convention signée et le rapport de stage.';
 $string['privacy:metadata:stage_entry'] = "Un enregistrement par stage déclaré par ou pour un étudiant, avec ses évaluations et l'état de sa convention.";
 $string['privacy:metadata:stage_entry:userid'] = "L'étudiant à qui le stage appartient.";
@@ -808,3 +840,7 @@ $string['privacy:metadata:stage_entry_teacher:teacherid'] = "L'enseignant réfé
 $string['privacy:metadata:stage_theme_teacher'] = 'Les enseignants responsables de chaque thématique de stage.';
 $string['privacy:metadata:stage_theme_teacher:themeid'] = 'La thématique de stage.';
 $string['privacy:metadata:stage_theme_teacher:teacherid'] = 'L\'enseignant responsable de la thématique.';
+$string['privacy:metadata:stage_entry_checklist'] = "Les réponses de l'étudiant à la check-list d'objectifs de sa thématique de stage.";
+$string['privacy:metadata:stage_entry_checklist:itemid'] = "L'objectif auquel il est répondu.";
+$string['privacy:metadata:stage_entry_checklist:checked'] = "Si l'objectif est annoncé comme atteignable.";
+$string['privacy:metadata:stage_entry_checklist:explanation'] = "La justification apportée lorsque l'objectif n'est pas coché.";

@@ -27,9 +27,10 @@
  * Décrit l'arbre XML (stage.xml) d'une instance de mod_stage, ses annotations d'identifiants et
  * ses zones de fichiers.
  *
- * Le paramétrage de l'activité (thématiques et leurs durées, exigences annuelles, gabarits de
- * convention, questions d'évaluation, modèles de courriels) est toujours sauvegardé ; les stages
- * eux-mêmes et tout ce qui s'y rattache ne le sont que si les données utilisateur sont demandées.
+ * Le paramétrage de l'activité (thématiques et leurs durées, leurs objectifs — documents et
+ * check-list —, exigences annuelles, gabarits de convention, questions d'évaluation, modèles de
+ * courriels) est toujours sauvegardé ; les stages eux-mêmes et tout ce qui s'y rattache ne le sont
+ * que si les données utilisateur sont demandées.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -64,6 +65,11 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
 
         $themeteachers = new backup_nested_element('themeteachers');
         $themeteacher = new backup_nested_element('themeteacher', ['id'], ['teacherid', 'timecreated']);
+
+        $themechecklists = new backup_nested_element('themechecklists');
+        $themechecklist = new backup_nested_element('themechecklist', ['id'], [
+            'name', 'description', 'sortorder', 'timecreated', 'timemodified',
+        ]);
 
         $themedurations = new backup_nested_element('themedurations');
         $themeduration = new backup_nested_element('themeduration', ['id'], [
@@ -140,12 +146,19 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             'questionid', 'answertext', 'timecreated', 'timemodified',
         ]);
 
+        $entrychecklists = new backup_nested_element('entrychecklists');
+        $entrychecklist = new backup_nested_element('entrychecklist', ['id'], [
+            'itemid', 'checked', 'explanation', 'timecreated', 'timemodified',
+        ]);
+
         // Arbre : les thématiques précèdent les questions puis les stages, de sorte que la
         // restauration dispose déjà des correspondances d'identifiants dont ils dépendent.
         $stage->add_child($themes);
         $themes->add_child($theme);
         $theme->add_child($themeteachers);
         $themeteachers->add_child($themeteacher);
+        $theme->add_child($themechecklists);
+        $themechecklists->add_child($themechecklist);
         $theme->add_child($themedurations);
         $themedurations->add_child($themeduration);
 
@@ -176,11 +189,18 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $conventiondetails->add_child($conventiondetail);
         $entry->add_child($answers);
         $answers->add_child($answer);
+        $entry->add_child($entrychecklists);
+        $entrychecklists->add_child($entrychecklist);
 
         // Sources.
         $stage->set_source_table('stage', ['id' => backup::VAR_ACTIVITYID]);
 
         $theme->set_source_table('stage_theme', ['stageid' => backup::VAR_PARENTID], 'sortorder, id');
+        $themechecklist->set_source_table(
+            'stage_theme_checklist',
+            ['themeid' => backup::VAR_PARENTID],
+            'sortorder, id'
+        );
         $themeduration->set_source_table('stage_theme_duration', ['themeid' => backup::VAR_PARENTID], 'studyyear');
         $yearrequirement->set_source_table('stage_year_requirement', ['stageid' => backup::VAR_PARENTID], 'studyyear');
         $conventiontemplate->set_source_table('stage_convention_template', ['stageid' => backup::VAR_PARENTID], 'id');
@@ -200,6 +220,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             $workday->set_source_table('stage_entry_workday', ['entryid' => backup::VAR_PARENTID], 'workdate');
             $conventiondetail->set_source_table('stage_convention_detail', ['entryid' => backup::VAR_PARENTID], 'id');
             $answer->set_source_table('stage_answer', ['entryid' => backup::VAR_PARENTID], 'id');
+            $entrychecklist->set_source_table('stage_entry_checklist', ['entryid' => backup::VAR_PARENTID], 'id');
         }
 
         // Annotations d'identifiants.
@@ -221,6 +242,10 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $stage->annotate_files('mod_stage', 'conventionlogoleft', null);
         $stage->annotate_files('mod_stage', 'conventionlogoright', null);
         $conventiontemplate->annotate_files('mod_stage', 'conventiontemplate', 'id');
+        // Documents d'objectifs : un ou plusieurs fichiers par thématique, itemid = id de la
+        // thématique. Ils relèvent du paramétrage de l'activité, comme les gabarits : sauvegardés
+        // même sans les données utilisateur.
+        $theme->annotate_files('mod_stage', STAGE_THEME_OBJECTIVE_FILEAREA, 'id');
         if ($userinfo) {
             $entry->annotate_files('mod_stage', 'signedconvention', 'id');
             $entry->annotate_files('mod_stage', STAGE_REPORT_FILEAREA, 'id');
