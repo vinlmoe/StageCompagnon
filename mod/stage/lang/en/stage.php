@@ -844,5 +844,7 @@ $string['errorrequiredanswer'] = 'An answer is required for this question: {$a}'
 $string['errorinvalidanswer'] = 'Select one of the available answers for this question: {$a}';
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = 'The date the tutor evaluation invitation was last sent.';
 $string['viewthemeobjectives'] = 'Objectives';
+$string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be transferred: add matching objectives with unique names to the target theme.';
+$string['transferblocked'] = 'The transfer is blocked. Check the mappings in the target activity.';
 $string['nothemeobjectivefiles'] = 'No objectives documents have been uploaded for this theme yet.';
 $string['themeobjectivespreviewintro'] = 'These are the objectives for this theme. You will complete this checklist when requesting your internship agreement.';

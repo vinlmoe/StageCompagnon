@@ -70,31 +70,10 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
     if (!$pending || empty($pending['records'])) {
         $error = get_string('globalimportexpired', 'mod_stage');
     } else {
-        $transaction = $DB->start_delegated_transaction();
-        foreach ($pending['records'] as $saved) {
-            $saved = (object) $saved;
-            $entry = (object) $saved->entry;
-            $entry->stageid = $stage->id;
-            $entry->timecreated = $entry->timecreated ?: time();
-            $entry->timemodified = $entry->timemodified ?: $entry->timecreated;
-            $entryid = $DB->insert_record('stage_entry', $entry);
-            if (!empty($saved->detail)) {
-                $detail = (object) $saved->detail;
-                $detail->entryid = $entryid;
-                $detail->timecreated = $entry->timecreated;
-                $detail->timemodified = $entry->timemodified;
-                $DB->insert_record('stage_convention_detail', $detail);
-            }
-            if ($entry->datestart && $entry->dateend) {
-                stage_save_entry_periods($entryid, [(object) [
-                    'datestart' => $entry->datestart, 'dateend' => $entry->dateend,
-                ]]);
-            }
-        }
-        $transaction->allow_commit();
+        $restoredcount = global_export_importer::restore($stage->id, $pending['records']);
         redirect(
             $backurl,
-            get_string('globalimportdone', 'mod_stage', count($pending['records'])),
+            get_string('globalimportdone', 'mod_stage', $restoredcount),
             null,
             \core\output\notification::NOTIFY_SUCCESS
         );

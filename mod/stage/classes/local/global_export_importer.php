@@ -25,6 +25,41 @@ namespace mod_stage\local;
  */
 class global_export_importer {
     /**
+     * Restaure les saisies prévisualisées et leurs plages dans une transaction.
+     *
+     * @param int $stageid Activité cible contrôlée par l'appelant.
+     * @param array $records Saisies préparées par la prévisualisation.
+     * @return int Nombre de saisies restaurées.
+     */
+    public static function restore(int $stageid, array $records): int {
+        global $DB;
+
+        $transaction = $DB->start_delegated_transaction();
+        foreach ($records as $saved) {
+            $saved = (object) $saved;
+            $entry = clone (object) $saved->entry;
+            $entry->stageid = $stageid;
+            $entry->timecreated = $entry->timecreated ?: time();
+            $entry->timemodified = $entry->timemodified ?: $entry->timecreated;
+            $entryid = $DB->insert_record('stage_entry', $entry);
+            if (!empty($saved->detail)) {
+                $detail = clone (object) $saved->detail;
+                $detail->entryid = $entryid;
+                $detail->timecreated = $entry->timecreated;
+                $detail->timemodified = $entry->timemodified;
+                $DB->insert_record('stage_convention_detail', $detail);
+            }
+            if ($entry->datestart && $entry->dateend) {
+                \stage_save_entry_periods($entryid, [[
+                    'datestart' => $entry->datestart, 'dateend' => $entry->dateend,
+                ]]);
+            }
+        }
+        $transaction->allow_commit();
+        return count($records);
+    }
+
+    /**
      * Lit la feuille « Stages » du classeur et en tire une ligne restaurable par stage.
      *
      * @param string $filepath Chemin du classeur exporté.

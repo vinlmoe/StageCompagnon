@@ -777,6 +777,8 @@ $string['conventiondetails'] = 'Détail de la convention';
 // Objectifs de stage (documents et check-list par thématique).
 $string['themeobjectives'] = 'Objectifs de stage';
 $string['viewthemeobjectives'] = 'Objectifs';
+$string['transferunmatchedchecklist'] = '{$a} réponse(s) à la check-list ne peuvent pas être transférées : ajoutez dans la thématique cible des objectifs correspondants avec des noms uniques.';
+$string['transferblocked'] = 'Le transfert est bloqué. Vérifiez les correspondances dans la promotion cible.';
 $string['nothemeobjectivefiles'] = "Aucun document d'objectifs n'a encore été déposé pour cette thématique.";
 $string['themeobjectivespreviewintro'] = 'Voici les objectifs de cette thématique. Vous renseignerez cette check-list lors de votre demande de convention.';
 $string['themeobjectivefiles'] = "Documents d'objectifs";

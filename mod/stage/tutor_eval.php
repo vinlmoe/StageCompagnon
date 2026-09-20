@@ -65,7 +65,7 @@ $lang = stage_get_entry_convention_lang($entry);
 $PAGE->set_context($context);
 $PAGE->set_url(new moodle_url('/mod/stage/tutor_eval.php', ['token' => $token]));
 $PAGE->set_pagelayout('embedded');
-$PAGE->set_title(get_string('tutorevalpagetitle', 'mod_stage', null, $lang));
+$PAGE->set_title(get_string_manager()->get_string('tutorevalpagetitle', 'mod_stage', null, $lang));
 $PAGE->set_heading(format_string($stage->name));
 
 $questions = stage_get_questions($entry->themeid, 'tutor');
@@ -104,21 +104,25 @@ if ($logoleft || $logoright) {
     echo html_writer::end_div();
 }
 
-echo $OUTPUT->heading(get_string('tutorevalpagetitle', 'mod_stage', null, $lang));
+echo $OUTPUT->heading(get_string_manager()->get_string('tutorevalpagetitle', 'mod_stage', null, $lang));
 
 $periods = stage_get_or_seed_entry_periods($entry);
-$dateformat = get_string('strftimedate', 'langconfig', null, $lang);
+$dateformat = get_string_manager()->get_string('strftimedate', 'langconfig', null, $lang);
 $periodlabels = array_map(function ($period) use ($dateformat) {
     return userdate($period->datestart, $dateformat) . ' - ' . userdate($period->dateend, $dateformat);
 }, $periods);
 
 $infotable = new html_table();
 $infotable->attributes['class'] = 'generaltable stage-detailtable mb-3';
-$infotable->data[] = [html_writer::tag('strong', get_string('tutorevalstudentlabel', 'mod_stage', null, $lang)),
-    fullname($student)];
+$infotable->data[] = [
+    html_writer::tag('strong', get_string_manager()->get_string('tutorevalstudentlabel', 'mod_stage', null, $lang)),
+    fullname($student),
+];
 if (!empty($periodlabels)) {
-    $infotable->data[] = [html_writer::tag('strong', get_string('tutorevaldateslabel', 'mod_stage', null, $lang)),
-        implode(html_writer::empty_tag('br'), $periodlabels)];
+    $infotable->data[] = [
+        html_writer::tag('strong', get_string_manager()->get_string('tutorevaldateslabel', 'mod_stage', null, $lang)),
+        implode(html_writer::empty_tag('br'), $periodlabels),
+    ];
 }
 echo html_writer::table($infotable);
 
@@ -128,12 +132,12 @@ echo html_writer::table($infotable);
 // dispose (voir theme_objective_file.php).
 $objectivelinks = stage_render_theme_objective_links($context, $entry->themeid, ['token' => $token]);
 if ($objectivelinks !== '') {
-    echo $OUTPUT->heading(get_string('themeobjectives', 'mod_stage', null, $lang), 4);
+    echo $OUTPUT->heading(get_string_manager()->get_string('themeobjectives', 'mod_stage', null, $lang), 4);
     echo $objectivelinks;
 }
 
 if (!empty($entry->tutortime)) {
-    echo $OUTPUT->notification(get_string('tutorevalalreadysubmitted', 'mod_stage', null, $lang), 'success');
+    echo $OUTPUT->notification(get_string_manager()->get_string('tutorevalalreadysubmitted', 'mod_stage', null, $lang), 'success');
     if (!empty($questions)) {
         echo stage_render_answers_readonly($questions, stage_get_answers($entry->id), $lang);
     } else if ($entry->tutoreval) {
@@ -143,7 +147,7 @@ if (!empty($entry->tutortime)) {
     exit;
 }
 
-echo html_writer::tag('p', get_string('tutorevalintro', 'mod_stage', (object) [
+echo html_writer::tag('p', get_string_manager()->get_string('tutorevalintro', 'mod_stage', (object) [
     'student' => fullname($student),
     'stage' => format_string($stage->name) . ($theme ? ' - ' . format_string($theme->name) : ''),
 ], $lang));
@@ -155,7 +159,11 @@ echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', '
 if (!empty($questions)) {
     echo stage_render_question_fields($questions, [], $lang);
 } else {
-    echo html_writer::tag('label', get_string('tutorevalheading', 'mod_stage', null, $lang), ['for' => 'tutoreval']);
+    echo html_writer::tag(
+        'label',
+        get_string_manager()->get_string('tutorevalheading', 'mod_stage', null, $lang),
+        ['for' => 'tutoreval']
+    );
     echo html_writer::tag(
         'textarea',
         '',
@@ -164,7 +172,8 @@ if (!empty($questions)) {
 }
 
 echo html_writer::empty_tag('input', [
-    'type' => 'submit', 'value' => get_string('tutorevalsubmit', 'mod_stage', null, $lang), 'class' => 'btn btn-primary mt-2',
+    'type' => 'submit', 'value' => get_string_manager()->get_string('tutorevalsubmit', 'mod_stage', null, $lang),
+    'class' => 'btn btn-primary mt-2',
 ]);
 echo html_writer::end_tag('form');
 

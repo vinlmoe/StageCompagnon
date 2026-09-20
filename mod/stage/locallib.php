@@ -35,17 +35,17 @@ require_once($CFG->dirroot . '/mod/stage/lib.php');
 function stage_status_label($status, $lang = null) {
     switch ((int) $status) {
         case STAGE_STATUS_ANNULE:
-            return get_string('status_annule', 'mod_stage', null, $lang);
+            return get_string_manager()->get_string('status_annule', 'mod_stage', null, $lang);
         case STAGE_STATUS_NON_VALIDE:
-            return get_string('status_nonvalide', 'mod_stage', null, $lang);
+            return get_string_manager()->get_string('status_nonvalide', 'mod_stage', null, $lang);
         case STAGE_STATUS_ENREGISTRE:
-            return get_string('status_enregistre', 'mod_stage', null, $lang);
+            return get_string_manager()->get_string('status_enregistre', 'mod_stage', null, $lang);
         case STAGE_STATUS_EVAL_ETUDIANT:
-            return get_string('status_evaletudiant', 'mod_stage', null, $lang);
+            return get_string_manager()->get_string('status_evaletudiant', 'mod_stage', null, $lang);
         case STAGE_STATUS_EVAL_ENSEIGNANT:
-            return get_string('status_evalenseignant', 'mod_stage', null, $lang);
+            return get_string_manager()->get_string('status_evalenseignant', 'mod_stage', null, $lang);
         case STAGE_STATUS_VALIDE_DEVE:
-            return get_string('status_validedeve', 'mod_stage', null, $lang);
+            return get_string_manager()->get_string('status_validedeve', 'mod_stage', null, $lang);
         default:
             return '';
     }
@@ -250,9 +250,9 @@ function stage_get_themes($stageid, $onlyvisible = false) {
  * @return array int => libellé
  */
 function stage_studyyear_options($lang = null) {
-    $options = [0 => get_string('studyyear_unspecified', 'mod_stage', null, $lang)];
+    $options = [0 => get_string_manager()->get_string('studyyear_unspecified', 'mod_stage', null, $lang)];
     for ($year = 1; $year <= 6; $year++) {
-        $options[$year] = get_string('studyyear_n', 'mod_stage', $year, $lang);
+        $options[$year] = get_string_manager()->get_string('studyyear_n', 'mod_stage', $year, $lang);
     }
     return $options;
 }
@@ -1113,8 +1113,6 @@ function stage_entry_not_started_yet(stdClass $entry) {
 function stage_save_entry_periods($entryid, array $periods) {
     global $DB;
 
-    $DB->delete_records('stage_entry_period', ['entryid' => $entryid]);
-
     $records = [];
     foreach ($periods as $period) {
         $start = $period['datestart'] ?? 0;
@@ -1133,6 +1131,8 @@ function stage_save_entry_periods($entryid, array $periods) {
         return;
     }
 
+    $transaction = $DB->start_delegated_transaction();
+    $DB->delete_records('stage_entry_period', ['entryid' => $entryid]);
     $DB->insert_records('stage_entry_period', $records);
 
     $starts = array_column($records, 'datestart');
@@ -1143,6 +1143,10 @@ function stage_save_entry_periods($entryid, array $periods) {
         'dateend' => max($ends),
         'timemodified' => time(),
     ]);
+    // Une modification des plages ne doit pas laisser compter d'anciens jours hors période.
+    $workdays = $DB->get_fieldset_select('stage_entry_workday', 'workdate', 'entryid = ?', [$entryid]);
+    stage_set_entry_workdays($entryid, $workdays);
+    $transaction->allow_commit();
 }
 
 /**
@@ -1283,7 +1287,7 @@ function stage_add_period_fields(\moodleform $form, $mform, $initialcount = 1) {
 }
 
 /**
- * Retourne la liste des jours (timestamps à minuit, heure du serveur) compris dans une plage de
+ * Retourne la liste des jours (timestamps à minuit, fuseau de l'utilisateur) compris dans une plage de
  * dates, bornes incluses.
  *
  * @param stdClass $period
@@ -1291,13 +1295,12 @@ function stage_add_period_fields(\moodleform $form, $mform, $initialcount = 1) {
  */
 function stage_get_period_days(stdClass $period) {
     $days = [];
-    $startinfo = usergetdate($period->datestart);
-    $endinfo = usergetdate($period->dateend);
-    $cursor = make_timestamp($startinfo['year'], $startinfo['mon'], $startinfo['mday'], 0, 0, 0);
-    $end = make_timestamp($endinfo['year'], $endinfo['mon'], $endinfo['mday'], 0, 0, 0);
+    $timezone = \core_date::get_user_timezone_object();
+    $cursor = (new DateTimeImmutable('@' . $period->datestart))->setTimezone($timezone)->setTime(0, 0);
+    $end = (new DateTimeImmutable('@' . $period->dateend))->setTimezone($timezone)->setTime(0, 0);
     while ($cursor <= $end) {
-        $days[] = $cursor;
-        $cursor += DAYSECS;
+        $days[] = $cursor->getTimestamp();
+        $cursor = $cursor->modify('+1 day');
     }
     return $days;
 }
@@ -1330,12 +1333,18 @@ function stage_get_entry_workdays($entryid) {
 function stage_set_entry_workdays($entryid, array $dates) {
     global $DB;
 
+    $allowed = [];
+    foreach (stage_get_entry_periods($entryid) as $period) {
+        foreach (stage_get_period_days($period) as $date) {
+            $allowed[$date] = true;
+        }
+    }
     $DB->delete_records('stage_entry_workday', ['entryid' => $entryid]);
 
     $records = [];
     $now = time();
     foreach (array_unique(array_map('intval', $dates)) as $date) {
-        if (empty($date)) {
+        if (!isset($allowed[$date])) {
             continue;
         }
         $records[] = (object) ['entryid' => $entryid, 'workdate' => $date, 'timecreated' => $now];
@@ -1356,13 +1365,16 @@ function stage_set_entry_workdays($entryid, array $dates) {
  */
 function stage_workdays_violate_restday_rule(array $dates) {
     $set = array_flip($dates);
+    $timezone = \core_date::get_user_timezone_object();
     foreach ($dates as $date) {
         $fullweek = true;
+        $cursor = (new DateTimeImmutable('@' . $date))->setTimezone($timezone)->setTime(0, 0);
         for ($i = 0; $i < 7; $i++) {
-            if (!isset($set[$date + $i * DAYSECS])) {
+            if (!isset($set[$cursor->getTimestamp()])) {
                 $fullweek = false;
                 break;
             }
+            $cursor = $cursor->modify('+1 day');
         }
         if ($fullweek) {
             return true;
@@ -1551,6 +1563,10 @@ function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
 function stage_reset_entry(stdClass $entry) {
     global $DB;
 
+    if ((int) $entry->status === STAGE_STATUS_ANNULE) {
+        $entry->tutortoken = null;
+        $entry->tutorrequesttime = 0;
+    }
     $entry->status = STAGE_STATUS_ENREGISTRE;
     $entry->tutorbypassed = 0;
     $entry->timemodified = time();
@@ -1559,8 +1575,8 @@ function stage_reset_entry(stdClass $entry) {
 
 /**
  * Annule un stage, à tout moment et quel que soit son statut actuel (la DEVE reste seule
- * décisionnaire). La saisie est conservée telle quelle (aucune donnée supprimée) : seul le
- * statut passe à "Annulé", avec un commentaire obligatoire expliquant le motif.
+ * décisionnaire). Les données de la saisie sont conservées et le lien d'accès du tuteur est
+ * révoqué. Le statut passe à "Annulé", avec un commentaire obligatoire expliquant le motif.
  *
  * @param stdClass $entry
  * @param int $byuserid
@@ -1571,6 +1587,8 @@ function stage_cancel_entry(stdClass $entry, $byuserid, $comment) {
     global $DB;
 
     $entry->status = STAGE_STATUS_ANNULE;
+    $entry->tutortoken = null;
+    $entry->tutorrequesttime = 0;
     $entry->cancelledby = $byuserid;
     $entry->canceltime = time();
     $entry->cancelcomment = $comment;
@@ -3402,7 +3420,7 @@ function stage_get_transfer_target_instances($excludestageid) {
  * @param stdClass $sourcestage
  * @param stdClass $targetstage
  * @param int $userid Étudiant à transférer.
- * @return stdClass {entries, thememap, templatemap, questionmap, unmatchedthemes,
+ * @return stdClass {entries, thememap, templatemap, questionmap, checklistmap, unmatchedthemes,
  *                  unmatchedtemplates, droppedanswers, referentteachers, blockers, warnings}
  */
 function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstage, $userid) {
@@ -3413,6 +3431,7 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
         'thememap' => [],
         'templatemap' => [],
         'questionmap' => [],
+        'checklistmap' => [],
         'unmatchedthemes' => [],
         'unmatchedtemplates' => [],
         'droppedanswers' => 0,
@@ -3511,7 +3530,23 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
             }
             foreach (stage_get_questions($sourcethemeid, $evaltype) as $sourcequestion) {
                 $match = $targetquestions[stage_normalize_name($sourcequestion->name)] ?? null;
-                $plan->questionmap[$sourcequestion->id] = $match ? $match->id : null;
+                $plan->questionmap[$sourcethemeid][$sourcequestion->id] = $match ? $match->id : null;
+            }
+        }
+
+        // Les objectifs appartiennent eux aussi à une thématique. Seules les correspondances
+        // uniques sont sûres : deux objectifs de même nom ne doivent pas fusionner leurs réponses.
+        $sourceitems = [];
+        $targetitems = [];
+        foreach (stage_get_theme_checklist($sourcethemeid) as $item) {
+            $sourceitems[stage_normalize_name($item->name)][] = $item->id;
+        }
+        foreach (stage_get_theme_checklist($targetthemeid) as $item) {
+            $targetitems[stage_normalize_name($item->name)][] = $item->id;
+        }
+        foreach ($sourceitems as $name => $itemids) {
+            if (count($itemids) === 1 && count($targetitems[$name] ?? []) === 1) {
+                $plan->checklistmap[$itemids[0]] = $targetitems[$name][0];
             }
         }
     }
@@ -3519,9 +3554,19 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
     if (!empty($entryids)) {
         [$insql, $inparams] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED);
         foreach ($DB->get_records_select('stage_answer', "entryid $insql", $inparams) as $answer) {
-            if (empty($plan->questionmap[$answer->questionid])) {
+            $sourcethemeid = $plan->entries[$answer->entryid]->themeid;
+            if (empty($plan->questionmap[$sourcethemeid][$answer->questionid])) {
                 $plan->droppedanswers++;
             }
+        }
+        $unmatchedchecklist = 0;
+        foreach ($DB->get_records_select('stage_entry_checklist', "entryid $insql", $inparams) as $answer) {
+            if (empty($plan->checklistmap[$answer->itemid])) {
+                $unmatchedchecklist++;
+            }
+        }
+        if ($unmatchedchecklist > 0) {
+            $plan->blockers[] = get_string('transferunmatchedchecklist', 'mod_stage', $unmatchedchecklist);
         }
     }
     if ($plan->droppedanswers > 0) {
@@ -3578,6 +3623,9 @@ function stage_execute_student_transfer(
 ) {
     global $DB;
 
+    if (!empty($plan->blockers)) {
+        throw new moodle_exception('transferblocked', 'mod_stage');
+    }
     $transaction = $DB->start_delegated_transaction();
     $fs = get_file_storage();
     $now = time();
@@ -3597,7 +3645,7 @@ function stage_execute_student_transfer(
         // Les réponses suivent le stage (même entryid) mais doivent désigner les questions de
         // l'instance cible ; celles sans équivalent sont supprimées.
         foreach ($DB->get_records('stage_answer', ['entryid' => $entry->id]) as $answer) {
-            $targetquestionid = $plan->questionmap[$answer->questionid] ?? null;
+            $targetquestionid = $plan->questionmap[$entry->themeid][$answer->questionid] ?? null;
             if ($targetquestionid) {
                 $DB->update_record('stage_answer', (object) [
                     'id' => $answer->id, 'questionid' => $targetquestionid, 'timemodified' => $now,
@@ -3605,6 +3653,16 @@ function stage_execute_student_transfer(
             } else {
                 $DB->delete_records('stage_answer', ['id' => $answer->id]);
             }
+        }
+
+        foreach ($DB->get_records('stage_entry_checklist', ['entryid' => $entry->id]) as $answer) {
+            $targetitemid = $plan->checklistmap[$answer->itemid] ?? null;
+            if (!$targetitemid) {
+                throw new moodle_exception('transferunmatchedchecklist', 'mod_stage', '', 1);
+            }
+            $DB->update_record('stage_entry_checklist', (object) [
+                'id' => $answer->id, 'itemid' => $targetitemid, 'timemodified' => $now,
+            ]);
         }
 
         // La convention signée et le rapport de stage sont stockés dans le contexte du module :
@@ -3985,9 +4043,9 @@ function stage_convention_lang_label($lang) {
  */
 function stage_convention_yearsituation_options($lang = null) {
     return [
-        'normal' => get_string('conventionyearsituation_normal', 'mod_stage', null, $lang),
-        'redoublant' => get_string('conventionyearsituation_redoublant', 'mod_stage', null, $lang),
-        'detteue' => get_string('conventionyearsituation_detteue', 'mod_stage', null, $lang),
+        'normal' => get_string_manager()->get_string('conventionyearsituation_normal', 'mod_stage', null, $lang),
+        'redoublant' => get_string_manager()->get_string('conventionyearsituation_redoublant', 'mod_stage', null, $lang),
+        'detteue' => get_string_manager()->get_string('conventionyearsituation_detteue', 'mod_stage', null, $lang),
     ];
 }
 
@@ -4018,8 +4076,8 @@ function stage_convention_year_label($studyyear, $yearsituation, $lang = null) {
  */
 function stage_convention_stagetype_options($lang = null) {
     return [
-        'obligatoire' => get_string('conventionstagetype_obligatoire', 'mod_stage', null, $lang),
-        'complementaire' => get_string('conventionstagetype_complementaire', 'mod_stage', null, $lang),
+        'obligatoire' => get_string_manager()->get_string('conventionstagetype_obligatoire', 'mod_stage', null, $lang),
+        'complementaire' => get_string_manager()->get_string('conventionstagetype_complementaire', 'mod_stage', null, $lang),
     ];
 }
 
@@ -4605,7 +4663,9 @@ function stage_get_entry_by_tutor_token($token) {
     if (empty($token)) {
         return false;
     }
-    return $DB->get_record('stage_entry', ['tutortoken' => $token]);
+    $entry = $DB->get_record('stage_entry', ['tutortoken' => $token]);
+    // Couvre aussi les saisies annulées avant l'ajout de la révocation du jeton.
+    return $entry && (int) $entry->status !== STAGE_STATUS_ANNULE ? $entry : false;
 }
 
 /**
@@ -4621,6 +4681,9 @@ function stage_get_entry_by_tutor_token($token) {
 function stage_get_tutor_eval_url(stdClass $stage, stdClass $entry) {
     global $DB;
 
+    if ((int) $DB->get_field('stage_entry', 'status', ['id' => $entry->id], MUST_EXIST) === STAGE_STATUS_ANNULE) {
+        return null;
+    }
     $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
     if (!stage_tutor_evaluation_enabled($stage, $theme)) {
         return null;
@@ -5415,6 +5478,10 @@ function stage_set_theme_teachers($themeid, array $teacherids) {
 function stage_get_teacher_themes($stageid, $userid) {
     global $DB;
 
+    $cm = get_coursemodule_from_instance('stage', $stageid, 0, false, IGNORE_MISSING);
+    if (!$cm || !has_capability('mod/stage:evaluateteacher', context_module::instance($cm->id), $userid)) {
+        return [];
+    }
     return $DB->get_records_sql(
         "SELECT t.*
            FROM {stage_theme} t
@@ -5435,7 +5502,8 @@ function stage_get_teacher_themes($stageid, $userid) {
 function stage_is_theme_teacher($themeid, $userid) {
     global $DB;
 
-    return $DB->record_exists('stage_theme_teacher', ['themeid' => $themeid, 'teacherid' => $userid]);
+    $stageid = $DB->get_field('stage_theme', 'stageid', ['id' => $themeid]);
+    return $stageid && isset(stage_get_teacher_themes($stageid, $userid)[$themeid]);
 }
 
 /**

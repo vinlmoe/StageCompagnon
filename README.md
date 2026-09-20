@@ -51,6 +51,13 @@ ligne ouvre une page réunissant les documents à télécharger et la check-list
 des objectifs. Cette consultation est disponible même avant l'enregistrement
 d'un stage ; la check-list est renseignée lors de la demande de convention.
 
+Les transferts entre promotions remappent les réponses aux évaluations et aux
+objectifs vers leur thématique cible. Si un objectif renseigné n'a pas de
+correspondance unique dans la destination, le transfert est bloqué jusqu'à ce
+que la DEVE complète les objectifs cibles. L'annulation d'un stage révoque le
+lien d'évaluation du maître de stage ; une réinitialisation ne réactive pas
+l'ancien lien.
+
 Depuis la version technique `2026092000`, la création du lien d'évaluation et
 l'envoi de l'invitation sont suivis séparément : consulter le lien ne bloque plus
 le cron et un échec d'envoi reste éligible à une nouvelle tentative. La mise à jour

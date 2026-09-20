@@ -53,7 +53,7 @@ class convention_pdf extends \pdf {
      * @return string
      */
     protected function str($id, $a = null) {
-        return get_string($id, 'mod_stage', $a, $this->lang);
+        return get_string_manager()->get_string($id, 'mod_stage', $a, $this->lang);
     }
 
     /**
@@ -152,11 +152,11 @@ class convention_pdf extends \pdf {
         $this->Ln(3);
 
         $this->section_heading($this->str('conventionstudent'));
-        $this->field_row(get_string('fullname', '', null, $this->lang), $stagedata['student']['fullname']);
+        $this->field_row(get_string_manager()->get_string('fullname', '', null, $this->lang), $stagedata['student']['fullname']);
         $this->field_row($this->str('conventionbirthdate'), $stagedata['student']['birthdate']);
         $this->field_row($this->str('conventionstudentaddress'), $stagedata['student']['address']);
         $this->field_row($this->str('conventionstudentphone'), $stagedata['student']['phone']);
-        $this->field_row(get_string('email', '', null, $this->lang), $stagedata['student']['email']);
+        $this->field_row(get_string_manager()->get_string('email', '', null, $this->lang), $stagedata['student']['email']);
         $this->Ln(3);
 
         $this->section_heading($this->str('conventionthemeduration'));
