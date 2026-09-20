@@ -241,15 +241,19 @@ if ($entryid) {
 // Validation en masse : sélection de plusieurs saisies puis validation d'un coup.
 if (optional_param('bulkvalidate', 0, PARAM_INT) && confirm_sesskey()) {
     $ids = optional_param_array('selected', [], PARAM_INT);
+    $transaction = $DB->start_delegated_transaction();
+    $validatedcount = 0;
     foreach ($ids as $sid) {
         $entry = $DB->get_record('stage_entry', ['id' => $sid, 'stageid' => $stage->id]);
         if ($entry) {
             stage_apply_deve_validation($entry, $USER->id, $entry->declaredduration, '');
+            $validatedcount++;
         }
     }
+    $transaction->allow_commit();
     redirect(
         $baseurl,
-        get_string('bulkvalidated', 'mod_stage', count($ids)),
+        get_string('bulkvalidated', 'mod_stage', $validatedcount),
         null,
         \core\output\notification::NOTIFY_SUCCESS
     );
@@ -301,7 +305,8 @@ if (empty($allentries)) {
         $student = $students[$entry->userid] ?? null;
         $themename = isset($themes[$entry->themeid]) ? format_string($themes[$entry->themeid]->name) : '-';
         $badge = html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status));
-        $checkbox = html_writer::checkbox('selected[]', $entry->id, false, '', ['class' => 'stageselect']);
+        $cancelled = (int) $entry->status === STAGE_STATUS_ANNULE;
+        $checkbox = $cancelled ? '' : html_writer::checkbox('selected[]', $entry->id, false, '', ['class' => 'stageselect']);
         // Le retour ramène sur cette liste telle qu'affichée (recherche, tri, page), pas sur la
         // liste "vierge" : voir $backurl ci-dessus, qui honore ce paramètre.
         $action = html_writer::link(
@@ -309,7 +314,7 @@ if (empty($allentries)) {
                 '/mod/stage/deve.php',
                 ['id' => $cm->id, 'entryid' => $entry->id, 'returnurl' => $listurl->out_as_local_url(false)]
             ),
-            get_string('validate', 'mod_stage')
+            $cancelled ? get_string('view') : get_string('validate', 'mod_stage')
         );
         $table->data[] = [
             $checkbox,

@@ -776,6 +776,9 @@ $string['answers'] = 'Réponses';
 $string['conventiondetails'] = 'Détail de la convention';
 // Objectifs de stage (documents et check-list par thématique).
 $string['themeobjectives'] = 'Objectifs de stage';
+$string['viewthemeobjectives'] = 'Objectifs';
+$string['nothemeobjectivefiles'] = "Aucun document d'objectifs n'a encore été déposé pour cette thématique.";
+$string['themeobjectivespreviewintro'] = 'Voici les objectifs de cette thématique. Vous renseignerez cette check-list lors de votre demande de convention.';
 $string['themeobjectivefiles'] = "Documents d'objectifs";
 $string['themeobjectivefiles_help'] = "Déposez ici les documents qui définissent les objectifs de "
     . "stage de cette thématique. Ils sont téléchargeables par les étudiants et les enseignants depuis la page "
@@ -853,3 +856,8 @@ $string['privacy:metadata:stage_entry_checklist'] = "Les réponses de l'étudian
 $string['privacy:metadata:stage_entry_checklist:itemid'] = "L'objectif auquel il est répondu.";
 $string['privacy:metadata:stage_entry_checklist:checked'] = "Si l'objectif est annoncé comme atteignable.";
 $string['privacy:metadata:stage_entry_checklist:explanation'] = "La justification apportée lorsque l'objectif n'est pas coché.";
+$string['errorvalidatecancelled'] = 'Réinitialisez le stage annulé avant de le valider.';
+$string['errornegativeduration'] = 'La durée ne peut pas être négative.';
+$string['errorrequiredanswer'] = 'Une réponse est obligatoire pour la question : {$a}';
+$string['errorinvalidanswer'] = 'Choisissez une réponse proposée pour la question : {$a}';
+$string['privacy:metadata:stage_entry:tutorrequesttime'] = "La date du dernier envoi de l'invitation au maître de stage.";

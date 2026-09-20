@@ -1481,6 +1481,15 @@ function stage_apply_teacher_eval(stdClass $entry, $teacherid, $comment = null) 
 function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retainedduration, $comment = '') {
     global $DB;
 
+    // La DEVE peut déroger aux évaluations amont, mais doit rouvrir un stage annulé.
+    $status = $DB->get_field('stage_entry', 'status', ['id' => $entry->id], MUST_EXIST);
+    if ((int) $status === STAGE_STATUS_ANNULE) {
+        throw new moodle_exception('errorvalidatecancelled', 'mod_stage');
+    }
+    if ($retainedduration < 0) {
+        throw new moodle_exception('errornegativeduration', 'mod_stage');
+    }
+
     $entry->deveuserid = $deveuserid;
     $entry->devecomment = $comment;
     $entry->devetime = time();
@@ -1736,13 +1745,13 @@ function stage_resolve_email_text($stageid, $emailkey, array $vars, $lang = null
         // Les sujets par défaut existants n'utilisent qu'une seule variable (le nom du stage),
         // passée directement plutôt qu'en objet : on respecte ce format pour ne pas retoucher
         // ces chaînes de langue.
-        $subject = get_string($definition['subjectstring'], 'mod_stage', $vars['stage'] ?? null, $lang);
+        $subject = get_string_manager()->get_string($definition['subjectstring'], 'mod_stage', $vars['stage'] ?? null, $lang);
     }
 
     if ($custom && trim((string) $custom->body) !== '') {
         $body = stage_render_email_placeholders($custom->body, $vars);
     } else {
-        $body = get_string($definition['bodystring'], 'mod_stage', (object) $vars, $lang);
+        $body = get_string_manager()->get_string($definition['bodystring'], 'mod_stage', (object) $vars, $lang);
     }
 
     return (object) ['subject' => $subject, 'body' => $body];
@@ -1988,14 +1997,36 @@ function stage_save_answers($entryid, array $questions, array $submitted) {
  * Lit les réponses soumises pour un jeu de questions, depuis les paramètres de la requête.
  *
  * @param array $questions Liste de stage_question
+ * @param string $lang Langue des choix affichés.
  * @return array questionid => valeur soumise
  */
-function stage_get_submitted_answers(array $questions) {
+function stage_get_submitted_answers(array $questions, $lang = 'fr') {
     $submitted = [];
     foreach ($questions as $question) {
         $submitted[$question->id] = optional_param('q_' . $question->id, '', PARAM_TEXT);
     }
+    stage_validate_answers($questions, $submitted, $lang);
     return $submitted;
+}
+
+/**
+ * Valide toutes les réponses avant toute écriture ou changement de statut.
+ *
+ * @param array $questions Questions proposées dans le formulaire.
+ * @param array $submitted Réponses indexées par question.
+ * @param string $lang Langue des choix affichés.
+ * @return void
+ */
+function stage_validate_answers(array $questions, array $submitted, $lang = 'fr') {
+    foreach ($questions as $question) {
+        $value = $submitted[$question->id] ?? '';
+        if (!is_string($value) || (!empty($question->required) && trim($value) === '')) {
+            throw new moodle_exception('errorrequiredanswer', 'mod_stage', '', stage_question_name($question, $lang));
+        }
+        if ($question->qtype === 'choice' && $value !== '' && !in_array($value, stage_question_options($question, $lang), true)) {
+            throw new moodle_exception('errorinvalidanswer', 'mod_stage', '', stage_question_name($question, $lang));
+        }
+    }
 }
 
 /**
@@ -3032,7 +3063,8 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
                 get_string('studyyear', 'mod_stage'),
                 get_string('completebyyear', 'mod_stage'),
             ],
-            stage_progress_table_head()
+            stage_progress_table_head(),
+            $cm ? [get_string('themeobjectives', 'mod_stage')] : []
         );
         foreach ($mandatorythemes as $t) {
             $finalyear = stage_theme_final_year($t->theme);
@@ -3042,7 +3074,16 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
                     stage_studyyear_range_label($t->theme->minstudyyear, $t->theme->maxstudyyear),
                     $finalyear !== null ? stage_studyyear_label($finalyear) : '-',
                 ],
-                stage_render_progress_cells($t->retained, $t->requiredduration, $t->done)
+                stage_render_progress_cells($t->retained, $t->requiredduration, $t->done),
+                $cm ? [html_writer::link(
+                    new moodle_url('/mod/stage/theme_objectives_view.php', [
+                        'id' => $cm->id, 'themeid' => $t->theme->id,
+                        'returnurl' => $PAGE->url->out_as_local_url(false),
+                    ]),
+                    get_string('viewthemeobjectives', 'mod_stage'),
+                    ['class' => 'btn btn-sm btn-outline-primary',
+                        'aria-label' => get_string('themeobjectives', 'mod_stage') . ' : ' . format_string($t->theme->name)]
+                )] : []
             );
         }
         echo html_writer::table($themetable);
@@ -3070,12 +3111,13 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
 
     $themes = stage_get_themes($stage->id);
 
-    // 5. Objectifs de stage : les documents déposés par la DEVE pour chaque thématique, à
-    // télécharger. Ils décrivent ce qui est attendu sur la thématique entière et non sur un stage
-    // précis : ils sont donc présentés à part, au-dessus de la liste des saisies, et la section
-    // disparaît d'elle-même tant qu'aucun document n'a été déposé.
+    // Les objectifs des thématiques obligatoires s'ouvrent depuis leur ligne ci-dessus.
+    // Conserver l'accès aux documents des éventuelles thématiques complémentaires.
     if ($cm) {
-        echo stage_render_theme_objectives_section(context_module::instance($cm->id), $cm, $themes);
+        $optionalthemes = array_filter($themes, function ($theme) {
+            return empty($theme->mandatory);
+        });
+        echo stage_render_theme_objectives_section(context_module::instance($cm->id), $cm, $optionalthemes);
     }
 
     // 6. Détail de chaque stage saisi.
@@ -4416,7 +4458,7 @@ function stage_notify_student_convention_reminder(
  * @param stdClass $entry
  * @param string $tutorname
  * @param string $tutoremail
- * @return void
+ * @return bool True si le courriel a été accepté pour envoi.
  */
 function stage_notify_tutor_evaluation_request(
     stdClass $stage,
@@ -4429,7 +4471,7 @@ function stage_notify_tutor_evaluation_request(
 
     $student = $DB->get_record('user', ['id' => $entry->userid]);
     if (!$student) {
-        return;
+        return false;
     }
 
     $lang = stage_get_entry_convention_lang($entry);
@@ -4446,6 +4488,10 @@ function stage_notify_tutor_evaluation_request(
         'email' => $tutoremail,
         'firstname' => $names[0] !== '' ? $names[0] : $tutorname,
         'lastname' => $names[1] ?? '',
+        'firstnamephonetic' => '',
+        'lastnamephonetic' => '',
+        'middlename' => '',
+        'alternatename' => '',
         'maildisplay' => true,
         'mailformat' => 1,
         'auth' => 'manual',
@@ -4456,7 +4502,12 @@ function stage_notify_tutor_evaluation_request(
         'lang' => $lang,
     ];
 
-    email_to_user($tutoruser, core_user::get_noreply_user(), $text->subject, $text->body);
+    if (!email_to_user($tutoruser, core_user::get_noreply_user(), $text->subject, $text->body)) {
+        return false;
+    }
+    $entry->tutorrequesttime = time();
+    $DB->set_field('stage_entry', 'tutorrequesttime', $entry->tutorrequesttime, ['id' => $entry->id]);
+    return true;
 }
 
 /**
@@ -4491,7 +4542,8 @@ function stage_get_entries_needing_tutor_request() {
               JOIN {stage_convention_detail} d ON d.entryid = e.id
              WHERE e.datestart > 0 AND e.datestart <= :now
                AND e.status <> :cancelled
-               AND e.tutortoken IS NULL
+               AND e.tutorrequesttime = 0
+               AND (e.tutortime IS NULL OR e.tutortime = 0)
                AND s.tutorevaluationenabled = 1
                AND t.tutorevaluationenabled = 1
                AND d.tutoremail IS NOT NULL AND " . $DB->sql_compare_text('d.tutoremail') . " <> ''
@@ -4503,8 +4555,8 @@ function stage_get_entries_needing_tutor_request() {
 /**
  * Si l'évaluation par le maître de stage est activée pour l'activité et le stage a commencé,
  * génère (si besoin) un jeton d'accès et envoie l'invitation par courriel au maître de stage.
- * N'envoie jamais deux fois l'invitation pour une même saisie (un jeton déjà présent est laissé
- * tel quel). Appelée par la tâche planifiée \mod_stage\task\send_tutor_evaluation_requests, qui
+ * Ne renvoie pas une invitation déjà acceptée pour envoi. Un jeton existant est réutilisé,
+ * y compris après un échec d'envoi. Appelée par la tâche planifiée \mod_stage\task\send_tutor_evaluation_requests, qui
  * s'appuie sur stage_get_entries_needing_tutor_request() pour ne cibler que les saisies dont le
  * premier jour de stage est arrivé : envoyer l'invitation dès l'auto-évaluation de l'étudiant (qui
  * peut être saisie bien avant le début du stage) enverrait le questionnaire au maître de stage
@@ -4513,30 +4565,33 @@ function stage_get_entries_needing_tutor_request() {
  * @param stdClass $stage
  * @param stdClass $cm Course module.
  * @param stdClass $entry
- * @return void
+ * @return bool True si le courriel a été accepté pour envoi.
  */
 function stage_maybe_request_tutor_evaluation(stdClass $stage, stdClass $cm, stdClass $entry) {
     global $DB;
 
-    if (empty($entry->datestart) || $entry->datestart > time()) {
-        return;
+    if (
+        empty($entry->datestart) || $entry->datestart > time()
+        || (int) $entry->status === STAGE_STATUS_ANNULE || !empty($entry->tutortime)
+    ) {
+        return false;
     }
 
     $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
-    if (!stage_tutor_evaluation_enabled($stage, $theme) || !empty($entry->tutortoken)) {
-        return;
+    if (!stage_tutor_evaluation_enabled($stage, $theme) || !empty($entry->tutorrequesttime)) {
+        return false;
     }
 
     $detail = stage_get_convention_detail($entry->id);
     if (!$detail || empty($detail->tutoremail)) {
-        return;
+        return false;
     }
 
-    $token = bin2hex(random_bytes(32));
-    $DB->set_field('stage_entry', 'tutortoken', $token, ['id' => $entry->id]);
-    $entry->tutortoken = $token;
+    if (!stage_get_tutor_eval_url($stage, $entry)) {
+        return false;
+    }
 
-    stage_notify_tutor_evaluation_request($stage, $cm, $entry, $detail->tutorname, $detail->tutoremail);
+    return stage_notify_tutor_evaluation_request($stage, $cm, $entry, $detail->tutorname, $detail->tutoremail);
 }
 
 /**
@@ -4605,8 +4660,7 @@ function stage_resend_tutor_evaluation_request(stdClass $stage, stdClass $cm, st
         return false;
     }
 
-    stage_notify_tutor_evaluation_request($stage, $cm, $entry, $detail->tutorname, $detail->tutoremail);
-    return true;
+    return stage_notify_tutor_evaluation_request($stage, $cm, $entry, $detail->tutorname, $detail->tutoremail);
 }
 
 /**
@@ -4799,6 +4853,38 @@ function stage_render_theme_objective_links(context $context, $themeid, array $u
     }
 
     return html_writer::alist($items);
+}
+
+/**
+ * Documents et liste des objectifs à consulter avant de choisir un stage.
+ *
+ * @param context $context Contexte de l'activité.
+ * @param stdClass $cm Module de cours.
+ * @param stdClass $theme Thématique vérifiée dans l'activité par l'appelant.
+ * @return string HTML.
+ */
+function stage_render_theme_objectives_content(context $context, stdClass $cm, stdClass $theme) {
+    global $OUTPUT;
+
+    $links = stage_render_theme_objective_links($context, $theme->id, ['id' => $cm->id]);
+    $out = $OUTPUT->heading(get_string('themeobjectivefiles', 'mod_stage'), 3);
+    $out .= $links !== '' ? $links : $OUTPUT->notification(get_string('nothemeobjectivefiles', 'mod_stage'), 'info');
+    $out .= $OUTPUT->heading(get_string('themechecklist', 'mod_stage'), 3);
+    $items = stage_get_theme_checklist($theme->id);
+    if (empty($items)) {
+        return $out . $OUTPUT->notification(get_string('nochecklistitemsyet', 'mod_stage'), 'info');
+    }
+
+    $out .= html_writer::tag('p', get_string('themeobjectivespreviewintro', 'mod_stage'));
+    $table = new html_table();
+    $table->head = [get_string('checklistitem', 'mod_stage'), get_string('checklistitemdescription', 'mod_stage')];
+    foreach ($items as $item) {
+        $table->data[] = [
+            format_string($item->name),
+            trim((string) $item->description) !== '' ? format_text($item->description, FORMAT_PLAIN) : '-',
+        ];
+    }
+    return $out . html_writer::table($table);
 }
 
 /**

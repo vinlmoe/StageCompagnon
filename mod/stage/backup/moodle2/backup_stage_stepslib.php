@@ -108,6 +108,8 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         // (tutor_eval.php) soumis à un index unique, qu'une restauration sur le même site
         // dupliquerait. La copie restaurée en régénère un à la demande (stage_get_tutor_eval_url()),
         // les réponses déjà données (tutoreval, tutortime) étant conservées telles quelles.
+        // « tutorrequesttime » est également omis : l'invitation de la copie doit porter son
+        // propre jeton. Une évaluation déjà soumise est exclue des invitations automatiques.
         $entry = new backup_nested_element('entry', ['id'], [
             'themeid', 'studyyear', 'userid', 'structure', 'abroad', 'country',
             'datestart', 'dateend', 'declaredduration', 'retainedduration', 'status',

@@ -200,6 +200,7 @@ final class backup_restore_test extends \advanced_testcase {
         $entry = $stagegen->create_entry($stage, $student->id, $theme);
         $DB->set_field('stage_entry', 'conventiontemplateid', $templateid, ['id' => $entry->id]);
         $DB->set_field('stage_entry', 'tutortoken', bin2hex(random_bytes(32)), ['id' => $entry->id]);
+        $DB->set_field('stage_entry', 'tutorrequesttime', time(), ['id' => $entry->id]);
         $DB->insert_record('stage_answer', (object) [
             'entryid' => $entry->id,
             'questionid' => $questionid,
@@ -282,6 +283,7 @@ final class backup_restore_test extends \advanced_testcase {
 
         // Le jeton d'accès du maître de stage n'est pas recopié : il reste propre à l'original.
         $this->assertNull($newentry->tutortoken);
+        $this->assertEquals(0, $newentry->tutorrequesttime);
 
         // Plage de dates créée avec la saisie.
         $this->assertEquals(1, $DB->count_records('stage_entry_period', ['entryid' => $newentry->id]));

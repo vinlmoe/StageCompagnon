@@ -72,7 +72,7 @@ $questions = stage_get_questions($entry->themeid, 'tutor');
 
 if (empty($entry->tutortime) && data_submitted() && confirm_sesskey()) {
     if (!empty($questions)) {
-        stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions));
+        stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions, $lang));
         stage_apply_tutor_eval($entry);
     } else {
         $comment = optional_param('tutoreval', '', PARAM_RAW);

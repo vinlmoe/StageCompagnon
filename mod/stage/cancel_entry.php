@@ -57,7 +57,9 @@ if ((int) $entry->status === STAGE_STATUS_ANNULE) {
     redirect($backurl);
 }
 
-$baseurl = new moodle_url('/mod/stage/cancel_entry.php', ['id' => $cm->id, 'entryid' => $entryid]);
+$baseurl = new moodle_url('/mod/stage/cancel_entry.php', [
+    'id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam,
+]);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('cancelentry', 'mod_stage'));
 $PAGE->set_heading(format_string($course->fullname));

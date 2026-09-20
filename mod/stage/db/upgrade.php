@@ -1020,5 +1020,18 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026091900, 'stage');
     }
 
+    if ($oldversion < 2026092000) {
+        $table = new xmldb_table('stage_entry');
+        $field = new xmldb_field('tutorrequesttime', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'tutortoken');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+            // L'ancien schéma ne distinguait pas création du jeton et envoi réussi. Conserver
+            // son hypothèse évite de réinviter tous les maîtres de stage à la mise à jour.
+            // Une invitation historique non reçue peut être relancée manuellement par la DEVE.
+            $DB->set_field_select('stage_entry', 'tutorrequesttime', time(), 'tutortoken IS NOT NULL');
+        }
+        upgrade_mod_savepoint(true, 2026092000, 'stage');
+    }
+
     return true;
 }

@@ -38,6 +38,8 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_delete_theme_checklist
  * @covers     ::stage_get_theme_objective_files
  * @covers     ::stage_import_themes
+ * @covers     ::stage_render_theme_objectives_content
+ * @covers     ::stage_print_student_dashboard
  */
 final class theme_objectives_test extends \advanced_testcase {
     /**
@@ -272,5 +274,52 @@ final class theme_objectives_test extends \advanced_testcase {
         $this->assertCount(1, stage_get_theme_objective_files($targetcontext, $newtheme->id));
         // Les documents de l'original restent en place : l'import copie, il ne déplace pas.
         $this->assertCount(1, stage_get_theme_objective_files($context, $theme->id));
+    }
+
+    /**
+     * La page de consultation réunit les documents et les objectifs, même sans document.
+     */
+    public function test_objectives_page_content_includes_checklist_and_downloads(): void {
+        global $PAGE;
+        [$stage, $context, $theme, , $student] = $this->prepare();
+        $this->setUser($student);
+        $PAGE->set_context($context);
+        $PAGE->set_url('/mod/stage/theme_objectives_view.php', ['id' => $stage->cmid, 'themeid' => $theme->id]);
+        $cm = get_coursemodule_from_instance('stage', $stage->id);
+        $html = stage_render_theme_objectives_content($context, $cm, $theme);
+        $this->assertStringContainsString('Chirurgie observée', $html);
+        $this->assertStringContainsString('Consultation en autonomie', $html);
+        $this->assertStringContainsString(get_string('nothemeobjectivefiles', 'mod_stage'), $html);
+        get_file_storage()->create_file_from_string([
+            'contextid' => $context->id, 'component' => 'mod_stage',
+            'filearea' => STAGE_THEME_OBJECTIVE_FILEAREA, 'itemid' => $theme->id,
+            'filepath' => '/', 'filename' => 'objectifs.pdf',
+        ], 'objectifs');
+        $html = stage_render_theme_objectives_content($context, $cm, $theme);
+        $this->assertStringContainsString('objectifs.pdf', $html);
+        $this->assertStringContainsString('theme_objective_file.php', $html);
+        $this->assertStringContainsString('Consultation en autonomie', $html);
+    }
+
+    /**
+     * Le tableau obligatoire propose un bouton, même quand seuls des objectifs sont définis.
+     */
+    public function test_dashboard_links_to_theme_objectives(): void {
+        global $PAGE;
+        [$stage, $context, $theme, , $student] = $this->prepare();
+        $this->setUser($student);
+        $PAGE->set_context($context);
+        $PAGE->set_url('/mod/stage/view.php', ['id' => $stage->cmid]);
+        $cm = get_coursemodule_from_instance('stage', $stage->id);
+        ob_start();
+        try {
+            stage_print_student_dashboard($stage, $student->id, $cm, true);
+            $html = ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+        $this->assertStringContainsString('theme_objectives_view.php', $html);
+        $this->assertStringContainsString('themeid=' . $theme->id, $html);
+        $this->assertStringContainsString('returnurl=' . urlencode($PAGE->url->out_as_local_url(false)), $html);
     }
 }

@@ -88,6 +88,21 @@ class register_entries extends \external_api {
         // de créer un doublon silencieux via l'API.
         $existingpairs = stage_get_existing_theme_pairs($stage->id);
 
+        // Valider tout le lot avant de créer la première saisie pour éviter un import partiel.
+        $studyyears = stage_studyyear_options();
+        foreach ($params['entries'] as $entrydata) {
+            if (
+                $entrydata['declaredduration'] < 0 || !isset($studyyears[$entrydata['studyyear']])
+                || !in_array($entrydata['abroad'], [0, 1], true)
+                || $entrydata['datestart'] < 0 || $entrydata['dateend'] < 0
+                || (($entrydata['datestart'] === 0) !== ($entrydata['dateend'] === 0))
+                || $entrydata['dateend'] < $entrydata['datestart']
+            ) {
+                throw new \invalid_parameter_exception('Invalid duration, study year, abroad flag or date range.');
+            }
+        }
+
+        $transaction = $DB->start_delegated_transaction();
         $created = [];
         $duplicates = [];
         foreach ($params['entries'] as $entrydata) {
@@ -121,6 +136,7 @@ class register_entries extends \external_api {
             );
             $created[] = $id;
         }
+        $transaction->allow_commit();
 
         return [
             'createdentryids' => $created,

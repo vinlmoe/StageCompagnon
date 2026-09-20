@@ -21,7 +21,7 @@ namespace mod_stage\task;
  * ci commence (plutôt qu'à la soumission de l'auto-évaluation de l'étudiant, qui peut avoir lieu
  * bien avant le début effectif du stage).
  *
- * Chaque saisie n'est invitée qu'une fois (stage_entry.tutortoken, généré au premier envoi) ; voir
+ * Chaque saisie n'est invitée qu'une fois avec succès (stage_entry.tutorrequesttime) ; voir
  * stage_get_entries_needing_tutor_request() pour les conditions d'éligibilité.
  *
  * @package   mod_stage
@@ -74,9 +74,8 @@ class send_tutor_evaluation_requests extends \core\task\scheduled_task {
             }
 
             // stage_maybe_request_tutor_evaluation() revérifie elle-même l'éligibilité (activation,
-            // coordonnées, jeton déjà présent) : la requête SQL n'est qu'un premier filtre.
-            stage_maybe_request_tutor_evaluation($stage, $cm, $entry);
-            if (!empty($entry->tutortoken)) {
+            // coordonnées, invitation déjà envoyée) : la requête SQL n'est qu'un premier filtre.
+            if (stage_maybe_request_tutor_evaluation($stage, $cm, $entry)) {
                 $sent++;
             }
         }

@@ -41,6 +41,24 @@ un stage déjà enregistré, sauf si celui-ci est dispensé de convention. Cette
 demande contourne l'éventuelle validation préalable de l'enseignant référent et
 arrive directement dans la file de traitement DEVE.
 
+La DEVE conserve la possibilité de valider directement un stage sans évaluation
+de l'enseignant référent ni du maître de stage. Un stage annulé doit d'abord être
+réinitialisé. Les réponses obligatoires sont contrôlées côté serveur lorsqu'un
+étudiant, enseignant ou maître de stage soumet son questionnaire.
+
+Dans le bilan des thématiques obligatoires, le bouton **Objectifs** de chaque
+ligne ouvre une page réunissant les documents à télécharger et la check-list
+des objectifs. Cette consultation est disponible même avant l'enregistrement
+d'un stage ; la check-list est renseignée lors de la demande de convention.
+
+Depuis la version technique `2026092000`, la création du lien d'évaluation et
+l'envoi de l'invitation sont suivis séparément : consulter le lien ne bloque plus
+le cron et un échec d'envoi reste éligible à une nouvelle tentative. La mise à jour
+Moodle ajoute le champ nécessaire. Pour les anciens jetons, l'historique ne permet
+pas de savoir si le courriel a été envoyé : ils sont considérés comme déjà envoyés
+pour éviter une relance générale. La DEVE peut relancer manuellement ceux qui
+n'ont pas été reçus.
+
 ## Installation rapide
 
 ```bash

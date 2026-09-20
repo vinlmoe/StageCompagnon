@@ -158,6 +158,8 @@
         <FIELD NAME="teachertime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="tutortoken" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"
             COMMENT="Jeton d'accès sans compte Moodle à l'évaluation du maître de stage (tutor_eval.php)"/>
+        <FIELD NAME="tutorrequesttime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Dernier envoi réussi de l'invitation au maître de stage, 0 si aucun"/>
         <FIELD NAME="tutoreval" TYPE="text" NOTNULL="false" SEQUENCE="false"
             COMMENT="Réponse libre du maître de stage, si aucune question n'est définie pour la thématique"/>
         <FIELD NAME="tutortime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
