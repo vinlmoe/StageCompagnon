@@ -30,6 +30,7 @@ require_once($CFG->dirroot . '/mod/stage/lib.php');
  * Retourne le libellé lisible d'un statut de stage.
  *
  * @param int $status
+ * @param string|null $lang Langue de traduction, ou null pour la langue courante.
  * @return string
  */
 function stage_status_label($status, $lang = null) {
@@ -247,6 +248,7 @@ function stage_get_themes($stageid, $onlyvisible = false) {
  * Options d'année d'étude proposées pour une thématique, afin d'organiser leur affichage pour
  * les étudiants (0 = non spécifiée, commune à toutes les années).
  *
+ * @param string|null $lang Langue de traduction, ou null pour la langue courante.
  * @return array int => libellé
  */
 function stage_studyyear_options($lang = null) {
@@ -261,6 +263,7 @@ function stage_studyyear_options($lang = null) {
  * Libellé lisible d'une année d'étude de thématique.
  *
  * @param int $studyyear
+ * @param string|null $lang Langue de traduction, ou null pour la langue courante.
  * @return string
  */
 function stage_studyyear_label($studyyear, $lang = null) {
@@ -1917,6 +1920,7 @@ function stage_get_reusable_questions($stageid, $themeid) {
  * Découpe le champ "options" (une option par ligne) d'une question à choix multiples.
  *
  * @param stdClass $question
+ * @param string $lang Langue des options demandées.
  * @return array
  */
 function stage_question_options(stdClass $question, $lang = 'fr') {
@@ -2055,6 +2059,7 @@ function stage_validate_answers(array $questions, array $submitted, $lang = 'fr'
  *
  * @param array $questions Liste de stage_question
  * @param array $answers Réponses existantes, indexées par questionid
+ * @param string $lang Langue d'affichage des questions.
  * @return string
  */
 function stage_render_question_fields(array $questions, array $answers, $lang = 'fr') {
@@ -2254,6 +2259,7 @@ function stage_render_entry_summary(stdClass $entry, $theme = null, $student = n
  *
  * @param array $questions Liste de stage_question
  * @param array $answers Réponses existantes, indexées par questionid
+ * @param string $lang Langue d'affichage des questions.
  * @return string
  */
 function stage_render_answers_readonly(array $questions, array $answers, $lang = 'fr') {
@@ -2817,7 +2823,7 @@ function stage_progress_table_head() {
  * calculés une fois par étudiant par l'appelant (voir stage_print_student_dashboard()) plutôt
  * qu'ici, pour ne pas rejouer les mêmes requêtes à chaque ligne du tableau.
  *
- * @param stdClass $entry
+ * @param stdClass $entry Saisie à évaluer.
  * @param stdClass $cm Course module.
  * @param context $context Contexte du module stage.
  * @param stdClass $rights Droits de l'utilisateur courant sur cet étudiant, tels que calculés par
@@ -4218,7 +4224,8 @@ function stage_save_convention_detail($entryid, stdClass $data) {
  * convention a déjà été demandée, éditée, signée ou signée sur SignVet, pour ne pas écraser
  * silencieusement un circuit de convention en cours.
  *
- * @param stdClass $entry
+ * @param stdClass $stage Activité à laquelle appartient la saisie.
+ * @param stdClass $entry Saisie à évaluer.
  * @param bool $exempt
  * @return void
  */

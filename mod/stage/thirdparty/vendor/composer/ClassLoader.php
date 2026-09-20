@@ -154,7 +154,7 @@ class ClassLoader
     }
 
     /**
-     * @param array<string, string> $classMap Class to filename map
+     * @param array $classMap Class to filename map.
      *
      * @return void
      */

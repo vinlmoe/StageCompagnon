@@ -285,6 +285,7 @@ class historical_importer {
      * Extraction prudente des formats les plus fréquents. En cas d'ambiguïté, aucune date n'est
      * inventée : le texte original reste dans la structure et la prévisualisation le signale.
      *
+     * @param string $text Texte contenant les dates à analyser.
      * @return array{0: int|null, 1: int|null}
      */
     private static function parse_dates(string $text): array {
