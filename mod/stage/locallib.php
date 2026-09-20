@@ -4224,7 +4224,6 @@ function stage_save_convention_detail($entryid, stdClass $data) {
  * convention a déjà été demandée, éditée, signée ou signée sur SignVet, pour ne pas écraser
  * silencieusement un circuit de convention en cours.
  *
- * @param stdClass $stage Activité à laquelle appartient la saisie.
  * @param stdClass $entry Saisie à évaluer.
  * @param bool $exempt
  * @return void
@@ -4682,7 +4681,8 @@ function stage_get_entry_by_tutor_token($token) {
  * courriel automatique, par exemple). Génère le jeton si besoin, comme
  * stage_maybe_request_tutor_evaluation() mais sans envoyer de courriel.
  *
- * @param stdClass $entry
+ * @param stdClass $stage Activité à laquelle appartient la saisie.
+ * @param stdClass $entry Saisie à évaluer.
  * @return moodle_url|null Null si l'évaluation par le maître de stage n'est pas activée ou si
  *                          les coordonnées du maître de stage sont inconnues.
  */
