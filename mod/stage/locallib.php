@@ -3836,6 +3836,7 @@ function stage_import_establishment_info($sourcestageid, $targetstageid) {
         'establishmentrepresentativetitle' => $info->representativetitle,
         'establishmentphone' => $info->phone,
         'establishmentemail' => $info->email,
+        'establishmentsignatory' => $info->signatory,
     ]);
 }
 

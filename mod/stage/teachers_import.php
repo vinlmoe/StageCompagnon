@@ -50,17 +50,6 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('importteacher
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$students = stage_get_enrolled_students($context);
-$studentsbyemail = [];
-foreach ($students as $student) {
-    $studentsbyemail[core_text::strtolower($student->email)] = $student;
-}
-$teachers = stage_get_potential_teachers($context);
-$teachersbyemail = [];
-foreach ($teachers as $teacher) {
-    $teachersbyemail[core_text::strtolower($teacher->email)] = $teacher;
-}
-
 $results = null;
 $uploaderror = null;
 
@@ -70,59 +59,13 @@ if (data_submitted() && confirm_sesskey()) {
     if (empty($upload) || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
         $uploaderror = get_string('importerrorupload', 'mod_stage');
     } else {
-        $content = file_get_contents($upload['tmp_name']);
-        // Excel francophone exporte en points-virgules ; on accepte aussi la virgule.
-        $delimiter = (strpos($content, ';') !== false) ? 'semicolon' : 'comma';
-
-        $cir = new csv_import_reader(csv_import_reader::get_new_iid('stageteachers'), 'stageteachers');
-
-        if ($cir->load_csv_content($content, 'UTF-8', $delimiter) === false) {
-            $uploaderror = $cir->get_error();
-            $cir->cleanup(true);
-        } else {
-            $results = (object) ['assigned' => 0, 'errors' => []];
-            $cir->init();
-            $linenum = 1;
-
-            while ($row = $cir->next()) {
-                $linenum++;
-                $studentemail = isset($row[0]) ? trim($row[0]) : '';
-                $teacher1email = isset($row[1]) ? trim($row[1]) : '';
-                $teacher2email = isset($row[2]) ? trim($row[2]) : '';
-
-                // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête.
-                if ($studentemail === '' || core_text::strtolower($studentemail) === 'studentemail') {
-                    continue;
-                }
-
-                $student = $studentsbyemail[core_text::strtolower($studentemail)] ?? null;
-                if (!$student) {
-                    $results->errors[] = get_string('importerrorunknownemail', 'mod_stage', (object) [
-                        'line' => $linenum, 'email' => $studentemail,
-                    ]);
-                    continue;
-                }
-
-                $teacherids = [];
-                foreach ([$teacher1email, $teacher2email] as $teacheremail) {
-                    if ($teacheremail === '') {
-                        continue;
-                    }
-                    $teacher = $teachersbyemail[core_text::strtolower($teacheremail)] ?? null;
-                    if (!$teacher) {
-                        $results->errors[] = get_string('importerrorunknownteacher', 'mod_stage', (object) [
-                            'line' => $linenum, 'email' => $teacheremail,
-                        ]);
-                        continue;
-                    }
-                    $teacherids[] = $teacher->id;
-                }
-
-                stage_set_student_teachers($stage->id, $student->id, $teacherids);
-                $results->assigned++;
-            }
-            $cir->cleanup(true);
-        }
+        $import = \mod_stage\local\csv_importer::teachers(
+            $stage,
+            $context,
+            file_get_contents($upload['tmp_name'])
+        );
+        $results = $import['results'];
+        $uploaderror = $import['error'];
     }
 }
 

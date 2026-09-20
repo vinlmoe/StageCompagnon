@@ -50,17 +50,6 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('importcsv', '
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$themes = stage_get_themes($stage->id, true);
-$students = stage_get_enrolled_students($context);
-$studentsbyemail = [];
-foreach ($students as $student) {
-    $studentsbyemail[core_text::strtolower($student->email)] = $student;
-}
-$themesbyname = [];
-foreach ($themes as $theme) {
-    $themesbyname[core_text::strtolower(trim($theme->name))] = $theme;
-}
-
 $results = null;
 $uploaderror = null;
 
@@ -70,92 +59,13 @@ if (data_submitted() && confirm_sesskey()) {
     if (empty($upload) || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
         $uploaderror = get_string('importerrorupload', 'mod_stage');
     } else {
-        $content = file_get_contents($upload['tmp_name']);
-        // Excel francophone exporte en points-virgules ; on accepte aussi la virgule.
-        $delimiter = (strpos($content, ';') !== false) ? 'semicolon' : 'comma';
-
-        $cir = new csv_import_reader(csv_import_reader::get_new_iid('stage'), 'stage');
-
-        if ($cir->load_csv_content($content, 'UTF-8', $delimiter) === false) {
-            $uploaderror = $cir->get_error();
-            $cir->cleanup(true);
-        } else {
-            $results = (object) ['created' => 0, 'errors' => []];
-            $records = [];
-            $cir->init();
-            // La première ligne est consommée comme en-tête par load_csv_content().
-            $linenum = 1;
-
-            // Doublons détectés contre les stages déjà enregistrés, et entre les lignes
-            // du fichier lui-même (un même étudiant répété deux fois sur la même thématique).
-            $existingpairs = stage_get_existing_theme_pairs($stage->id);
-
-            while ($row = $cir->next()) {
-                $linenum++;
-                // Colonnes attendues : email, theme, structure, datestart, dateend, duration.
-                $email = isset($row[0]) ? trim($row[0]) : '';
-                $themename = isset($row[1]) ? trim($row[1]) : '';
-                $structure = isset($row[2]) ? trim($row[2]) : '';
-                $datestartraw = isset($row[3]) ? trim($row[3]) : '';
-                $dateendraw = isset($row[4]) ? trim($row[4]) : '';
-                $duration = isset($row[5]) ? (int) trim($row[5]) : 0;
-
-                // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête.
-                if ($email === '' || $themename === '' || core_text::strtolower($email) === 'email') {
-                    continue;
-                }
-
-                $student = $studentsbyemail[core_text::strtolower($email)] ?? null;
-                if (!$student) {
-                    $results->errors[] = get_string('importerrorunknownemail', 'mod_stage', (object) [
-                        'line' => $linenum, 'email' => $email,
-                    ]);
-                    continue;
-                }
-
-                $theme = $themesbyname[core_text::strtolower($themename)] ?? null;
-                if (!$theme) {
-                    $results->errors[] = get_string('importerrorunknowntheme', 'mod_stage', (object) [
-                        'line' => $linenum, 'theme' => $themename,
-                    ]);
-                    continue;
-                }
-
-                $start = $datestartraw ? strtotime($datestartraw) : false;
-                $end = $dateendraw ? strtotime($dateendraw) : false;
-
-                $pairkey = stage_duplicate_key($student->id, $theme->id, $start ?: null, $end ?: null);
-                if (isset($existingpairs[$pairkey])) {
-                    $results->errors[] = get_string('importerrorduplicate', 'mod_stage', (object) [
-                        'line' => $linenum, 'email' => $email, 'theme' => $themename,
-                    ]);
-                    continue;
-                }
-                $existingpairs[$pairkey] = true;
-
-                $records[] = (object) [
-                    'stageid' => $stage->id,
-                    'userid' => $student->id,
-                    'themeid' => $theme->id,
-                    'structure' => $structure,
-                    'datestart' => $start ?: null,
-                    'dateend' => $end ?: null,
-                    'declaredduration' => $duration,
-                    'retainedduration' => 0,
-                    'status' => STAGE_STATUS_ENREGISTRE,
-                    'timecreated' => time(),
-                    'timemodified' => time(),
-                ];
-            }
-            $cir->cleanup(true);
-
-            // Insertion groupée : un import de plusieurs centaines de lignes ne doit pas
-            // déclencher autant de requêtes individuelles.
-            if ($records) {
-                $DB->insert_records('stage_entry', $records);
-                $results->created = count($records);
-            }
-        }
+        $import = \mod_stage\local\csv_importer::entries(
+            $stage,
+            $context,
+            file_get_contents($upload['tmp_name'])
+        );
+        $results = $import['results'];
+        $uploaderror = $import['error'];
     }
 }
 
