@@ -272,6 +272,7 @@ class csv_importer {
             'jours effectifs' => 'durationeffective',
             'jours déclarés' => 'durationdeclared',
             'durée (convention)' => 'durationtext',
+            'durée' => 'durationlabel',
             'date de naissance étudiant' => 'studentbirthdate',
             'adresse étudiant' => 'studentaddress',
             'téléphone étudiant' => 'studentphone',
@@ -472,12 +473,22 @@ class csv_importer {
                     }
                     $existingpairs[$pairkey] = true;
 
+                    // Les compteurs en jours viennent tous de la convention PDF. Sans elle, la
+                    // seule durée de l'export est le libellé du tableau de bord, exprimé en
+                    // semaines : la plage de dates du stage prend alors le relais. La durée ainsi
+                    // obtenue reste indicative, la DEVE fixant la durée retenue à la validation.
                     $duration = (int) $getcol($row, 'durationeffective');
                     if (!$duration) {
                         $duration = (int) $getcol($row, 'durationdeclared');
                     }
                     if (!$duration) {
                         $duration = self::parse_duration($getcol($row, 'durationtext'));
+                    }
+                    if (!$duration) {
+                        $duration = self::parse_duration($getcol($row, 'durationlabel'));
+                    }
+                    if (!$duration) {
+                        $duration = self::count_period_days($start, $end);
                     }
 
                     // L'année propre à l'étudiant dans la convention décrit l'année à laquelle
@@ -586,11 +597,40 @@ class csv_importer {
     /**
      * Extrait le nombre de jours d'un texte de durée StageVet ("7  jours effectifs" -> 7).
      *
+     * Un libellé exprimé dans une autre unité ("4 semaines", côté tableau de bord) est refusé
+     * plutôt que converti : passer des semaines aux jours suppose de trancher entre jours
+     * calendaires et jours ouvrés, ce qui relève de la scolarité et non de l'import. La plage de
+     * dates du stage, exacte et présente dans le fichier, sert de repli (count_period_days()).
+     *
      * @param string $raw
-     * @return int
+     * @return int 0 si aucun nombre, ou si l'unité n'est pas le jour
      */
     public static function parse_duration($raw) {
-        return preg_match('/(\d+)/', $raw, $matches) ? (int) $matches[1] : 0;
+        $raw = trim($raw);
+        if (!preg_match('/(\d+)/', $raw, $matches)) {
+            return 0;
+        }
+        if (preg_match('/semaine|mois|ann[ée]e/iu', $raw)) {
+            return 0;
+        }
+        return (int) $matches[1];
+    }
+
+    /**
+     * Nombre de jours calendaires couverts par la plage du stage, bornes comprises.
+     *
+     * Les deux bornes sont des minuits : l'arrondi absorbe l'heure gagnée ou perdue lorsque la
+     * plage traverse un changement d'heure.
+     *
+     * @param int|null $start
+     * @param int|null $end
+     * @return int 0 si la plage est absente ou incohérente
+     */
+    public static function count_period_days($start, $end) {
+        if (empty($start) || empty($end) || $end < $start) {
+            return 0;
+        }
+        return (int) round(($end - $start) / DAYSECS) + 1;
     }
 
     /**

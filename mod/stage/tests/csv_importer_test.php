@@ -280,6 +280,46 @@ final class csv_importer_test extends \advanced_testcase {
     }
 
     /**
+     * La durée retombe sur la plage de dates quand aucun libellé n'est exprimé en jours.
+     */
+    public function test_stagevet_duration_falls_back_from_label_to_period(): void {
+        global $DB;
+        [$stage, $context, $student] = $this->fixture();
+        // « 4 semaines » est le libellé du tableau de bord : le convertir supposerait de trancher
+        // entre jours calendaires et jours ouvrés, la plage de dates prend donc le relais.
+        $result = csv_importer::stagevet(
+            $stage,
+            $context,
+            "Étudiant;Thème;Début stage;Fin stage;Durée\n"
+            . "DUPONT Zoe;Clinique;01/03/2026;12/03/2026;4 semaines\n"
+        );
+        $this->assertSame(1, $result['results']->created);
+        $this->assertEquals(12, $DB->get_field('stage_entry', 'declaredduration', ['userid' => $student->id]));
+
+        // Un libellé déjà exprimé en jours est en revanche retenu tel quel.
+        $this->assertSame(10, csv_importer::parse_duration('10 jours'));
+        $this->assertSame(0, csv_importer::parse_duration('4 semaines'));
+        $this->assertSame(0, csv_importer::parse_duration('2 mois'));
+        $this->assertSame(0, csv_importer::count_period_days(null, null));
+    }
+
+    /**
+     * Les compteurs en jours de la convention restent prioritaires sur ce repli.
+     */
+    public function test_stagevet_duration_prefers_convention_day_counts(): void {
+        global $DB;
+        [$stage, $context, $student] = $this->fixture();
+        $result = csv_importer::stagevet(
+            $stage,
+            $context,
+            "Étudiant;Thème;Début stage;Fin stage;Durée;Jours effectifs\n"
+            . "DUPONT Zoe;Clinique;01/03/2026;12/03/2026;4 semaines;6\n"
+        );
+        $this->assertSame(1, $result['results']->created);
+        $this->assertEquals(6, $DB->get_field('stage_entry', 'declaredduration', ['userid' => $student->id]));
+    }
+
+    /**
      * Les erreurs de dates et les valeurs inconnues ne créent aucune saisie.
      */
     public function test_stagevet_rejects_missing_reversed_dates_and_unknown_values(): void {

@@ -134,7 +134,10 @@ $string['importstagevetcsv_help'] = 'Import the CSV file exported directly from 
     . 'saved for reference, without triggering any PDF generation. The start and end dates from the export form the '
     . "imported internship's only date period: a line without usable dates is reported and skipped. No line is "
     . 'ever skipped silently: those whose student cannot be found are listed so you can pick the matching '
-    . 'enrolled student yourself.';
+    . 'enrolled student yourself. The declared duration is read from "Jours effectifs", "Jours déclarés" or '
+    . '"Durée (convention)"; failing that the "Durée" label is used only when expressed in days, a label in '
+    . 'weeks falling back to the number of days in the date period. That duration stays indicative: theme '
+    . 'requirements are checked against the retained duration set at validation time.';
 $string['importstagevetnoheader'] = 'The file does not seem to have a recognisable header row. Check that it is '
     . 'an unmodified StageVet export.';
 $string['importstageveterrornotheme'] = 'Line {$a}: no theme provided.';

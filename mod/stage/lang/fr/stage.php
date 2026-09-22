@@ -139,7 +139,10 @@ $string['importstagevetcsv_help'] = "Importez directement le fichier CSV export�
     . "Les dates de début et de fin de l'export constituent l'unique plage de dates du stage importé : une ligne "
     . "sans dates exploitables est signalée et ignorée. Aucune ligne n'est écartée en silence : celles dont "
     . "l'étudiant reste introuvable vous sont présentées pour que vous désigniez vous-même l'inscrit "
-    . 'correspondant.';
+    . "correspondant. La durée déclarée est lue dans « Jours effectifs », « Jours déclarés » ou « Durée "
+    . "(convention) » ; à défaut, le libellé « Durée » n'est retenu que s'il est exprimé en jours, un libellé "
+    . "en semaines laissant place au nombre de jours de la plage de dates. Cette durée reste indicative : "
+    . "c'est la durée retenue, fixée à la validation, qui compte pour les thématiques.";
 $string['importstagevetnoheader'] = "Le fichier ne semble pas avoir de ligne d'en-tête reconnaissable. Vérifiez qu'il "
     . "s'agit bien d'un export StageVet non modifié.";
 $string['importstageveterrornotheme'] = 'Ligne {$a} : aucune thématique renseignée.';
