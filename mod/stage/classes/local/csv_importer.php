@@ -228,18 +228,34 @@ class csv_importer {
     /**
      * Importe le CSV après contrôle des droits et du fichier par la page appelante.
      *
+     * Les lignes dont l'étudiant n'a pas pu être rapproché d'un inscrit au cours sont remontées
+     * dans $results->unknownstudents, groupées par libellé : aucune ligne n'est écartée en
+     * silence. La page appelante propose alors à la DEVE de désigner elle-même l'étudiant
+     * inscrit correspondant à chaque libellé, puis rappelle cette méthode avec le même contenu
+     * et la table de correspondance obtenue.
+     *
      * @param \stdClass $stage Activité cible.
      * @param \context $context Contexte de l'activité cible.
      * @param string $content Contenu UTF-8 du CSV.
+     * @param array $studentresolutions Libellé d'étudiant non rapproché => identifiant de
+     *        l'étudiant inscrit désigné par la DEVE. Dès que cette table n'est pas vide, seules
+     *        les lignes qu'elle rattache sont importées : les autres l'ont déjà été à la
+     *        première passe et ne seraient plus vues que comme des doublons.
      * @return array Résultats par ligne et erreur de lecture éventuelle.
      */
-    public static function stagevet(\stdClass $stage, \context $context, string $content): array {
+    public static function stagevet(
+        \stdClass $stage,
+        \context $context,
+        string $content,
+        array $studentresolutions = []
+    ): array {
         global $CFG, $DB;
         require_once($CFG->libdir . '/csvlib.class.php');
         require_once($CFG->dirroot . '/mod/stage/locallib.php');
         // En-têtes StageVet reconnus (une ligne d'en-tête est obligatoire) => clé interne utilisée
         // ci-dessous. Les colonnes absentes du fichier sont simplement ignorées (valeur vide).
         $columnmap = [
+            'étudiant' => 'fullname',
             'nom étudiant' => 'lastname',
             'prénom étudiant' => 'firstname',
             'email étudiant' => 'email',
@@ -286,9 +302,15 @@ class csv_importer {
         $students = stage_get_enrolled_students($context);
         $studentsbyemail = [];
         $studentsbyname = [];
+        // La colonne « Étudiant » de StageVet donne le nom dans l'ordre « Nom Prénom », alors que
+        // les colonnes de convention le donnent en deux champs séparés. Les deux ordres sont donc
+        // indexés, et seul un rapprochement sans ambiguïté est retenu (un libellé qui désignerait
+        // deux inscrits différents selon l'ordre de lecture est laissé à l'arbitrage de la DEVE).
+        $studentsbyreversedname = [];
         foreach ($students as $student) {
             $studentsbyemail[core_text::strtolower($student->email)] = $student;
             $studentsbyname[stage_normalize_name($student->firstname . ' ' . $student->lastname)] = $student;
+            $studentsbyreversedname[stage_normalize_name($student->lastname . ' ' . $student->firstname)] = $student;
         }
 
         // Dans l'export StageVet, le « tuteur » est l'enseignant référent de l'école. Il est distinct du
@@ -344,6 +366,9 @@ class csv_importer {
                 // un fichier de plusieurs centaines de lignes concernant le même étudiant ou la
                 // même thématique manquante (ex. un étudiant non encore inscrit au cours).
                 $results = (object) ['created' => 0, 'unknownstudents' => [], 'unknownthemes' => [], 'errors' => []];
+                // Seconde passe : la DEVE a rattaché des libellés à des inscrits. Les lignes que
+                // le fichier suffit à rapprocher ont déjà été importées à la première passe.
+                $resolvedonly = $studentresolutions !== [];
                 $entryrecords = [];
                 $detailbyrowkey = [];
                 $cir->init();
@@ -356,8 +381,14 @@ class csv_importer {
                     $lastname = $getcol($row, 'lastname');
                     $firstname = $getcol($row, 'firstname');
                     $email = $getcol($row, 'email');
+                    $fullname = $getcol($row, 'fullname');
                     $themename = $getcol($row, 'theme', 'themealt');
-                    if ($lastname === '' && $firstname === '' && $email === '') {
+
+                    // Une ligne entièrement vide (dernier saut de ligne du fichier) n'est pas une
+                    // donnée manquante. Toute autre ligne doit en revanche aboutir à un étudiant
+                    // ou être signalée : une ligne écartée en silence ferait annoncer un import
+                    // réussi alors que des stages n'ont pas été créés.
+                    if (trim(implode('', array_map('strval', $row))) === '') {
                         continue;
                     }
 
@@ -368,9 +399,43 @@ class csv_importer {
                     if (!$student && ($firstname !== '' || $lastname !== '')) {
                         $student = $studentsbyname[stage_normalize_name($firstname . ' ' . $lastname)] ?? null;
                     }
+                    if (!$student && $fullname !== '') {
+                        // Repli sur la colonne « Étudiant » du tableau de bord StageVet, toujours
+                        // renseignée : les colonnes « Nom étudiant », « Prénom étudiant » et
+                        // « Email étudiant » proviennent de la convention PDF et sont vides tant
+                        // que celle-ci n'a pas été analysée par StageVetManager.
+                        $namekey = stage_normalize_name($fullname);
+                        $direct = $studentsbyname[$namekey] ?? null;
+                        $reversed = $studentsbyreversedname[$namekey] ?? null;
+                        if ($direct && $reversed && $direct->id !== $reversed->id) {
+                            $direct = $reversed = null;
+                        }
+                        $student = $direct ?: $reversed;
+                    }
+
+                    $studentlabel = trim($firstname . ' ' . $lastname);
+                    if ($studentlabel === '') {
+                        $studentlabel = $fullname !== '' ? $fullname : $email;
+                    }
+                    if ($studentlabel === '') {
+                        $studentlabel = get_string('importstagevetunnamedstudent', 'mod_stage', $linenum);
+                    }
+
+                    // Étudiant désigné par la DEVE pour ce libellé. La correspondance est relue
+                    // dans la liste des inscrits : un identifiant forgé dans le formulaire ne peut
+                    // pas rattacher un stage à quelqu'un qui n'est pas inscrit au cours.
+                    $resolved = false;
+                    if (!$student && isset($studentresolutions[$studentlabel])) {
+                        $student = $students[(int) $studentresolutions[$studentlabel]] ?? null;
+                        $resolved = $student !== null;
+                    }
+
                     if (!$student) {
-                        $studentname = trim($firstname . ' ' . $lastname) ?: $email;
-                        $results->unknownstudents[$studentname][] = $linenum;
+                        $results->unknownstudents[$studentlabel][] = $linenum;
+                        continue;
+                    }
+
+                    if ($resolvedonly && !$resolved) {
                         continue;
                     }
 

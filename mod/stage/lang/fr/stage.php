@@ -123,8 +123,10 @@ $string['importstagevetcsv_help'] = "Importez directement le fichier CSV export�
     . "StageVet, sans modification). Les colonnes sont reconnues par leur en-tête (« Nom étudiant », "
     . "« Prénom étudiant », « Thème », « Début (convention)/Fin (convention) », coordonnées de l'organisme et du "
     . "tuteur, modalités, gratification...), dans l'ordre où StageVet les fournit habituellement. L'étudiant est "
-    . "identifié par courriel si la colonne « Email étudiant » est renseignée, sinon par nom/prénom (comparaison "
-    . "insensible aux accents et à la casse) parmi les étudiants inscrits au cours. "
+    . "identifié par courriel si la colonne « Email étudiant » est renseignée, sinon par nom/prénom, et à défaut "
+    . "par la colonne « Étudiant » du tableau de bord StageVet — les trois premières sont issues de la convention "
+    . "PDF et restent vides tant que celle-ci n'a pas été analysée. La comparaison des noms est insensible aux "
+    . "accents, à la casse et à l'ordre nom/prénom, parmi les étudiants inscrits au cours. "
     . "L'année du stage est définie par la colonne « Année étudiant (convention) », ou à défaut par « Année "
     . "d'étude ». Le « tuteur » de l'export est rapproché de l'enseignant référent Moodle, tandis que le « maître "
     . "de stage » est enregistré comme encadrant dans la structure d'accueil. Le nom de thématique doit "
@@ -135,7 +137,9 @@ $string['importstagevetcsv_help'] = "Importez directement le fichier CSV export�
     . 'convention "Signée (StageVet)" (déjà signée hors de ce plugin) : les coordonnées de convention disponibles '
     . "dans l'export sont tout de même enregistrées à titre de référence, sans déclencher de génération de PDF. "
     . "Les dates de début et de fin de l'export constituent l'unique plage de dates du stage importé : une ligne "
-    . "sans dates exploitables est signalée et ignorée.";
+    . "sans dates exploitables est signalée et ignorée. Aucune ligne n'est écartée en silence : celles dont "
+    . "l'étudiant reste introuvable vous sont présentées pour que vous désigniez vous-même l'inscrit "
+    . 'correspondant.';
 $string['importstagevetnoheader'] = "Le fichier ne semble pas avoir de ligne d'en-tête reconnaissable. Vérifiez qu'il "
     . "s'agit bien d'un export StageVet non modifié.";
 $string['importstageveterrornotheme'] = 'Ligne {$a} : aucune thématique renseignée.';
@@ -143,6 +147,21 @@ $string['importstageveterrordates'] = 'Ligne {$a->line} ({$a->student}) : dates 
 $string['importstagevetunknownstudentsreport'] = '{$a} étudiant(s) introuvable(s) parmi les inscrits au cours';
 $string['importstagevetunknownthemesreport'] = '{$a} thématique(s) introuvable(s)';
 $string['importstagevetreportline'] = '{$a->value} (ligne(s) {$a->lines})';
+$string['importstagevetunnamedstudent'] = 'Ligne {$a} (aucun nom dans le fichier)';
+$string['importstagevetexpired'] = "Le fichier mis de côté pour le rattachement n'est plus disponible. "
+    . 'Téléversez-le à nouveau.';
+$string['importstagevetresolvenone'] = "Aucun étudiant n'a été désigné : rien n'a été importé.";
+$string['importstagevetresolve_help'] = "Ces lignes n'ont pas pu être rattachées automatiquement à un étudiant "
+    . "inscrit au cours : elles n'ont pas été importées. Cela arrive notamment lorsque la convention PDF n'a pas "
+    . "encore été analysée dans StageVet, l'export ne portant alors que le nom affiché au tableau de bord. "
+    . "Désignez pour chaque libellé l'étudiant inscrit correspondant, puis relancez l'import : seules les lignes "
+    . 'que vous rattachez ici seront ajoutées, celles déjà importées ne le seront pas une seconde fois. Laissez '
+    . "« Ne pas importer » pour les libellés que vous ne souhaitez pas traiter.";
+$string['importstagevetresolvelabel'] = "Étudiant de l'export";
+$string['importstagevetresolvelines'] = 'Ligne(s) concernée(s)';
+$string['importstagevetresolvestudent'] = 'Étudiant inscrit au cours';
+$string['importstagevetresolveskip'] = 'Ne pas importer';
+$string['importstagevetresolveapply'] = 'Importer les lignes rattachées';
 $string['historicalimport'] = 'Importer un ancien suivi Excel';
 $string['historicalimport_desc'] = 'Reprendre les stages et stages EP validés dans l’ancien classeur de suivi, '
     . 'après ajout des adresses de courriel des étudiants.';

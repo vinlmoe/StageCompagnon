@@ -201,6 +201,85 @@ final class csv_importer_test extends \advanced_testcase {
     }
 
     /**
+     * Sans convention PDF analysée, la colonne « Étudiant » du tableau de bord suffit.
+     */
+    public function test_stagevet_falls_back_to_dashboard_student_column(): void {
+        global $DB;
+        [$stage, $context, $student] = $this->fixture();
+        // Export réalisé avant analyse des conventions : les colonnes issues du PDF sont vides et
+        // « Étudiant » porte le nom dans l'ordre « Nom Prénom ».
+        $result = csv_importer::stagevet(
+            $stage,
+            $context,
+            "Étudiant;Nom étudiant;Prénom étudiant;Email étudiant;Thème;Début stage;Fin stage;Durée (convention)\n"
+            . "DUPONT Zoe;;;;Clinique;01/03/2026;10/03/2026;7 jours effectifs\n"
+        );
+        $this->assertSame(1, $result['results']->created);
+        $this->assertEmpty($result['results']->unknownstudents);
+        $this->assertEquals($student->id, $DB->get_field('stage_entry', 'userid', ['stageid' => $stage->id]));
+    }
+
+    /**
+     * Une ligne sans étudiant identifiable est signalée, jamais ignorée en silence.
+     */
+    public function test_stagevet_reports_lines_without_any_student_identifier(): void {
+        global $DB;
+        [$stage, $context] = $this->fixture();
+        $result = csv_importer::stagevet(
+            $stage,
+            $context,
+            "Étudiant;Nom étudiant;Prénom étudiant;Email étudiant;Thème;Début stage;Fin stage\n"
+            . ";;;;Clinique;01/03/2026;10/03/2026\n"
+            . "\n"
+        );
+        $this->assertSame(0, $result['results']->created);
+        // La ligne vide finale reste ignorée ; celle sans identifiant est remontée avec son numéro.
+        $this->assertSame([get_string('importstagevetunnamedstudent', 'mod_stage', 2) => [2]],
+            $result['results']->unknownstudents);
+        $this->assertEquals(0, $DB->count_records('stage_entry'));
+    }
+
+    /**
+     * La DEVE rattache elle-même un libellé introuvable, sans réimporter les lignes déjà traitées.
+     */
+    public function test_stagevet_imports_lines_resolved_by_deve(): void {
+        global $DB;
+        [$stage, $context, $student] = $this->fixture();
+        $csv = "Étudiant;Thème;Début stage;Fin stage\n"
+            . "DUPONT Zoe;Clinique;01/03/2026;10/03/2026\n"
+            . "MARTIN Lou;Clinique;01/04/2026;10/04/2026\n";
+
+        $first = csv_importer::stagevet($stage, $context, $csv);
+        $this->assertSame(1, $first['results']->created);
+        $this->assertSame(['MARTIN Lou' => [3]], $first['results']->unknownstudents);
+
+        $second = csv_importer::stagevet($stage, $context, $csv, ['MARTIN Lou' => $student->id]);
+        $this->assertSame(1, $second['results']->created);
+        $this->assertEmpty($second['results']->unknownstudents);
+        // La ligne 2, déjà importée, n'est ni recréée ni signalée comme doublon.
+        $this->assertEmpty($second['results']->errors);
+        $this->assertEquals(2, $DB->count_records('stage_entry', ['userid' => $student->id]));
+    }
+
+    /**
+     * Un identifiant désignant quelqu'un qui n'est pas inscrit au cours est refusé.
+     */
+    public function test_stagevet_rejects_resolution_to_a_non_enrolled_user(): void {
+        global $DB;
+        [$stage, $context] = $this->fixture();
+        $outsider = $this->getDataGenerator()->create_user();
+        $result = csv_importer::stagevet(
+            $stage,
+            $context,
+            "Étudiant;Thème;Début stage;Fin stage\nMARTIN Lou;Clinique;01/04/2026;10/04/2026\n",
+            ['MARTIN Lou' => $outsider->id]
+        );
+        $this->assertSame(0, $result['results']->created);
+        $this->assertSame(['MARTIN Lou' => [2]], $result['results']->unknownstudents);
+        $this->assertEquals(0, $DB->count_records('stage_entry'));
+    }
+
+    /**
      * Les erreurs de dates et les valeurs inconnues ne créent aucune saisie.
      */
     public function test_stagevet_rejects_missing_reversed_dates_and_unknown_values(): void {

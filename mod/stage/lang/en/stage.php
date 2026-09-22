@@ -121,7 +121,9 @@ $string['importstagevetcsv_help'] = 'Import the CSV file exported directly from 
     . 'menu, unmodified). Columns are recognised by their header ("Nom étudiant", "Prénom étudiant", "Thème", '
     . '"Début (convention)"/"Fin (convention)", host organisation and tutor details, terms, gratuity...), in the '
     . 'order StageVet usually provides them. The student is matched by email if the "Email étudiant" column is '
-    . 'filled in, otherwise by first/last name (accent- and case-insensitive) among students enrolled on the '
+    . 'filled in, otherwise by first/last name, and failing that by the "Étudiant" column of the StageVet '
+    . 'dashboard — the first three come from the PDF agreement and stay empty until it has been parsed. Name '
+    . 'matching ignores accents, case and first/last name order, among students enrolled on the '
     . 'course. The internship study year is read from "Année étudiant (convention)", falling back to "Année '
     . 'd\'étude". The export "tuteur" is matched to the Moodle referent teacher, while the "maître de stage" is '
     . 'stored as the host organisation supervisor. The theme name must exactly match a theme already created in '
@@ -130,7 +132,9 @@ $string['importstagevetcsv_help'] = 'Import the CSV file exported directly from 
     . '"THEME LIBRE / A2, A3, A4, A5"). Each imported internship is registered with agreement status "Signed '
     . '(StageVet)" (already signed outside this plugin): the agreement details available in the export are still '
     . 'saved for reference, without triggering any PDF generation. The start and end dates from the export form the '
-    . "imported internship's only date period: a line without usable dates is reported and skipped.";
+    . "imported internship's only date period: a line without usable dates is reported and skipped. No line is "
+    . 'ever skipped silently: those whose student cannot be found are listed so you can pick the matching '
+    . 'enrolled student yourself.';
 $string['importstagevetnoheader'] = 'The file does not seem to have a recognisable header row. Check that it is '
     . 'an unmodified StageVet export.';
 $string['importstageveterrornotheme'] = 'Line {$a}: no theme provided.';
@@ -138,6 +142,19 @@ $string['importstageveterrordates'] = 'Line {$a->line} ({$a->student}): start an
 $string['importstagevetunknownstudentsreport'] = '{$a} student(s) not found among those enrolled on the course';
 $string['importstagevetunknownthemesreport'] = '{$a} theme(s) not found';
 $string['importstagevetreportline'] = '{$a->value} (line(s) {$a->lines})';
+$string['importstagevetunnamedstudent'] = 'Line {$a} (no name in the file)';
+$string['importstagevetexpired'] = 'The file kept aside for matching is no longer available. Please upload it again.';
+$string['importstagevetresolvenone'] = 'No student was selected: nothing was imported.';
+$string['importstagevetresolve_help'] = 'These lines could not be matched automatically to a student enrolled on '
+    . 'the course, so they were not imported. This typically happens when the PDF agreement has not been parsed in '
+    . 'StageVet yet, leaving the export with only the name shown on the dashboard. Pick the matching enrolled '
+    . 'student for each label, then run the import again: only the lines you match here will be added, and those '
+    . "already imported will not be added twice. Leave \"Do not import\" for labels you do not want to process.";
+$string['importstagevetresolvelabel'] = 'Student in the export';
+$string['importstagevetresolvelines'] = 'Line(s) concerned';
+$string['importstagevetresolvestudent'] = 'Student enrolled on the course';
+$string['importstagevetresolveskip'] = 'Do not import';
+$string['importstagevetresolveapply'] = 'Import the matched lines';
 $string['historicalimport'] = 'Import a legacy Excel tracker';
 $string['historicalimport_desc'] = 'Bring validated internships and EP internships over from the legacy tracking '
     . 'workbook after student email addresses have been added.';
