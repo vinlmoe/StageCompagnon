@@ -82,15 +82,29 @@ Depuis **Administration > Gérer les thématiques** :
 - La colonne **Visible** est un interrupteur : une thématique désactivée n'est
   plus proposée à l'enregistrement d'un stage, mais reste visible ici et sur
   les stages déjà enregistrés dessus.
-- **Questions d'évaluation** (lien par thématique) : définir des questions
-  (choix multiples ou commentaire libre) qui remplacent le commentaire libre
-  générique dans le formulaire d'auto-évaluation de l'étudiant et/ou celui de
-  l'enseignant. Une question peut être réutilisée sur plusieurs thématiques.
-- **Objectifs de stage** (lien par thématique) : voir ci-dessous.
+- **Gérer la thématique** (bouton par ligne, ou clic sur son nom) ouvre une
+  page unique qui réunit tous les volets de la thématique, modifiables et
+  enregistrés en une seule fois, sans navigation entre pages :
+  - **Paramètres généraux** : nom, description, années, caractère obligatoire,
+    visibilité, évaluation par le maître de stage, rapport de stage ;
+  - **Durée requise** : durée unique, ou durée par année d'étude (seules les
+    années de la plage choisie sont proposées) ;
+  - **Enseignants responsables** : sélection avec recherche ;
+  - **Objectifs de stage** : documents et check-list (voir ci-dessous), dont
+    les éléments s'éditent directement en ligne ;
+  - **Questions d'évaluation** : questions (choix multiples ou commentaire
+    libre) qui remplacent le commentaire libre générique dans les formulaires
+    d'évaluation, éditées en ligne. Une ligne vide crée une question ; une
+    question peut être réutilisée sur plusieurs thématiques (champ
+    « Réutiliser des questions d'autres thématiques »), et une question
+    partagée est signalée comme telle puisque sa modification vaut pour toutes.
+
+  Un sélecteur en haut de page permet de passer directement à une autre
+  thématique, et « Enregistrer et revenir à la liste » ramène au tableau.
 
 ### Objectifs de stage
 
-Depuis **Gérer les thématiques > Objectifs de stage**, chaque thématique reçoit
+Depuis **Gérer les thématiques > Gérer la thématique**, chaque thématique reçoit
 ses objectifs, en deux volets complémentaires :
 
 - **Documents d'objectifs** : un ou plusieurs fichiers décrivant ce qui est

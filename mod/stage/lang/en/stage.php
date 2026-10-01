@@ -322,7 +322,7 @@ $string['noperiodsdefined'] = 'No date range has been defined for this internshi
 $string['workdayssaved'] = 'The actual internship days have been saved.';
 $string['totalrequiredduration'] = 'Total required duration (days)';
 $string['managethemedurations'] = 'Durations per year';
-$string['durationperyear'] = 'Per year (see Durations per year)';
+$string['durationperyear'] = 'Per year';
 $string['durationflatignored'] = 'A single duration of {$a} day(s) is set on this theme (see its edit form): it is used instead of the per-year durations below, which are ignored.';
 $string['themedurationssaved'] = 'Durations saved.';
 $string['manageyearrequirements'] = 'Total required durations per year';
@@ -868,3 +868,29 @@ $string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be tran
 $string['transferblocked'] = 'The transfer is blocked. Check the mappings in the target activity.';
 $string['nothemeobjectivefiles'] = 'No objectives documents have been uploaded for this theme yet.';
 $string['themeobjectivespreviewintro'] = 'These are the objectives for this theme. You will complete this checklist when requesting your internship agreement.';
+
+// Single theme management page (theme_edit.php).
+$string['managetheme'] = 'Manage theme';
+$string['backtothemelist'] = 'Back to the theme list';
+$string['switchtheme'] = 'Go to another theme';
+$string['viewthemestages'] = 'View the internships of this theme';
+$string['savethemeandreturn'] = 'Save and return to the list';
+$string['themegeneral'] = 'General settings';
+$string['themedurationssection'] = 'Required duration';
+$string['themedurationsintro'] = 'Enter either a single duration for the whole theme, or a duration per study year '
+    . 'below (the single duration, when not zero, takes precedence). Only the years of the range chosen in the '
+    . 'general settings are shown.';
+$string['requireddurationforyear'] = 'Required duration - {$a}';
+$string['deletechecklistrow'] = 'Delete this objective (and the students\' answers)';
+$string['addchecklistrows'] = 'Add {no} objective(s)';
+$string['themequestionsintro'] = 'Edit the questions directly below; fill in a blank row to create one. A question '
+    . 'shared with other themes is changed for all of them.';
+$string['newquestionrow'] = 'New question (leave empty to ignore)';
+$string['addquestionrows'] = 'Add {no} question(s)';
+$string['unlinkquestionrow'] = 'Remove this question from the theme';
+$string['unlinkquestionrow_help'] = 'The question is removed from this theme only. If no other theme uses it any '
+    . 'more, it is deleted together with the answers already recorded.';
+$string['questionsharedwith'] = '- also used by: {$a}';
+$string['attachquestions'] = 'Reuse questions from other themes';
+$string['attachquestions_help'] = 'The selected questions are attached to this theme on save, without being '
+    . 'duplicated: any later change applies to every theme using them.';

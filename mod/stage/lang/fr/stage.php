@@ -332,7 +332,7 @@ $string['noperiodsdefined'] = "Aucune plage de dates n'a été définie pour ce 
 $string['workdayssaved'] = 'Les jours de stage effectifs ont été enregistrés.';
 $string['totalrequiredduration'] = 'Durée totale requise (jours)';
 $string['managethemedurations'] = 'Durées par année';
-$string['durationperyear'] = 'Par année (voir Durées par année)';
+$string['durationperyear'] = 'Par année';
 $string['durationflatignored'] = "Une durée unique de {\$a} jour(s) est définie sur cette thématique (voir sa fiche) : elle est utilisée à la place des durées par année ci-dessous, qui sont ignorées.";
 $string['themedurationssaved'] = 'Durées enregistrées.';
 $string['manageyearrequirements'] = 'Durées totales requises par année';
@@ -885,3 +885,29 @@ $string['errornegativeduration'] = 'La durée ne peut pas être négative.';
 $string['errorrequiredanswer'] = 'Une réponse est obligatoire pour la question : {$a}';
 $string['errorinvalidanswer'] = 'Choisissez une réponse proposée pour la question : {$a}';
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = "La date du dernier envoi de l'invitation au maître de stage.";
+
+// Page unique de gestion d'une thématique (theme_edit.php).
+$string['managetheme'] = 'Gérer la thématique';
+$string['backtothemelist'] = 'Retour à la liste des thématiques';
+$string['switchtheme'] = 'Aller à une autre thématique';
+$string['viewthemestages'] = 'Voir les stages de cette thématique';
+$string['savethemeandreturn'] = 'Enregistrer et revenir à la liste';
+$string['themegeneral'] = 'Paramètres généraux';
+$string['themedurationssection'] = 'Durée requise';
+$string['themedurationsintro'] = "Renseignez soit une durée unique pour toute la thématique, soit une durée par année "
+    . "d'étude ci-dessous (la durée unique, si elle n'est pas nulle, prime). Seules les années de la plage choisie "
+    . "dans les paramètres généraux sont proposées.";
+$string['requireddurationforyear'] = 'Durée requise - {$a}';
+$string['deletechecklistrow'] = 'Supprimer cet objectif (et les réponses des étudiants)';
+$string['addchecklistrows'] = 'Ajouter {no} objectif(s)';
+$string['themequestionsintro'] = "Modifiez les questions directement ci-dessous ; remplissez une ligne vide pour en "
+    . "créer une. Une question partagée avec d'autres thématiques est modifiée pour toutes.";
+$string['newquestionrow'] = 'Nouvelle question (laisser vide pour ignorer)';
+$string['addquestionrows'] = 'Ajouter {no} question(s)';
+$string['unlinkquestionrow'] = 'Retirer cette question de la thématique';
+$string['unlinkquestionrow_help'] = "La question est retirée de cette thématique seulement. Si elle n'est plus "
+    . "utilisée par aucune autre thématique, elle est supprimée avec les réponses déjà enregistrées.";
+$string['questionsharedwith'] = '- également utilisée par : {$a}';
+$string['attachquestions'] = "Réutiliser des questions d'autres thématiques";
+$string['attachquestions_help'] = "Les questions choisies sont associées à cette thématique à l'enregistrement, "
+    . "sans être dupliquées : toute modification ultérieure s'applique à toutes les thématiques qui les utilisent.";

@@ -381,6 +381,26 @@ function stage_get_theme_durations($themeid) {
 }
 
 /**
+ * Années d'étude pour lesquelles une durée par année peut être définie sur une thématique : la
+ * plage minstudyyear - maxstudyyear, une seule année si l'une des bornes n'est pas spécifiée, ou
+ * l'année 0 (non spécifiée) si aucune ne l'est.
+ *
+ * @param int $minstudyyear
+ * @param int $maxstudyyear
+ * @return int[]
+ */
+function stage_theme_duration_years($minstudyyear, $maxstudyyear) {
+    $minyear = (int) $minstudyyear;
+    $maxyear = (int) $maxstudyyear;
+    if (empty($minyear) && empty($maxyear)) {
+        return [0];
+    }
+    $minyear = $minyear ?: $maxyear;
+    $maxyear = $maxyear ?: $minyear;
+    return range(min($minyear, $maxyear), max($minyear, $maxyear));
+}
+
+/**
  * Retourne le nombre de jours de stage à l'étranger retenus pour un étudiant, tous stages
  * confondus (obligatoires ou complémentaires) et quelle que soit la thématique, pour vérifier
  * l'obligation de mobilité internationale de ce stage (stage->requiredabroaddays). Contrairement

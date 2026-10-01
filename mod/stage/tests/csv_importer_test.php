@@ -234,8 +234,10 @@ final class csv_importer_test extends \advanced_testcase {
         );
         $this->assertSame(0, $result['results']->created);
         // La ligne vide finale reste ignorée ; celle sans identifiant est remontée avec son numéro.
-        $this->assertSame([get_string('importstagevetunnamedstudent', 'mod_stage', 2) => [2]],
-            $result['results']->unknownstudents);
+        $this->assertSame(
+            [get_string('importstagevetunnamedstudent', 'mod_stage', 2) => [2]],
+            $result['results']->unknownstudents
+        );
         $this->assertEquals(0, $DB->count_records('stage_entry'));
     }
 
