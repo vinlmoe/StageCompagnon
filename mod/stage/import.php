@@ -17,12 +17,13 @@
 /**
  * Import en masse des stages depuis un fichier CSV (export Excel), par la DEVE.
  *
- * Colonnes attendues (avec en-tête) : email;theme;structure;datestart;dateend;duration
+ * Colonnes attendues (avec en-tête) : email;theme;structure;datestart;dateend;duration;studyyear
  * - email : adresse de l'étudiant (doit être inscrit au cours)
  * - theme : nom exact d'une thématique existante
  * - structure : structure d'accueil (facultatif)
- * - datestart, dateend : format AAAA-MM-JJ (facultatif)
+ * - datestart, dateend : format AAAA-MM-JJ ou JJ/MM/AAAA (facultatif)
  * - duration : durée déclarée en jours
+ * - studyyear : année d'étude de rattachement, de 1 à 6 (facultatif)
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre

@@ -168,12 +168,18 @@ Colonnes attendues, séparées par des points-virgules ou des virgules, ligne
 d'en-tête facultative :
 
 ```
-email;theme;structure;datestart;dateend;duration
+email;theme;structure;datestart;dateend;duration;studyyear
 ```
 
 `email` doit correspondre à un étudiant inscrit au cours, `theme` au nom exact
-d'une thématique existante, les dates sont au format `AAAA-MM-JJ` (facultatives)
-et `duration` est la durée déclarée en jours.
+d'une thématique existante, les dates sont au format `AAAA-MM-JJ` ou
+`JJ/MM/AAAA` (facultatives), `duration` est la durée déclarée en jours et
+`studyyear` l'année d'étude de rattachement (facultative). Une date illisible
+ou une fin antérieure au début est signalée et la ligne ignorée.
+
+Pour tous les imports CSV, le séparateur est déterminé sur la ligne d'en-tête,
+et un fichier enregistré par Excel en Windows-1252 est accepté comme un fichier
+UTF-8.
 
 ### Import d'un export StageVet
 
@@ -285,7 +291,8 @@ studentemail;teacher1email;teacher2email
 ```
 
 Chaque ligne remplace l'attribution existante de l'étudiant ; le second
-référent est facultatif.
+référent est facultatif. Une ligne dont un référent n'est pas reconnu est
+ignorée : l'attribution existante est conservée.
 
 ## 7. Conventions de stage
 

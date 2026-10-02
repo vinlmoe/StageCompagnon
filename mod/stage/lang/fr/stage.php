@@ -52,8 +52,8 @@ $string['importfromcourse_help'] = "Copiez les thématiques, gabarits de convent
     . "et/ou informations d'établissement d'une autre instance de l'activité (généralement dans un autre cours) "
     . "vers celle-ci, pour éviter de tout ressaisir à chaque nouveau cours. Seules les instances sur lesquelles "
     . "vous avez vous-même le droit de gérer les thématiques sont proposées comme source. Les éléments importés "
-    . "s'ajoutent à ceux déjà présents ici (les thématiques et gabarits ne sont pas fusionnés avec les "
-    . "existants ; les logos, textes de courriels et informations d'établissement déjà renseignés sont "
+    . "s'ajoutent à ceux déjà présents ici (une thématique ou un gabarit portant déjà le même nom ici n'est "
+    . "pas recopié, si bien que relancer l'import ne crée pas de doublons ; les logos, textes de courriels et informations d'établissement déjà renseignés sont "
     . "remplacés). Les listes d'évaluation choisies par les thématiques copiées sont copiées avec elles.";
 $string['importsource'] = 'Instance source';
 $string['importthemes'] = 'Thématiques';
@@ -109,15 +109,19 @@ $string['promotionlegend'] = "OK : année validée. NON : année non validée. -
 $string['import'] = 'Importer';
 $string['importcsv_help'] = "Importez un fichier CSV (enregistré depuis Excel via « Enregistrer sous > CSV »), avec les "
     . 'colonnes suivantes, séparées par des points-virgules ou des virgules, avec une ligne d\'en-tête facultative : '
-    . '<code>email;theme;structure;datestart;dateend;duration</code>. Le champ <em>email</em> doit correspondre à un '
+    . '<code>email;theme;structure;datestart;dateend;duration;studyyear</code>. Le champ <em>email</em> doit correspondre à un '
     . "étudiant inscrit au cours, <em>theme</em> au nom exact d'une thématique existante, les dates au format "
-    . 'AAAA-MM-JJ (facultatives), et <em>duration</em> à la durée déclarée en jours.';
+    . 'AAAA-MM-JJ ou JJ/MM/AAAA (facultatives), <em>duration</em> à la durée déclarée en jours, et <em>studyyear</em> '
+    . "à l'année d'étude de rattachement (facultative, de 1 à 6).";
 $string['importresult'] = '{$a} stage(s) importé(s) avec succès.';
 $string['importerrorupload'] = "Le fichier n'a pas pu être téléversé. Vérifiez sa taille et réessayez.";
 $string['importerrorunknownemail'] = 'Ligne {$a->line} : aucun étudiant inscrit avec l\'adresse "{$a->email}".';
 $string['importerrorunknowntheme'] = 'Ligne {$a->line} : thématique "{$a->theme}" introuvable.';
 $string['importerrorduplicate'] = 'Ligne {$a->line} : "{$a->email}" a déjà un stage sur la thématique "{$a->theme}" '
     . 'avec ces mêmes dates, ligne ignorée.';
+$string['importerrordate'] = 'Ligne {$a->line} : date "{$a->value}" illisible (formats acceptés : AAAA-MM-JJ ou JJ/MM/AAAA), '
+    . 'ligne ignorée.';
+$string['importerrordaterange'] = 'Ligne {$a} : la date de fin précède la date de début, ligne ignorée.';
 $string['importstagevetcsv'] = 'Importer un export StageVet (CSV)';
 $string['importstagevetcsv_help'] = "Importez directement le fichier CSV exporté depuis StageVet (menu export de "
     . "StageVet, sans modification). Les colonnes sont reconnues par leur en-tête (« Nom étudiant », "
@@ -211,7 +215,7 @@ $string['importteacherscsv_help'] = "Importez un fichier CSV (enregistré depuis
     . '<code>studentemail;teacher1email;teacher2email</code>. Le champ <em>studentemail</em> doit correspondre à un '
     . "étudiant inscrit au cours, <em>teacher1email</em> à un enseignant référent potentiel inscrit au cours ; "
     . '<em>teacher2email</em> est facultatif (second référent). Chaque ligne remplace l\'attribution existante de '
-    . "l'étudiant.";
+    . "l'étudiant ; une ligne dont un référent n'est pas reconnu est ignorée et l'attribution existante conservée.";
 $string['importteachersresult'] = '{$a} étudiant(s) mis à jour avec succès.';
 $string['importerrorunknownteacher'] = 'Ligne {$a->line} : aucun enseignant référent potentiel avec l\'adresse "{$a->email}".';
 $string['errorduplicateentry'] = 'Cet étudiant a déjà un stage enregistré sur cette thématique avec ces mêmes dates.';
@@ -303,6 +307,7 @@ $string['transferentrycount'] = 'Nombre de stages';
 $string['transferreportcount'] = 'Documents de rapport de stage transférés';
 $string['transferconfirm'] = 'Confirmer le transfert';
 $string['transferirreversible'] = "Le transfert n'est pas réversible : pour ramener l'étudiant dans ce cours, il faudra refaire un transfert en sens inverse depuis l'activité de destination.";
+$string['transferformerstudent'] = '{$a} (plus inscrit au cours)';
 $string['transferdone'] = '{$a->count} stage(s) de {$a->student} transféré(s) vers « {$a->target} ».';
 $string['transfernotargets'] = "Aucune autre instance de l'activité sur laquelle vous pouvez enregistrer des stages n'a été trouvée.";
 $string['transfernoentries'] = "Cet étudiant n'a aucun stage dans cette activité : il n'y a rien à transférer.";

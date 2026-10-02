@@ -74,14 +74,17 @@ $resolvepreview = function (
     foreach (stage_get_enrolled_students($context) as $student) {
         $studentsbyemail[core_text::strtolower(trim($student->email))] = $student;
     }
+    // Homonymes (enseignants ou thématiques de même nom) : aucun rapprochement automatique, pour
+    // ne pas rattacher la ligne au dernier lu. La thématique est alors laissée au choix de la DEVE.
     $teachersbyname = [];
     foreach (stage_get_potential_teachers($context) as $teacher) {
-        $teachersbyname[stage_normalize_name(fullname($teacher))] = $teacher;
+        $teachersbyname[stage_normalize_name(fullname($teacher))][$teacher->id] = $teacher;
     }
     $themesbyname = [];
     foreach ($themes as $theme) {
-        $themesbyname[stage_normalize_name($theme->name)] = $theme;
+        $themesbyname[stage_normalize_name($theme->name)][$theme->id] = $theme;
     }
+    $unique = fn(array $matches) => count($matches) === 1 ? reset($matches) : null;
 
     $resolved = [];
     $unmatched = [];
@@ -101,7 +104,7 @@ $resolvepreview = function (
         } else {
             $themekey = sha1($record->themename);
             $mappedid = (int) ($thememap[$themekey] ?? 0);
-            $theme = $themesbyname[stage_normalize_name($record->themename)] ?? null;
+            $theme = $unique($themesbyname[stage_normalize_name($record->themename)] ?? []);
             if (!$theme && $mappedid && isset($themes[$mappedid])) {
                 $theme = $themes[$mappedid];
             }
@@ -145,7 +148,7 @@ $resolvepreview = function (
             $probables
         ));
         $teacher = $record->teachername !== ''
-            ? ($teachersbyname[stage_normalize_name($record->teachername)] ?? null) : null;
+            ? $unique($teachersbyname[stage_normalize_name($record->teachername)] ?? []) : null;
         $record->teacherid = $teacher ? $teacher->id : 0;
         if ($record->teachername !== '' && !$teacher) {
             $resolvedwarnings[] = get_string('historicalimportunknownteacher', 'mod_stage', (object) [

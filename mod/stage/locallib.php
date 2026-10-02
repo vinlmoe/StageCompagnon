@@ -841,18 +841,23 @@ function stage_get_enrolled_students(context $context) {
 /**
  * Normalise un nom pour un rapprochement tolérant aux accents/casse/espaces multiples (ex.
  * import StageVet, voir import_stagevet.php, qui ne fournit pas toujours d'adresse e-mail
- * exploitable pour identifier l'étudiant).
+ * exploitable pour identifier l'étudiant, ou transfert entre instances).
+ *
+ * Les chiffres sont conservés : « Clinique 1 » et « Clinique 2 » sont deux thématiques (ou
+ * questions) distinctes et ne doivent jamais être confondues. La translittération passe par
+ * core_text::specialtoascii(), qui ne dépend pas de la locale du serveur (iconv seul, sous une
+ * locale « C », remplace les lettres accentuées par « ? »).
  *
  * @param string $name
  * @return string
  */
 function stage_normalize_name($name) {
-    $name = core_text::strtolower(trim($name));
-    $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
-    if ($transliterated !== false) {
+    $name = core_text::strtolower(trim((string) $name));
+    $transliterated = core_text::specialtoascii($name);
+    if (is_string($transliterated) && $transliterated !== '') {
         $name = $transliterated;
     }
-    $name = preg_replace('/[^a-z]+/', ' ', $name);
+    $name = preg_replace('/[^a-z0-9]+/', ' ', $name);
     return trim(preg_replace('/\s+/', ' ', $name));
 }
 
@@ -3918,6 +3923,34 @@ function stage_get_transfer_target_instances($excludestageid) {
 }
 
 /**
+ * Étudiants proposés au transfert depuis une instance : les inscrits, mais aussi ceux qui n'y sont
+ * plus inscrits et y ont encore des stages. Un redoublant est souvent désinscrit de son ancienne
+ * promotion avant que ses stages ne soient transférés ; il doit rester transférable.
+ *
+ * @param int $stageid Instance source.
+ * @param context $context Contexte du module source.
+ * @return array int (userid) => string (libellé)
+ */
+function stage_get_transfer_students($stageid, context $context) {
+    global $DB;
+
+    $students = [];
+    foreach (stage_get_enrolled_students($context) as $student) {
+        $students[$student->id] = fullname($student);
+    }
+    $entryuserids = $DB->get_fieldset_select('stage_entry', 'DISTINCT userid', 'stageid = ?', [$stageid]);
+    $missing = array_diff(array_map('intval', $entryuserids), array_keys($students));
+    if ($missing) {
+        [$insql, $inparams] = $DB->get_in_or_equal($missing);
+        $formerstudents = $DB->get_records_select('user', "id $insql AND deleted = 0", $inparams, 'lastname, firstname');
+        foreach ($formerstudents as $formerstudent) {
+            $students[$formerstudent->id] = get_string('transferformerstudent', 'mod_stage', fullname($formerstudent));
+        }
+    }
+    return $students;
+}
+
+/**
  * Prépare le transfert d'un étudiant et de ses stages vers une autre instance de l'activité
  * (généralement dans un autre cours) : établit la correspondance des références propres à
  * l'instance source, et relève ce qui empêche ou complique le transfert.
@@ -3972,10 +4005,11 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
 
     // Thématiques : rapprochées par nom. Sans correspondance, le stage perdrait son rattachement
     // et fausserait le bilan de l'étudiant dans la cible : le transfert est refusé plutôt que
-    // d'être fait à moitié.
+    // d'être fait à moitié. Un nom porté par plusieurs thématiques de la cible n'est pas une
+    // correspondance : le stage serait rattaché à l'une d'elles au hasard.
     $targetthemesbyname = [];
     foreach (stage_get_themes($targetstage->id) as $targettheme) {
-        $targetthemesbyname[stage_normalize_name($targettheme->name)] = $targettheme;
+        $targetthemesbyname[stage_normalize_name($targettheme->name)][] = $targettheme;
     }
     $sourcethemes = stage_get_themes($sourcestage->id);
     foreach ($plan->entries as $entry) {
@@ -3983,7 +4017,8 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
             continue;
         }
         $sourcetheme = $sourcethemes[$entry->themeid] ?? null;
-        $match = $sourcetheme ? ($targetthemesbyname[stage_normalize_name($sourcetheme->name)] ?? null) : null;
+        $candidates = $sourcetheme ? ($targetthemesbyname[stage_normalize_name($sourcetheme->name)] ?? []) : [];
+        $match = count($candidates) === 1 ? reset($candidates) : null;
         $plan->thememap[$entry->themeid] = $match ? $match->id : null;
         if (!$match) {
             $plan->unmatchedthemes[] = $sourcetheme ? format_string($sourcetheme->name) : (string) $entry->themeid;
@@ -4002,7 +4037,7 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
     // ne serait plus possible sans rechoisir un gabarit.
     $targettemplatesbyname = [];
     foreach (stage_get_convention_templates($targetstage->id) as $targettemplate) {
-        $targettemplatesbyname[stage_normalize_name($targettemplate->name) . '|' . $targettemplate->lang] =
+        $targettemplatesbyname[stage_normalize_name($targettemplate->name) . '|' . $targettemplate->lang][] =
             $targettemplate;
     }
     $sourcetemplates = stage_get_convention_templates($sourcestage->id);
@@ -4013,7 +4048,8 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
         $sourcetemplate = $sourcetemplates[$entry->conventiontemplateid] ?? null;
         $key = $sourcetemplate
             ? stage_normalize_name($sourcetemplate->name) . '|' . $sourcetemplate->lang : null;
-        $match = $key !== null ? ($targettemplatesbyname[$key] ?? null) : null;
+        $candidates = $key !== null ? ($targettemplatesbyname[$key] ?? []) : [];
+        $match = count($candidates) === 1 ? reset($candidates) : null;
         $plan->templatemap[$entry->conventiontemplateid] = $match ? $match->id : null;
         if (!$match) {
             $plan->unmatchedtemplates[] = $sourcetemplate
@@ -4038,14 +4074,31 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
         }
         // Les trois types d'évaluation, le maître de stage compris : ses réponses sont des
         // réponses comme les autres et seraient sinon supprimées faute d'équivalent trouvé.
+        // Comme pour les objectifs, seules les correspondances uniques des deux côtés sont
+        // retenues, et une question cible ne reçoit jamais deux réponses d'un même stage (l'index
+        // unique entryid-questionid ferait échouer le transfert).
+        $usedtargets = [];
         foreach (['student', 'teacher', 'tutor'] as $evaltype) {
             $targetquestions = [];
             foreach (stage_get_questions($targetthemeid, $evaltype) as $targetquestion) {
-                $targetquestions[stage_normalize_name($targetquestion->name)] = $targetquestion;
+                $targetquestions[stage_normalize_name($targetquestion->name)][] = $targetquestion->id;
             }
+            $sourcequestions = [];
             foreach (stage_get_questions($sourcethemeid, $evaltype) as $sourcequestion) {
-                $match = $targetquestions[stage_normalize_name($sourcequestion->name)] ?? null;
-                $plan->questionmap[$sourcethemeid][$sourcequestion->id] = $match ? $match->id : null;
+                $sourcequestions[stage_normalize_name($sourcequestion->name)][] = $sourcequestion->id;
+            }
+            foreach ($sourcequestions as $name => $questionids) {
+                $targetids = $targetquestions[$name] ?? [];
+                $unique = count($questionids) === 1 && count($targetids) === 1 && !isset($usedtargets[$targetids[0]]);
+                foreach ($questionids as $questionid) {
+                    if (array_key_exists($questionid, $plan->questionmap[$sourcethemeid] ?? [])) {
+                        continue;
+                    }
+                    $plan->questionmap[$sourcethemeid][$questionid] = $unique ? $targetids[0] : null;
+                }
+                if ($unique) {
+                    $usedtargets[$targetids[0]] = true;
+                }
             }
         }
 
@@ -4210,6 +4263,10 @@ function stage_execute_student_transfer(
  * définition de la thématique et suivent la copie : les documents seulement si les deux contextes
  * sont fournis, la check-list dans tous les cas.
  *
+ * Une thématique dont la cible a déjà une homonyme (nom normalisé, voir stage_normalize_name())
+ * n'est pas recopiée : relancer l'import ne doit pas dédoubler les thématiques, ce qui rendrait
+ * ensuite ambigus les rapprochements par nom (imports, transfert d'étudiant).
+ *
  * @param int $sourcestageid
  * @param int $targetstageid
  * @param context|null $sourcecontext Contexte du module source, pour copier les documents d'objectifs.
@@ -4220,9 +4277,20 @@ function stage_import_themes($sourcestageid, $targetstageid, ?context $sourcecon
     global $DB;
 
     $themes = stage_get_themes($sourcestageid);
+    $existingnames = [];
+    foreach (stage_get_themes($targetstageid) as $existing) {
+        $existingnames[stage_normalize_name($existing->name)] = true;
+    }
     $listmap = [];
     $questionmap = [];
+    $copied = 0;
     foreach ($themes as $theme) {
+        $namekey = stage_normalize_name($theme->name);
+        if (isset($existingnames[$namekey])) {
+            continue;
+        }
+        $existingnames[$namekey] = true;
+        $copied++;
         $listfields = [];
         foreach (stage_evallist_fields() as $field) {
             $sourcelistid = (int) $theme->$field;
@@ -4275,7 +4343,7 @@ function stage_import_themes($sourcestageid, $targetstageid, ?context $sourcecon
             }
         }
     }
-    return count($themes);
+    return $copied;
 }
 
 /**
@@ -4316,7 +4384,8 @@ function stage_copy_evallist(stdClass $sourcelist, $targetstageid, array &$quest
 
 /**
  * Copie les gabarits de convention (nom, langue, et le fichier PDF associé) d'une instance
- * source vers une instance cible.
+ * source vers une instance cible. Un gabarit de même nom et de même langue déjà présent dans la
+ * cible n'est pas recopié.
  *
  * @param context $sourcecontext Contexte du module source.
  * @param int $sourcestageid
@@ -4334,7 +4403,18 @@ function stage_import_convention_templates(
 
     $fs = get_file_storage();
     $templates = stage_get_convention_templates($sourcestageid);
+    $existingkeys = [];
+    foreach (stage_get_convention_templates($targetstageid) as $existing) {
+        $existingkeys[stage_normalize_name($existing->name) . '|' . $existing->lang] = true;
+    }
+    $copied = 0;
     foreach ($templates as $template) {
+        $key = stage_normalize_name($template->name) . '|' . $template->lang;
+        if (isset($existingkeys[$key])) {
+            continue;
+        }
+        $existingkeys[$key] = true;
+        $copied++;
         $newtemplateid = $DB->insert_record('stage_convention_template', (object) [
             'stageid' => $targetstageid,
             'name' => $template->name,
@@ -4350,7 +4430,7 @@ function stage_import_convention_templates(
             ], $sourcefile);
         }
     }
-    return count($templates);
+    return $copied;
 }
 
 /**
@@ -4467,7 +4547,11 @@ function stage_import_from_stage(
     context $targetcontext,
     array $options
 ) {
+    global $DB;
+
     $result = (object) ['themes' => 0, 'templates' => 0, 'logos' => 0, 'emails' => 0, 'establishment' => false];
+    // Tout ou rien : une erreur en cours de copie ne doit pas laisser une moitié de thématiques.
+    $transaction = $DB->start_delegated_transaction();
 
     if (!empty($options['themes'])) {
         $result->themes = stage_import_themes($sourcestage->id, $targetstage->id, $sourcecontext, $targetcontext);
@@ -4490,6 +4574,7 @@ function stage_import_from_stage(
         stage_import_establishment_info($sourcestage->id, $targetstage->id);
         $result->establishment = true;
     }
+    $transaction->allow_commit();
 
     return $result;
 }

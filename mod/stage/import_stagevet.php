@@ -73,71 +73,64 @@ $PAGE->set_context($context);
 $results = null;
 $uploaderror = null;
 
-// Seconde étape éventuelle : la DEVE désigne un étudiant inscrit pour chaque libellé que le
-// fichier seul n'a pas permis de rapprocher. Le CSV de la première étape est rejoué tel quel avec
-// la table de correspondance obtenue, sans nouveau téléversement.
-if (optional_param('resolvestudents', 0, PARAM_INT) && confirm_sesskey()) {
+// Étapes suivantes éventuelles : la DEVE désigne un étudiant inscrit pour chaque libellé que le
+// fichier seul n'a pas permis de rapprocher, et tranche les doublons probables. Le CSV de la
+// première étape est rejoué sans nouveau téléversement. Les deux arbitrages sont proposés ensemble
+// et peuvent être soumis dans n'importe quel ordre : chaque passe reprend toutes les lignes encore
+// en attente avec l'ensemble des choix déjà faits, de sorte que trancher l'un ne fasse jamais
+// disparaître l'autre.
+$resolvestudents = optional_param('resolvestudents', 0, PARAM_INT);
+$resolveduplicates = optional_param('resolveduplicates', 0, PARAM_INT);
+if (($resolvestudents || $resolveduplicates) && confirm_sesskey()) {
     $pending = $SESSION->stage_stagevet_import[$stage->id] ?? null;
 
     if (empty($pending['content'])) {
         $uploaderror = get_string('importstagevetexpired', 'mod_stage');
     } else {
-        $labels = optional_param_array('resolvelabel', [], PARAM_RAW);
-        $userids = optional_param_array('resolveuser', [], PARAM_INT);
-        $resolutions = [];
-        foreach ($labels as $index => $label) {
-            $userid = (int) ($userids[$index] ?? 0);
-            if ($userid > 0) {
-                $resolutions[$label] = $userid;
+        $resolutions = $pending['studentresolutions'] ?? [];
+        $decisions = $pending['duplicatedecisions'] ?? [];
+        $newchoices = 0;
+        if ($resolvestudents) {
+            $labels = optional_param_array('resolvelabel', [], PARAM_RAW);
+            $userids = optional_param_array('resolveuser', [], PARAM_INT);
+            foreach ($labels as $index => $label) {
+                $userid = (int) ($userids[$index] ?? 0);
+                if ($userid > 0) {
+                    $resolutions[$label] = $userid;
+                    $newchoices++;
+                }
+            }
+        } else {
+            // Lignes qui ressemblaient à un stage déjà enregistré : la DEVE a choisi, pour
+            // chacune, de la rattacher à ce stage, de créer un nouveau stage ou de ne pas
+            // l'importer.
+            foreach (optional_param_array('duplicatedecision', [], PARAM_ALPHANUMEXT) as $line => $decision) {
+                if ($decision === 'new' || $decision === 'skip' || ctype_digit((string) $decision)) {
+                    $decisions[(int) $line] = $decision;
+                    $newchoices++;
+                }
             }
         }
 
-        // Les rattachements sont conservés : une ligne rattachée ici peut encore ressembler à un
-        // stage déjà enregistré, et l'étape suivante devra retrouver son étudiant.
         $SESSION->stage_stagevet_import[$stage->id]['studentresolutions'] = $resolutions;
-        if (!$resolutions) {
-            // Aucun choix fait : le formulaire est réaffiché tel quel plutôt que de rejouer
-            // l'import pour rien.
+        $SESSION->stage_stagevet_import[$stage->id]['duplicatedecisions'] = $decisions;
+        if (!$newchoices) {
+            // Aucun choix fait : les arbitrages en attente sont réaffichés tels quels plutôt que
+            // de rejouer l'import pour rien.
             $uploaderror = get_string('importstagevetresolvenone', 'mod_stage');
-            $results = (object) [
-                'created' => 0,
-                'unknownstudents' => $pending['unknownstudents'] ?? [],
-                'unknownthemes' => [],
-                'errors' => [],
-            ];
+            $results = $pending['results'] ?? null;
         } else {
             $import = \mod_stage\local\csv_importer::stagevet(
                 $stage,
                 $context,
                 $pending['content'],
-                $resolutions
+                $resolutions,
+                $decisions,
+                $pending['pendinglines'] ?? []
             );
             $results = $import['results'];
             $uploaderror = $import['error'];
         }
-    }
-} else if (optional_param('resolveduplicates', 0, PARAM_INT) && confirm_sesskey()) {
-    // Lignes qui ressemblaient à un stage déjà enregistré : la DEVE a choisi, pour chacune, de la
-    // rattacher à ce stage, de créer un nouveau stage ou de ne pas l'importer.
-    $pending = $SESSION->stage_stagevet_import[$stage->id] ?? null;
-    if (empty($pending['content'])) {
-        $uploaderror = get_string('importstagevetexpired', 'mod_stage');
-    } else {
-        $decisions = [];
-        foreach (optional_param_array('duplicatedecision', [], PARAM_ALPHANUMEXT) as $line => $decision) {
-            if ($decision === 'new' || $decision === 'skip' || ctype_digit((string) $decision)) {
-                $decisions[(int) $line] = $decision;
-            }
-        }
-        $import = \mod_stage\local\csv_importer::stagevet(
-            $stage,
-            $context,
-            $pending['content'],
-            $pending['studentresolutions'] ?? [],
-            $decisions ?: [0 => 'skip']
-        );
-        $results = $import['results'];
-        $uploaderror = $import['error'];
     }
 } else if (data_submitted() && optional_param('importfile', 0, PARAM_INT) && confirm_sesskey()) {
     unset($SESSION->stage_stagevet_import[$stage->id]);
@@ -150,21 +143,24 @@ if (optional_param('resolvestudents', 0, PARAM_INT) && confirm_sesskey()) {
         $import = \mod_stage\local\csv_importer::stagevet($stage, $context, $content);
         $results = $import['results'];
         $uploaderror = $import['error'];
-
         // Le contenu n'est mis de côté que s'il reste des lignes à arbitrer, et seulement le
-        // temps de ce rattachement.
-        if ($results && (!empty($results->unknownstudents) || !empty($results->probableduplicates))) {
-            $SESSION->stage_stagevet_import[$stage->id] = ['content' => $content];
-        }
+        // temps de ces arbitrages.
+        $SESSION->stage_stagevet_import[$stage->id] = ['content' => $content];
     }
 }
 
-// Les lignes encore sans étudiant restent rejouables tant que la DEVE ne les a pas toutes
-// traitées ; sinon le contenu mis de côté n'a plus de raison d'être conservé.
-if ($results !== null) {
-    if (!empty($results->unknownstudents) && !empty($SESSION->stage_stagevet_import[$stage->id]['content'])) {
-        $SESSION->stage_stagevet_import[$stage->id]['unknownstudents'] = $results->unknownstudents;
-    } else if (empty($results->unknownstudents) && empty($results->probableduplicates)) {
+if ($results !== null && !empty($SESSION->stage_stagevet_import[$stage->id]['content'])) {
+    $pendinglines = \mod_stage\local\csv_importer::pending_lines($results);
+    if ($pendinglines) {
+        $SESSION->stage_stagevet_import[$stage->id]['pendinglines'] = $pendinglines;
+        $SESSION->stage_stagevet_import[$stage->id]['results'] = (object) [
+            'created' => 0,
+            'unknownstudents' => $results->unknownstudents,
+            'probableduplicates' => $results->probableduplicates,
+            'unknownthemes' => [],
+            'errors' => [],
+        ];
+    } else {
         unset($SESSION->stage_stagevet_import[$stage->id]);
     }
 }

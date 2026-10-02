@@ -130,21 +130,219 @@ final class csv_importer_test extends \advanced_testcase {
     }
 
     /**
-     * Les comptes non inscrits sont refusés, un référent reconnu reste attribué.
+     * Les comptes non inscrits sont refusés, et une ligne dont un référent n'est pas reconnu n'est
+     * pas appliquée à moitié : l'attribution existante de l'étudiant est conservée.
      */
-    public function test_teachers_report_unenrolled_users_and_keep_recognized_teacher(): void {
+    public function test_teachers_unknown_teacher_keeps_existing_assignment(): void {
         [$stage, $context, $student, $teacher] = $this->fixture();
         $this->getDataGenerator()->create_user(['email' => 'outsider@example.com']);
+        stage_set_student_teachers($stage->id, $student->id, [$teacher->id]);
         $result = csv_importer::teachers(
             $stage,
             $context,
             "studentemail,teacher1email,teacher2email\n"
             . "outsider@example.com,teacher@example.com,\n"
+            . "student@example.com,typo@example.com,\n"
             . "student@example.com,teacher@example.com,outsider@example.com\n"
         );
-        $this->assertSame(1, $result['results']->assigned);
-        $this->assertCount(2, $result['results']->errors);
-        $this->assertArrayHasKey($teacher->id, stage_get_student_teachers($stage->id, $student->id));
+        $this->assertSame(0, $result['results']->assigned);
+        $this->assertCount(3, $result['results']->errors);
+        $this->assertSame([(int) $teacher->id], array_map('intval', array_keys(
+            stage_get_student_teachers($stage->id, $student->id)
+        )));
+    }
+
+    /**
+     * Les dates réécrites par Excel francophone (JJ/MM/AAAA) sont lues comme telles, jamais à
+     * l'américaine ; une date illisible ou une plage inversée est signalée ; la plage et l'année
+     * d'étude sont enregistrées.
+     */
+    public function test_entries_read_french_dates_and_report_invalid_ones(): void {
+        global $DB;
+        [$stage, $context, $student, , $theme] = $this->fixture();
+        $result = csv_importer::entries($stage, $context, "email;theme;structure;datestart;dateend;duration;studyyear\n"
+            . "student@example.com;Clinique;A;03/04/2026;15/04/2026;5;3\n"
+            . "student@example.com;Clinique;B;31/02/2026;10/03/2026;5;\n"
+            . "student@example.com;Clinique;C;15/03/26;20/03/2026;5;\n"
+            . "student@example.com;Clinique;D;2026-05-10;2026-05-01;5;\n");
+        $this->assertSame(1, $result['results']->created);
+        $this->assertSame([
+            get_string('importerrordate', 'mod_stage', (object) ['line' => 3, 'value' => '31/02/2026']),
+            get_string('importerrordate', 'mod_stage', (object) ['line' => 4, 'value' => '15/03/26']),
+            get_string('importerrordaterange', 'mod_stage', 5),
+        ], $result['results']->errors);
+        $entry = $DB->get_record('stage_entry', ['stageid' => $stage->id], '*', MUST_EXIST);
+        $this->assertEquals(make_timestamp(2026, 4, 3), $entry->datestart);
+        $this->assertEquals(make_timestamp(2026, 4, 15), $entry->dateend);
+        $this->assertEquals(3, $entry->studyyear);
+        $this->assertEquals($student->id, $entry->userid);
+        $this->assertEquals($theme->id, $entry->themeid);
+        $periods = stage_get_entry_periods($entry->id);
+        $this->assertCount(1, $periods);
+        $this->assertEquals(make_timestamp(2026, 4, 3), reset($periods)->datestart);
+    }
+
+    /**
+     * Lecture stricte des dates : année sur quatre chiffres, date existante, heure ignorée.
+     */
+    public function test_parse_date_is_strict(): void {
+        $this->resetAfterTest();
+        $this->assertSame(make_timestamp(2026, 3, 15), csv_importer::parse_date('15/03/2026'));
+        $this->assertSame(make_timestamp(2026, 3, 1), csv_importer::parse_date('1/3/2026'));
+        $this->assertSame(make_timestamp(2026, 3, 15), csv_importer::parse_date('2026-03-15'));
+        $this->assertSame(make_timestamp(2026, 3, 15), csv_importer::parse_date('15/03/2026 00:00'));
+        $this->assertNull(csv_importer::parse_date('15/03/26'));
+        $this->assertNull(csv_importer::parse_date('31/02/2026'));
+        $this->assertNull(csv_importer::parse_date('03/15/2026'));
+        $this->assertNull(csv_importer::parse_date('mars 2026'));
+        $this->assertNull(csv_importer::parse_date(''));
+    }
+
+    /**
+     * Le séparateur est déterminé sur l'en-tête : un « ; » dans un texte libre d'un fichier à
+     * virgules ne fausse plus la lecture.
+     */
+    public function test_delimiter_is_detected_on_header_line(): void {
+        global $DB;
+        [$stage, $context, $student] = $this->fixture();
+        $this->assertSame('comma', csv_importer::detect_delimiter("a,b,c\n\"x;y;z\",2,3\n"));
+        $this->assertSame('semicolon', csv_importer::detect_delimiter("\xEF\xBB\xBFa;b;c\n1,5;2;3\n"));
+        $this->assertSame('tab', csv_importer::detect_delimiter("a\tb\tc\n"));
+        $this->assertSame('comma', csv_importer::detect_delimiter("seule\n"));
+
+        $result = csv_importer::stagevet(
+            $stage,
+            $context,
+            "Email étudiant,Thème,Début stage,Fin stage,Évaluation par l’étudiant\n"
+            . "student@example.com,Clinique,01/03/2026,10/03/2026,\"Très bien ; à refaire ; merci\"\n"
+        );
+        $this->assertNull($result['error']);
+        $this->assertSame(1, $result['results']->created);
+        $this->assertSame(
+            'Très bien ; à refaire ; merci',
+            $DB->get_field('stage_entry', 'studentselfeval', ['userid' => $student->id])
+        );
+    }
+
+    /**
+     * Un CSV enregistré par Excel francophone (Windows-1252) garde ses accents : en-têtes et
+     * thématiques accentuées restent reconnus.
+     */
+    public function test_windows_1252_file_is_converted(): void {
+        global $DB;
+        [$stage, $context, $student] = $this->fixture();
+        $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_theme($stage, ['name' => 'Équine']);
+        $utf8 = "Email étudiant;Thème;Début stage;Fin stage\nstudent@example.com;Équine;01/03/2026;10/03/2026\n";
+        $cp1252 = mb_convert_encoding($utf8, 'Windows-1252', 'UTF-8');
+        $this->assertSame('WINDOWS-1252', csv_importer::detect_encoding($cp1252));
+        $this->assertSame('UTF-8', csv_importer::detect_encoding($utf8));
+
+        $result = csv_importer::stagevet($stage, $context, $cp1252);
+        $this->assertSame(1, $result['results']->created);
+        $this->assertEmpty($result['results']->unknownthemes);
+        $this->assertEquals(1, $DB->count_records('stage_entry', ['userid' => $student->id]));
+
+        $entries = csv_importer::entries($stage, $context, mb_convert_encoding(
+            "email;theme;structure;datestart;dateend;duration\nstudent@example.com;Équine;Écurie;01/05/2026;02/05/2026;2\n",
+            'Windows-1252',
+            'UTF-8'
+        ));
+        $this->assertSame(1, $entries['results']->created);
+        $this->assertTrue($DB->record_exists('stage_entry', ['structure' => 'Écurie']));
+    }
+
+    /**
+     * Deux inscrits homonymes : la ligne n'est rattachée à aucun d'eux d'office, la DEVE choisit.
+     * Un enseignant référent homonyme n'est pas non plus désigné au hasard.
+     */
+    public function test_stagevet_homonyms_are_left_to_deve(): void {
+        global $DB;
+        [$stage, $context, $student] = $this->fixture();
+        $gen = $this->getDataGenerator();
+        $twin = $gen->create_user(['email' => 'twin@example.com', 'firstname' => 'Zoé', 'lastname' => 'Dupont']);
+        $gen->enrol_user($twin->id, $stage->course, 'student');
+        foreach (['a', 'b'] as $suffix) {
+            $teacher = $gen->create_user(['email' => "prof$suffix@example.com", 'firstname' => 'Paul', 'lastname' => 'Martin']);
+            $gen->enrol_user($teacher->id, $stage->course, 'editingteacher');
+        }
+        $csv = "Étudiant;Thème;Début stage;Fin stage;Nom tuteur\n"
+            . "DUPONT Zoé;Clinique;01/03/2026;10/03/2026;Paul Martin\n";
+
+        $first = csv_importer::stagevet($stage, $context, $csv);
+        $this->assertSame(0, $first['results']->created);
+        $this->assertSame(['DUPONT Zoé' => [2]], $first['results']->unknownstudents);
+
+        $second = csv_importer::stagevet($stage, $context, $csv, ['DUPONT Zoé' => $twin->id], [], [2]);
+        $this->assertSame(1, $second['results']->created);
+        $entry = $DB->get_record('stage_entry', ['stageid' => $stage->id], '*', MUST_EXIST);
+        $this->assertEquals($twin->id, $entry->userid);
+        $this->assertNull(stage_get_convention_detail($entry->id)->referentteacherid);
+        $this->assertFalse($DB->record_exists('stage_entry', ['userid' => $student->id]));
+    }
+
+    /**
+     * Deux lignes du même stage aux plages qui se recoupent (dates de convention, dates du tableau
+     * de bord) ne créent qu'un stage.
+     */
+    public function test_stagevet_overlapping_rows_in_file_create_one_entry(): void {
+        global $DB;
+        [$stage, $context, $student] = $this->fixture();
+        $result = csv_importer::stagevet(
+            $stage,
+            $context,
+            "Email étudiant;Thème;Début stage;Fin stage\n"
+            . "student@example.com;Clinique;01/03/2026;10/03/2026\n"
+            . "student@example.com;Clinique;02/03/2026;12/03/2026\n"
+            . "student@example.com;Clinique;01/06/2026;10/06/2026\n"
+        );
+        $this->assertSame(2, $result['results']->created);
+        $this->assertCount(1, $result['results']->errors);
+        $this->assertEquals(2, $DB->count_records('stage_entry', ['userid' => $student->id]));
+    }
+
+    /**
+     * Les deux arbitrages en attente (étudiant non rapproché, doublon probable) survivent l'un à
+     * l'autre, quel que soit l'ordre dans lequel la DEVE les tranche.
+     */
+    public function test_stagevet_pending_arbitrations_survive_each_other(): void {
+        global $DB;
+        [$stage, $context, $student, , $theme] = $this->fixture();
+        $other = $this->getDataGenerator()->create_user(['firstname' => 'Louise', 'lastname' => 'Martineau']);
+        $this->getDataGenerator()->enrol_user($other->id, $stage->course, 'student');
+        // Stage historique sans dates : la ligne 2 lui ressemble.
+        $histid = stage_register_entry($stage->id, $student->id, $theme->id, 'Ancien', null, null, 5);
+        $csv = "Étudiant;Email étudiant;Thème;Début stage;Fin stage\n"
+            . ";student@example.com;Clinique;01/03/2026;10/03/2026\n"
+            . "MARTIN Lou;;Clinique;01/04/2026;10/04/2026\n";
+
+        $first = csv_importer::stagevet($stage, $context, $csv);
+        $this->assertSame(0, $first['results']->created);
+        $this->assertSame([2], array_keys($first['results']->probableduplicates));
+        $this->assertSame(['MARTIN Lou' => [3]], $first['results']->unknownstudents);
+        $pending = csv_importer::pending_lines($first['results']);
+        $this->assertSame([2, 3], $pending);
+
+        // Doublon tranché d'abord : l'étudiant non rapproché reste en attente.
+        $second = csv_importer::stagevet($stage, $context, $csv, [], [2 => (string) $histid], $pending);
+        $this->assertSame(1, $second['results']->updated + $second['results']->unchanged);
+        $this->assertSame(['MARTIN Lou' => [3]], $second['results']->unknownstudents);
+        $pending = csv_importer::pending_lines($second['results']);
+        $this->assertSame([3], $pending);
+
+        // Puis l'étudiant : la ligne 3 est créée, la ligne 2 n'est pas rejouée.
+        $third = csv_importer::stagevet(
+            $stage,
+            $context,
+            $csv,
+            ['MARTIN Lou' => $other->id],
+            [2 => (string) $histid],
+            $pending
+        );
+        $this->assertSame(1, $third['results']->created);
+        $this->assertSame(0, $third['results']->updated + $third['results']->unchanged);
+        $this->assertSame([], csv_importer::pending_lines($third['results']));
+        $this->assertEquals(1, $DB->count_records('stage_entry', ['userid' => $student->id]));
+        $this->assertEquals(1, $DB->count_records('stage_entry', ['userid' => $other->id]));
     }
 
     /**
