@@ -207,14 +207,13 @@ if (empty($allstudents)) {
             ['' => get_string('choosedots')],
             ['class' => 'form-control mr-2 mb-1', 'aria-label' => get_string('bulkteacher', 'mod_stage')]
         );
-        echo html_writer::start_tag('label', ['class' => 'mr-2 mb-1']);
-        echo html_writer::checkbox(
+        // html_writer::checkbox() pose déjà son propre <label> : pas de second label englobant.
+        echo html_writer::span(html_writer::checkbox(
             'bulkallfiltered',
             1,
             false,
             ' ' . get_string('bulkallfiltered', 'mod_stage', count($students))
-        );
-        echo html_writer::end_tag('label');
+        ), 'mr-2 mb-1');
         echo html_writer::empty_tag('input', [
             'type' => 'submit', 'name' => 'bulkapply', 'value' => get_string('bulkteacherapply', 'mod_stage'),
             'class' => 'btn btn-secondary mb-1',

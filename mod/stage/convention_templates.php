@@ -15,7 +15,6 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
-/**
  * Paramétrage des conventions de stage par la DEVE, en une seule page enregistrée en une fois :
  * paramètres généraux, gabarits (PDF des articles juridiques, proposés au choix de l'étudiant
  * lors de sa demande de convention), informations de l'établissement d'enseignement (VetAgro Sup)

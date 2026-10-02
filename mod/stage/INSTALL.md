@@ -491,6 +491,8 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `backup_restore_test.php` | Aller-retour sauvegarde/restauration de cours : le paramétrage, les stages et les fichiers suivent, et la copie désigne ses propres thématiques, questions et gabarits. |
 | `theme_objectives_test.php` | Objectifs de stage : ordre et portée de la check-list, justification exigée pour un objectif décoché, purge des réponses devenues sans objet, droits de correction, copie des objectifs à l'import. |
 | `convention_ready_notification_test.php` | Courriel « convention téléchargeable » : présence dans les e-mails personnalisables, contenu par défaut, prise en compte d'un texte personnalisé. |
+| `theme_edit_test.php` | Page unique de gestion d'une thématique : années proposées pour les durées par année, pré-remplissage des lignes répétées (check-list, questions) sans que les valeurs par défaut écrasent les valeurs enregistrées. |
+| `admin_forms_test.php` | Pages uniques des conventions et des notifications : chargement des formulaires, gabarit utilisé non supprimable, nom et PDF exigés ensemble pour un nouveau gabarit, une section par e-mail. |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :
