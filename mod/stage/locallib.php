@@ -131,6 +131,57 @@ function stage_convention_can_be_requested($status) {
 }
 
 /**
+ * Indique si une demande de convention peut être déposée pour une saisie, compte tenu aussi de
+ * l'état du stage lui-même.
+ *
+ * Un stage annulé n'en reçoit jamais. L'étudiant, lui, ne peut demander (et donc modifier, voir
+ * student_register.php) qu'un stage simplement enregistré : un stage déjà évalué, validé ou non
+ * validé — comme ceux de l'import historique, validés sans convention — ne doit plus changer de
+ * thématique, d'année ni de durée par cette voie. La DEVE garde la main sur les autres états.
+ *
+ * @param stdClass $entry Saisie (status et conventionstatus).
+ * @param bool $asdeve Demande déposée par la DEVE (capacité registerstages).
+ * @return bool
+ */
+function stage_convention_request_allowed(stdClass $entry, $asdeve = false) {
+    if (!stage_convention_can_be_requested($entry->conventionstatus)) {
+        return false;
+    }
+    $status = (int) $entry->status;
+    if ($status === STAGE_STATUS_ANNULE) {
+        return false;
+    }
+    return $asdeve || $status === STAGE_STATUS_ENREGISTRE;
+}
+
+/**
+ * Taille maximale d'un fichier déposé dans l'activité : la plus petite des limites du site, du
+ * cours et de l'utilisateur (get_user_max_upload_file_size()), et non la seule limite du site.
+ *
+ * @param context $context Contexte du module (ou d'un de ses parents).
+ * @return int Octets.
+ */
+function stage_max_upload_bytes(context $context) {
+    global $CFG;
+
+    $coursecontext = $context->get_course_context(false);
+    $coursebytes = $coursecontext ? (int) get_course($coursecontext->instanceid)->maxbytes : 0;
+    return (int) get_user_max_upload_file_size($context, $CFG->maxbytes, $coursebytes);
+}
+
+/**
+ * Attribut onclick demandant confirmation avant de suivre un lien. Le message est échappé pour
+ * JavaScript : une apostrophe (« L'étudiant… ») rendrait sinon le gestionnaire invalide, et le
+ * navigateur suivrait le lien sans rien demander.
+ *
+ * @param string $message Texte déjà traduit.
+ * @return string
+ */
+function stage_confirm_onclick($message) {
+    return "return confirm('" . addslashes_js($message) . "');";
+}
+
+/**
  * Message d'information à afficher à la DEVE (convention_review.php) quand une convention papier
  * (cadre de signatures) a été demandée par l'étudiant lors de sa demande (convention_request.php)
  * et/ou par l'enseignant référent lors de sa validation (convention_teacher_validate.php), pour
@@ -612,7 +663,10 @@ function stage_get_student_year_progress($stageid, $userid) {
     // avant laquelle la mobilité internationale doit être satisfaite, le cas échéant.
     $years = [];
     foreach ($entries as $entry) {
-        $years[(int) $entry->studyyear] = true;
+        // Un stage annulé ou non validé ne fait pas apparaître son année à lui seul.
+        if (!in_array((int) $entry->status, [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE], true)) {
+            $years[(int) $entry->studyyear] = true;
+        }
     }
     foreach (stage_get_year_requirements($stageid) as $year => $required) {
         if ($required > 0) {
@@ -783,9 +837,15 @@ function stage_get_student_progress($stageid, $userid) {
         $progress->themes[$theme->id] = $t;
     }
 
-    // Les stages complémentaires (EP) ne comptent pas dans le bilan des durées obligatoires.
+    // Les stages complémentaires (EP) ne comptent pas dans le bilan des durées obligatoires, pas
+    // plus que les stages annulés ou non validés : ils ne doivent ni gonfler la durée déclarée, ni
+    // ajouter à la thématique l'exigence de leur année d'étude (un stage annulé en 2e année
+    // rendrait sinon la thématique impossible à valider par un stage de 3e année).
     foreach ($entries as $entry) {
         if (($stagetypes[$entry->id] ?? 'obligatoire') === 'complementaire') {
+            continue;
+        }
+        if (in_array((int) $entry->status, [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE], true)) {
             continue;
         }
         $progress->totaldeclared += $entry->declaredduration;
@@ -1036,6 +1096,80 @@ function stage_register_entry(
 }
 
 /**
+ * Enregistre en masse un même stage (thématique, structure, dates, durée) pour plusieurs
+ * étudiants, à l'initiative de la DEVE (register.php, mode « bulk »). Ces stages sont déjà signés
+ * sur SignVet : ils sont créés avec ce statut de convention.
+ *
+ * Tout est contrôlé côté serveur, les valeurs venant d'un formulaire HTML simple : la thématique
+ * doit appartenir à l'activité et être active, les étudiants y être inscrits, la plage être
+ * complète et cohérente. Un étudiant qui a déjà ce stage (mêmes thématique et dates) est écarté
+ * et signalé. Rien n'est créé si le lot est invalide, et la création se fait en une transaction.
+ *
+ * @param stdClass $stage
+ * @param context $context Contexte du module.
+ * @param int[] $studentids
+ * @param stdClass $fields themeid, studyyear, abroad, country, structure, datestart, dateend,
+ *                         declaredduration
+ * @return stdClass {created, duplicates (noms), ignored (identifiants écartés), error (texte ou null)}
+ */
+function stage_bulk_register_entries(stdClass $stage, context $context, array $studentids, stdClass $fields) {
+    global $DB;
+
+    $results = (object) ['created' => 0, 'duplicates' => [], 'ignored' => [], 'error' => null];
+
+    $themes = stage_get_themes($stage->id, true);
+    $start = $fields->datestart ?: null;
+    $end = $fields->dateend ?: null;
+    if (!isset($themes[(int) $fields->themeid])) {
+        $results->error = get_string('bulkregisterinvalidtheme', 'mod_stage');
+    } else if (
+        (int) $fields->declaredduration < 0 || !in_array((int) $fields->abroad, [0, 1], true)
+        || !array_key_exists((int) $fields->studyyear, stage_studyyear_options())
+    ) {
+        $results->error = get_string('bulkregisterinvalidvalues', 'mod_stage');
+    } else {
+        // Même contrôle bloquant que dans les formulaires : la plage commune doit être complète
+        // et sa fin ne peut pas précéder son début.
+        $results->error = stage_validate_periods($start && $end ? [['datestart' => $start, 'dateend' => $end]] : []);
+    }
+    if ($results->error !== null) {
+        return $results;
+    }
+
+    $enrolled = stage_get_enrolled_students($context);
+    $existing = stage_get_existing_theme_pairs($stage->id);
+    $transaction = $DB->start_delegated_transaction();
+    foreach (array_unique(array_map('intval', $studentids)) as $studentid) {
+        if (!isset($enrolled[$studentid])) {
+            $results->ignored[] = $studentid;
+            continue;
+        }
+        $key = stage_duplicate_key($studentid, $fields->themeid, $start, $end);
+        if (isset($existing[$key])) {
+            $results->duplicates[] = fullname($enrolled[$studentid]);
+            continue;
+        }
+        stage_register_entry(
+            $stage->id,
+            $studentid,
+            (int) $fields->themeid,
+            (string) $fields->structure,
+            $start,
+            $end,
+            (int) $fields->declaredduration,
+            (int) $fields->studyyear,
+            STAGE_CONVENTION_SIGNVET,
+            (int) $fields->abroad,
+            (int) $fields->abroad ? (string) $fields->country : ''
+        );
+        $existing[$key] = true;
+        $results->created++;
+    }
+    $transaction->allow_commit();
+    return $results;
+}
+
+/**
  * Met à jour les données de fond (thématique, année d'étude, structure, mobilité, dates, durée)
  * d'une saisie de stage, à l'initiative de la DEVE.
  *
@@ -1062,6 +1196,23 @@ function stage_update_entry_details(
     $country = ''
 ) {
     global $DB;
+
+    // Les réponses à la check-list d'objectifs appartiennent à la thématique : en changer laisse
+    // sinon des réponses à des objectifs d'une autre thématique, invisibles et qui bloqueraient un
+    // transfert ultérieur (« objectifs sans correspondance »).
+    if ((int) $entry->themeid !== (int) $themeid) {
+        $itemids = array_keys(stage_get_theme_checklist($themeid));
+        if ($itemids) {
+            [$notinsql, $notinparams] = $DB->get_in_or_equal($itemids, SQL_PARAMS_QM, 'param', false);
+            $DB->delete_records_select(
+                'stage_entry_checklist',
+                "entryid = ? AND itemid $notinsql",
+                array_merge([$entry->id], $notinparams)
+            );
+        } else {
+            $DB->delete_records('stage_entry_checklist', ['entryid' => $entry->id]);
+        }
+    }
 
     $entry->themeid = $themeid;
     $entry->abroad = $abroad ? 1 : 0;
@@ -1581,6 +1732,9 @@ function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retaineddura
 function stage_reject_by_teacher(stdClass $entry, $teacherid, $comment) {
     global $DB;
 
+    if (trim((string) $comment) === '') {
+        throw new moodle_exception('errorrejectreasonrequired', 'mod_stage');
+    }
     $entry->teacherid = $teacherid;
     $entry->teachereval = $comment;
     $entry->teachertime = time();
@@ -1600,6 +1754,14 @@ function stage_reject_by_teacher(stdClass $entry, $teacherid, $comment) {
 function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
     global $DB;
 
+    if (trim((string) $comment) === '') {
+        throw new moodle_exception('errorrejectreasonrequired', 'mod_stage');
+    }
+    // Comme pour la validation : un stage annulé doit d'abord être réinitialisé.
+    $status = $DB->get_field('stage_entry', 'status', ['id' => $entry->id], MUST_EXIST);
+    if ((int) $status === STAGE_STATUS_ANNULE) {
+        throw new moodle_exception('errorvalidatecancelled', 'mod_stage');
+    }
     $entry->deveuserid = $deveuserid;
     $entry->devecomment = $comment;
     $entry->devetime = time();
@@ -2225,6 +2387,55 @@ function stage_get_questions($themeid, $evaltype) {
 }
 
 /**
+ * Questions à afficher pour consulter l'évaluation d'une saisie : celles de la liste que la
+ * thématique propose aujourd'hui, suivies de celles auxquelles la saisie a répondu et que cette
+ * liste ne contient plus. Une thématique peut changer de liste après coup (theme_edit.php) : les
+ * réponses déjà données ne doivent pas pour autant disparaître des pages de consultation.
+ *
+ * Pour un formulaire de saisie, c'est stage_get_questions() qui s'applique : on ne répond qu'aux
+ * questions de la liste actuelle.
+ *
+ * @param stdClass $entry
+ * @param string $evaltype 'student', 'teacher' ou 'tutor'
+ * @return array id => stage_question
+ */
+function stage_get_entry_questions(stdClass $entry, $evaltype) {
+    $questions = stage_get_questions($entry->themeid, $evaltype);
+    foreach (stage_get_answered_questions([$entry->id], $evaltype) as $id => $question) {
+        if (!isset($questions[$id])) {
+            $questions[$id] = $question;
+        }
+    }
+    return $questions;
+}
+
+/**
+ * Questions d'un type d'évaluation auxquelles au moins une des saisies données a répondu.
+ *
+ * @param int[] $entryids
+ * @param string $evaltype
+ * @return array id => stage_question, dans l'ordre d'affichage
+ */
+function stage_get_answered_questions(array $entryids, $evaltype) {
+    global $DB;
+
+    $entryids = array_values(array_filter(array_map('intval', $entryids)));
+    if (!$entryids) {
+        return [];
+    }
+    [$insql, $params] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED, 'e');
+    $params['evaltype'] = $evaltype;
+    return $DB->get_records_sql(
+        "SELECT q.*
+           FROM {stage_question} q
+          WHERE q.evaltype = :evaltype
+            AND q.id IN (SELECT a.questionid FROM {stage_answer} a WHERE a.entryid $insql)
+       ORDER BY q.sortorder ASC, q.id ASC",
+        $params
+    );
+}
+
+/**
  * Questions d'une liste d'évaluation, dans l'ordre d'affichage.
  *
  * @param int $listid
@@ -2297,21 +2508,46 @@ function stage_add_evallist_question($listid, $questionid) {
 
 /**
  * Retire une question d'une liste d'évaluation. Une question qui ne figure plus dans aucune liste
- * est supprimée avec les réponses déjà enregistrées pour elle, comme le faisait auparavant son
- * détachement de sa dernière thématique.
+ * est supprimée, ce qui n'est permis que si elle n'a pas de réponses, sauf suppression voulue de
+ * toute la liste ($force).
  *
  * @param int $listid
  * @param int $questionid
+ * @param bool $force Supprime aussi les réponses (suppression d'une liste déjà confirmée).
  * @return void
+ * @throws moodle_exception Si la question porte seule des réponses et que $force est faux.
  */
-function stage_remove_evallist_question($listid, $questionid) {
+function stage_remove_evallist_question($listid, $questionid, $force = false) {
     global $DB;
 
+    // Les réponses déjà données (stages évalués, voire validés) ne disparaissent pas au détour de
+    // la modification d'une liste : comme pour la suppression d'une liste entière (evallists.php),
+    // la question est refusée tant qu'elle a des réponses qu'elle seule porte.
+    if (!$force && stage_count_question_exclusive_answers($listid, $questionid)) {
+        throw new moodle_exception('evallistquestionhasanswers', 'mod_stage');
+    }
     $DB->delete_records('stage_evallist_question', ['listid' => $listid, 'questionid' => $questionid]);
     if (!$DB->record_exists('stage_evallist_question', ['questionid' => $questionid])) {
         $DB->delete_records('stage_answer', ['questionid' => $questionid]);
         $DB->delete_records('stage_question', ['id' => $questionid]);
     }
+}
+
+/**
+ * Nombre de réponses que le retrait d'une question de cette liste ferait disparaître : celles de
+ * la question si elle ne figure dans aucune autre liste, zéro sinon.
+ *
+ * @param int $listid
+ * @param int $questionid
+ * @return int
+ */
+function stage_count_question_exclusive_answers($listid, $questionid) {
+    global $DB;
+
+    if ($DB->record_exists_select('stage_evallist_question', 'questionid = ? AND listid <> ?', [$questionid, $listid])) {
+        return 0;
+    }
+    return $DB->count_records('stage_answer', ['questionid' => $questionid]);
 }
 
 /**
@@ -2351,8 +2587,10 @@ function stage_delete_evallist(stdClass $list) {
     if ($field) {
         $DB->set_field('stage_theme', $field, 0, ['stageid' => $list->stageid, $field => $list->id]);
     }
+    // La page appelante (evallists.php) refuse déjà de supprimer une liste dont des réponses
+    // dépendent : arrivée ici, la suppression est voulue.
     foreach ($DB->get_fieldset_select('stage_evallist_question', 'questionid', 'listid = ?', [$list->id]) as $questionid) {
-        stage_remove_evallist_question($list->id, $questionid);
+        stage_remove_evallist_question($list->id, $questionid, true);
     }
     $DB->delete_records('stage_evallist', ['id' => $list->id]);
 }
@@ -3075,9 +3313,11 @@ function stage_get_pilotage_overview($stageid, context $context, ?array $restric
         $yearprogress = stage_get_student_year_progress($stageid, $student->id);
         $abroadprogress = stage_get_student_abroad_progress($stageid, $student->id);
 
+        // En cours : enregistrés ou en évaluation. Les statuts annulé et non validé sont
+        // négatifs, ils ne doivent pas être comptés comme des stages en attente.
         $pending = 0;
         foreach ($entries as $entry) {
-            if ($entry->status < STAGE_STATUS_VALIDE_DEVE) {
+            if ($entry->status >= STAGE_STATUS_ENREGISTRE && $entry->status < STAGE_STATUS_VALIDE_DEVE) {
                 $pending++;
             }
         }
@@ -3366,7 +3606,7 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
                 ? new moodle_url('/mod/stage/convention_teacher_validate.php', ['id' => $cm->id, 'entryid' => $entry->id,
                     'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('requestconvention', 'mod_stage') =>
-            $rights->register && stage_convention_can_be_requested($conventionstatus)
+            $rights->register && stage_convention_request_allowed($entry, true)
                 ? new moodle_url('/mod/stage/convention_request.php', ['id' => $cm->id, 'entryid' => $entry->id,
                     'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('validate', 'mod_stage') =>
@@ -3424,7 +3664,7 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
             get_string('resetentry', 'mod_stage'),
             [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => "return confirm('" . get_string('confirmresetentry', 'mod_stage') . "');",
+                'onclick' => stage_confirm_onclick(get_string('confirmresetentry', 'mod_stage')),
             ]
         );
     }
@@ -3729,7 +3969,7 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
             $btn = ['class' => 'btn btn-sm btn-secondary mr-1 mb-1'];
             $actions = '';
             if ($selfevallink) {
-                if (stage_convention_can_be_requested($entry->conventionstatus)) {
+                if (stage_convention_request_allowed($entry)) {
                     $actions .= html_writer::link(
                         new moodle_url('/mod/stage/student_register.php', ['id' => $cm->id, 'entryid' => $entry->id]),
                         get_string('requestconvention', 'mod_stage'),
@@ -4083,8 +4323,13 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
             foreach (stage_get_questions($targetthemeid, $evaltype) as $targetquestion) {
                 $targetquestions[stage_normalize_name($targetquestion->name)][] = $targetquestion->id;
             }
+            // Côté source, les questions auxquelles les stages transférés ont répondu comptent
+            // aussi, même si la thématique a changé de liste depuis.
+            $themeentryids = array_keys(array_filter($plan->entries, fn($entry) => (int) $entry->themeid === (int) $sourcethemeid));
             $sourcequestions = [];
-            foreach (stage_get_questions($sourcethemeid, $evaltype) as $sourcequestion) {
+            $candidates = stage_get_questions($sourcethemeid, $evaltype)
+                + stage_get_answered_questions($themeentryids, $evaltype);
+            foreach ($candidates as $sourcequestion) {
                 $sourcequestions[stage_normalize_name($sourcequestion->name)][] = $sourcequestion->id;
             }
             foreach ($sourcequestions as $name => $questionids) {
@@ -5101,14 +5346,18 @@ function stage_get_entries_needing_convention_reminder($days = STAGE_CONVENTION_
         'from' => $from, 'until' => $until, 'cancelled' => STAGE_STATUS_ANNULE,
     ];
 
-    return $DB->get_records_select(
-        'stage_entry',
-        "datestart > 0 AND datestart >= :from AND datestart <= :until
-         AND conventionstatus $signedsql
-         AND status <> :cancelled
-         AND conventionremindertime IS NULL",
-        $params,
-        'datestart ASC'
+    // Une activité en cours de suppression (corbeille) ne relance plus personne.
+    return $DB->get_records_sql(
+        "SELECT e.*
+           FROM {stage_entry} e
+           JOIN {modules} m ON m.name = 'stage'
+           JOIN {course_modules} cm ON cm.instance = e.stageid AND cm.module = m.id AND cm.deletioninprogress = 0
+          WHERE e.datestart > 0 AND e.datestart >= :from AND e.datestart <= :until
+            AND e.conventionstatus $signedsql
+            AND e.status <> :cancelled
+            AND e.conventionremindertime IS NULL
+       ORDER BY e.datestart ASC",
+        $params
     );
 }
 
@@ -5242,13 +5491,23 @@ function stage_tutor_evaluation_enabled(stdClass $stage, ?stdClass $theme) {
 function stage_get_entries_needing_tutor_request() {
     global $DB;
 
+    [$statussql, $statusparams] = $DB->get_in_or_equal(stage_tutor_invitation_statuses(), SQL_PARAMS_NAMED, 'st');
+    [$conventionsql, $conventionparams] = $DB->get_in_or_equal(
+        stage_tutor_invitation_convention_statuses(),
+        SQL_PARAMS_NAMED,
+        'cs'
+    );
     $sql = "SELECT e.*
               FROM {stage_entry} e
               JOIN {stage} s ON s.id = e.stageid
+              JOIN {modules} m ON m.name = 'stage'
+              JOIN {course_modules} cm ON cm.instance = s.id AND cm.module = m.id AND cm.deletioninprogress = 0
               JOIN {stage_theme} t ON t.id = e.themeid
               JOIN {stage_convention_detail} d ON d.entryid = e.id
              WHERE e.datestart > 0 AND e.datestart <= :now
-               AND e.status <> :cancelled
+               AND e.status $statussql
+               AND e.conventionstatus $conventionsql
+               AND e.tutorbypassed = 0
                AND e.tutorrequesttime = 0
                AND (e.tutortime IS NULL OR e.tutortime = 0)
                AND s.tutorevaluationenabled = 1
@@ -5256,7 +5515,29 @@ function stage_get_entries_needing_tutor_request() {
                AND d.tutoremail IS NOT NULL AND " . $DB->sql_compare_text('d.tutoremail') . " <> ''
           ORDER BY e.datestart ASC";
 
-    return $DB->get_records_sql($sql, ['now' => time(), 'cancelled' => STAGE_STATUS_ANNULE]);
+    return $DB->get_records_sql($sql, array_merge(['now' => time()], $statusparams, $conventionparams));
+}
+
+/**
+ * Statuts de stage pour lesquels le maître de stage peut encore être invité à évaluer : avant
+ * l'évaluation de l'enseignant référent. Un stage annulé, déjà évalué, validé ou non validé n'a
+ * plus besoin de son avis.
+ *
+ * @return int[]
+ */
+function stage_tutor_invitation_statuses() {
+    return [STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT];
+}
+
+/**
+ * Statuts de convention pour lesquels le maître de stage peut être invité : convention signée
+ * (ici ou sur SignVet) ou dispense. Une convention seulement demandée, refusée ou en attente du
+ * référent ne fait pas encore du stage un stage engagé.
+ *
+ * @return int[]
+ */
+function stage_tutor_invitation_convention_statuses() {
+    return [STAGE_CONVENTION_SIGNED, STAGE_CONVENTION_SIGNVET, STAGE_CONVENTION_EXEMPT];
 }
 
 /**
@@ -5279,7 +5560,9 @@ function stage_maybe_request_tutor_evaluation(stdClass $stage, stdClass $cm, std
 
     if (
         empty($entry->datestart) || $entry->datestart > time()
-        || (int) $entry->status === STAGE_STATUS_ANNULE || !empty($entry->tutortime)
+        || !in_array((int) $entry->status, stage_tutor_invitation_statuses(), true)
+        || !in_array((int) $entry->conventionstatus, stage_tutor_invitation_convention_statuses(), true)
+        || !empty($entry->tutorbypassed) || !empty($entry->tutortime)
     ) {
         return false;
     }
@@ -5415,6 +5698,37 @@ function stage_apply_tutor_eval(stdClass $entry, $comment = null) {
         $update->tutoreval = $comment;
     }
     $DB->update_record('stage_entry', $update);
+}
+
+/**
+ * Enregistre l'évaluation soumise par le maître de stage (tutor_eval.php) après l'avoir validée.
+ * Une erreur (réponse obligatoire manquante, choix inconnu, commentaire vide) est renvoyée sous
+ * forme de message plutôt que levée en exception : la page la réaffiche avec les réponses déjà
+ * saisies, que le maître de stage, sans compte Moodle, ne doit pas avoir à retaper.
+ *
+ * @param stdClass $entry
+ * @param array $questions Questionnaire « tutor » de la thématique (vide : commentaire libre).
+ * @param array $submitted questionid => réponse soumise.
+ * @param string|null $comment Commentaire libre, en l'absence de questionnaire.
+ * @param string $lang Langue du formulaire.
+ * @return string|null Message d'erreur, ou null si l'évaluation est enregistrée.
+ */
+function stage_submit_tutor_eval(stdClass $entry, array $questions, array $submitted, $comment, $lang = 'fr') {
+    if (!empty($questions)) {
+        try {
+            stage_validate_answers($questions, $submitted, $lang);
+        } catch (moodle_exception $e) {
+            return $e->getMessage();
+        }
+        stage_save_answers($entry->id, $questions, $submitted);
+        stage_apply_tutor_eval($entry);
+        return null;
+    }
+    if (trim((string) $comment) === '') {
+        return get_string_manager()->get_string('tutorevalcommentrequired', 'mod_stage', null, $lang);
+    }
+    stage_apply_tutor_eval($entry, $comment);
+    return null;
 }
 
 /**

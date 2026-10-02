@@ -188,6 +188,22 @@ class provider implements
             'teacherid' => $userid,
         ]);
 
+        // Enseignant nommé référent sur une convention : il peut n'avoir ni attribution ni
+        // évaluation dans l'activité, et doit pourtant y être retrouvé.
+        $sql = "SELECT ctx.id
+                  FROM {context} ctx
+                  JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
+                  JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                  JOIN {stage} s ON s.id = cm.instance
+                  JOIN {stage_entry} e ON e.stageid = s.id
+                  JOIN {stage_convention_detail} d ON d.entryid = e.id
+                 WHERE d.referentteacherid = :referentid";
+        $contextlist->add_from_sql($sql, [
+            'modname' => 'stage',
+            'contextlevel' => CONTEXT_MODULE,
+            'referentid' => $userid,
+        ]);
+
         $sql = "SELECT ctx.id
                   FROM {context} ctx
                   JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
@@ -239,6 +255,14 @@ class provider implements
                                                JOIN {stage_entry_teacher} et ON et.stageid = s.id
                                               WHERE cm.id = :instanceid", $params);
         }
+
+        $userlist->add_from_sql('referentteacherid', "SELECT d.referentteacherid
+                                                       FROM {course_modules} cm
+                                                       JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                                                       JOIN {stage} s ON s.id = cm.instance
+                                                       JOIN {stage_entry} e ON e.stageid = s.id
+                                                       JOIN {stage_convention_detail} d ON d.entryid = e.id
+                                                      WHERE cm.id = :instanceid", $params);
 
         $userlist->add_from_sql('teacherid', "SELECT tt.teacherid
                                                 FROM {course_modules} cm
@@ -387,7 +411,10 @@ class provider implements
                         OR conventioneditedby = :editedby
                         OR conventionsignedby = :signedby
                         OR conventionrejectedby = :rejectedby
-                        OR cancelledby = :cancelledby)
+                        OR cancelledby = :cancelledby
+                        OR id IN (SELECT d.entryid
+                                    FROM {stage_convention_detail} d
+                                   WHERE d.referentteacherid = :referentid))
               ORDER BY datestart ASC";
         $entries = $DB->get_records_sql($sql, [
             'stageid' => $cm->instance,
@@ -399,7 +426,18 @@ class provider implements
             'signedby' => $userid,
             'rejectedby' => $userid,
             'cancelledby' => $userid,
+            'referentid' => $userid,
         ]);
+        $referententryids = [];
+        if ($entries) {
+            [$insql, $inparams] = $DB->get_in_or_equal(array_keys($entries), SQL_PARAMS_NAMED);
+            $referententryids = array_flip($DB->get_fieldset_select(
+                'stage_convention_detail',
+                'entryid',
+                "referentteacherid = :referentid AND entryid $insql",
+                array_merge(['referentid' => $userid], $inparams)
+            ));
+        }
 
         foreach ($entries as $entry) {
             // L'étudiant a pu être supprimé entre-temps : get_user() renvoie alors false, que
@@ -410,6 +448,7 @@ class provider implements
                 'datestart' => $entry->datestart ? transform::datetime($entry->datestart) : null,
                 'dateend' => $entry->dateend ? transform::datetime($entry->dateend) : null,
                 'issupervisingteacher' => transform::yesno((int) $entry->teacherid === $userid),
+                'isconventionreferent' => transform::yesno(isset($referententryids[$entry->id])),
                 'teachereval' => ((int) $entry->teacherid === $userid) ? $entry->teachereval : null,
                 'devecomment' => ((int) $entry->deveuserid === $userid) ? $entry->devecomment : null,
                 'conventionrejectcomment' => ((int) $entry->conventionrejectedby === $userid)

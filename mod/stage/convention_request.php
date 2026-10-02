@@ -76,10 +76,11 @@ $viewurl = $returnurlparam !== ''
     : new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
 
 $requeststatus = (int) $entry->conventionstatus;
-if (!stage_convention_can_be_requested($requeststatus)) {
+if (!stage_convention_request_allowed($entry, $canregister)) {
     redirect(
         $viewurl,
-        get_string('conventionalreadyrequested', 'mod_stage'),
+        get_string(stage_convention_can_be_requested($entry->conventionstatus)
+            ? 'conventionrequestclosed' : 'conventionalreadyrequested', 'mod_stage'),
         null,
         \core\output\notification::NOTIFY_INFO
     );
@@ -196,7 +197,7 @@ if ($canregister) {
 
 if ($requeststatus === STAGE_CONVENTION_REJECTED && !empty($entry->conventionrejectcomment)) {
     echo $OUTPUT->notification(
-        get_string('conventionrejectedexplain', 'mod_stage', $entry->conventionrejectcomment),
+        get_string('conventionrejectedexplain', 'mod_stage', s($entry->conventionrejectcomment)),
         \core\output\notification::NOTIFY_WARNING
     );
 }

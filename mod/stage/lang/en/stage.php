@@ -412,6 +412,8 @@ $string['markinvalid'] = 'Mark as not validated';
 $string['rejectcomment'] = 'Reason for non-validation';
 $string['entrynoteditable'] = 'This entry has already been evaluated and can no longer be edited. '
     . 'Only the DEVE can reset it to allow a new submission.';
+$string['resetstageentries'] = 'Delete all internships (evaluations, agreements, uploaded reports)';
+$string['resetstageteachers'] = 'Delete referent teacher assignments';
 $string['resetentry'] = 'Reset (allow a new submission)';
 $string['entryreset'] = 'The entry has been reset: a new self-assessment is now possible.';
 $string['confirmresetentry'] = 'Reset this entry? The student and the referent teacher will be able to edit it again.';
@@ -477,6 +479,7 @@ $string['requestconventionfor'] = 'Agreement request for {$a}.';
 $string['requestconvention_help'] = 'Choose the agreement template matching your internship. '
     . 'The request will then follow the approval, editing and signature workflow; self-assessment will only '
     . 'be possible once the agreement has been signed.';
+$string['conventionrequestclosed'] = 'This internship has already been evaluated, validated or cancelled: an agreement can no longer be requested for it.';
 $string['conventionalreadyrequested'] = 'The agreement for this internship has already been requested.';
 $string['conventionrequested'] = 'The agreement request has been saved.';
 $string['conventionrequestexempt'] = 'This internship is exempt from an agreement, so no request can be created.';
@@ -646,6 +649,8 @@ $string['bulkthemessaved'] = 'Themes updated.';
 $string['teachersassigned'] = 'Referent teachers updated.';
 $string['evalsaved'] = 'Evaluation saved.';
 $string['bulkvalidated'] = '{$a} internship(s) validated.';
+$string['bulkregisterinvalidtheme'] = 'Choose an active theme of this activity: no internship was registered.';
+$string['bulkregisterinvalidvalues'] = 'Invalid year of study, mobility or duration: no internship was registered.';
 $string['bulkregistered'] = '{$a} internship(s) registered.';
 $string['bulkduplicatesskipped'] = 'Already registered on this theme with these same dates, skipped: {$a}';
 $string['nothemesyet'] = 'No theme has been created yet.';
@@ -749,6 +754,7 @@ $string['tutorevaluationenabledtheme'] = 'Workplace tutor evaluation for this th
 $string['tutorevaluationenabledtheme_help'] = 'Only takes effect if workplace tutor evaluation is also enabled '
     . 'globally for this activity (the "Notifications" page). Once that global option is enabled, this lets '
     . 'you offer it for only some themes rather than all of them.';
+$string['tutorevalcommentrequired'] = 'Please write your evaluation before sending it.';
 $string['tutorevalheading'] = 'Workplace tutor evaluation';
 $string['notutoreval'] = 'The workplace tutor has not yet answered their evaluation questionnaire.';
 $string['tutorevallink'] = 'Evaluation link to send to the workplace tutor';
@@ -864,6 +870,7 @@ $string['privacy:metadata:stage_entry_checklist'] = 'The answers given by the st
 $string['privacy:metadata:stage_entry_checklist:itemid'] = 'The objective being answered.';
 $string['privacy:metadata:stage_entry_checklist:checked'] = 'Whether the objective is reported as achievable.';
 $string['privacy:metadata:stage_entry_checklist:explanation'] = 'The explanation given when the objective is not ticked.';
+$string['errorrejectreasonrequired'] = 'Give the reason why the internship is not validated: it is passed on to the student.';
 $string['errorvalidatecancelled'] = 'Reset the cancelled internship before validating it.';
 $string['errornegativeduration'] = 'The duration cannot be negative.';
 $string['errorrequiredanswer'] = 'An answer is required for this question: {$a}';
@@ -960,6 +967,8 @@ $string['removequestionrow'] = 'Remove this question from the list';
 $string['removequestionrow_help'] = 'The question is removed from this list only. If it belongs to no other list, it '
     . 'is deleted together with the answers already recorded.';
 $string['questionsharedwithlists'] = 'Also in: {$a}';
+$string['evallistquestionhasanswers'] = 'This question already has answers: it cannot be removed from the list.';
+$string['evallistquestionsblocked'] = 'Nothing was saved: these questions already have answers and cannot be removed from the list: {$a}. The answers of internships already evaluated would be lost.';
 $string['evallistsaved'] = 'Evaluation list saved.';
 $string['evallistadd'] = 'Create an evaluation list';
 $string['evallistsmanage'] = 'Manage all lists';

@@ -422,6 +422,8 @@ $string['markinvalid'] = 'Marquer non validé';
 $string['rejectcomment'] = 'Motif de non-validation';
 $string['entrynoteditable'] = "Cette saisie a déjà été évaluée et n'est plus modifiable. "
     . "Seule la DEVE peut la réinitialiser pour permettre une nouvelle saisie.";
+$string['resetstageentries'] = 'Supprimer tous les stages (évaluations, conventions, rapports déposés)';
+$string['resetstageteachers'] = 'Supprimer les attributions d\'enseignants référents';
 $string['resetentry'] = 'Réinitialiser (autoriser une nouvelle saisie)';
 $string['entryreset'] = 'La saisie a été réinitialisée : une nouvelle auto-évaluation est possible.';
 $string['confirmresetentry'] = "Réinitialiser cette saisie ? L'étudiant et l'enseignant référent pourront à nouveau la modifier.";
@@ -490,6 +492,7 @@ $string['requestconventionfor'] = 'Demande de convention pour {$a}.';
 $string['requestconvention_help'] = "Choisissez le modèle de convention correspondant à votre stage. "
     . "La demande suivra ensuite le circuit de validation, d'édition et de signature ; l'auto-évaluation ne sera "
     . 'possible qu\'une fois la convention signée.';
+$string['conventionrequestclosed'] = 'Ce stage est déjà évalué, validé ou annulé : il ne peut plus faire l\'objet d\'une demande de convention.';
 $string['conventionalreadyrequested'] = 'La convention de ce stage a déjà été demandée.';
 $string['conventionrequested'] = 'La demande de convention a été enregistrée.';
 $string['conventionrequestexempt'] = 'Ce stage est dispensé de convention : aucune demande ne peut être créée.';
@@ -663,6 +666,8 @@ $string['bulkthemessaved'] = 'Les thématiques ont été mises à jour.';
 $string['teachersassigned'] = 'Les enseignants référents ont été mis à jour.';
 $string['evalsaved'] = "L'évaluation a été enregistrée.";
 $string['bulkvalidated'] = '{$a} stage(s) ont été validés.';
+$string['bulkregisterinvalidtheme'] = 'Choisissez une thématique active de cette activité : aucun stage n\'a été enregistré.';
+$string['bulkregisterinvalidvalues'] = 'Année d\'étude, mobilité ou durée invalide : aucun stage n\'a été enregistré.';
 $string['bulkregistered'] = '{$a} stage(s) ont été enregistrés.';
 $string['bulkduplicatesskipped'] = 'Déjà enregistrés sur cette thématique avec ces mêmes dates, ignorés : {$a}';
 $string['nothemesyet'] = "Aucune thématique n'a encore été créée.";
@@ -765,6 +770,7 @@ $string['tutorevaluationenabledtheme'] = 'Évaluation par le maître de stage po
 $string['tutorevaluationenabledtheme_help'] = "N'a d'effet que si l'évaluation par le maître de stage est "
     . 'aussi activée globalement pour cette activité (page « Notifications »). Permet, une fois cette option '
     . "globale activée, de ne la proposer que pour certaines thématiques plutôt que pour toutes.";
+$string['tutorevalcommentrequired'] = 'Merci de rédiger votre évaluation avant de l\'envoyer.';
 $string['tutorevalheading'] = 'Évaluation du maître de stage';
 $string['notutoreval'] = "Le maître de stage n'a pas encore répondu à son questionnaire d'évaluation.";
 $string['tutorevallink'] = "Lien d'évaluation à transmettre au maître de stage";
@@ -885,6 +891,7 @@ $string['privacy:metadata:stage_entry_checklist'] = "Les réponses de l'étudian
 $string['privacy:metadata:stage_entry_checklist:itemid'] = "L'objectif auquel il est répondu.";
 $string['privacy:metadata:stage_entry_checklist:checked'] = "Si l'objectif est annoncé comme atteignable.";
 $string['privacy:metadata:stage_entry_checklist:explanation'] = "La justification apportée lorsque l'objectif n'est pas coché.";
+$string['errorrejectreasonrequired'] = 'Indiquez le motif de la non-validation : il est communiqué à l\'étudiant.';
 $string['errorvalidatecancelled'] = 'Réinitialisez le stage annulé avant de le valider.';
 $string['errornegativeduration'] = 'La durée ne peut pas être négative.';
 $string['errorrequiredanswer'] = 'Une réponse est obligatoire pour la question : {$a}';
@@ -981,6 +988,8 @@ $string['removequestionrow'] = 'Retirer cette question de la liste';
 $string['removequestionrow_help'] = "La question est retirée de cette liste seulement. Si elle ne figure dans aucune "
     . "autre liste, elle est supprimée avec les réponses déjà enregistrées.";
 $string['questionsharedwithlists'] = 'Figure aussi dans : {$a}';
+$string['evallistquestionhasanswers'] = 'Cette question a déjà des réponses : elle ne peut pas être retirée de la liste.';
+$string['evallistquestionsblocked'] = 'Rien n\'a été enregistré : ces questions ont déjà des réponses et ne peuvent pas être retirées de la liste : {$a}. Les réponses des stages déjà évalués seraient perdues.';
 $string['evallistsaved'] = "La liste d'évaluation a été enregistrée.";
 $string['evallistadd'] = "Créer une liste d'évaluation";
 $string['evallistsmanage'] = 'Gérer toutes les listes';

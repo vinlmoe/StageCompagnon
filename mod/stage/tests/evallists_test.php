@@ -36,6 +36,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_get_reusable_evallist_questions
  * @covers     ::stage_get_evallist_themes
  * @covers     ::stage_import_themes
+ * @covers     ::stage_count_question_exclusive_answers
  * @covers     ::stage_copy_evallist
  */
 final class evallists_test extends \advanced_testcase {
@@ -105,11 +106,30 @@ final class evallists_test extends \advanced_testcase {
         $this->assertSame(0, stage_count_evallist_exclusive_answers($list2->id));
         $this->assertSame([$own], array_map('intval', array_keys(stage_get_reusable_evallist_questions($list2))));
 
+        $this->assertSame(0, stage_count_question_exclusive_answers($list1->id, $shared));
         stage_remove_evallist_question($list1->id, $shared);
         $this->assertTrue($DB->record_exists('stage_question', ['id' => $shared]));
         $this->assertTrue($DB->record_exists('stage_answer', ['questionid' => $shared]));
 
-        stage_remove_evallist_question($list1->id, $own);
+        // Régression : retirer une question qui porte seule des réponses les effaçait en silence.
+        $this->assertSame(1, stage_count_question_exclusive_answers($list1->id, $own));
+        // Retirée de L1, la question partagée n'est plus que dans L2 : ses réponses en dépendent.
+        $this->assertSame(1, stage_count_question_exclusive_answers($list2->id, $shared));
+        try {
+            stage_remove_evallist_question($list1->id, $own);
+            $this->fail('Une question avec réponses ne doit pas pouvoir être retirée.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('evallistquestionhasanswers', $e->errorcode);
+        }
+        $this->assertTrue($DB->record_exists('stage_evallist_question', ['listid' => $list1->id, 'questionid' => $own]));
+        $this->assertTrue($DB->record_exists('stage_answer', ['questionid' => $own]));
+
+        // Une question sans réponse se retire librement.
+        stage_remove_evallist_question($list2->id, $other);
+        $this->assertFalse($DB->record_exists('stage_question', ['id' => $other]));
+
+        // La suppression voulue de toute la liste emporte, elle, les réponses.
+        stage_remove_evallist_question($list1->id, $own, true);
         $this->assertFalse($DB->record_exists('stage_question', ['id' => $own]));
         $this->assertFalse($DB->record_exists('stage_answer', ['questionid' => $own]));
 

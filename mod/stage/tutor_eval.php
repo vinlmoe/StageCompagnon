@@ -70,15 +70,19 @@ $PAGE->set_heading(format_string($stage->name));
 
 $questions = stage_get_questions($entry->themeid, 'tutor');
 
+// Réponses soumises, conservées pour être réaffichées si elles sont refusées.
+$submitted = [];
+$submittedcomment = '';
+$submiterror = null;
 if (empty($entry->tutortime) && data_submitted() && confirm_sesskey()) {
-    if (!empty($questions)) {
-        stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions, $lang));
-        stage_apply_tutor_eval($entry);
-    } else {
-        $comment = optional_param('tutoreval', '', PARAM_RAW);
-        stage_apply_tutor_eval($entry, $comment);
+    foreach ($questions as $question) {
+        $submitted[$question->id] = optional_param('q_' . $question->id, '', PARAM_TEXT);
     }
-    redirect(new moodle_url('/mod/stage/tutor_eval.php', ['token' => $token]));
+    $submittedcomment = optional_param('tutoreval', '', PARAM_RAW);
+    $submiterror = stage_submit_tutor_eval($entry, $questions, $submitted, $submittedcomment, $lang);
+    if ($submiterror === null) {
+        redirect(new moodle_url('/mod/stage/tutor_eval.php', ['token' => $token]));
+    }
 }
 
 echo $OUTPUT->header();
@@ -138,7 +142,13 @@ if ($objectivelinks !== '') {
 
 if (!empty($entry->tutortime)) {
     echo $OUTPUT->notification(get_string_manager()->get_string('tutorevalalreadysubmitted', 'mod_stage', null, $lang), 'success');
-    echo stage_render_evaluation($questions, stage_get_answers($entry->id), $entry->tutoreval, FORMAT_PLAIN, $lang);
+    echo stage_render_evaluation(
+        stage_get_entry_questions($entry, 'tutor'),
+        stage_get_answers($entry->id),
+        $entry->tutoreval,
+        FORMAT_PLAIN,
+        $lang
+    );
     echo $OUTPUT->footer();
     exit;
 }
@@ -148,12 +158,17 @@ echo html_writer::tag('p', get_string_manager()->get_string('tutorevalintro', 'm
     'stage' => format_string($stage->name) . ($theme ? ' - ' . format_string($theme->name) : ''),
 ], $lang));
 
+if ($submiterror !== null) {
+    echo $OUTPUT->notification(s($submiterror), \core\output\notification::NOTIFY_ERROR);
+}
+
 $formurl = new moodle_url('/mod/stage/tutor_eval.php', ['token' => $token]);
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => $formurl]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
 if (!empty($questions)) {
-    echo stage_render_question_fields($questions, [], $lang);
+    $previous = array_map(fn($value) => (object) ['answertext' => $value], $submitted);
+    echo stage_render_question_fields($questions, $previous, $lang);
 } else {
     echo html_writer::tag(
         'label',
@@ -162,8 +177,8 @@ if (!empty($questions)) {
     );
     echo html_writer::tag(
         'textarea',
-        '',
-        ['name' => 'tutoreval', 'id' => 'tutoreval', 'rows' => 6, 'class' => 'form-control']
+        s($submittedcomment),
+        ['name' => 'tutoreval', 'id' => 'tutoreval', 'rows' => 6, 'class' => 'form-control', 'required' => 'required']
     );
 }
 

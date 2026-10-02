@@ -229,7 +229,7 @@ if (empty($themes)) {
         )
             . html_writer::link($deleteurl, get_string('delete'), [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => "return confirm('" . get_string('confirmdeletetheme', 'mod_stage') . "');",
+                'onclick' => stage_confirm_onclick(get_string('confirmdeletetheme', 'mod_stage')),
             ]);
 
         $row = [html_writer::link($manageurl, format_string($theme->name)), $minstudyyearselect, $maxstudyyearselect,

@@ -59,11 +59,14 @@ if ($entryid) {
     if ($existingentry->userid != $USER->id) {
         throw new moodle_exception('nopermissions', 'error', '', get_string('registerstageandconvention', 'mod_stage'));
     }
-    $existingstatus = (int) $existingentry->conventionstatus;
-    if (!stage_convention_can_be_requested($existingstatus)) {
+    // Seul un stage simplement enregistré peut être modifié et soumis par l'étudiant : un stage
+    // validé (import historique, validation directe par la DEVE) ou annulé ne doit plus changer
+    // de thématique, d'année ni de durée par cette voie.
+    if (!stage_convention_request_allowed($existingentry)) {
         redirect(
             $viewurl,
-            get_string('conventionalreadyrequested', 'mod_stage'),
+            get_string(stage_convention_can_be_requested($existingentry->conventionstatus)
+            ? 'conventionrequestclosed' : 'conventionalreadyrequested', 'mod_stage'),
             null,
             \core\output\notification::NOTIFY_INFO
         );

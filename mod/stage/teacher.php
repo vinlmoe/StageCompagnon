@@ -85,6 +85,14 @@ if ($entryid) {
     if ($editable && data_submitted() && confirm_sesskey()) {
         if (optional_param('rejectstage', '', PARAM_RAW) !== '') {
             $rejectcomment = optional_param('rejectcomment', '', PARAM_RAW);
+            if (trim($rejectcomment) === '') {
+                redirect(
+                    $entryurl,
+                    get_string('errorrejectreasonrequired', 'mod_stage'),
+                    null,
+                    \core\output\notification::NOTIFY_ERROR
+                );
+            }
             stage_reject_by_teacher($entry, $USER->id, $rejectcomment);
         } else if (!empty($questions)) {
             stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions));
@@ -110,7 +118,7 @@ if ($entryid) {
     // Auto-évaluation de l'étudiant : réponses au formulaire défini par la DEVE si
     // des questions existent pour cette thématique, sinon commentaire libre.
     echo $OUTPUT->heading(get_string('studentselfeval', 'mod_stage'), 4);
-    $studentquestions = stage_get_questions($entry->themeid, 'student');
+    $studentquestions = stage_get_entry_questions($entry, 'student');
     echo stage_render_evaluation($studentquestions, stage_get_answers($entry->id), $entry->studentselfeval, FORMAT_HTML);
 
     // Rapport de stage déposé par l'étudiant, si la thématique en demande un : l'enseignant
@@ -123,7 +131,7 @@ if ($entryid) {
     // sollicite pas elle-même les maîtres de stage.
     if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tutoreval) !== '') {
         echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
-        $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
+        $tutorquestions = stage_get_entry_questions($entry, 'tutor');
         if ($entry->tutortime || trim((string) $entry->tutoreval) !== '') {
             echo stage_render_evaluation($tutorquestions, stage_get_answers($entry->id), $entry->tutoreval);
         } else {
@@ -149,8 +157,9 @@ if ($entryid) {
 
     if (!$editable) {
         echo $OUTPUT->notification(get_string('entrynoteditable', 'mod_stage'), 'info');
-        if (!empty($questions)) {
-            echo stage_render_answers_readonly($questions, stage_get_answers($entry->id));
+        $answeredquestions = stage_get_entry_questions($entry, 'teacher');
+        if (!empty($answeredquestions)) {
+            echo stage_render_answers_readonly($answeredquestions, stage_get_answers($entry->id));
         } else if ($entry->teachereval) {
             echo $OUTPUT->heading(get_string('teachereval', 'mod_stage'), 4);
             echo html_writer::div(format_text($entry->teachereval, FORMAT_PLAIN));

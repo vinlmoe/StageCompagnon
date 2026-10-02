@@ -143,7 +143,7 @@ if (empty($allentries)) {
         // en clair sous celles-ci plutôt qu'aligné avec elles comme s'il en était une.
         if ($status === STAGE_CONVENTION_REJECTED && !empty($entry->conventionrejectcomment)) {
             $actions .= html_writer::div(
-                get_string('conventionrejectedwithcomment', 'mod_stage', format_string($entry->conventionrejectcomment)),
+                get_string('conventionrejectedwithcomment', 'mod_stage', s($entry->conventionrejectcomment)),
                 'text-muted small'
             );
         }

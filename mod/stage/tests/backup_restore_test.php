@@ -203,6 +203,7 @@ final class backup_restore_test extends \advanced_testcase {
         $DB->set_field('stage_entry', 'conventiontemplateid', $templateid, ['id' => $entry->id]);
         $DB->set_field('stage_entry', 'tutortoken', bin2hex(random_bytes(32)), ['id' => $entry->id]);
         $DB->set_field('stage_entry', 'tutorrequesttime', time(), ['id' => $entry->id]);
+        $entry->tutorrequesttime = $DB->get_field('stage_entry', 'tutorrequesttime', ['id' => $entry->id]);
         $DB->insert_record('stage_answer', (object) [
             'entryid' => $entry->id,
             'questionid' => $questionid,
@@ -284,8 +285,11 @@ final class backup_restore_test extends \advanced_testcase {
         $this->assertEquals($newtemplate->id, $newentry->conventiontemplateid);
 
         // Le jeton d'accès du maître de stage n'est pas recopié : il reste propre à l'original.
+        // L'invitation déjà envoyée l'est en revanche : la copie ne réinvite pas le maître de stage.
         $this->assertNull($newentry->tutortoken);
-        $this->assertEquals(0, $newentry->tutorrequesttime);
+        $this->assertEquals($entry->tutorrequesttime, $newentry->tutorrequesttime);
+        $this->assertGreaterThan(0, $newentry->tutorrequesttime);
+        $this->assertArrayNotHasKey($newentry->id, stage_get_entries_needing_tutor_request());
 
         // Plage de dates créée avec la saisie.
         $this->assertEquals(1, $DB->count_records('stage_entry_period', ['entryid' => $newentry->id]));

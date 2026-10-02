@@ -66,6 +66,16 @@ pas de savoir si le courriel a été envoyé : ils sont considérés comme déj�
 pour éviter une relance générale. La DEVE peut relancer manuellement ceux qui
 n'ont pas été reçus.
 
+L'invitation automatique du maître de stage n'est envoyée que pour un stage
+engagé : convention signée (ici ou sur SignVet) ou dispense, stage encore en
+attente de son avis (ni évalué par l'enseignant, ni validé, ni annulé) et
+évaluation non contournée par la DEVE. Une copie ou une restauration du cours
+conserve l'état « déjà invité » : les maîtres de stage ne sont pas réinvités.
+
+Un étudiant ne peut demander une convention, et donc modifier un stage, que tant
+que celui-ci est simplement enregistré. La réinitialisation du cours propose de
+supprimer les stages et les attributions de référents de l'année écoulée.
+
 ## Installation rapide
 
 ```bash

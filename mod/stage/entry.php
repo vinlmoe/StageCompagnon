@@ -98,7 +98,7 @@ if ($editable && $reportmode != STAGE_REPORT_NONE) {
     $filemanageroptions = [
         'subdirs' => 0,
         'maxfiles' => 20,
-        'maxbytes' => $CFG->maxbytes,
+        'maxbytes' => stage_max_upload_bytes($context),
     ];
     $reportform = new report_form(
         new moodle_url('/mod/stage/entry.php', ['id' => $cm->id, 'entryid' => $entryid]),
@@ -223,7 +223,7 @@ if (!$editable) {
     }
     echo stage_render_report_section($cm, $context, $entry, $theme);
     $answers = stage_get_answers($entry->id);
-    echo stage_render_evaluation($questions, $answers, $entry->studentselfeval, FORMAT_HTML);
+    echo stage_render_evaluation(stage_get_entry_questions($entry, 'student'), $answers, $entry->studentselfeval, FORMAT_HTML);
     echo $OUTPUT->footer();
     exit;
 }

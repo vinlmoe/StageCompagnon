@@ -77,9 +77,14 @@ class send_convention_reminders extends \core\task\scheduled_task {
                 $students[$entry->userid] = $DB->get_record('user', ['id' => $entry->userid]);
             }
             $student = $students[$entry->userid];
-            // Un compte supprimé ou suspendu ne reçoit rien : la relance resterait en attente et
-            // repartirait à chaque passage du cron.
-            if (!$student || !empty($student->deleted) || !empty($student->suspended)) {
+            // Un compte supprimé ou suspendu, ou un étudiant qui n'est plus inscrit au cours
+            // (transfert, abandon), ne reçoit rien : la relance est marquée comme traitée, sans
+            // quoi elle repartirait à chaque passage du cron.
+            $context = \context_module::instance($cm->id);
+            if (
+                !$student || !empty($student->deleted) || !empty($student->suspended)
+                    || !is_enrolled($context, $student, '', true)
+            ) {
                 $DB->set_field('stage_entry', 'conventionremindertime', time(), ['id' => $entry->id]);
                 continue;
             }

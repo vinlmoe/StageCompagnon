@@ -52,7 +52,7 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('managetheme',
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$filemanageroptions = ['subdirs' => 0, 'maxfiles' => 20, 'maxbytes' => $CFG->maxbytes];
+$filemanageroptions = ['subdirs' => 0, 'maxfiles' => 20, 'maxbytes' => stage_max_upload_bytes($context)];
 
 $allthemes = stage_get_themes($stage->id);
 $themelabels = [];

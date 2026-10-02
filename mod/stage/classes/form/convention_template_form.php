@@ -53,7 +53,7 @@ class convention_template_form extends \moodleform {
         $mform->addElement('filemanager', 'templatefile', get_string('conventiontemplatefile', 'mod_stage'), null, [
             'subdirs' => 0,
             'maxfiles' => 1,
-            'maxbytes' => $CFG->maxbytes,
+            'maxbytes' => $this->_customdata['maxbytes'] ?? $CFG->maxbytes,
             'accepted_types' => ['.pdf'],
         ]);
 

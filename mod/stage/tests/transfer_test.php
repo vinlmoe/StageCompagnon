@@ -215,6 +215,43 @@ final class transfer_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : après un changement de liste d'évaluation de la thématique source, les réponses
+     * aux questions de l'ancienne liste étaient comptées comme perdues et supprimées au transfert.
+     */
+    public function test_answers_to_former_list_questions_are_transferred(): void {
+        global $DB;
+        [$sourcestage, $targetstage, $student] = $this->prepare_two_stages();
+        $this->getDataGenerator()->enrol_user($student->id, $targetstage->course, 'student');
+        /** @var \mod_stage_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $sourcetheme = $generator->create_theme($sourcestage, ['name' => 'Ruminants']);
+        $targettheme = $generator->create_theme($targetstage, ['name' => 'Ruminants']);
+        $question = function ($stage, $name) use ($DB) {
+            return $DB->get_record('stage_question', ['id' => $DB->insert_record('stage_question', (object) [
+                'stageid' => $stage->id, 'themeid' => 0, 'evaltype' => 'student', 'qtype' => 'text', 'name' => $name,
+                'required' => 0, 'sortorder' => 0, 'timecreated' => time(), 'timemodified' => time(),
+            ])]);
+        };
+        $former = $question($sourcestage, 'Bilan');
+        $generator->create_evallist($sourcestage, 'student', [$former->id], [$sourcetheme], 'Ancienne');
+        $entry = $generator->create_entry($sourcestage, $student->id, $sourcetheme);
+        stage_save_answers($entry->id, [$former], [$former->id => 'Réponse']);
+        // La thématique source change de liste ; la cible a gardé la question.
+        $generator->create_evallist($sourcestage, 'student', [$question($sourcestage, 'Autre')->id], [$sourcetheme], 'Nouvelle');
+        $targetq = $question($targetstage, 'Bilan');
+        $generator->create_evallist($targetstage, 'student', [$targetq->id], [$targettheme]);
+
+        $plan = stage_plan_student_transfer($sourcestage, $targetstage, $student->id);
+        $this->assertSame(0, $plan->droppedanswers);
+        [$sourcecontext, $targetcontext] = $this->contexts($sourcestage, $targetstage);
+        stage_execute_student_transfer($sourcestage, $sourcecontext, $targetstage, $targetcontext, $student->id, $plan);
+        $this->assertSame(
+            'Réponse',
+            $DB->get_field('stage_answer', 'answertext', ['entryid' => $entry->id, 'questionid' => $targetq->id])
+        );
+    }
+
+    /**
      * Un étudiant désinscrit du cours source mais qui y a encore des stages reste transférable.
      */
     public function test_unenrolled_student_with_entries_is_offered(): void {
