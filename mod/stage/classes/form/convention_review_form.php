@@ -220,7 +220,7 @@ class convention_review_form extends \moodleform {
             // refus, qui doit rester possible sur une saisie incohérente.
             $perioderror = stage_validate_periods(stage_extract_submitted_periods((object) $data));
             if ($perioderror !== null) {
-                $errors['perioddatestart[0]'] = $perioderror;
+                $errors[stage_period_error_field($data)] = $perioderror;
             }
             foreach (self::REQUIRED_FIELDS as $field) {
                 if ($data[$field] === '' || $data[$field] === null) {

@@ -286,7 +286,7 @@ class student_register_form extends \moodleform {
         // refusées (contrairement aux formulaires de la DEVE, voir stage_validate_periods()).
         $perioderror = stage_validate_periods($periods, true);
         if ($perioderror !== null) {
-            $errors['perioddatestart[0]'] = $perioderror;
+            $errors[stage_period_error_field($data)] = $perioderror;
             return $errors;
         }
 

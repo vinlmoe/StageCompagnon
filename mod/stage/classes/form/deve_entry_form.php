@@ -141,7 +141,7 @@ class deve_entry_form extends \moodleform {
         $periods = stage_extract_submitted_periods((object) $data);
         $perioderror = stage_validate_periods($periods);
         if ($perioderror !== null) {
-            $errors['perioddatestart[0]'] = $perioderror;
+            $errors[stage_period_error_field($data)] = $perioderror;
             return $errors;
         }
 

@@ -234,7 +234,7 @@ class convention_request_form extends \moodleform {
         // refusées ici, contrairement aux formulaires de la DEVE (voir stage_validate_periods()).
         $perioderror = stage_validate_periods(stage_extract_submitted_periods((object) $data), true);
         if ($perioderror !== null) {
-            $errors['perioddatestart[0]'] = $perioderror;
+            $errors[stage_period_error_field($data)] = $perioderror;
         }
 
         $templates = $this->_customdata['templates'];

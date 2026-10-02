@@ -1000,3 +1000,4 @@ $string['conventiontemplate'] = 'Gabarit de convention';
 $string['conventiontemplatelist'] = 'Gabarits';
 $string['conventiontemplateusage'] = 'Demandes de convention';
 $string['conventiontemplatenofile'] = 'Aucun PDF';
+$string['periodremove'] = 'Supprimer cette plage';

@@ -197,7 +197,7 @@ if ($mform->is_cancelled()) {
             $data->studyyear,
             STAGE_CONVENTION_NONE,
             $data->abroad,
-            $data->country
+            $data->country ?? ''
         );
         $entry = $DB->get_record('stage_entry', ['id' => $newentryid], '*', MUST_EXIST);
     }

@@ -139,4 +139,52 @@ final class deve_entry_form_test extends \advanced_testcase {
 
         $this->assertArrayHasKey('themeid', $errors);
     }
+
+    /**
+     * Régression : à l'édition, la première plage affichait la date du jour au lieu de ses dates
+     * réelles (une valeur par défaut « perioddatestart[0] » l'emportait sur set_data()), et un
+     * enregistrement sans y prêter attention écrasait les dates du stage. Les plages n'ont plus
+     * de case « Activer » : chaque ligne affichée est une plage.
+     */
+    public function test_editing_entry_prefills_real_period_dates(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $theme = (object) ['id' => 1, 'name' => 'A', 'minstudyyear' => 0, 'maxstudyyear' => 0, 'mandatory' => 0];
+        $periods = [
+            (object) ['datestart' => make_timestamp(2026, 2, 1), 'dateend' => make_timestamp(2026, 2, 5)],
+            (object) ['datestart' => make_timestamp(2026, 3, 9), 'dateend' => make_timestamp(2026, 3, 13)],
+        ];
+        $form = new class (null, [
+            'themes' => [$theme],
+            'students' => [],
+            'lockstudent' => true,
+            'studentname' => 'X',
+            'stageid' => 0,
+            'periods' => $periods,
+            'entryid' => 1,
+        ]) extends deve_entry_form {
+            /**
+             * Accès au formulaire QuickForm sous-jacent.
+             *
+             * @return \MoodleQuickForm
+             */
+            public function get_mform(): \MoodleQuickForm {
+                return $this->_form;
+            }
+        };
+        $form->set_data((object) [
+            'perioddatestart' => array_column($periods, 'datestart'),
+            'perioddateend' => array_column($periods, 'dateend'),
+        ]);
+        $mform = $form->get_mform();
+
+        $start = $mform->getElement('perioddatestart[0]')->getValue();
+        $this->assertEquals([1], $start['day']);
+        $this->assertEquals([2], $start['month']);
+        $this->assertEquals([2026], $start['year']);
+        $end = $mform->getElement('perioddateend[1]')->getValue();
+        $this->assertEquals([13], $end['day']);
+        $this->assertArrayNotHasKey('enabled', $start);
+        $this->assertTrue($mform->elementExists('perioddelete[0]'));
+    }
 }

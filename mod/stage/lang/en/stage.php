@@ -977,3 +977,4 @@ $string['conventiontemplate'] = 'Agreement template';
 $string['conventiontemplatelist'] = 'Templates';
 $string['conventiontemplateusage'] = 'Agreement requests';
 $string['conventiontemplatenofile'] = 'No PDF';
+$string['periodremove'] = 'Remove this period';

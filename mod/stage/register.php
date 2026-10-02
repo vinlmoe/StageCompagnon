@@ -330,7 +330,7 @@ if ($mode === 'single') {
                 $data->declaredduration,
                 $data->studyyear,
                 $data->abroad,
-                $data->country
+                $data->country ?? ''
             );
             stage_save_entry_periods($entry->id, $periods);
             stage_set_entry_convention_exempt($entry, !empty($data->exemptfromconvention));
@@ -348,7 +348,7 @@ if ($mode === 'single') {
                 $data->studyyear,
                 $conventionstatus,
                 $data->abroad,
-                $data->country
+                $data->country ?? ''
             );
             stage_save_entry_periods($newentryid, $periods);
             stage_set_entry_stagetype($newentryid, $data->stagetype);

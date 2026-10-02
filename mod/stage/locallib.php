@@ -1289,19 +1289,16 @@ function stage_add_period_fields(\moodleform $form, $mform, $initialcount = 1) {
     $mform->setExpanded('periodsheader');
     $mform->addElement('static', 'periodshelp', '', get_string('periods_help', 'mod_stage'));
 
+    // Chaque plage affichée est une plage du stage : ses dates sont toujours saisies (pas de case
+    // « Activer »), et une plage ajoutée par erreur se retire avec son bouton « Supprimer ». Aucune
+    // valeur par défaut n'est posée : sous la forme « champ[i] », elle l'emporterait sur les dates
+    // réelles passées par set_data() lors d'une édition. Un sélecteur de date sans valeur propose
+    // de lui-même la date du jour.
     $repeatarray = [
-        $mform->createElement(
-            'date_selector',
-            'perioddatestart',
-            get_string('periodstart', 'mod_stage'),
-            ['optional' => true]
-        ),
-        $mform->createElement(
-            'date_selector',
-            'perioddateend',
-            get_string('periodend', 'mod_stage'),
-            ['optional' => true]
-        ),
+        $mform->createElement('static', 'periodseparator', '', html_writer::tag('hr', '')),
+        $mform->createElement('date_selector', 'perioddatestart', get_string('periodstart', 'mod_stage')),
+        $mform->createElement('date_selector', 'perioddateend', get_string('periodend', 'mod_stage')),
+        $mform->createElement('submit', 'perioddelete', get_string('periodremove', 'mod_stage'), [], false),
     ];
     $form->repeat_elements(
         $repeatarray,
@@ -1311,16 +1308,21 @@ function stage_add_period_fields(\moodleform $form, $mform, $initialcount = 1) {
         'periodaddfields',
         1,
         get_string('addperiod', 'mod_stage'),
-        true
+        true,
+        'perioddelete'
     );
+}
 
-    // Au moins une plage est exigée (voir stage_validate_periods()), mais un date_selector
-    // « optional » s'affiche décoché : sur une création, la première ligne serait à activer avant
-    // même de pouvoir la remplir, et son oubli renverrait une erreur dont la cause n'a rien
-    // d'évident. Une valeur par défaut la laisse activée ; set_data() la remplace par les dates
-    // réelles lors d'une édition.
-    $mform->setDefault('perioddatestart[0]', time());
-    $mform->setDefault('perioddateend[0]', time());
+/**
+ * Champ auquel rattacher une erreur portant sur l'ensemble des plages : le début de la première
+ * plage encore affichée (la ligne 0 a pu être supprimée par son bouton « Supprimer »).
+ *
+ * @param array $data Données soumises.
+ * @return string
+ */
+function stage_period_error_field(array $data) {
+    $indexes = array_keys((array) ($data['perioddatestart'] ?? []));
+    return 'perioddatestart[' . ($indexes ? reset($indexes) : 0) . ']';
 }
 
 /**
