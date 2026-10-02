@@ -894,3 +894,16 @@ $string['questionsharedwith'] = '- also used by: {$a}';
 $string['attachquestions'] = 'Reuse questions from other themes';
 $string['attachquestions_help'] = 'The selected questions are attached to this theme on save, without being '
     . 'duplicated: any later change applies to every theme using them.';
+
+// Assigning referent teachers directly in the table (teachers.php).
+$string['withoutreferent'] = 'No referent';
+$string['bulkteacherassign'] = 'Bulk action';
+$string['bulkteacherassign_help'] = 'Tick students in the table, or the "all students matching the filter" box to act '
+    . 'beyond this page. Changes made in the table are saved at the same time.';
+$string['bulkteacher'] = 'Teacher';
+$string['bulkteachermode_add'] = 'Add';
+$string['bulkteachermode_replace'] = 'Replace current referents with';
+$string['bulkteachermode_remove'] = 'Remove';
+$string['bulkallfiltered'] = 'all students matching the filter ({$a})';
+$string['bulkteacherapply'] = 'Apply';
+$string['bulkteachermissing'] = 'Choose the teacher the bulk action applies to. Nothing was saved.';

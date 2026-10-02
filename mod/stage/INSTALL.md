@@ -195,8 +195,14 @@ un enseignant référent attribué et un gabarit de convention disponible.
 ## 6. Enseignants référents
 
 **Administration > Attribuer les enseignants référents** : une ligne par
-étudiant, jusqu'à deux référents chacun, avec recherche par nom, filtre sur les
-étudiants sans référent et enregistrement en masse.
+étudiant, avec recherche par nom et filtre sur les étudiants sans référent. Les
+référents se choisissent directement dans le tableau (sélecteur avec
+recherche sur chaque ligne) et toute la page s'enregistre en une fois.
+
+L'**action en masse** ajoute un enseignant, le met à la place des référents
+actuels, ou le retire, pour les étudiants cochés ou pour tous les étudiants
+retenus par le filtre, toutes pages confondues (par exemple : attribuer un
+référent à tous les étudiants qui n'en ont pas).
 
 L'import CSV de cette page attend :
 

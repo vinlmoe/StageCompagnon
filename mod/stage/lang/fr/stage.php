@@ -911,3 +911,16 @@ $string['questionsharedwith'] = '- également utilisée par : {$a}';
 $string['attachquestions'] = "Réutiliser des questions d'autres thématiques";
 $string['attachquestions_help'] = "Les questions choisies sont associées à cette thématique à l'enregistrement, "
     . "sans être dupliquées : toute modification ultérieure s'applique à toutes les thématiques qui les utilisent.";
+
+// Attribution des enseignants référents directement dans le tableau (teachers.php).
+$string['withoutreferent'] = 'Sans référent';
+$string['bulkteacherassign'] = 'Action en masse';
+$string['bulkteacherassign_help'] = "Cochez des étudiants dans le tableau, ou la case « tous les étudiants du filtre » "
+    . "pour agir au-delà de cette page. Les modifications faites dans le tableau sont enregistrées en même temps.";
+$string['bulkteacher'] = 'Enseignant';
+$string['bulkteachermode_add'] = 'Ajouter';
+$string['bulkteachermode_replace'] = 'Remplacer les référents actuels par';
+$string['bulkteachermode_remove'] = 'Retirer';
+$string['bulkallfiltered'] = 'tous les étudiants du filtre ({$a})';
+$string['bulkteacherapply'] = 'Appliquer';
+$string['bulkteachermissing'] = "Choisissez l'enseignant concerné par l'action en masse. Rien n'a été enregistré.";
