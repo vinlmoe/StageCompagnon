@@ -82,15 +82,29 @@ Depuis **Administration > Gérer les thématiques** :
 - La colonne **Visible** est un interrupteur : une thématique désactivée n'est
   plus proposée à l'enregistrement d'un stage, mais reste visible ici et sur
   les stages déjà enregistrés dessus.
-- **Questions d'évaluation** (lien par thématique) : définir des questions
-  (choix multiples ou commentaire libre) qui remplacent le commentaire libre
-  générique dans le formulaire d'auto-évaluation de l'étudiant et/ou celui de
-  l'enseignant. Une question peut être réutilisée sur plusieurs thématiques.
-- **Objectifs de stage** (lien par thématique) : voir ci-dessous.
+- **Gérer la thématique** (bouton par ligne, ou clic sur son nom) ouvre une
+  page unique qui réunit tous les volets de la thématique, modifiables et
+  enregistrés en une seule fois, sans navigation entre pages :
+  - **Paramètres généraux** : nom, description, années, caractère obligatoire,
+    visibilité, évaluation par le maître de stage, rapport de stage ;
+  - **Durée requise** : durée unique, ou durée par année d'étude (seules les
+    années de la plage choisie sont proposées) ;
+  - **Enseignants responsables** : sélection avec recherche ;
+  - **Objectifs de stage** : documents et check-list (voir ci-dessous), dont
+    les éléments s'éditent directement en ligne ;
+  - **Questions d'évaluation** : questions (choix multiples ou commentaire
+    libre) qui remplacent le commentaire libre générique dans les formulaires
+    d'évaluation, éditées en ligne. Une ligne vide crée une question ; une
+    question peut être réutilisée sur plusieurs thématiques (champ
+    « Réutiliser des questions d'autres thématiques »), et une question
+    partagée est signalée comme telle puisque sa modification vaut pour toutes.
+
+  Un sélecteur en haut de page permet de passer directement à une autre
+  thématique, et « Enregistrer et revenir à la liste » ramène au tableau.
 
 ### Objectifs de stage
 
-Depuis **Gérer les thématiques > Objectifs de stage**, chaque thématique reçoit
+Depuis **Gérer les thématiques > Gérer la thématique**, chaque thématique reçoit
 ses objectifs, en deux volets complémentaires :
 
 - **Documents d'objectifs** : un ou plusieurs fichiers décrivant ce qui est
@@ -158,6 +172,39 @@ Les noms de thématiques doivent correspondre exactement aux intitulés StageVet
 rapport d'import liste, groupés par valeur et avec leurs numéros de ligne, les
 étudiants et les thématiques introuvables.
 
+#### Évaluations de l'étudiant et du maître de stage
+
+Les colonnes `Évaluation par le maître de stage` et `Évaluation par l’étudiant`
+(export StageVet à 60 colonnes) sont facultatives : un export plus ancien
+s'importe comme avant. Leurs intitulés sont reconnus sans tenir compte des
+accents, de la casse, du type d'apostrophe ni du BOM, et des variantes comme
+`Evaluation maitre de stage` sont acceptées.
+
+- **Stage déjà présent** : une ligne dont l'étudiant et la thématique
+  correspondent à un stage existant, avec une plage de dates qui se recoupe, met
+  ce stage à jour au lieu d'en créer un second. Réimporter le même fichier ne crée
+  donc pas de doublon. Si plusieurs stages correspondent, la ligne est signalée
+  et ignorée.
+- **Politique de mise à jour** : une cellule vide (ou « Aucune évaluation »)
+  n'efface jamais une évaluation enregistrée. Un stage importé de StageVet
+  reçoit la version la plus récente de l'export ; pour un stage créé autrement,
+  une évaluation déjà saisie dans l'activité est conservée et signalée.
+- **Effets** : l'évaluation de l'étudiant fait passer un stage enregistré au
+  statut « Auto-évalué par l'étudiant » ; celle du maître de stage est
+  enregistrée comme son évaluation, et l'activité ne lui envoie alors plus
+  d'invitation.
+- **Demande d'évaluation à l'enseignant** : dès que les deux évaluations d'un
+  stage sont réunies (à la création ou lors d'un import ultérieur), ses
+  enseignants référents reçoivent un courriel les invitant à l'évaluer, une seule
+  fois. Le texte est personnalisable dans **Notifications** (« Demande
+  d'évaluation après import des évaluations »). Le rapport d'import liste les
+  étudiants sans référent.
+- **Affichage** : chaque ligne `libellé : N/5` devient une note en étoiles,
+  groupée sous sa rubrique, quel que soit l'item (un item nouveau dans
+  StageVet est pris en compte sans modification). `Non renseigné` reste une
+  absence de note, distincte de `0/5`. Les commentaires sont affichés en texte
+  échappé, retours à la ligne conservés.
+
 ### Import de l'ancien suivi Excel
 
 La page **Importer un ancien suivi Excel** reprend les stages validés des
@@ -181,8 +228,14 @@ un enseignant référent attribué et un gabarit de convention disponible.
 ## 6. Enseignants référents
 
 **Administration > Attribuer les enseignants référents** : une ligne par
-étudiant, jusqu'à deux référents chacun, avec recherche par nom, filtre sur les
-étudiants sans référent et enregistrement en masse.
+étudiant, avec recherche par nom et filtre sur les étudiants sans référent. Les
+référents se choisissent directement dans le tableau (sélecteur avec
+recherche sur chaque ligne) et toute la page s'enregistre en une fois.
+
+L'**action en masse** ajoute un enseignant, le met à la place des référents
+actuels, ou le retire, pour les étudiants cochés ou pour tous les étudiants
+retenus par le filtre, toutes pages confondues (par exemple : attribuer un
+référent à tous les étudiants qui n'en ont pas).
 
 L'import CSV de cette page attend :
 
@@ -200,11 +253,15 @@ n'est ouverte qu'une fois la convention signée.**
 
 ### Configuration (Administration > Gabarits de convention)
 
+Tout se règle sur une seule page, enregistrée en une fois par un unique bouton :
+
 - **Paramètres généraux** : option « Exiger la validation de l'enseignant
   référent avant transmission à la DEVE ».
 - **Gabarits** : nom, langue (français ou anglais) et PDF des articles
-  juridiques. Plusieurs gabarits peuvent coexister ; l'étudiant en choisit un.
-  Un gabarit utilisé par une demande ne peut plus être supprimé.
+  juridiques, modifiables directement dans la page ; un bloc en bas de la
+  liste crée un nouveau gabarit (nom et PDF). Plusieurs gabarits peuvent
+  coexister ; l'étudiant en choisit un. Un gabarit utilisé par une demande ne
+  peut plus être supprimé (la page indique combien de demandes l'utilisent).
 - **Établissement d'enseignement** : nom, adresse, représentant et sa qualité,
   téléphone et courriel, affichés en tête de toutes les conventions.
 - **Logos** : deux images PNG placées en haut de la première page.
@@ -278,7 +335,8 @@ passe définitivement à **Annulé**.
 
 ## 8. Évaluation par le maître de stage et personnalisation des e-mails
 
-Depuis **Administration > Notifications** :
+Depuis **Administration > Notifications**, sur une seule page enregistrée en
+une fois (les e-mails déjà personnalisés sont signalés et ouverts) :
 
 - **Évaluation par le maître de stage** (case à cocher) : une fois activée,
   dès que l'étudiant s'auto-évalue, son maître de stage (l'encadrant en
@@ -291,7 +349,7 @@ Depuis **Administration > Notifications** :
   réponse du maître de stage est ensuite affichée, en lecture seule, à
   l'enseignant référent et à la DEVE au moment de leur propre évaluation, ainsi
   que dans le détail de la saisie.
-- **Personnalisation des e-mails** : un formulaire par e-mail envoyé par
+- **Personnalisation des e-mails** : une section par e-mail envoyé par
   l'activité (auto-évaluation soumise, convention en attente de validation par
   l'enseignant, convention refusée par la DEVE, convention prête à télécharger,
   invitation du maître de stage, relance de convention non signée), permettant
@@ -466,6 +524,9 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `backup_restore_test.php` | Aller-retour sauvegarde/restauration de cours : le paramétrage, les stages et les fichiers suivent, et la copie désigne ses propres thématiques, questions et gabarits. |
 | `theme_objectives_test.php` | Objectifs de stage : ordre et portée de la check-list, justification exigée pour un objectif décoché, purge des réponses devenues sans objet, droits de correction, copie des objectifs à l'import. |
 | `convention_ready_notification_test.php` | Courriel « convention téléchargeable » : présence dans les e-mails personnalisables, contenu par défaut, prise en compte d'un texte personnalisé. |
+| `theme_edit_test.php` | Page unique de gestion d'une thématique : années proposées pour les durées par année, pré-remplissage des lignes répétées (check-list, questions) sans que les valeurs par défaut écrasent les valeurs enregistrées. |
+| `admin_forms_test.php` | Pages uniques des conventions et des notifications : chargement des formulaires, gabarit utilisé non supprimable, nom et PDF exigés ensemble pour un nouveau gabarit, une section par e-mail. |
+| `stagevet_evaluations_test.php` | Import StageVet des évaluations : export actuel à 60 colonnes (BOM, cellules multilignes, guillemets), mise à jour d'un stage existant sans doublon ni effacement, évaluation saisie dans l'activité conservée, en-têtes tolérants, courriel unique à l'enseignant référent, notes en étoiles (item nouveau, zéro distinct de « Non renseigné »). |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :

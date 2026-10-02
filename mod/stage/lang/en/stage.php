@@ -322,7 +322,7 @@ $string['noperiodsdefined'] = 'No date range has been defined for this internshi
 $string['workdayssaved'] = 'The actual internship days have been saved.';
 $string['totalrequiredduration'] = 'Total required duration (days)';
 $string['managethemedurations'] = 'Durations per year';
-$string['durationperyear'] = 'Per year (see Durations per year)';
+$string['durationperyear'] = 'Per year';
 $string['durationflatignored'] = 'A single duration of {$a} day(s) is set on this theme (see its edit form): it is used instead of the per-year durations below, which are ignored.';
 $string['themedurationssaved'] = 'Durations saved.';
 $string['manageyearrequirements'] = 'Total required durations per year';
@@ -868,3 +868,74 @@ $string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be tran
 $string['transferblocked'] = 'The transfer is blocked. Check the mappings in the target activity.';
 $string['nothemeobjectivefiles'] = 'No objectives documents have been uploaded for this theme yet.';
 $string['themeobjectivespreviewintro'] = 'These are the objectives for this theme. You will complete this checklist when requesting your internship agreement.';
+
+// Single theme management page (theme_edit.php).
+$string['managetheme'] = 'Manage theme';
+$string['backtothemelist'] = 'Back to the theme list';
+$string['switchtheme'] = 'Go to another theme';
+$string['viewthemestages'] = 'View the internships of this theme';
+$string['savethemeandreturn'] = 'Save and return to the list';
+$string['themegeneral'] = 'General settings';
+$string['themedurationssection'] = 'Required duration';
+$string['themedurationsintro'] = 'Enter either a single duration for the whole theme, or a duration per study year '
+    . 'below (the single duration, when not zero, takes precedence). Only the years of the range chosen in the '
+    . 'general settings are shown.';
+$string['requireddurationforyear'] = 'Required duration - {$a}';
+$string['deletechecklistrow'] = 'Delete this objective (and the students\' answers)';
+$string['addchecklistrows'] = 'Add {no} objective(s)';
+$string['themequestionsintro'] = 'Edit the questions directly below; fill in a blank row to create one. A question '
+    . 'shared with other themes is changed for all of them.';
+$string['newquestionrow'] = 'New question (leave empty to ignore)';
+$string['addquestionrows'] = 'Add {no} question(s)';
+$string['unlinkquestionrow'] = 'Remove this question from the theme';
+$string['unlinkquestionrow_help'] = 'The question is removed from this theme only. If no other theme uses it any '
+    . 'more, it is deleted together with the answers already recorded.';
+$string['questionsharedwith'] = '- also used by: {$a}';
+$string['attachquestions'] = 'Reuse questions from other themes';
+$string['attachquestions_help'] = 'The selected questions are attached to this theme on save, without being '
+    . 'duplicated: any later change applies to every theme using them.';
+
+// Assigning referent teachers directly in the table (teachers.php).
+$string['withoutreferent'] = 'No referent';
+$string['bulkteacherassign'] = 'Bulk action';
+$string['bulkteacherassign_help'] = 'Tick students in the table, or the "all students matching the filter" box to act '
+    . 'beyond this page. Changes made in the table are saved at the same time.';
+$string['bulkteacher'] = 'Teacher';
+$string['bulkteachermode_add'] = 'Add';
+$string['bulkteachermode_replace'] = 'Replace current referents with';
+$string['bulkteachermode_remove'] = 'Remove';
+$string['bulkallfiltered'] = 'all students matching the filter ({$a})';
+$string['bulkteacherapply'] = 'Apply';
+$string['bulkteachermissing'] = 'Choose the teacher the bulk action applies to. Nothing was saved.';
+
+// Single notifications and conventions pages.
+$string['emailcustomized'] = 'customised';
+$string['conventiontemplateusedby'] = 'Used by {$a} convention request(s): this template cannot be deleted.';
+$string['deleteconventiontemplaterow'] = 'Delete this template';
+$string['newconventiontemplate_hint'] = 'Enter a name and upload the PDF to create a template on save; otherwise '
+    . 'leave these fields empty.';
+
+// StageVet import: student and workplace tutor evaluations, update of existing internships.
+$string['importstagevetevalhelp'] = 'Evaluations: the "Évaluation par le maître de stage" and "Évaluation par '
+    . 'l’étudiant" columns (optional; headers matched regardless of accents, case or apostrophe style) complete '
+    . 'the evaluation of each internship. An internship already present (same student, same theme, overlapping '
+    . 'dates) is not created again: it is updated with these evaluations. An empty cell never deletes an '
+    . 'evaluation already recorded. As soon as both the student and workplace tutor evaluations are available, the '
+    . 'referent teacher receives an email asking them to evaluate the internship. "x/5" ratings are shown as stars.';
+$string['importstagevetupdated'] = '{$a} existing internship(s) updated.';
+$string['importstagevetunchanged'] = '{$a} existing internship(s) with no new information: unchanged.';
+$string['importstagevetevaluations'] = '{$a} evaluation(s) imported.';
+$string['importstagevetnotified'] = '{$a} internship(s) now have both evaluations: the referent teacher has been '
+    . 'asked by email to evaluate.';
+$string['importstagevetnoreferent'] = 'Evaluations complete, but no referent teacher is assigned to: {$a}. '
+    . 'Assign one so the internship can be evaluated.';
+$string['importstageveterrorambiguous'] = 'Line {$a->line} ({$a->student}, {$a->theme}): several recorded '
+    . 'internships match these dates; the line is skipped so as not to update the wrong one.';
+$string['importstagevetevalkept'] = 'Line {$a->line} ({$a->student}): "{$a->evaluation}" already entered in the '
+    . 'activity, kept as is.';
+$string['emailkeyteacherevalrequest'] = 'Evaluation request after evaluations import (to the referent teacher)';
+$string['teacherevalrequestnotifsubject'] = 'Internship to evaluate - {$a}';
+$string['teacherevalrequestnotifbody'] = 'The student and workplace tutor evaluations are available for the '
+    . 'internship of {$a->student} (theme "{$a->theme}", {$a->stage}). Please complete your evaluation: {$a->url}';
+$string['ratingoutoffive'] = 'Rating: {$a}';
+$string['ratingnotprovided'] = 'Not provided';

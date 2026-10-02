@@ -223,11 +223,7 @@ if (!$editable) {
     }
     echo stage_render_report_section($cm, $context, $entry, $theme);
     $answers = stage_get_answers($entry->id);
-    if (!empty($questions)) {
-        echo stage_render_answers_readonly($questions, $answers);
-    } else if ($entry->studentselfeval) {
-        echo html_writer::div(format_text($entry->studentselfeval, FORMAT_HTML));
-    }
+    echo stage_render_evaluation($questions, $answers, $entry->studentselfeval, FORMAT_HTML);
     echo $OUTPUT->footer();
     exit;
 }

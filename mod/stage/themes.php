@@ -15,8 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Gestion des thématiques de stage par la DEVE : ajout, édition, suppression,
- * définition en masse ou unitaire des thématiques obligatoires et de leur durée.
+ * Liste des thématiques de stage pour la DEVE : vue d'ensemble modifiable en masse (années,
+ * caractère obligatoire, rapport...), suppression, et accès à la page unique de gestion de chaque
+ * thématique (theme_edit.php), qui en réunit tous les volets.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -26,9 +27,6 @@
 require(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/stage/lib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
-require_once($CFG->dirroot . '/mod/stage/classes/form/theme_form.php');
-
-use mod_stage\form\theme_form;
 
 $id = required_param('id', PARAM_INT);
 $themeid = optional_param('themeid', 0, PARAM_INT);
@@ -82,16 +80,6 @@ if ($action === 'delete' && $themeid) {
     }
 }
 
-// Bascule rapide obligatoire/facultatif (action unitaire "un par un").
-if ($action === 'togglemandatory' && $themeid) {
-    require_sesskey();
-    $theme = $DB->get_record('stage_theme', ['id' => $themeid, 'stageid' => $stage->id], '*', MUST_EXIST);
-    $theme->mandatory = $theme->mandatory ? 0 : 1;
-    $theme->timemodified = time();
-    $DB->update_record('stage_theme', $theme);
-    redirect($baseurl);
-}
-
 // Bascule rapide activée/désactivée : une thématique désactivée (visible = 0) n'est plus
 // proposée aux étudiants (enregistrement DEVE en masse/unitaire, auto-enregistrement étudiant),
 // mais reste affichée ici et sur les stages déjà enregistrés sur cette thématique.
@@ -109,52 +97,9 @@ if ($action === 'togglevisible' && $themeid) {
     );
 }
 
-// Formulaire d'ajout / édition d'une thématique.
+// L'ancien formulaire d'édition est remplacé par la page unique de gestion de la thématique.
 if ($action === 'edit') {
-    $formurl = new moodle_url('/mod/stage/themes.php', ['id' => $cm->id, 'action' => 'edit', 'themeid' => $themeid]);
-    $mform = new theme_form($formurl);
-    $theme = null;
-    if ($themeid) {
-        $theme = $DB->get_record('stage_theme', ['id' => $themeid, 'stageid' => $stage->id], '*', MUST_EXIST);
-        $theme->themeid = $theme->id;
-        $theme->id = $cm->id;
-        $mform->set_data($theme);
-    } else {
-        $mform->set_data(['id' => $cm->id, 'themeid' => 0]);
-    }
-
-    if ($mform->is_cancelled()) {
-        redirect($baseurl);
-    } else if ($data = $mform->get_data()) {
-        $record = new stdClass();
-        $record->stageid = $stage->id;
-        $record->name = $data->name;
-        $record->description = $data->description;
-        $record->mandatory = !empty($data->mandatory) ? 1 : 0;
-        $record->requiredduration = $data->requiredduration;
-        $record->minstudyyear = $data->minstudyyear;
-        $record->maxstudyyear = $data->maxstudyyear;
-        $record->sortorder = $data->sortorder;
-        $record->visible = !empty($data->visible) ? 1 : 0;
-        $record->tutorevaluationenabled = !empty($data->tutorevaluationenabled) ? 1 : 0;
-        $record->reportmode = (int) $data->reportmode;
-        $record->timemodified = time();
-
-        if (!empty($data->themeid)) {
-            $record->id = $data->themeid;
-            $DB->update_record('stage_theme', $record);
-        } else {
-            $record->timecreated = time();
-            $DB->insert_record('stage_theme', $record);
-        }
-        redirect($baseurl, get_string('themesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
-    }
-
-    echo $OUTPUT->header();
-    echo $OUTPUT->heading(get_string('managethemes', 'mod_stage'));
-    $mform->display();
-    echo $OUTPUT->footer();
-    exit;
+    redirect(new moodle_url('/mod/stage/theme_edit.php', ['id' => $cm->id, 'themeid' => $themeid]));
 }
 
 // Traitement de la mise à jour en masse (obligatoire + durée requise pour chaque thématique).
@@ -185,7 +130,7 @@ echo $OUTPUT->heading(get_string('managethemes', 'mod_stage'));
 echo html_writer::link(new moodle_url('/mod/stage/administration.php', ['id' => $cm->id]), get_string('back'));
 
 echo html_writer::link(
-    new moodle_url('/mod/stage/themes.php', ['id' => $cm->id, 'action' => 'edit']),
+    new moodle_url('/mod/stage/theme_edit.php', ['id' => $cm->id]),
     get_string('addtheme', 'mod_stage'),
     ['class' => 'btn btn-primary d-block mt-2 mb-3', 'style' => 'width:fit-content']
 );
@@ -222,10 +167,15 @@ if (empty($themes)) {
     $table->head[] = get_string('actions', 'mod_stage');
     $reportmodeoptions = stage_report_mode_options();
     foreach ($themes as $theme) {
+        $manageurl = new moodle_url('/mod/stage/theme_edit.php', ['id' => $cm->id, 'themeid' => $theme->id]);
         $mandatorycb = html_writer::checkbox('mandatory_' . $theme->id, 1, (bool) $theme->mandatory, '');
         $durationlabel = !empty($theme->requiredduration)
             ? $theme->requiredduration
-            : html_writer::span(get_string('durationperyear', 'mod_stage'), 'text-muted');
+            : html_writer::link(
+                new moodle_url($manageurl, [], 'id_durationshdr'),
+                get_string('durationperyear', 'mod_stage'),
+                ['class' => 'text-muted']
+            );
         $minstudyyearselect = html_writer::select(
             stage_studyyear_options(),
             'minstudyyear_' . $theme->id,
@@ -264,44 +214,31 @@ if (empty($themes)) {
         );
 
         // Enseignants responsables de la thématique : le nombre actuel plutôt que la liste
-        // complète, qui allongerait démesurément la ligne, et un lien vers la page d'affectation.
-        $themeteachersurl = new moodle_url(
-            '/mod/stage/theme_teachers.php',
-            ['id' => $cm->id, 'themeid' => $theme->id]
-        );
+        // complète, qui allongerait démesurément la ligne, et un lien vers la section d'affectation.
+        $themeteachersurl = new moodle_url($manageurl, [], 'id_teachershdr');
         $themeteachers = html_writer::link(
             $themeteachersurl,
             get_string('themeteacherscount', 'mod_stage', count(stage_get_theme_teachers($theme->id)))
         );
 
-        $editurl = new moodle_url('/mod/stage/themes.php', ['id' => $cm->id, 'action' => 'edit', 'themeid' => $theme->id]);
-        $toggleurl = new moodle_url(
-            '/mod/stage/themes.php',
-            ['id' => $cm->id, 'action' => 'togglemandatory', 'themeid' => $theme->id, 'sesskey' => sesskey()]
-        );
         $deleteurl = new moodle_url(
             '/mod/stage/themes.php',
             ['id' => $cm->id, 'action' => 'delete', 'themeid' => $theme->id, 'sesskey' => sesskey()]
         );
-        $questionsurl = new moodle_url('/mod/stage/questions.php', ['id' => $cm->id, 'themeid' => $theme->id]);
-        $durationsurl = new moodle_url('/mod/stage/theme_durations.php', ['id' => $cm->id, 'themeid' => $theme->id]);
-        $objectivesurl = new moodle_url('/mod/stage/theme_objectives.php', ['id' => $cm->id, 'themeid' => $theme->id]);
 
-        // La suppression est isolée en rouge, à la fin : parmi cinq liens indifférenciés séparés
-        // par des barres verticales, elle était trop facile à cliquer par erreur.
-        $actions = stage_render_actions([
-            get_string('edit') => $editurl,
-            get_string('toggle', 'mod_stage') => $toggleurl,
-            get_string('managethemedurations', 'mod_stage') => $durationsurl,
-            get_string('themeobjectives', 'mod_stage') => $objectivesurl,
-            get_string('evalquestions', 'mod_stage') => $questionsurl,
-        ]) . html_writer::link($deleteurl, get_string('delete'), [
-            'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-            'onclick' => "return confirm('" . get_string('confirmdeletetheme', 'mod_stage') . "');",
-        ]);
+        // Tous les volets de la thématique (paramètres, durées, enseignants, objectifs, questions)
+        // se gèrent depuis une seule page ; la suppression reste isolée en rouge, à la fin.
+        $actions = stage_render_actions(
+            [get_string('managetheme', 'mod_stage') => $manageurl],
+            'btn btn-sm btn-primary mr-1 mb-1'
+        )
+            . html_writer::link($deleteurl, get_string('delete'), [
+                'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
+                'onclick' => "return confirm('" . get_string('confirmdeletetheme', 'mod_stage') . "');",
+            ]);
 
-        $row = [format_string($theme->name), $minstudyyearselect, $maxstudyyearselect, $mandatorycb,
-            $durationlabel, $visible];
+        $row = [html_writer::link($manageurl, format_string($theme->name)), $minstudyyearselect, $maxstudyyearselect,
+            $mandatorycb, $durationlabel, $visible];
         if ($showtutorevalcolumn) {
             $row[] = $tutorevalcb;
         }

@@ -111,11 +111,7 @@ if ($entryid) {
     // des questions existent pour cette thématique, sinon commentaire libre.
     echo $OUTPUT->heading(get_string('studentselfeval', 'mod_stage'), 4);
     $studentquestions = stage_get_questions($entry->themeid, 'student');
-    if (!empty($studentquestions)) {
-        echo stage_render_answers_readonly($studentquestions, stage_get_answers($entry->id));
-    } else {
-        echo html_writer::div(format_text($entry->studentselfeval, FORMAT_HTML));
-    }
+    echo stage_render_evaluation($studentquestions, stage_get_answers($entry->id), $entry->studentselfeval, FORMAT_HTML);
 
     // Rapport de stage déposé par l'étudiant, si la thématique en demande un : l'enseignant
     // référent évalue sur pièces autant que sur l'auto-évaluation.
@@ -123,13 +119,13 @@ if ($entryid) {
 
     // Évaluation du maître de stage, si l'option est activée : mêmes modalités que
     // l'auto-évaluation de l'étudiant, affichée en lecture seule.
-    if (stage_tutor_evaluation_enabled($stage, $theme)) {
+    // Une évaluation du maître de stage importée (StageVet) s'affiche même si l'activité ne
+    // sollicite pas elle-même les maîtres de stage.
+    if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tutoreval) !== '') {
         echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
         $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
-        if (!empty($tutorquestions) && $entry->tutortime) {
-            echo stage_render_answers_readonly($tutorquestions, stage_get_answers($entry->id));
-        } else if ($entry->tutoreval) {
-            echo html_writer::div(format_text($entry->tutoreval, FORMAT_PLAIN));
+        if ($entry->tutortime || trim((string) $entry->tutoreval) !== '') {
+            echo stage_render_evaluation($tutorquestions, stage_get_answers($entry->id), $entry->tutoreval);
         } else {
             echo $OUTPUT->notification(get_string('notutoreval', 'mod_stage'), 'info');
         }
