@@ -1311,6 +1311,19 @@ function stage_add_period_fields(\moodleform $form, $mform, $initialcount = 1) {
         true,
         'perioddelete'
     );
+
+    // Un stage garde au moins une plage : la dernière restante n'a pas de bouton « Supprimer »,
+    // sans quoi le formulaire serait refusé sans ligne où afficher l'erreur.
+    $remaining = [];
+    $repeats = (int) $form->optional_param('periodrepeats', max((int) $initialcount, 1), PARAM_INT);
+    for ($i = 0; $i < $repeats + 1; $i++) {
+        if ($mform->elementExists("perioddatestart[$i]")) {
+            $remaining[] = $i;
+        }
+    }
+    if (count($remaining) === 1 && $mform->elementExists('perioddelete[' . $remaining[0] . ']')) {
+        $mform->removeElement('perioddelete[' . $remaining[0] . ']');
+    }
 }
 
 /**

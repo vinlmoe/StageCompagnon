@@ -135,13 +135,17 @@ if ($data = $mform->get_data()) {
             'evaltype' => $list->evaltype,
             'qtype' => $qtype,
             'name' => $name,
-            'nameen' => $data->questionnameen[$i] ?? null,
             'options' => $qtype === 'choice' ? ($data->questionoptions[$i] ?? null) : null,
-            'optionsen' => $qtype === 'choice' ? ($data->questionoptionsen[$i] ?? null) : null,
             'required' => !empty($data->questionrequired[$i]) ? 1 : 0,
             'sortorder' => (int) ($data->questionsortorder[$i] ?? 0),
             'timemodified' => $now,
         ];
+        // Version anglaise : propre aux questions du maître de stage, seules à en afficher les
+        // champs ; ailleurs, elle n'est pas touchée.
+        if ($list->evaltype === 'tutor') {
+            $question->nameen = $data->questionnameen[$i] ?? null;
+            $question->optionsen = $qtype === 'choice' ? ($data->questionoptionsen[$i] ?? null) : null;
+        }
         if ($questionid && isset($existing[$questionid])) {
             if ($delete) {
                 // Retirée de cette liste seulement : partagée, elle survit dans les autres ;
