@@ -70,13 +70,23 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
     if (!$pending || empty($pending['records'])) {
         $error = get_string('globalimportexpired', 'mod_stage');
     } else {
-        $restoredcount = global_export_importer::restore($stage->id, $pending['records']);
-        redirect(
-            $backurl,
-            get_string('globalimportdone', 'mod_stage', $restoredcount),
-            null,
-            \core\output\notification::NOTIFY_SUCCESS
-        );
+        // Doublon probable d'un stage déjà enregistré : restauré seulement si la DEVE l'a coché.
+        $forced = optional_param_array('forceimport', [], PARAM_INT);
+        $records = [];
+        $skipped = 0;
+        foreach ($pending['records'] as $index => $record) {
+            if (!empty($record['probableduplicates']) && empty($forced[$index])) {
+                $skipped++;
+                continue;
+            }
+            $records[] = $record;
+        }
+        $restoredcount = $records ? global_export_importer::restore($stage->id, $records) : 0;
+        $message = get_string('globalimportdone', 'mod_stage', $restoredcount);
+        if ($skipped) {
+            $message .= ' ' . get_string('historicalimportduplicatesskipped', 'mod_stage', $skipped);
+        }
+        redirect($backurl, $message, null, \core\output\notification::NOTIFY_SUCCESS);
     }
 }
 
@@ -92,6 +102,7 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
             foreach (stage_get_enrolled_students($context) as $student) {
                 $students[$normal($student->email)] = $student;
             }
+            $allthemes = stage_get_themes($stage->id);
             $themes = [];
             foreach (stage_get_themes($stage->id, true) as $theme) {
                 $themes[$normal($theme->name)] = $theme;
@@ -189,8 +200,23 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                 foreach ($detailfields as $field) {
                     $detail[$field] = $raw->$field ?? '';
                 }
+                // Stage déjà enregistré qui pourrait être le même sous une autre forme (autre
+                // thématique aux mêmes dates, stage sans dates d'un suivi historique) : signalé, et
+                // restauré seulement sur demande expresse.
+                $probables = stage_find_probable_duplicate_entries(
+                    $stage->id,
+                    $student->id,
+                    $theme->id,
+                    $raw->datestart ?: null,
+                    $raw->dateend ?: null,
+                    $studyyear
+                );
                 $records[] = ['entry' => $entry, 'detail' => $detail, 'student' => fullname($student),
-                    'theme' => format_string($theme->name)];
+                    'theme' => format_string($theme->name),
+                    'probableduplicates' => array_values(array_map(
+                        fn($existing) => stage_entry_short_description($existing, $allthemes),
+                        $probables
+                    ))];
             }
             $preview = $records;
             $SESSION->stage_global_import[$stage->id] = ['records' => $records];
@@ -217,19 +243,41 @@ if ($warnings) {
 if ($preview !== null) {
     echo $OUTPUT->heading(get_string('globalimportpreview', 'mod_stage', count($preview)), 4);
     if ($preview) {
-        $table = new html_table();
-        $table->head = [get_string('student', 'mod_stage'), get_string('theme', 'mod_stage'),
-            get_string('datestart', 'mod_stage'), get_string('status', 'mod_stage')];
-        foreach ($preview as $item) {
-            $entry = (object) $item['entry'];
-            $table->data[] = [s($item['student']), s($item['theme']),
-                $entry->datestart ? userdate($entry->datestart, get_string('strftimedateshort')) : '-',
-                stage_status_label($entry->status)];
+        $duplicatecount = count(array_filter($preview, fn($item) => !empty($item['probableduplicates'])));
+        if ($duplicatecount) {
+            echo $OUTPUT->notification(
+                get_string('historicalimportduplicateswarning', 'mod_stage', $duplicatecount),
+                \core\output\notification::NOTIFY_WARNING
+            );
         }
-        echo html_writer::table($table);
         echo html_writer::start_tag('form', ['method' => 'post', 'action' => $url]);
         echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
         echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'confirmimport', 'value' => 1]);
+        $table = new html_table();
+        $table->head = [get_string('student', 'mod_stage'), get_string('theme', 'mod_stage'),
+            get_string('datestart', 'mod_stage'), get_string('status', 'mod_stage'),
+            get_string('historicalimportduplicatecolumn', 'mod_stage')];
+        foreach ($preview as $index => $item) {
+            $entry = (object) $item['entry'];
+            $duplicatecell = '';
+            if (!empty($item['probableduplicates'])) {
+                $duplicatecell = html_writer::span(
+                    get_string('historicalimportprobableduplicate', 'mod_stage'),
+                    'badge badge-warning'
+                )
+                    . html_writer::alist(array_map('s', $item['probableduplicates']), ['class' => 'small mb-1'])
+                    . html_writer::checkbox(
+                        'forceimport[' . $index . ']',
+                        1,
+                        false,
+                        ' ' . get_string('historicalimportforce', 'mod_stage')
+                    );
+            }
+            $table->data[] = [s($item['student']), s($item['theme']),
+                $entry->datestart ? userdate($entry->datestart, get_string('strftimedateshort')) : '-',
+                stage_status_label($entry->status), $duplicatecell];
+        }
+        echo html_writer::table($table);
         echo html_writer::tag(
             'button',
             get_string('globalimportconfirm', 'mod_stage'),

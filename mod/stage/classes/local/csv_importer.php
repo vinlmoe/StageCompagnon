@@ -241,13 +241,19 @@ class csv_importer {
      *        l'étudiant inscrit désigné par la DEVE. Dès que cette table n'est pas vide, seules
      *        les lignes qu'elle rattache sont importées : les autres l'ont déjà été à la
      *        première passe et ne seraient plus vues que comme des doublons.
+     * @param array $duplicateresolutions Numéro de ligne => décision de la DEVE pour une ligne qui
+     *        ressemblait à un stage déjà enregistré (voir $results->probableduplicates) : 'new'
+     *        pour créer le stage malgré tout, 'skip' pour ne pas l'importer, ou l'identifiant du
+     *        stage existant auquel rattacher la ligne. Dès que cette table n'est pas vide, seules
+     *        ses lignes sont traitées ($studentresolutions sert alors à retrouver leur étudiant).
      * @return array Résultats par ligne et erreur de lecture éventuelle.
      */
     public static function stagevet(
         \stdClass $stage,
         \context $context,
         string $content,
-        array $studentresolutions = []
+        array $studentresolutions = [],
+        array $duplicateresolutions = []
     ): array {
         global $CFG, $DB;
         require_once($CFG->libdir . '/csvlib.class.php');
@@ -382,14 +388,20 @@ class csv_importer {
                     'unchanged' => 0,
                     'evaluations' => 0,
                     'notified' => 0,
+                    'notifyskipped' => 0,
                     'noreferent' => [],
+                    'probableduplicates' => [],
                     'unknownstudents' => [],
                     'unknownthemes' => [],
                     'errors' => [],
                 ];
                 // Seconde passe : la DEVE a rattaché des libellés à des inscrits. Les lignes que
                 // le fichier suffit à rapprocher ont déjà été importées à la première passe.
-                $resolvedonly = $studentresolutions !== [];
+                // Troisième passe éventuelle : la DEVE a tranché pour les lignes qui ressemblaient à
+                // un stage déjà enregistré ; seules ces lignes sont reprises.
+                $duplicatesonly = $duplicateresolutions !== [];
+                $resolvedonly = !$duplicatesonly && $studentresolutions !== [];
+                $allthemes = stage_get_themes($stage->id);
                 $entryrecords = [];
                 $detailbyrowkey = [];
                 $studentbyrowkey = [];
@@ -423,6 +435,9 @@ class csv_importer {
                     // ou être signalée : une ligne écartée en silence ferait annoncer un import
                     // réussi alors que des stages n'ont pas été créés.
                     if (trim(implode('', array_map('strval', $row))) === '') {
+                        continue;
+                    }
+                    if ($duplicatesonly && !array_key_exists($linenum, $duplicateresolutions)) {
                         continue;
                     }
 
@@ -522,6 +537,41 @@ class csv_importer {
                             'line' => $linenum, 'student' => fullname($student), 'theme' => $themename,
                         ]);
                         continue;
+                    }
+                    // Aucun stage de cette thématique ne correspond, mais un stage du même étudiant
+                    // (autre thématique aux dates qui se recoupent, ou stage sans dates, comme
+                    // ceux d'un ancien suivi) pourrait être le même : la DEVE décide, plutôt
+                    // qu'un second exemplaire soit créé en silence.
+                    if (!$matches) {
+                        $probables = stage_find_probable_duplicate_entries(
+                            $stage->id,
+                            $student->id,
+                            $theme->id,
+                            $start,
+                            $end,
+                            self::parse_studyyear($getcol($row, 'studentyear', 'studyyear'))
+                        );
+                        $decision = $duplicateresolutions[$linenum] ?? null;
+                        if ($probables && $decision === null) {
+                            $results->probableduplicates[$linenum] = (object) [
+                                'line' => $linenum,
+                                'student' => fullname($student),
+                                'theme' => $themename,
+                                'start' => $start,
+                                'end' => $end,
+                                'candidates' => array_map(
+                                    fn($entry) => stage_entry_short_description($entry, $allthemes),
+                                    $probables
+                                ),
+                            ];
+                            continue;
+                        }
+                        if ($probables && $decision === 'skip') {
+                            continue;
+                        }
+                        if ($probables && isset($probables[(int) $decision])) {
+                            $matches = [$probables[(int) $decision]];
+                        }
                     }
                     if ($matches) {
                         $existing = reset($matches);
@@ -668,6 +718,12 @@ class csv_importer {
                     $cm = get_coursemodule_from_id('stage', $context->instanceid, 0, false, MUST_EXIST);
                     foreach ($torequest as $entryid => $student) {
                         $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
+                        // Le même stage est déjà validé sous une autre forme (suivi historique,
+                        // autre thématique) : rien à demander à l'enseignant.
+                        if (stage_has_validated_probable_duplicate($entry)) {
+                            $results->notifyskipped++;
+                            continue;
+                        }
                         if (stage_notify_teachers_eval_request($stage, $cm, $entry, $student)) {
                             $results->notified++;
                         } else {

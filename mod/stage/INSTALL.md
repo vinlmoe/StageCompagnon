@@ -225,6 +225,27 @@ accents, de la casse, du type d'apostrophe ni du BOM, et des variantes comme
   absence de note, distincte de `0/5`. Les commentaires sont affichés en texte
   échappé, retours à la ligne conservés.
 
+#### Doublons entre imports
+
+Les trois imports qui créent des stages (export StageVet, ancien suivi Excel,
+restauration d'un export global) vérifient avant de créer un stage que
+l'étudiant n'en a pas déjà un qui pourrait être le même : dates qui se
+recoupent, **quelle que soit la thématique** (les sources ne nomment pas les
+thématiques de la même façon), ou, si l'un des deux n'a pas de dates, même
+thématique et même année d'étude.
+
+- **Import StageVet** : la ligne n'est pas créée. Une étape supplémentaire
+  propose, pour chacune, de la **rattacher** au stage existant (ses évaluations
+  y sont reportées, sans toucher à sa validation ni à sa durée retenue), de
+  **créer** malgré tout un nouveau stage, ou de **ne pas l'importer**.
+- **Ancien suivi Excel** et **restauration d'un export global** : la
+  prévisualisation signale ces lignes (« Doublon probable »), qui ne sont
+  importées que si « Importer quand même » est coché.
+- Aucune demande d'évaluation n'est envoyée à l'enseignant pour un stage dont
+  l'étudiant a déjà un stage validé qui désigne probablement le même.
+
+Aucun de ces imports ne modifie la validation d'un stage existant.
+
 ### Import de l'ancien suivi Excel
 
 La page **Importer un ancien suivi Excel** reprend les stages validés des
@@ -549,6 +570,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `admin_forms_test.php` | Pages des conventions et des notifications : formulaire des conventions sans les gabarits, PDF exigé à la création d'un gabarit seulement, une section par e-mail. |
 | `stagevet_evaluations_test.php` | Import StageVet des évaluations : export actuel à 60 colonnes (BOM, cellules multilignes, guillemets), mise à jour d'un stage existant sans doublon ni effacement, évaluation saisie dans l'activité conservée, en-têtes tolérants, courriel unique à l'enseignant référent, notes en étoiles (item nouveau, zéro distinct de « Non renseigné »). |
 | `evallists_test.php` | Listes d'évaluation : questions d'une thématique tirées de la liste choisie pour chaque formulaire, question partagée entre listes conservée à son retrait, question isolée supprimée avec ses réponses, suppression d'une liste. Copie des listes avec les thématiques importées d'un autre cours. |
+| `import_duplicates_test.php` | Doublons entre imports : stage historique sans dates ou d'une autre thématique signalé au lieu d'être doublé, rattachement sans toucher à la validation, création ou abandon sur décision de la DEVE, pas de demande d'évaluation pour un stage déjà validé, règles de rapprochement. |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :

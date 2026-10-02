@@ -980,3 +980,25 @@ $string['conventiontemplatenofile'] = 'No PDF';
 $string['periodremove'] = 'Remove this period';
 $string['evallistnew'] = 'New list';
 $string['evallistfortheme'] = 'When saved, this list will be chosen for the theme "{$a}".';
+
+// Probable duplicates between imports (StageVet, historical tracking).
+$string['importstagevetnotifyskipped'] = '{$a} internship(s) with complete evaluations did not trigger an evaluation '
+    . 'request: the student already has a validated internship that is probably the same one.';
+$string['importstagevetduplicatesreport'] = '{$a} line(s) look like an internship already recorded';
+$string['importstagevetduplicates_help'] = 'No internship of the same theme matches these lines, but the student '
+    . 'already has an internship that could be the same one: overlapping dates under another theme, or an '
+    . 'internship without dates (for instance taken from an old tracking file). For each line, attach it to that '
+    . 'internship (its evaluations are added, its validation untouched), create a new internship, or do not import '
+    . 'it. The file does not need to be uploaded again.';
+$string['importstagevetduplicatefile'] = 'Internship in the export';
+$string['importstagevetduplicatedecision'] = 'Decision';
+$string['importstagevetduplicateattach'] = 'Attach to: {$a}';
+$string['importstagevetduplicatenew'] = 'Create a new internship';
+$string['importstagevetduplicateapply'] = 'Apply these decisions';
+$string['historicalimportduplicatecolumn'] = 'Probable duplicate';
+$string['historicalimportprobableduplicate'] = 'Probable duplicate of:';
+$string['historicalimportforce'] = 'Import anyway';
+$string['historicalimportduplicateswarning'] = '{$a} line(s) look like an internship already recorded (same dates, '
+    . 'or same theme without dates). They will only be imported if you tick "Import anyway".';
+$string['historicalimportduplicatesskipped'] = '{$a} probable duplicate(s) not imported.';
+$string['exportratingoutoffive'] = 'Rating (out of 5)';

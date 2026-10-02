@@ -92,6 +92,9 @@ if (optional_param('resolvestudents', 0, PARAM_INT) && confirm_sesskey()) {
             }
         }
 
+        // Les rattachements sont conservés : une ligne rattachée ici peut encore ressembler à un
+        // stage déjà enregistré, et l'étape suivante devra retrouver son étudiant.
+        $SESSION->stage_stagevet_import[$stage->id]['studentresolutions'] = $resolutions;
         if (!$resolutions) {
             // Aucun choix fait : le formulaire est réaffiché tel quel plutôt que de rejouer
             // l'import pour rien.
@@ -113,6 +116,29 @@ if (optional_param('resolvestudents', 0, PARAM_INT) && confirm_sesskey()) {
             $uploaderror = $import['error'];
         }
     }
+} else if (optional_param('resolveduplicates', 0, PARAM_INT) && confirm_sesskey()) {
+    // Lignes qui ressemblaient à un stage déjà enregistré : la DEVE a choisi, pour chacune, de la
+    // rattacher à ce stage, de créer un nouveau stage ou de ne pas l'importer.
+    $pending = $SESSION->stage_stagevet_import[$stage->id] ?? null;
+    if (empty($pending['content'])) {
+        $uploaderror = get_string('importstagevetexpired', 'mod_stage');
+    } else {
+        $decisions = [];
+        foreach (optional_param_array('duplicatedecision', [], PARAM_ALPHANUMEXT) as $line => $decision) {
+            if ($decision === 'new' || $decision === 'skip' || ctype_digit((string) $decision)) {
+                $decisions[(int) $line] = $decision;
+            }
+        }
+        $import = \mod_stage\local\csv_importer::stagevet(
+            $stage,
+            $context,
+            $pending['content'],
+            $pending['studentresolutions'] ?? [],
+            $decisions ?: [0 => 'skip']
+        );
+        $results = $import['results'];
+        $uploaderror = $import['error'];
+    }
 } else if (data_submitted() && optional_param('importfile', 0, PARAM_INT) && confirm_sesskey()) {
     unset($SESSION->stage_stagevet_import[$stage->id]);
     $upload = $_FILES['csvfile'] ?? null;
@@ -127,7 +153,7 @@ if (optional_param('resolvestudents', 0, PARAM_INT) && confirm_sesskey()) {
 
         // Le contenu n'est mis de côté que s'il reste des lignes à arbitrer, et seulement le
         // temps de ce rattachement.
-        if ($results && !empty($results->unknownstudents)) {
+        if ($results && (!empty($results->unknownstudents) || !empty($results->probableduplicates))) {
             $SESSION->stage_stagevet_import[$stage->id] = ['content' => $content];
         }
     }
@@ -138,7 +164,7 @@ if (optional_param('resolvestudents', 0, PARAM_INT) && confirm_sesskey()) {
 if ($results !== null) {
     if (!empty($results->unknownstudents) && !empty($SESSION->stage_stagevet_import[$stage->id]['content'])) {
         $SESSION->stage_stagevet_import[$stage->id]['unknownstudents'] = $results->unknownstudents;
-    } else if (empty($results->unknownstudents)) {
+    } else if (empty($results->unknownstudents) && empty($results->probableduplicates)) {
         unset($SESSION->stage_stagevet_import[$stage->id]);
     }
 }
@@ -153,7 +179,7 @@ if ($uploaderror !== null) {
 
 if ($results) {
     $summary = [get_string('importresult', 'mod_stage', $results->created)];
-    foreach (['updated', 'unchanged', 'evaluations', 'notified'] as $counter) {
+    foreach (['updated', 'unchanged', 'evaluations', 'notified', 'notifyskipped'] as $counter) {
         if (!empty($results->$counter)) {
             $summary[] = get_string('importstagevet' . $counter, 'mod_stage', $results->$counter);
         }
@@ -234,6 +260,57 @@ if ($results) {
             );
             echo html_writer::end_tag('form');
         }
+    }
+
+    if (!empty($results->probableduplicates) && !empty($SESSION->stage_stagevet_import[$stage->id]['content'])) {
+        echo $OUTPUT->heading(get_string(
+            'importstagevetduplicatesreport',
+            'mod_stage',
+            count($results->probableduplicates)
+        ), 4);
+        echo $OUTPUT->box(get_string('importstagevetduplicates_help', 'mod_stage'), 'generalbox mb-3');
+        echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl]);
+        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'resolveduplicates', 'value' => 1]);
+        $duptable = new html_table();
+        $duptable->head = [
+            get_string('importstagevetresolvelines', 'mod_stage'),
+            get_string('importstagevetresolvelabel', 'mod_stage'),
+            get_string('importstagevetduplicatefile', 'mod_stage'),
+            get_string('importstagevetduplicatedecision', 'mod_stage'),
+        ];
+        $dateformat = get_string('strftimedateshort', 'langconfig');
+        foreach ($results->probableduplicates as $line => $duplicate) {
+            // Par défaut, le rattachement au premier stage approchant : c'est le plus probable.
+            $options = [];
+            foreach ($duplicate->candidates as $entryid => $description) {
+                $options[$entryid] = get_string('importstagevetduplicateattach', 'mod_stage', $description);
+            }
+            $options['new'] = get_string('importstagevetduplicatenew', 'mod_stage');
+            $options['skip'] = get_string('importstagevetresolveskip', 'mod_stage');
+            $duptable->data[] = [
+                $line,
+                s($duplicate->student),
+                s($duplicate->theme) . html_writer::empty_tag('br') . html_writer::span(
+                    userdate($duplicate->start, $dateformat) . ' - ' . userdate($duplicate->end, $dateformat),
+                    'text-muted'
+                ),
+                html_writer::select(
+                    $options,
+                    'duplicatedecision[' . $line . ']',
+                    array_key_first($duplicate->candidates),
+                    false,
+                    ['class' => 'form-control']
+                ),
+            ];
+        }
+        echo html_writer::table($duptable);
+        echo html_writer::tag(
+            'button',
+            get_string('importstagevetduplicateapply', 'mod_stage'),
+            ['type' => 'submit', 'class' => 'btn btn-primary']
+        );
+        echo html_writer::end_tag('form');
     }
 
     if (!empty($results->unknownthemes)) {
