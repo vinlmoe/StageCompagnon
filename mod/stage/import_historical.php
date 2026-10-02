@@ -68,6 +68,7 @@ $resolvepreview = function (
     $stage,
     $DB
 ) {
+    $allthemes = stage_get_themes($stage->id);
     $resolvedwarnings = $basewarnings;
     $studentsbyemail = [];
     foreach (stage_get_enrolled_students($context) as $student) {
@@ -128,6 +129,21 @@ $resolvepreview = function (
         $seen[$fingerprint] = true;
         $record->userid = $student->id;
         $record->themeid = $theme->id;
+        // Stage déjà enregistré qui pourrait être le même (importé de StageVet, ou saisi sous une
+        // autre thématique aux mêmes dates) : la ligne est signalée et n'est importée que si la
+        // DEVE le demande expressément.
+        $probables = stage_find_probable_duplicate_entries(
+            $stage->id,
+            $student->id,
+            $theme->id,
+            $record->datestart ?: null,
+            $record->dateend ?: null,
+            $record->studyyear
+        );
+        $record->probableduplicates = array_values(array_map(
+            fn($entry) => stage_entry_short_description($entry, $allthemes),
+            $probables
+        ));
         $teacher = $record->teachername !== ''
             ? ($teachersbyname[stage_normalize_name($record->teachername)] ?? null) : null;
         $record->teacherid = $teacher ? $teacher->id : 0;
@@ -154,8 +170,15 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
     } else {
         $transaction = $DB->start_delegated_transaction();
         $created = 0;
-        foreach ($pending['records'] as $candidate) {
+        $skipped = 0;
+        $forced = optional_param_array('forceimport', [], PARAM_INT);
+        foreach ($pending['records'] as $index => $candidate) {
             $candidate = (object) $candidate;
+            // Doublon probable d'un stage déjà enregistré : importé seulement si la DEVE l'a coché.
+            if (!empty($candidate->probableduplicates) && empty($forced[$index])) {
+                $skipped++;
+                continue;
+            }
             $entryid = stage_register_entry(
                 $stage->id,
                 $candidate->userid,
@@ -186,12 +209,11 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
             $created++;
         }
         $transaction->allow_commit();
-        redirect(
-            $backurl,
-            get_string('historicalimportdone', 'mod_stage', $created),
-            null,
-            \core\output\notification::NOTIFY_SUCCESS
-        );
+        $message = get_string('historicalimportdone', 'mod_stage', $created);
+        if ($skipped) {
+            $message .= ' ' . get_string('historicalimportduplicatesskipped', 'mod_stage', $skipped);
+        }
+        redirect($backurl, $message, null, \core\output\notification::NOTIFY_SUCCESS);
     }
 }
 
@@ -301,25 +323,49 @@ if ($unmatchedthemes) {
 if ($preview !== null) {
     echo $OUTPUT->heading(get_string('historicalimportpreview', 'mod_stage', count($preview)), 4);
     if ($preview) {
-        $table = new html_table();
-        $table->head = [get_string('student', 'mod_stage'), get_string('theme', 'mod_stage'),
-            get_string('studyyear', 'mod_stage'), get_string('structure', 'mod_stage'),
-            get_string('retainedduration', 'mod_stage'), get_string('conventionstagetype', 'mod_stage')];
-        foreach ($preview as $record) {
-            $dates = ($record->datestart && $record->dateend)
-                ? userdate($record->datestart, get_string('strftimedateshort')) . ' – '
-                    . userdate($record->dateend, get_string('strftimedateshort'))
-                : get_string('historicalimportnodates', 'mod_stage');
-            $table->data[] = [s($record->studentlabel), s($record->themelabel),
-                stage_studyyear_label($record->studyyear), s($record->structure) . html_writer::empty_tag('br')
-                    . html_writer::span($dates, 'text-muted'), $record->duration,
-                get_string('conventionstagetype_' . $record->stagetype, 'mod_stage')];
+        $duplicatecount = count(array_filter($preview, fn($record) => !empty($record->probableduplicates)));
+        if ($duplicatecount) {
+            echo $OUTPUT->notification(
+                get_string('historicalimportduplicateswarning', 'mod_stage', $duplicatecount),
+                \core\output\notification::NOTIFY_WARNING
+            );
         }
-        echo html_writer::table($table);
         if (!$unmatchedthemes) {
             echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl]);
             echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
             echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'confirmimport', 'value' => 1]);
+        }
+        $table = new html_table();
+        $table->head = [get_string('student', 'mod_stage'), get_string('theme', 'mod_stage'),
+            get_string('studyyear', 'mod_stage'), get_string('structure', 'mod_stage'),
+            get_string('retainedduration', 'mod_stage'), get_string('conventionstagetype', 'mod_stage'),
+            get_string('historicalimportduplicatecolumn', 'mod_stage')];
+        foreach ($preview as $index => $record) {
+            $dates = ($record->datestart && $record->dateend)
+                ? userdate($record->datestart, get_string('strftimedateshort')) . ' – '
+                    . userdate($record->dateend, get_string('strftimedateshort'))
+                : get_string('historicalimportnodates', 'mod_stage');
+            $duplicatecell = '';
+            if (!empty($record->probableduplicates)) {
+                $duplicatecell = html_writer::span(
+                    get_string('historicalimportprobableduplicate', 'mod_stage'),
+                    'badge badge-warning'
+                )
+                    . html_writer::alist(array_map('s', $record->probableduplicates), ['class' => 'small mb-1'])
+                    . ($unmatchedthemes ? '' : html_writer::checkbox(
+                        'forceimport[' . $index . ']',
+                        1,
+                        false,
+                        ' ' . get_string('historicalimportforce', 'mod_stage')
+                    ));
+            }
+            $table->data[] = [s($record->studentlabel), s($record->themelabel),
+                stage_studyyear_label($record->studyyear), s($record->structure) . html_writer::empty_tag('br')
+                    . html_writer::span($dates, 'text-muted'), $record->duration,
+                get_string('conventionstagetype_' . $record->stagetype, 'mod_stage'), $duplicatecell];
+        }
+        echo html_writer::table($table);
+        if (!$unmatchedthemes) {
             echo html_writer::tag(
                 'button',
                 get_string('historicalimportconfirm', 'mod_stage'),

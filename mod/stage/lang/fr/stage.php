@@ -1003,3 +1003,24 @@ $string['conventiontemplatenofile'] = 'Aucun PDF';
 $string['periodremove'] = 'Supprimer cette plage';
 $string['evallistnew'] = 'Nouvelle liste';
 $string['evallistfortheme'] = 'À son enregistrement, cette liste sera choisie pour la thématique « {$a} ».';
+
+// Doublons probables entre imports (StageVet, suivi historique).
+$string['importstagevetnotifyskipped'] = "{\$a} stage(s) aux évaluations complètes n'ont pas donné lieu à une "
+    . "demande d'évaluation : l'étudiant a déjà un stage validé qui désigne probablement le même.";
+$string['importstagevetduplicatesreport'] = '{$a} ligne(s) ressemblent à un stage déjà enregistré';
+$string['importstagevetduplicates_help'] = "Aucun stage de la même thématique ne correspond à ces lignes, mais "
+    . "l'étudiant a déjà un stage qui pourrait être le même : dates qui se recoupent sous une autre thématique, "
+    . "ou stage sans dates (par exemple repris d'un ancien suivi). Pour chaque ligne, rattachez-la à ce stage "
+    . "(ses évaluations y sont reportées, sans toucher à sa validation), créez un nouveau stage, ou ne l'importez "
+    . "pas. Le fichier n'a pas besoin d'être téléversé à nouveau.";
+$string['importstagevetduplicatefile'] = "Stage dans l'export";
+$string['importstagevetduplicatedecision'] = 'Décision';
+$string['importstagevetduplicateattach'] = 'Rattacher à : {$a}';
+$string['importstagevetduplicatenew'] = 'Créer un nouveau stage';
+$string['importstagevetduplicateapply'] = 'Appliquer ces décisions';
+$string['historicalimportduplicatecolumn'] = 'Doublon probable';
+$string['historicalimportprobableduplicate'] = 'Doublon probable de :';
+$string['historicalimportforce'] = 'Importer quand même';
+$string['historicalimportduplicateswarning'] = "{\$a} ligne(s) ressemblent à un stage déjà enregistré (mêmes dates, "
+    . "ou même thématique sans dates). Elles ne seront importées que si vous cochez « Importer quand même ».";
+$string['historicalimportduplicatesskipped'] = '{$a} doublon(s) probable(s) non importé(s).';

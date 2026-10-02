@@ -201,7 +201,10 @@ class global_export_importer {
         foreach ($headers as $column => $header) {
             $normalized = self::normalize((string) $header);
             foreach ($aliases as $field => $names) {
-                if (in_array($normalized, $names, true)) {
+                // La première colonne reconnue l'emporte : un intitulé générique plus loin dans la
+                // feuille (le « Courriel » du maître de stage, par exemple) ne doit pas remplacer
+                // la colonne principale du même nom.
+                if (!isset($result[$field]) && in_array($normalized, $names, true)) {
                     $result[$field] = $column;
                 }
             }

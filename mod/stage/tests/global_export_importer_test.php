@@ -70,6 +70,35 @@ final class global_export_importer_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : dans l'export anglais, la colonne « Email » du maître de stage, placée après
+     * l'adresse de l'étudiant, prenait sa place ; toutes les lignes étaient alors ignorées.
+     */
+    public function test_first_matching_column_wins(): void {
+        $path = $this->workbook([
+            ['Internship ID', 'Student', 'Email address', 'Theme', 'Workplace tutor', 'Email'],
+            [7, 'Zoé Dupont', 'student@example.com', 'Clinic', 'Dr X', ''],
+        ]);
+        $result = global_export_importer::read($path);
+        $this->assertCount(1, $result['records']);
+        $this->assertSame('student@example.com', $result['records'][0]->email);
+    }
+
+    /**
+     * Régression : l'export global écrivait une colonne de courriel vide, ce qui rendait sa
+     * restauration impossible (les étudiants y sont retrouvés par leur courriel).
+     *
+     * @covers ::stage_get_entry_users
+     */
+    public function test_entry_users_include_email(): void {
+        global $CFG;
+        require_once($CFG->dirroot . '/mod/stage/locallib.php');
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user(['email' => 'zoe@example.com']);
+        $users = stage_get_entry_users([(object) ['userid' => $user->id]]);
+        $this->assertSame('zoe@example.com', $users[$user->id]->email);
+    }
+
+    /**
      * Les colonnes anglaises réordonnées et les dates textuelles sont reconnues.
      */
     public function test_reads_reordered_english_headers_and_text_dates(): void {

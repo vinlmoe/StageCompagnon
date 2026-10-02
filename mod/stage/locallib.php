@@ -1988,6 +1988,97 @@ function stage_parse_evaluation_text($text) {
 }
 
 /**
+ * Stages déjà enregistrés qui pourraient désigner le même stage qu'une saisie importée, afin
+ * qu'un import (StageVet, suivi historique) ne crée pas en silence un second exemplaire d'un stage
+ * déjà présent sous une autre forme. Pour le même étudiant :
+ * - un stage dont les dates recoupent celles de la saisie, quelle que soit sa thématique (les deux
+ *   sources ne nomment pas les thématiques de la même façon) ;
+ * - si l'un des deux n'a pas de dates : un stage de la même thématique, de la même année d'étude
+ *   lorsque les deux la connaissent.
+ * Les stages annulés ne sont pas retenus.
+ *
+ * @param int $stageid
+ * @param int $userid
+ * @param int $themeid
+ * @param int|null $start
+ * @param int|null $end
+ * @param int $studyyear 0 si inconnue.
+ * @return array id => stage_entry
+ */
+function stage_find_probable_duplicate_entries($stageid, $userid, $themeid, $start, $end, $studyyear = 0) {
+    global $DB;
+
+    $found = [];
+    $entries = $DB->get_records('stage_entry', ['stageid' => $stageid, 'userid' => $userid], 'datestart, id');
+    foreach ($entries as $entry) {
+        if ((int) $entry->status === STAGE_STATUS_ANNULE) {
+            continue;
+        }
+        $dated = !empty($entry->datestart) && !empty($entry->dateend);
+        if ($dated && !empty($start) && !empty($end)) {
+            if ($entry->datestart <= $end && $entry->dateend >= $start) {
+                $found[$entry->id] = $entry;
+            }
+        } else if ((int) $entry->themeid === (int) $themeid) {
+            if (empty($studyyear) || empty($entry->studyyear) || (int) $entry->studyyear === (int) $studyyear) {
+                $found[$entry->id] = $entry;
+            }
+        }
+    }
+    return $found;
+}
+
+/**
+ * Indique si l'étudiant d'un stage en a déjà un autre, validé par la DEVE, qui désigne
+ * probablement le même stage (voir stage_find_probable_duplicate_entries()) : il n'y a alors pas
+ * lieu de demander à l'enseignant référent d'évaluer celui-ci.
+ *
+ * @param stdClass $entry
+ * @return bool
+ */
+function stage_has_validated_probable_duplicate(stdClass $entry) {
+    $others = stage_find_probable_duplicate_entries(
+        $entry->stageid,
+        $entry->userid,
+        $entry->themeid,
+        $entry->datestart ?? null,
+        $entry->dateend ?? null,
+        $entry->studyyear ?? 0
+    );
+    unset($others[$entry->id]);
+    foreach ($others as $other) {
+        if ((int) $other->status === STAGE_STATUS_VALIDE_DEVE) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Description courte d'un stage existant, pour le désigner dans un rapport d'import : thématique,
+ * dates (ou leur absence), structure et statut.
+ *
+ * @param stdClass $entry
+ * @param array $themes id => stage_theme (thématiques de l'activité)
+ * @return string Texte brut, à échapper à l'affichage.
+ */
+function stage_entry_short_description(stdClass $entry, array $themes) {
+    $dateformat = get_string('strftimedateshort', 'langconfig');
+    $dates = (!empty($entry->datestart) && !empty($entry->dateend))
+        ? userdate($entry->datestart, $dateformat) . ' - ' . userdate($entry->dateend, $dateformat)
+        : get_string('historicalimportnodates', 'mod_stage');
+    $parts = [
+        isset($themes[$entry->themeid]) ? format_string($themes[$entry->themeid]->name) : '?',
+        $dates,
+    ];
+    if (trim((string) $entry->structure) !== '') {
+        $parts[] = $entry->structure;
+    }
+    $parts[] = stage_status_label($entry->status);
+    return implode(' - ', $parts);
+}
+
+/**
  * Rend une note sur 5 en étoiles (pleines, demi, vides), suivie de la note chiffrée : la valeur
  * exacte reste lisible et les lecteurs d'écran annoncent « 4 sur 5 » plutôt que cinq symboles.
  *
@@ -2513,7 +2604,9 @@ function stage_get_entry_users(array $entries) {
         return [];
     }
 
-    $fields = 'id, ' . implode(', ', \core_user\fields::get_name_fields());
+    // Le courriel accompagne le nom : l'export global l'écrit, et sa restauration (voir
+    // import_global.php) retrouve les étudiants par ce seul courriel.
+    $fields = 'id, email, ' . implode(', ', \core_user\fields::get_name_fields());
     return $DB->get_records_list('user', 'id', $userids, '', $fields);
 }
 
