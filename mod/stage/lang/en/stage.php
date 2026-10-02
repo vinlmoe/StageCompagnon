@@ -907,3 +907,10 @@ $string['bulkteachermode_remove'] = 'Remove';
 $string['bulkallfiltered'] = 'all students matching the filter ({$a})';
 $string['bulkteacherapply'] = 'Apply';
 $string['bulkteachermissing'] = 'Choose the teacher the bulk action applies to. Nothing was saved.';
+
+// Single notifications and conventions pages.
+$string['emailcustomized'] = 'customised';
+$string['conventiontemplateusedby'] = 'Used by {$a} convention request(s): this template cannot be deleted.';
+$string['deleteconventiontemplaterow'] = 'Delete this template';
+$string['newconventiontemplate_hint'] = 'Enter a name and upload the PDF to create a template on save; otherwise '
+    . 'leave these fields empty.';

@@ -220,11 +220,15 @@ n'est ouverte qu'une fois la convention signée.**
 
 ### Configuration (Administration > Gabarits de convention)
 
+Tout se règle sur une seule page, enregistrée en une fois par un unique bouton :
+
 - **Paramètres généraux** : option « Exiger la validation de l'enseignant
   référent avant transmission à la DEVE ».
 - **Gabarits** : nom, langue (français ou anglais) et PDF des articles
-  juridiques. Plusieurs gabarits peuvent coexister ; l'étudiant en choisit un.
-  Un gabarit utilisé par une demande ne peut plus être supprimé.
+  juridiques, modifiables directement dans la page ; un bloc en bas de la
+  liste crée un nouveau gabarit (nom et PDF). Plusieurs gabarits peuvent
+  coexister ; l'étudiant en choisit un. Un gabarit utilisé par une demande ne
+  peut plus être supprimé (la page indique combien de demandes l'utilisent).
 - **Établissement d'enseignement** : nom, adresse, représentant et sa qualité,
   téléphone et courriel, affichés en tête de toutes les conventions.
 - **Logos** : deux images PNG placées en haut de la première page.
@@ -298,7 +302,8 @@ passe définitivement à **Annulé**.
 
 ## 8. Évaluation par le maître de stage et personnalisation des e-mails
 
-Depuis **Administration > Notifications** :
+Depuis **Administration > Notifications**, sur une seule page enregistrée en
+une fois (les e-mails déjà personnalisés sont signalés et ouverts) :
 
 - **Évaluation par le maître de stage** (case à cocher) : une fois activée,
   dès que l'étudiant s'auto-évalue, son maître de stage (l'encadrant en
@@ -311,7 +316,7 @@ Depuis **Administration > Notifications** :
   réponse du maître de stage est ensuite affichée, en lecture seule, à
   l'enseignant référent et à la DEVE au moment de leur propre évaluation, ainsi
   que dans le détail de la saisie.
-- **Personnalisation des e-mails** : un formulaire par e-mail envoyé par
+- **Personnalisation des e-mails** : une section par e-mail envoyé par
   l'activité (auto-évaluation soumise, convention en attente de validation par
   l'enseignant, convention refusée par la DEVE, convention prête à télécharger,
   invitation du maître de stage, relance de convention non signée), permettant

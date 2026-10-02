@@ -16,7 +16,7 @@
 
 /**
  * Activation de l'évaluation par le maître de stage et personnalisation des e-mails envoyés par
- * l'activité (DEVE).
+ * l'activité (DEVE), en un seul formulaire enregistré en une fois.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -26,14 +26,11 @@
 require(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/stage/lib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
-require_once($CFG->dirroot . '/mod/stage/classes/form/notifications_settings_form.php');
-require_once($CFG->dirroot . '/mod/stage/classes/form/email_template_form.php');
+require_once($CFG->dirroot . '/mod/stage/classes/form/notifications_form.php');
 
-use mod_stage\form\notifications_settings_form;
-use mod_stage\form\email_template_form;
+use mod_stage\form\notifications_form;
 
 $id = required_param('id', PARAM_INT);
-$emailkey = optional_param('emailkey', '', PARAM_ALPHANUMEXT);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -49,65 +46,41 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('notifications
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$settingsform = new notifications_settings_form($baseurl);
-$settingsform->set_data((object) [
+$definitions = stage_get_email_definitions();
+$formdata = [
     'id' => $cm->id,
     'tutorevaluationenabled' => !empty($stage->tutorevaluationenabled) ? 1 : 0,
-]);
-if ($settingsdata = $settingsform->get_data()) {
-    stage_save_tutor_evaluation_setting($stage->id, !empty($settingsdata->tutorevaluationenabled));
-    redirect(
-        $baseurl,
-        get_string('conventionsettingssaved', 'mod_stage'),
-        null,
-        \core\output\notification::NOTIFY_SUCCESS
-    );
+];
+$customized = [];
+foreach (array_keys($definitions) as $key) {
+    $custom = stage_get_custom_email_template($stage->id, $key);
+    if ($custom) {
+        $customized[] = $key;
+    }
+    $formdata['subject_' . $key] = $custom->subject ?? '';
+    $formdata['body_' . $key] = $custom->body ?? '';
 }
 
-$definitions = stage_get_email_definitions();
+$mform = new notifications_form($baseurl, ['definitions' => $definitions, 'customized' => $customized]);
+$mform->set_data($formdata);
 
-// Un e-mail précis a été soumis : on ne traite que son propre formulaire, identifié par emailkey.
-if ($emailkey && isset($definitions[$emailkey])) {
-    $formurl = new moodle_url('/mod/stage/notifications.php', ['id' => $cm->id, 'emailkey' => $emailkey]);
-    $emailform = new email_template_form($formurl, ['definition' => $definitions[$emailkey]]);
-    $custom = stage_get_custom_email_template($stage->id, $emailkey);
-    $emailform->set_data((object) [
-        'id' => $cm->id,
-        'emailkey' => $emailkey,
-        'subject' => $custom->subject ?? '',
-        'body' => $custom->body ?? '',
-    ]);
-    if ($emaildata = $emailform->get_data()) {
-        stage_save_email_template($stage->id, $emailkey, $emaildata->subject, $emaildata->body);
-        redirect(
-            $baseurl,
-            get_string('notificationssaved', 'mod_stage'),
-            null,
-            \core\output\notification::NOTIFY_SUCCESS
+if ($data = $mform->get_data()) {
+    stage_save_tutor_evaluation_setting($stage->id, !empty($data->tutorevaluationenabled));
+    foreach (array_keys($definitions) as $key) {
+        stage_save_email_template(
+            $stage->id,
+            $key,
+            (string) ($data->{'subject_' . $key} ?? ''),
+            (string) ($data->{'body_' . $key} ?? '')
         );
     }
+    redirect($baseurl, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('notifications', 'mod_stage'));
 echo html_writer::link(new moodle_url('/mod/stage/administration.php', ['id' => $cm->id]), get_string('back'));
 
-$settingsform->display();
-
-echo $OUTPUT->heading(get_string('notificationssettings', 'mod_stage'), 3);
-echo html_writer::tag('p', get_string('notificationssettings_help', 'mod_stage'), ['class' => 'text-muted']);
-
-foreach ($definitions as $key => $definition) {
-    $formurl = new moodle_url('/mod/stage/notifications.php', ['id' => $cm->id, 'emailkey' => $key]);
-    $form = new email_template_form($formurl, ['definition' => $definition]);
-    $custom = stage_get_custom_email_template($stage->id, $key);
-    $form->set_data((object) [
-        'id' => $cm->id,
-        'emailkey' => $key,
-        'subject' => $custom->subject ?? '',
-        'body' => $custom->body ?? '',
-    ]);
-    $form->display();
-}
+$mform->display();
 
 echo $OUTPUT->footer();

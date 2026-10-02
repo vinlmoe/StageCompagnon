@@ -924,3 +924,10 @@ $string['bulkteachermode_remove'] = 'Retirer';
 $string['bulkallfiltered'] = 'tous les étudiants du filtre ({$a})';
 $string['bulkteacherapply'] = 'Appliquer';
 $string['bulkteachermissing'] = "Choisissez l'enseignant concerné par l'action en masse. Rien n'a été enregistré.";
+
+// Pages uniques des notifications et des conventions.
+$string['emailcustomized'] = 'personnalisé';
+$string['conventiontemplateusedby'] = 'Utilisé par {$a} demande(s) de convention : ce gabarit ne peut pas être supprimé.';
+$string['deleteconventiontemplaterow'] = 'Supprimer ce gabarit';
+$string['newconventiontemplate_hint'] = "Renseignez un nom et déposez le PDF pour créer un gabarit à l'enregistrement ; "
+    . "laissez ces champs vides sinon.";
