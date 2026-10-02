@@ -15,10 +15,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Paramétrage des conventions de stage par la DEVE, en une seule page enregistrée en une fois :
- * paramètres généraux, gabarits (PDF des articles juridiques, proposés au choix de l'étudiant
- * lors de sa demande de convention), informations de l'établissement d'enseignement (VetAgro Sup)
- * et logos affichés sur la page 1 de toutes les conventions du stage.
+ * Paramétrage des conventions de stage par la DEVE : la liste des gabarits (PDF des articles
+ * juridiques, proposés au choix de l'étudiant lors de sa demande de convention), chacun édité sur
+ * sa propre page (convention_template.php), puis, en un seul formulaire enregistré en une fois,
+ * les paramètres généraux, les informations de l'établissement d'enseignement (VetAgro Sup) et
+ * les logos affichés sur la page 1 de toutes les conventions du stage.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -33,6 +34,8 @@ require_once($CFG->dirroot . '/mod/stage/classes/form/conventions_admin_form.php
 use mod_stage\form\conventions_admin_form;
 
 $id = required_param('id', PARAM_INT);
+$action = optional_param('action', '', PARAM_ALPHA);
+$templateid = optional_param('templateid', 0, PARAM_INT);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -48,23 +51,28 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('conventiontem
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$templates = stage_get_convention_templates($stage->id);
-// Un gabarit choisi par au moins une demande de convention ne peut pas être supprimé : la
-// convention déjà produite (ou à produire) en dépend.
-$inuse = [];
-foreach ($templates as $template) {
-    $count = $DB->count_records('stage_entry', ['conventiontemplateid' => $template->id]);
-    if ($count) {
-        $inuse[(int) $template->id] = $count;
-    }
+// Ancien lien d'édition d'un gabarit : l'édition a désormais sa propre page.
+if ($action === 'edit') {
+    redirect(new moodle_url('/mod/stage/convention_template.php', ['id' => $cm->id, 'templateid' => $templateid]));
 }
 
-$mform = new conventions_admin_form($baseurl, ['templates' => $templates, 'inuse' => $inuse]);
+// Suppression d'un gabarit : refusée tant qu'une demande de convention l'utilise, la convention
+// déjà produite (ou à produire) en dépendant.
+if ($action === 'delete' && $templateid) {
+    require_sesskey();
+    $template = $DB->get_record('stage_convention_template', ['id' => $templateid, 'stageid' => $stage->id], '*', MUST_EXIST);
+    if ($DB->record_exists('stage_entry', ['conventiontemplateid' => $template->id])) {
+        redirect($baseurl, get_string('conventiontemplateinuse', 'mod_stage'), null, \core\output\notification::NOTIFY_ERROR);
+    }
+    get_file_storage()->delete_area_files($context->id, 'mod_stage', 'conventiontemplate', $template->id);
+    $DB->delete_records('stage_convention_template', ['id' => $template->id]);
+    redirect($baseurl, get_string('conventiontemplatedeleted', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+}
 
-$templateoptions = conventions_admin_form::template_file_options();
+$mform = new conventions_admin_form($baseurl);
 $logooptions = conventions_admin_form::logo_file_options();
 
-// Valeurs initiales, dont une zone de brouillon par gestionnaire de fichiers.
+// Valeurs initiales, dont une zone de brouillon par logo.
 $establishmentinfo = stage_get_establishment_info($stage);
 $formdata = [
     'id' => $cm->id,
@@ -77,17 +85,6 @@ $formdata = [
     'establishmentemail' => $establishmentinfo->email,
     'establishmentsignatory' => $establishmentinfo->signatory,
 ];
-foreach ($templates as $template) {
-    $tid = (int) $template->id;
-    $draftitemid = file_get_submitted_draft_itemid('templatefile_' . $tid);
-    file_prepare_draft_area($draftitemid, $context->id, 'mod_stage', 'conventiontemplate', $tid, $templateoptions);
-    $formdata['templatename_' . $tid] = $template->name;
-    $formdata['templatelang_' . $tid] = $template->lang;
-    $formdata['templatefile_' . $tid] = $draftitemid;
-}
-$newdraftitemid = file_get_submitted_draft_itemid('newtemplatefile');
-file_prepare_draft_area($newdraftitemid, null, 'mod_stage', 'conventiontemplate', null, $templateoptions);
-$formdata['newtemplatefile'] = $newdraftitemid;
 foreach (['logoleft' => 'conventionlogoleft', 'logoright' => 'conventionlogoright'] as $field => $filearea) {
     $draftitemid = file_get_submitted_draft_itemid($field);
     file_prepare_draft_area($draftitemid, $context->id, 'mod_stage', $filearea, 0, $logooptions);
@@ -96,62 +93,68 @@ foreach (['logoleft' => 'conventionlogoleft', 'logoright' => 'conventionlogorigh
 $mform->set_data($formdata);
 
 if ($data = $mform->get_data()) {
-    $now = time();
-
     stage_save_convention_teacher_validation_setting($stage->id, !empty($data->conventionrequireteachervalidation));
     stage_save_establishment_info($stage->id, $data);
-
-    foreach ($templates as $template) {
-        $tid = (int) $template->id;
-        if (!empty($data->{'templatedelete_' . $tid}) && empty($inuse[$tid])) {
-            get_file_storage()->delete_area_files($context->id, 'mod_stage', 'conventiontemplate', $tid);
-            $DB->delete_records('stage_convention_template', ['id' => $tid]);
-            continue;
-        }
-        $lang = $data->{'templatelang_' . $tid};
-        $template->name = $data->{'templatename_' . $tid};
-        $template->lang = array_key_exists($lang, stage_convention_lang_options()) ? $lang : $template->lang;
-        $template->timemodified = $now;
-        $DB->update_record('stage_convention_template', $template);
-        file_save_draft_area_files(
-            $data->{'templatefile_' . $tid},
-            $context->id,
-            'mod_stage',
-            'conventiontemplate',
-            $tid,
-            $templateoptions
-        );
-    }
-
-    if (trim((string) $data->newtemplatename) !== '') {
-        $lang = array_key_exists($data->newtemplatelang, stage_convention_lang_options()) ? $data->newtemplatelang : 'fr';
-        $newid = $DB->insert_record('stage_convention_template', (object) [
-            'stageid' => $stage->id,
-            'name' => $data->newtemplatename,
-            'lang' => $lang,
-            'timecreated' => $now,
-            'timemodified' => $now,
-        ]);
-        file_save_draft_area_files(
-            $data->newtemplatefile,
-            $context->id,
-            'mod_stage',
-            'conventiontemplate',
-            $newid,
-            $templateoptions
-        );
-    }
-
     foreach (['logoleft' => 'conventionlogoleft', 'logoright' => 'conventionlogoright'] as $field => $filearea) {
         file_save_draft_area_files($data->$field, $context->id, 'mod_stage', $filearea, 0, $logooptions);
     }
-
     redirect($baseurl, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('conventiontemplates', 'mod_stage'));
 echo html_writer::link(new moodle_url('/mod/stage/administration.php', ['id' => $cm->id]), get_string('back'));
+
+// Gabarits : la liste, avec un lien d'édition et d'ajout vers leur page dédiée.
+echo $OUTPUT->heading(get_string('conventiontemplatelist', 'mod_stage'), 3, 'mt-3');
+echo html_writer::link(
+    new moodle_url('/mod/stage/convention_template.php', ['id' => $cm->id]),
+    get_string('addconventiontemplate', 'mod_stage'),
+    ['class' => 'btn btn-primary d-block mt-2 mb-3', 'style' => 'width:fit-content']
+);
+$templates = stage_get_convention_templates($stage->id);
+if (empty($templates)) {
+    echo $OUTPUT->notification(get_string('noconventiontemplatesyet', 'mod_stage'), 'info');
+} else {
+    $table = new html_table();
+    $table->head = [
+        get_string('conventiontemplatename', 'mod_stage'),
+        get_string('conventionlang', 'mod_stage'),
+        get_string('conventiontemplatefile', 'mod_stage'),
+        get_string('conventiontemplateusage', 'mod_stage'),
+        get_string('actions', 'mod_stage'),
+    ];
+    $fs = get_file_storage();
+    foreach ($templates as $template) {
+        $editurl = new moodle_url('/mod/stage/convention_template.php', ['id' => $cm->id, 'templateid' => $template->id]);
+        $files = $fs->get_area_files($context->id, 'mod_stage', 'conventiontemplate', $template->id, 'filename', false);
+        $file = reset($files);
+        // Le nom du PDF seulement : le plugin ne sert pas ces fichiers en téléchargement direct,
+        // on les retrouve dans le gestionnaire de fichiers de la page d'édition.
+        $filelink = $file
+            ? s($file->get_filename())
+            : html_writer::span(get_string('conventiontemplatenofile', 'mod_stage'), 'text-danger');
+        $usage = $DB->count_records('stage_entry', ['conventiontemplateid' => $template->id]);
+        $actions = stage_render_actions([get_string('edit') => $editurl]);
+        if (!$usage) {
+            $deleteurl = new moodle_url($baseurl, [
+                'action' => 'delete', 'templateid' => $template->id, 'sesskey' => sesskey(),
+            ]);
+            $actions .= html_writer::link($deleteurl, get_string('delete'), [
+                'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
+                'onclick' => "return confirm('" . addslashes_js(get_string('confirmdeleteconventiontemplate', 'mod_stage')) . "');",
+            ]);
+        }
+        $table->data[] = [
+            html_writer::link($editurl, format_string($template->name)),
+            stage_convention_lang_label($template->lang),
+            $filelink,
+            $usage,
+            $actions,
+        ];
+    }
+    echo html_writer::table($table);
+}
 
 $mform->display();
 

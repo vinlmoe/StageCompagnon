@@ -22,29 +22,15 @@ require_once($CFG->libdir . '/formslib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 /**
- * Formulaire unique de paramétrage des conventions (DEVE) : paramètres généraux, gabarits
- * (modifiables en ligne, avec ajout d'un nouveau gabarit), informations de l'établissement et
- * logos, tout enregistré en une fois (voir convention_templates.php).
- *
- * Données attendues dans customdata :
- * - templates : id => gabarit (stage_convention_template) ;
- * - inuse : id => nombre de demandes de convention utilisant le gabarit (non supprimable).
+ * Formulaire unique de paramétrage des conventions (DEVE) : paramètres généraux, informations de
+ * l'établissement et logos, enregistrés en une fois (voir convention_templates.php). Les gabarits
+ * sont listés sur la même page mais s'éditent un par un (convention_template.php).
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class conventions_admin_form extends \moodleform {
-    /**
-     * Options du gestionnaire de fichiers d'un gabarit (un seul PDF).
-     *
-     * @return array
-     */
-    public static function template_file_options(): array {
-        global $CFG;
-        return ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => $CFG->maxbytes, 'accepted_types' => ['.pdf']];
-    }
-
     /**
      * Options du gestionnaire de fichiers d'un logo (un seul PNG).
      *
@@ -59,8 +45,6 @@ class conventions_admin_form extends \moodleform {
      */
     public function definition() {
         $mform = $this->_form;
-        $templates = $this->_customdata['templates'] ?? [];
-        $inuse = $this->_customdata['inuse'] ?? [];
 
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
@@ -74,70 +58,6 @@ class conventions_admin_form extends \moodleform {
             get_string('conventionrequireteachervalidation', 'mod_stage')
         );
         $mform->addHelpButton('conventionrequireteachervalidation', 'conventionrequireteachervalidation', 'mod_stage');
-
-        // Gabarits existants, un bloc chacun, puis un bloc pour en ajouter un.
-        $mform->addElement('header', 'templateshdr', get_string('conventiontemplates', 'mod_stage'));
-        $mform->setExpanded('templateshdr', true);
-        if (empty($templates)) {
-            $mform->addElement('static', 'notemplates', '', get_string('noconventiontemplatesyet', 'mod_stage'));
-        }
-        foreach ($templates as $template) {
-            $tid = (int) $template->id;
-            $mform->addElement('static', 'templatesep_' . $tid, '', \html_writer::tag('hr', ''));
-            $mform->addElement(
-                'text',
-                'templatename_' . $tid,
-                get_string('conventiontemplatename', 'mod_stage'),
-                ['size' => '64']
-            );
-            $mform->setType('templatename_' . $tid, PARAM_TEXT);
-            $mform->addElement(
-                'select',
-                'templatelang_' . $tid,
-                get_string('conventionlang', 'mod_stage'),
-                stage_convention_lang_options()
-            );
-            $mform->addElement(
-                'filemanager',
-                'templatefile_' . $tid,
-                get_string('conventiontemplatefile', 'mod_stage'),
-                null,
-                self::template_file_options()
-            );
-            if (!empty($inuse[$tid])) {
-                $mform->addElement(
-                    'static',
-                    'templateinuse_' . $tid,
-                    '',
-                    \html_writer::span(get_string('conventiontemplateusedby', 'mod_stage', $inuse[$tid]), 'text-muted')
-                );
-            } else {
-                $mform->addElement(
-                    'advcheckbox',
-                    'templatedelete_' . $tid,
-                    get_string('deleteconventiontemplaterow', 'mod_stage')
-                );
-            }
-        }
-
-        $mform->addElement(
-            'static',
-            'newtemplatesep',
-            '',
-            \html_writer::tag('strong', get_string('addconventiontemplate', 'mod_stage'))
-        );
-        $mform->addElement('text', 'newtemplatename', get_string('conventiontemplatename', 'mod_stage'), ['size' => '64']);
-        $mform->setType('newtemplatename', PARAM_TEXT);
-        $mform->addElement('select', 'newtemplatelang', get_string('conventionlang', 'mod_stage'), stage_convention_lang_options());
-        $mform->setDefault('newtemplatelang', 'fr');
-        $mform->addElement(
-            'filemanager',
-            'newtemplatefile',
-            get_string('conventiontemplatefile', 'mod_stage'),
-            null,
-            self::template_file_options()
-        );
-        $mform->addElement('static', 'newtemplatehint', '', get_string('newconventiontemplate_hint', 'mod_stage'));
 
         // Établissement d'enseignement.
         $mform->addElement('header', 'establishmenthdr', get_string('conventionestablishment', 'mod_stage'));
@@ -171,59 +91,5 @@ class conventions_admin_form extends \moodleform {
         }
 
         $this->add_action_buttons(false, get_string('savechanges'));
-    }
-
-    /**
-     * Server-side validation : un gabarit garde un nom ; un nouveau gabarit n'est créé
-     * que si son nom et son PDF sont fournis tous les deux (l'un sans l'autre est une erreur).
-     *
-     * @param array $data
-     * @param array $files
-     * @return array
-     */
-    public function validation($data, $files) {
-        $errors = parent::validation($data, $files);
-
-        foreach ($this->_customdata['templates'] ?? [] as $template) {
-            $tid = (int) $template->id;
-            if (!empty($data['templatedelete_' . $tid])) {
-                continue;
-            }
-            if (trim((string) ($data['templatename_' . $tid] ?? '')) === '') {
-                $errors['templatename_' . $tid] = get_string('required');
-            }
-        }
-
-        $newname = trim((string) ($data['newtemplatename'] ?? ''));
-        $newfile = self::draft_has_file($data['newtemplatefile'] ?? 0);
-        if ($newname !== '' && !$newfile) {
-            $errors['newtemplatefile'] = get_string('conventiontemplatefilerequired', 'mod_stage');
-        } else if ($newname === '' && $newfile) {
-            $errors['newtemplatename'] = get_string('required');
-        }
-
-        return $errors;
-    }
-
-    /**
-     * Indique si une zone de brouillon contient au moins un fichier. La vérification est faite
-     * côté serveur car une règle "required" côté client n'est pas fiable sur un filemanager.
-     *
-     * @param int $draftitemid
-     * @return bool
-     */
-    public static function draft_has_file($draftitemid): bool {
-        global $USER;
-
-        if (empty($draftitemid)) {
-            return false;
-        }
-        $usercontext = \context_user::instance($USER->id);
-        foreach (get_file_storage()->get_area_files($usercontext->id, 'user', 'draft', (int) $draftitemid) as $file) {
-            if (!$file->is_directory()) {
-                return true;
-            }
-        }
-        return false;
     }
 }

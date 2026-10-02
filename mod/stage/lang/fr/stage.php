@@ -919,9 +919,6 @@ $string['bulkteachermissing'] = "Choisissez l'enseignant concerné par l'action 
 // Pages uniques des notifications et des conventions.
 $string['emailcustomized'] = 'personnalisé';
 $string['conventiontemplateusedby'] = 'Utilisé par {$a} demande(s) de convention : ce gabarit ne peut pas être supprimé.';
-$string['deleteconventiontemplaterow'] = 'Supprimer ce gabarit';
-$string['newconventiontemplate_hint'] = "Renseignez un nom et déposez le PDF pour créer un gabarit à l'enregistrement ; "
-    . "laissez ces champs vides sinon.";
 
 // Import StageVet : évaluations de l'étudiant et du maître de stage, mise à jour des stages existants.
 $string['importstagevetevalhelp'] = "Évaluations : les colonnes « Évaluation par le maître de stage » et "
@@ -997,3 +994,9 @@ $string['evallistedit'] = 'Éditer la liste';
 $string['themeevallistsintro'] = "Choisissez la liste de questions utilisée pour chaque formulaire d'évaluation de "
     . "cette thématique. Les listes s'éditent sur leur propre page ; une même liste peut servir à plusieurs "
     . "thématiques.";
+
+// Gabarits de convention listés, édités sur leur propre page (convention_template.php).
+$string['conventiontemplate'] = 'Gabarit de convention';
+$string['conventiontemplatelist'] = 'Gabarits';
+$string['conventiontemplateusage'] = 'Demandes de convention';
+$string['conventiontemplatenofile'] = 'Aucun PDF';

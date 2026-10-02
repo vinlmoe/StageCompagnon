@@ -21,6 +21,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
 require_once($CFG->dirroot . '/mod/stage/classes/form/conventions_admin_form.php');
+require_once($CFG->dirroot . '/mod/stage/classes/form/convention_template_form.php');
 require_once($CFG->dirroot . '/mod/stage/classes/form/notifications_form.php');
 
 /**
@@ -31,30 +32,18 @@ require_once($CFG->dirroot . '/mod/stage/classes/form/notifications_form.php');
  * @copyright  2026 Sébastien Lefebvre
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \mod_stage\form\conventions_admin_form
+ * @covers     \mod_stage\form\convention_template_form
  * @covers     \mod_stage\form\notifications_form
  */
 final class admin_forms_test extends \advanced_testcase {
     /**
-     * Gabarit fictif, tel que le reçoit le formulaire des conventions.
-     *
-     * @param int $id
-     * @return \stdClass
+     * Le formulaire des conventions ne porte plus les gabarits, édités sur leur propre page.
      */
-    private function template(int $id): \stdClass {
-        return (object) ['id' => $id, 'name' => 'Gabarit ' . $id, 'lang' => 'fr'];
-    }
-
-    /**
-     * Un gabarit utilisé n'a pas de case de suppression, un gabarit libre en a une.
-     */
-    public function test_conventions_form_delete_only_unused_templates(): void {
+    public function test_conventions_form_has_settings_without_templates(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
-        $form = new class (null, [
-            'templates' => [3 => $this->template(3), 4 => $this->template(4)],
-            'inuse' => [3 => 2],
-        ]) extends \mod_stage\form\conventions_admin_form {
+        $form = new class (null) extends \mod_stage\form\conventions_admin_form {
             /**
              * Accès au formulaire QuickForm sous-jacent.
              *
@@ -65,40 +54,22 @@ final class admin_forms_test extends \advanced_testcase {
             }
         };
         $mform = $form->get_mform();
-
-        $this->assertFalse($mform->elementExists('templatedelete_3'));
-        $this->assertTrue($mform->elementExists('templateinuse_3'));
-        $this->assertTrue($mform->elementExists('templatedelete_4'));
+        $this->assertTrue($mform->elementExists('conventionrequireteachervalidation'));
+        $this->assertTrue($mform->elementExists('establishmentname'));
+        $this->assertTrue($mform->elementExists('logoleft'));
+        $this->assertFalse($mform->elementExists('newtemplatename'));
     }
 
     /**
-     * Un nouveau gabarit exige un nom et un PDF ensemble ; un gabarit existant garde son nom,
-     * sauf s'il est supprimé.
+     * Le formulaire d'un gabarit exige un PDF à la création seulement.
      */
-    public function test_conventions_form_validation(): void {
+    public function test_convention_template_form_requires_pdf_on_creation(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
-        $form = new \mod_stage\form\conventions_admin_form(null, [
-            'templates' => [3 => $this->template(3)],
-            'inuse' => [],
-        ]);
+        $new = new \mod_stage\form\convention_template_form(null, ['editing' => false]);
+        $this->assertArrayHasKey('templatefile', $new->validation(['name' => 'A', 'templatefile' => 0], []));
 
-        $errors = $form->validation(['newtemplatename' => 'Nouveau', 'newtemplatefile' => 0, 'templatename_3' => 'A'], []);
-        $this->assertArrayHasKey('newtemplatefile', $errors);
-
-        $errors = $form->validation(['newtemplatename' => '', 'newtemplatefile' => 0, 'templatename_3' => ' '], []);
-        $this->assertArrayHasKey('templatename_3', $errors);
-
-        $errors = $form->validation([
-            'newtemplatename' => '',
-            'newtemplatefile' => 0,
-            'templatename_3' => '',
-            'templatedelete_3' => 1,
-        ], []);
-        $this->assertSame([], $errors);
-
-        // Un PDF sans nom est refusé.
         $draftitemid = file_get_unused_draft_itemid();
         get_file_storage()->create_file_from_string([
             'contextid' => \context_user::instance(get_admin()->id)->id,
@@ -108,9 +79,10 @@ final class admin_forms_test extends \advanced_testcase {
             'filepath' => '/',
             'filename' => 'g.pdf',
         ], '%PDF-1.4');
-        $this->assertTrue(\mod_stage\form\conventions_admin_form::draft_has_file($draftitemid));
-        $errors = $form->validation(['newtemplatename' => '', 'newtemplatefile' => $draftitemid, 'templatename_3' => 'A'], []);
-        $this->assertArrayHasKey('newtemplatename', $errors);
+        $this->assertSame([], $new->validation(['name' => 'A', 'templatefile' => $draftitemid], []));
+
+        $existing = new \mod_stage\form\convention_template_form(null, ['editing' => true]);
+        $this->assertSame([], $existing->validation(['name' => 'A', 'templatefile' => 0], []));
     }
 
     /**

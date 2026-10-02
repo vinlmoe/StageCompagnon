@@ -902,9 +902,6 @@ $string['bulkteachermissing'] = 'Choose the teacher the bulk action applies to. 
 // Single notifications and conventions pages.
 $string['emailcustomized'] = 'customised';
 $string['conventiontemplateusedby'] = 'Used by {$a} convention request(s): this template cannot be deleted.';
-$string['deleteconventiontemplaterow'] = 'Delete this template';
-$string['newconventiontemplate_hint'] = 'Enter a name and upload the PDF to create a template on save; otherwise '
-    . 'leave these fields empty.';
 
 // StageVet import: student and workplace tutor evaluations, update of existing internships.
 $string['importstagevetevalhelp'] = 'Evaluations: the "Évaluation par le maître de stage" and "Évaluation par '
@@ -974,3 +971,9 @@ $string['evallistnone'] = 'No list (free comment)';
 $string['evallistedit'] = 'Edit the list';
 $string['themeevallistsintro'] = 'Choose the list of questions used for each evaluation form of this theme. Lists are '
     . 'edited on their own page; the same list can serve several themes.';
+
+// Convention templates listed, edited on their own page (convention_template.php).
+$string['conventiontemplate'] = 'Agreement template';
+$string['conventiontemplatelist'] = 'Templates';
+$string['conventiontemplateusage'] = 'Agreement requests';
+$string['conventiontemplatenofile'] = 'No PDF';

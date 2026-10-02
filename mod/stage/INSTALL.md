@@ -269,15 +269,16 @@ n'est ouverte qu'une fois la convention signée.**
 
 ### Configuration (Administration > Gabarits de convention)
 
-Tout se règle sur une seule page, enregistrée en une fois par un unique bouton :
+La page présente d'abord la **liste des gabarits** (nom, langue, PDF, nombre
+de demandes qui l'utilisent), avec un lien d'édition et d'ajout vers une page
+dédiée, puis un formulaire unique, enregistré en une fois, pour le reste :
 
 - **Paramètres généraux** : option « Exiger la validation de l'enseignant
   référent avant transmission à la DEVE ».
-- **Gabarits** : nom, langue (français ou anglais) et PDF des articles
-  juridiques, modifiables directement dans la page ; un bloc en bas de la
-  liste crée un nouveau gabarit (nom et PDF). Plusieurs gabarits peuvent
+- **Gabarits** (page dédiée) : nom, langue (français ou anglais) et PDF des
+  articles juridiques, obligatoire à la création. Plusieurs gabarits peuvent
   coexister ; l'étudiant en choisit un. Un gabarit utilisé par une demande ne
-  peut plus être supprimé (la page indique combien de demandes l'utilisent).
+  peut plus être supprimé.
 - **Établissement d'enseignement** : nom, adresse, représentant et sa qualité,
   téléphone et courriel, affichés en tête de toutes les conventions.
 - **Logos** : deux images PNG placées en haut de la première page.
@@ -541,7 +542,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `theme_objectives_test.php` | Objectifs de stage : ordre et portée de la check-list, justification exigée pour un objectif décoché, purge des réponses devenues sans objet, droits de correction, copie des objectifs à l'import. |
 | `convention_ready_notification_test.php` | Courriel « convention téléchargeable » : présence dans les e-mails personnalisables, contenu par défaut, prise en compte d'un texte personnalisé. |
 | `theme_edit_test.php` | Page unique de gestion d'une thématique : années proposées pour les durées par année, pré-remplissage des lignes répétées (check-list, questions) sans que les valeurs par défaut écrasent les valeurs enregistrées. |
-| `admin_forms_test.php` | Pages uniques des conventions et des notifications : chargement des formulaires, gabarit utilisé non supprimable, nom et PDF exigés ensemble pour un nouveau gabarit, une section par e-mail. |
+| `admin_forms_test.php` | Pages des conventions et des notifications : formulaire des conventions sans les gabarits, PDF exigé à la création d'un gabarit seulement, une section par e-mail. |
 | `stagevet_evaluations_test.php` | Import StageVet des évaluations : export actuel à 60 colonnes (BOM, cellules multilignes, guillemets), mise à jour d'un stage existant sans doublon ni effacement, évaluation saisie dans l'activité conservée, en-têtes tolérants, courriel unique à l'enseignant référent, notes en étoiles (item nouveau, zéro distinct de « Non renseigné »). |
 | `evallists_test.php` | Listes d'évaluation : questions d'une thématique tirées de la liste choisie pour chaque formulaire, question partagée entre listes conservée à son retrait, question isolée supprimée avec ses réponses, suppression d'une liste. |
 
