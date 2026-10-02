@@ -193,6 +193,36 @@ final class privacy_provider_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : un enseignant seulement nommé référent sur une convention n'était ni retrouvé,
+     * ni exporté, ni effacé.
+     */
+    public function test_convention_referent_only_is_found_exported_and_removed(): void {
+        global $DB;
+        [$stage, $context, $student, , $entry] = $this->prepare();
+        // Enseignant seulement nommé référent sur la convention : ni attribution, ni évaluation.
+        $named = $this->getDataGenerator()->create_user();
+        $DB->set_field('stage_convention_detail', 'referentteacherid', $named->id, ['entryid' => $entry->id]);
+
+        $contexts = provider::get_contexts_for_userid($named->id)->get_contextids();
+        $this->assertContains((int) $context->id, array_map('intval', $contexts));
+
+        $userlist = new userlist($context, 'mod_stage');
+        provider::get_users_in_context($userlist);
+        $this->assertContains((int) $named->id, array_map('intval', $userlist->get_userids()));
+
+        $approved = new approved_contextlist($named, 'mod_stage', [$context->id]);
+        provider::export_user_data($approved);
+        $writer = \core_privacy\local\request\writer::with_context($context);
+        $this->assertTrue($writer->has_any_data());
+        $exported = $writer->get_data([get_string('supervisedstages', 'mod_stage'), (string) $entry->id]);
+        $this->assertSame(get_string('yes'), $exported->isconventionreferent);
+
+        provider::delete_data_for_user($approved);
+        $this->assertNull($DB->get_field('stage_convention_detail', 'referentteacherid', ['entryid' => $entry->id]));
+        $this->assertTrue($DB->record_exists('stage_entry', ['id' => $entry->id]));
+    }
+
+    /**
      * Les contextes remontés doivent couvrir l'étudiant comme le référent.
      */
     public function test_get_contexts_for_userid(): void {

@@ -94,6 +94,34 @@ final class administration_import_test extends \advanced_testcase {
     }
 
     /**
+     * Relancer l'import ne dédouble ni les thématiques ni les gabarits déjà présents dans la cible.
+     */
+    public function test_reimport_does_not_duplicate_themes_or_templates(): void {
+        global $DB;
+        [$source, $sourcecontext, $target, $targetcontext] = $this->fixture();
+        $gen = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $gen->create_theme($source, ['name' => 'Clinique 1']);
+        $gen->create_theme($source, ['name' => 'Clinique 2']);
+        $gen->create_theme($target, ['name' => 'clinique  1']);
+        foreach (['fr', 'en'] as $lang) {
+            $DB->insert_record('stage_convention_template', (object) [
+                'stageid' => $source->id, 'name' => 'Standard', 'lang' => $lang,
+                'timecreated' => time(), 'timemodified' => time(),
+            ]);
+        }
+        $options = ['themes' => true, 'templates' => true];
+
+        $first = stage_import_from_stage($source, $sourcecontext, $target, $targetcontext, $options);
+        $this->assertSame(1, $first->themes);
+        $this->assertSame(2, $first->templates);
+        $second = stage_import_from_stage($source, $sourcecontext, $target, $targetcontext, $options);
+        $this->assertSame(0, $second->themes);
+        $this->assertSame(0, $second->templates);
+        $this->assertEquals(2, $DB->count_records('stage_theme', ['stageid' => $target->id]));
+        $this->assertEquals(2, $DB->count_records('stage_convention_template', ['stageid' => $target->id]));
+    }
+
+    /**
      * Une personnalisation absente, vide ou inconnue ne remplace pas celle de la cible.
      */
     public function test_email_import_overwrites_only_known_nonempty_templates(): void {

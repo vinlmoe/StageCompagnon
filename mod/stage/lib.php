@@ -210,6 +210,68 @@ function stage_delete_instance($id) {
 }
 
 /**
+ * Ajoute au formulaire de réinitialisation du cours les options propres à l'activité : un cours
+ * de promotion réutilisé d'une année sur l'autre doit pouvoir repartir sans les stages de la
+ * promotion précédente.
+ *
+ * @param MoodleQuickForm $mform
+ * @return void
+ */
+function stage_reset_course_form_definition(&$mform) {
+    $mform->addElement('header', 'stageheader', get_string('modulenameplural', 'mod_stage'));
+    $mform->addElement('advcheckbox', 'reset_stage_entries', get_string('resetstageentries', 'mod_stage'));
+    $mform->addElement('advcheckbox', 'reset_stage_teachers', get_string('resetstageteachers', 'mod_stage'));
+}
+
+/**
+ * Valeurs par défaut des options de réinitialisation : tout ce qui concerne les étudiants est
+ * coché, comme pour les autres activités.
+ *
+ * @param stdClass $course
+ * @return array
+ */
+function stage_reset_course_form_defaults($course) {
+    return ['reset_stage_entries' => 1, 'reset_stage_teachers' => 1];
+}
+
+/**
+ * Réinitialise les données des étudiants de toutes les activités du cours : stages (avec leurs
+ * plages, jours, détails de convention, réponses, check-lists, conventions signées et rapports
+ * déposés) et/ou attributions d'enseignants référents. La configuration (thématiques, listes
+ * d'évaluation, gabarits, courriels) est conservée.
+ *
+ * @param stdClass $data Données du formulaire de réinitialisation.
+ * @return array Statut par élément, au format attendu par reset_course_userdata().
+ */
+function stage_reset_userdata($data) {
+    global $CFG, $DB;
+
+    require_once($CFG->dirroot . '/mod/stage/locallib.php');
+
+    $status = [];
+    $componentstr = get_string('modulenameplural', 'mod_stage');
+    $stages = $DB->get_records('stage', ['course' => $data->courseid]);
+    if (!$stages) {
+        return $status;
+    }
+
+    if (!empty($data->reset_stage_entries)) {
+        foreach ($stages as $stage) {
+            $cm = get_coursemodule_from_instance('stage', $stage->id, $data->courseid, false, IGNORE_MISSING);
+            $context = $cm ? context_module::instance($cm->id) : null;
+            stage_delete_entries($DB->get_fieldset_select('stage_entry', 'id', 'stageid = ?', [$stage->id]), $context);
+        }
+        $status[] = ['component' => $componentstr, 'item' => get_string('resetstageentries', 'mod_stage'), 'error' => false];
+    }
+    if (!empty($data->reset_stage_teachers)) {
+        [$insql, $inparams] = $DB->get_in_or_equal(array_keys($stages));
+        $DB->delete_records_select('stage_entry_teacher', "stageid $insql", $inparams);
+        $status[] = ['component' => $componentstr, 'item' => get_string('resetstageteachers', 'mod_stage'), 'error' => false];
+    }
+    return $status;
+}
+
+/**
  * Returns a small object with summary information about what a user has done
  * with a given particular instance of this module.
  *

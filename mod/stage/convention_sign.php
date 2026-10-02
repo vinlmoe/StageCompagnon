@@ -67,9 +67,13 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('conventionmar
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$filemanageroptions = ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => $CFG->maxbytes, 'accepted_types' => ['.pdf']];
+$filemanageroptions = [
+    'subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => stage_max_upload_bytes($context), 'accepted_types' => ['.pdf'],
+];
 
-$mform = new convention_sign_form($baseurl, ['studentname' => fullname($student)]);
+$mform = new convention_sign_form($baseurl, [
+    'studentname' => fullname($student), 'maxbytes' => $filemanageroptions['maxbytes'],
+]);
 
 $draftitemid = file_get_submitted_draft_itemid('signedfile');
 file_prepare_draft_area($draftitemid, $context->id, 'mod_stage', 'signedconvention', $entryid, $filemanageroptions);

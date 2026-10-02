@@ -211,7 +211,8 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     $raw->dateend ?: null,
                     $studyyear
                 );
-                $records[] = ['entry' => $entry, 'detail' => $detail, 'student' => fullname($student),
+                $records[] = ['entry' => $entry, 'detail' => $detail, 'periods' => $raw->periods ?? [],
+                    'student' => fullname($student),
                     'theme' => format_string($theme->name),
                     'probableduplicates' => array_values(array_map(
                         fn($existing) => stage_entry_short_description($existing, $allthemes),

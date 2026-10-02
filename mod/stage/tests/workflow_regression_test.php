@@ -32,6 +32,8 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_resend_tutor_evaluation_request
  * @covers     ::stage_validate_answers
  * @covers     ::stage_apply_deve_validation
+ * @covers     ::stage_tutor_invitation_statuses
+ * @covers     ::stage_tutor_invitation_convention_statuses
  */
 final class workflow_regression_test extends \advanced_testcase {
     /**
@@ -49,8 +51,11 @@ final class workflow_regression_test extends \advanced_testcase {
         $student = $this->getDataGenerator()->create_user();
         $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
         $theme = $generator->create_theme($stage, ['tutorevaluationenabled' => 1]);
+        // Convention signée : c'est elle qui fait du stage un stage engagé, que le maître de
+        // stage peut évaluer (voir stage_tutor_invitation_convention_statuses()).
         $entry = $generator->create_entry($stage, $student->id, $theme, [
             'datestart' => time() - DAYSECS, 'dateend' => time() + DAYSECS,
+            'conventionstatus' => STAGE_CONVENTION_SIGNED,
         ]);
         stage_save_convention_detail($entry->id, (object) [
             'tutorname' => 'Tutor Test', 'tutoremail' => 'tutor@example.com',
@@ -128,6 +133,49 @@ final class workflow_regression_test extends \advanced_testcase {
         $DB->set_field('stage_entry', 'tutortime', $entry->tutortime, ['id' => $entry->id]);
         $this->assertFalse(stage_maybe_request_tutor_evaluation($stage, $cm, $entry));
         $this->assertArrayNotHasKey($entry->id, stage_get_entries_needing_tutor_request());
+    }
+
+    /**
+     * Régression : l'invitation partait dès la date de début, quel que soit l'état de la
+     * convention ou du stage. Elle est désormais réservée aux stages engagés (convention signée,
+     * sur SignVet ou dispensée) et encore en attente de l'avis du maître de stage.
+     */
+    public function test_invitation_requires_engaged_internship_awaiting_tutor(): void {
+        global $DB;
+        [$stage, $cm, $entry] = $this->prepare();
+        $sink = $this->redirectEmails();
+        $cases = [
+            'convention seulement demandée' => ['conventionstatus' => STAGE_CONVENTION_REQUESTED],
+            'convention refusée' => ['conventionstatus' => STAGE_CONVENTION_REJECTED],
+            'convention en attente du référent' => ['conventionstatus' => STAGE_CONVENTION_TEACHERPENDING],
+            'évaluation contournée' => ['tutorbypassed' => 1],
+            'stage validé' => ['status' => STAGE_STATUS_VALIDE_DEVE],
+            'stage non validé' => ['status' => STAGE_STATUS_NON_VALIDE],
+            'stage évalué par l\'enseignant' => ['status' => STAGE_STATUS_EVAL_ENSEIGNANT],
+        ];
+        foreach ($cases as $label => $fields) {
+            $copy = clone $entry;
+            foreach ($fields as $field => $value) {
+                $copy->$field = $value;
+                $DB->set_field('stage_entry', $field, $value, ['id' => $entry->id]);
+            }
+            $this->assertArrayNotHasKey($entry->id, stage_get_entries_needing_tutor_request(), $label);
+            $this->assertFalse(stage_maybe_request_tutor_evaluation($stage, $cm, $copy), $label);
+            $DB->update_record('stage_entry', $entry);
+        }
+        $this->assertCount(0, $sink->get_messages());
+
+        foreach ([STAGE_CONVENTION_SIGNVET, STAGE_CONVENTION_EXEMPT] as $conventionstatus) {
+            $DB->set_field('stage_entry', 'conventionstatus', $conventionstatus, ['id' => $entry->id]);
+            $this->assertArrayHasKey($entry->id, stage_get_entries_needing_tutor_request());
+        }
+        $DB->set_field('stage_entry', 'status', STAGE_STATUS_EVAL_ETUDIANT, ['id' => $entry->id]);
+        $this->assertArrayHasKey($entry->id, stage_get_entries_needing_tutor_request());
+
+        // Activité dans la corbeille : plus d'invitation.
+        $DB->set_field('course_modules', 'deletioninprogress', 1, ['id' => $cm->id]);
+        $this->assertArrayNotHasKey($entry->id, stage_get_entries_needing_tutor_request());
+        $sink->close();
     }
 
     /**

@@ -51,8 +51,8 @@ $string['importfromcourse'] = 'Import from another course';
 $string['importfromcourse_help'] = 'Copy the themes (with the evaluation lists they use), agreement templates, logos, email texts and/or establishment '
     . "information from another instance of the activity (usually in another course) into this one, so you don't "
     . 'have to redo everything for each new course. Only instances where you yourself can manage themes are '
-    . 'offered as a source. Imported items are added to what is already here (themes and templates are not '
-    . 'merged with existing ones; logos, email texts and establishment information already set here are '
+    . 'offered as a source. Imported items are added to what is already here (a theme or template whose name '
+    . 'already exists here is not copied again, so re-running the import creates no duplicates; logos, email texts and establishment information already set here are '
     . 'replaced).';
 $string['importsource'] = 'Source instance';
 $string['importthemes'] = 'Themes';
@@ -107,15 +107,19 @@ $string['promotionlegend'] = 'OK: year completed. NO: year not completed. -: no 
 $string['import'] = 'Import';
 $string['importcsv_help'] = 'Import a CSV file (saved from Excel via "Save As > CSV"), with the following columns, '
     . 'separated by semicolons or commas, with an optional header row: '
-    . '<code>email;theme;structure;datestart;dateend;duration</code>. The <em>email</em> field must match a student '
-    . 'enrolled in the course, <em>theme</em> the exact name of an existing theme, the dates in YYYY-MM-DD format '
-    . '(optional), and <em>duration</em> the declared duration in days.';
+    . '<code>email;theme;structure;datestart;dateend;duration;studyyear</code>. The <em>email</em> field must match a student '
+    . 'enrolled in the course, <em>theme</em> the exact name of an existing theme, the dates in YYYY-MM-DD or DD/MM/YYYY '
+    . 'format (optional), <em>duration</em> the declared duration in days, and <em>studyyear</em> the year of study '
+    . '(optional, 1 to 6).';
 $string['importresult'] = '{$a} internship(s) successfully imported.';
 $string['importerrorupload'] = 'The file could not be uploaded. Check its size and try again.';
 $string['importerrorunknownemail'] = 'Line {$a->line}: no enrolled student with email "{$a->email}".';
 $string['importerrorunknowntheme'] = 'Line {$a->line}: theme "{$a->theme}" not found.';
 $string['importerrorduplicate'] = 'Line {$a->line}: "{$a->email}" already has an internship on theme "{$a->theme}" '
     . 'with these same dates, line skipped.';
+$string['importerrordate'] = 'Line {$a->line}: unreadable date "{$a->value}" (accepted formats: YYYY-MM-DD or DD/MM/YYYY), '
+    . 'line skipped.';
+$string['importerrordaterange'] = 'Line {$a}: the end date is before the start date, line skipped.';
 $string['importstagevetcsv'] = 'Import a StageVet export (CSV)';
 $string['importstagevetcsv_help'] = 'Import the CSV file exported directly from StageVet (StageVet\'s export '
     . 'menu, unmodified). Columns are recognised by their header ("Nom étudiant", "Prénom étudiant", "Thème", '
@@ -202,7 +206,8 @@ $string['importteacherscsv_help'] = 'Import a CSV file (saved from Excel via "Sa
     . 'columns, separated by semicolons or commas, with an optional header row: '
     . '<code>studentemail;teacher1email;teacher2email</code>. The <em>studentemail</em> field must match a student '
     . 'enrolled on the course, <em>teacher1email</em> a potential referent teacher enrolled on the course; '
-    . '<em>teacher2email</em> is optional (second referent). Each line replaces the student\'s existing assignment.';
+    . '<em>teacher2email</em> is optional (second referent). Each line replaces the student\'s existing assignment; '
+    . 'a line with an unrecognised teacher is skipped and the existing assignment kept.';
 $string['importteachersresult'] = '{$a} student(s) updated successfully.';
 $string['importerrorunknownteacher'] = 'Line {$a->line}: no potential referent teacher with email "{$a->email}".';
 $string['errorduplicateentry'] = 'This student already has an internship registered on this theme with these same dates.';
@@ -293,6 +298,7 @@ $string['transferentrycount'] = 'Number of internships';
 $string['transferreportcount'] = 'Internship report documents transferred';
 $string['transferconfirm'] = 'Confirm the transfer';
 $string['transferirreversible'] = 'The transfer cannot be undone: to bring the student back to this course, you will have to transfer them back from the destination activity.';
+$string['transferformerstudent'] = '{$a} (no longer enrolled in the course)';
 $string['transferdone'] = '{$a->count} internship(s) of {$a->student} transferred to "{$a->target}".';
 $string['transfernotargets'] = 'No other instance of the activity where you can register internships was found.';
 $string['transfernoentries'] = 'This student has no internship in this activity: there is nothing to transfer.';
@@ -406,6 +412,8 @@ $string['markinvalid'] = 'Mark as not validated';
 $string['rejectcomment'] = 'Reason for non-validation';
 $string['entrynoteditable'] = 'This entry has already been evaluated and can no longer be edited. '
     . 'Only the DEVE can reset it to allow a new submission.';
+$string['resetstageentries'] = 'Delete all internships (evaluations, agreements, uploaded reports)';
+$string['resetstageteachers'] = 'Delete referent teacher assignments';
 $string['resetentry'] = 'Reset (allow a new submission)';
 $string['entryreset'] = 'The entry has been reset: a new self-assessment is now possible.';
 $string['confirmresetentry'] = 'Reset this entry? The student and the referent teacher will be able to edit it again.';
@@ -471,6 +479,7 @@ $string['requestconventionfor'] = 'Agreement request for {$a}.';
 $string['requestconvention_help'] = 'Choose the agreement template matching your internship. '
     . 'The request will then follow the approval, editing and signature workflow; self-assessment will only '
     . 'be possible once the agreement has been signed.';
+$string['conventionrequestclosed'] = 'This internship has already been evaluated, validated or cancelled: an agreement can no longer be requested for it.';
 $string['conventionalreadyrequested'] = 'The agreement for this internship has already been requested.';
 $string['conventionrequested'] = 'The agreement request has been saved.';
 $string['conventionrequestexempt'] = 'This internship is exempt from an agreement, so no request can be created.';
@@ -640,6 +649,8 @@ $string['bulkthemessaved'] = 'Themes updated.';
 $string['teachersassigned'] = 'Referent teachers updated.';
 $string['evalsaved'] = 'Evaluation saved.';
 $string['bulkvalidated'] = '{$a} internship(s) validated.';
+$string['bulkregisterinvalidtheme'] = 'Choose an active theme of this activity: no internship was registered.';
+$string['bulkregisterinvalidvalues'] = 'Invalid year of study, mobility or duration: no internship was registered.';
 $string['bulkregistered'] = '{$a} internship(s) registered.';
 $string['bulkduplicatesskipped'] = 'Already registered on this theme with these same dates, skipped: {$a}';
 $string['nothemesyet'] = 'No theme has been created yet.';
@@ -743,6 +754,7 @@ $string['tutorevaluationenabledtheme'] = 'Workplace tutor evaluation for this th
 $string['tutorevaluationenabledtheme_help'] = 'Only takes effect if workplace tutor evaluation is also enabled '
     . 'globally for this activity (the "Notifications" page). Once that global option is enabled, this lets '
     . 'you offer it for only some themes rather than all of them.';
+$string['tutorevalcommentrequired'] = 'Please write your evaluation before sending it.';
 $string['tutorevalheading'] = 'Workplace tutor evaluation';
 $string['notutoreval'] = 'The workplace tutor has not yet answered their evaluation questionnaire.';
 $string['tutorevallink'] = 'Evaluation link to send to the workplace tutor';
@@ -858,6 +870,7 @@ $string['privacy:metadata:stage_entry_checklist'] = 'The answers given by the st
 $string['privacy:metadata:stage_entry_checklist:itemid'] = 'The objective being answered.';
 $string['privacy:metadata:stage_entry_checklist:checked'] = 'Whether the objective is reported as achievable.';
 $string['privacy:metadata:stage_entry_checklist:explanation'] = 'The explanation given when the objective is not ticked.';
+$string['errorrejectreasonrequired'] = 'Give the reason why the internship is not validated: it is passed on to the student.';
 $string['errorvalidatecancelled'] = 'Reset the cancelled internship before validating it.';
 $string['errornegativeduration'] = 'The duration cannot be negative.';
 $string['errorrequiredanswer'] = 'An answer is required for this question: {$a}';
@@ -954,6 +967,8 @@ $string['removequestionrow'] = 'Remove this question from the list';
 $string['removequestionrow_help'] = 'The question is removed from this list only. If it belongs to no other list, it '
     . 'is deleted together with the answers already recorded.';
 $string['questionsharedwithlists'] = 'Also in: {$a}';
+$string['evallistquestionhasanswers'] = 'This question already has answers: it cannot be removed from the list.';
+$string['evallistquestionsblocked'] = 'Nothing was saved: these questions already have answers and cannot be removed from the list: {$a}. The answers of internships already evaluated would be lost.';
 $string['evallistsaved'] = 'Evaluation list saved.';
 $string['evallistadd'] = 'Create an evaluation list';
 $string['evallistsmanage'] = 'Manage all lists';

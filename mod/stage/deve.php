@@ -101,6 +101,14 @@ if ($entryid) {
     if (data_submitted() && confirm_sesskey()) {
         if (optional_param('rejectstage', '', PARAM_RAW) !== '') {
             $comment = optional_param('devecomment', '', PARAM_RAW);
+            if (trim($comment) === '') {
+                redirect(
+                    $entryurl,
+                    get_string('errorrejectreasonrequired', 'mod_stage'),
+                    null,
+                    \core\output\notification::NOTIFY_ERROR
+                );
+            }
             stage_reject_by_deve($entry, $USER->id, $comment);
         } else {
             $retained = optional_param('retainedduration', 0, PARAM_INT);
@@ -124,13 +132,13 @@ if ($entryid) {
     // Les deux évaluations amont, telles qu'elles ont été saisies (questions ou commentaire libre).
     $answers = stage_get_answers($entry->id);
 
-    $studentquestions = stage_get_questions($entry->themeid, 'student');
+    $studentquestions = stage_get_entry_questions($entry, 'student');
     if (!empty($studentquestions) || $entry->studentselfeval) {
         echo $OUTPUT->heading(get_string('studentselfeval', 'mod_stage'), 4);
         echo stage_render_evaluation($studentquestions, $answers, $entry->studentselfeval, FORMAT_HTML);
     }
 
-    $teacherquestions = stage_get_questions($entry->themeid, 'teacher');
+    $teacherquestions = stage_get_entry_questions($entry, 'teacher');
     if (!empty($teacherquestions) || $entry->teachereval) {
         echo $OUTPUT->heading(get_string('teachereval', 'mod_stage'), 4);
         echo !empty($teacherquestions)
@@ -143,7 +151,7 @@ if ($entryid) {
     // Une évaluation du maître de stage importée (StageVet) s'affiche même si l'activité ne
     // sollicite pas elle-même les maîtres de stage.
     if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tutoreval) !== '') {
-        $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
+        $tutorquestions = stage_get_entry_questions($entry, 'tutor');
         echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
         if ($entry->tutortime || trim((string) $entry->tutoreval) !== '') {
             echo stage_render_evaluation($tutorquestions, $answers, $entry->tutoreval);
@@ -174,7 +182,7 @@ if ($entryid) {
             $bypassurl = new moodle_url($entryurl, ['bypasstutor' => 1, 'sesskey' => sesskey()]);
             echo html_writer::link($bypassurl, get_string('tutorevalbypass', 'mod_stage'), [
                 'class' => 'btn btn-sm btn-outline-secondary mb-2',
-                'onclick' => "return confirm('" . get_string('confirmtutorevalbypass', 'mod_stage') . "');",
+                'onclick' => stage_confirm_onclick(get_string('confirmtutorevalbypass', 'mod_stage')),
             ]);
         }
     }
@@ -225,10 +233,7 @@ if ($entryid) {
             $reseturl,
             get_string('resetentry', 'mod_stage'),
             ['class' => 'btn btn-outline-secondary mt-3',
-            'onclick' => "return confirm('" . get_string(
-                'confirmresetentry',
-                'mod_stage'
-            ) . "');"]
+            'onclick' => stage_confirm_onclick(get_string('confirmresetentry', 'mod_stage'))]
         ),
     );
 
@@ -243,7 +248,9 @@ if (optional_param('bulkvalidate', 0, PARAM_INT) && confirm_sesskey()) {
     $validatedcount = 0;
     foreach ($ids as $sid) {
         $entry = $DB->get_record('stage_entry', ['id' => $sid, 'stageid' => $stage->id]);
-        if ($entry) {
+        // Un stage annulé entre l'affichage de la liste et sa soumission est écarté plutôt que de
+        // faire échouer toute la validation en masse (voir stage_apply_deve_validation()).
+        if ($entry && (int) $entry->status !== STAGE_STATUS_ANNULE) {
             stage_apply_deve_validation($entry, $USER->id, $entry->declaredduration, '');
             $validatedcount++;
         }

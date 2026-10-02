@@ -53,7 +53,7 @@ class convention_sign_form extends \moodleform {
         $mform->addElement('filemanager', 'signedfile', get_string('conventionsignedfile', 'mod_stage'), null, [
             'subdirs' => 0,
             'maxfiles' => 1,
-            'maxbytes' => $CFG->maxbytes,
+            'maxbytes' => $this->_customdata['maxbytes'] ?? $CFG->maxbytes,
             'accepted_types' => ['.pdf'],
         ]);
         $mform->addHelpButton('signedfile', 'conventionsignedfile', 'mod_stage');

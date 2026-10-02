@@ -58,10 +58,7 @@ $PAGE->set_context($context);
 $backurl = new moodle_url('/mod/stage/administration.php', ['id' => $cm->id]);
 
 $targets = stage_get_transfer_target_instances($stage->id);
-$students = [];
-foreach (stage_get_enrolled_students($context) as $student) {
-    $students[$student->id] = fullname($student);
-}
+$students = stage_get_transfer_students($stage->id, $context);
 
 if (empty($targets) || empty($students)) {
     echo $OUTPUT->header();

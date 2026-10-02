@@ -66,4 +66,50 @@ final class student_progress_test extends \advanced_testcase {
         $this->assertSame(30, $themerow->requiredduration);
         $this->assertTrue($themerow->done);
     }
+
+    /**
+     * Régression : un stage annulé ou non validé ajoutait à la thématique l'exigence de son année
+     * d'étude (la thématique n'était alors jamais « faite »), gonflait la durée déclarée, et
+     * comptait comme stage en cours dans le tableau de pilotage.
+     *
+     * @covers ::stage_get_pilotage_overview
+     */
+    public function test_cancelled_and_rejected_entries_do_not_count(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $stage = $this->getDataGenerator()->create_module('stage', ['course' => $course]);
+        /** @var \mod_stage_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $theme = $generator->create_theme($stage, ['name' => 'Clinique', 'mandatory' => 1]);
+        stage_set_theme_duration($theme->id, 2, 10);
+        stage_set_theme_duration($theme->id, 3, 10);
+        $student = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($student->id, $course->id, 'student');
+
+        $cancelled = $generator->create_entry($stage, $student->id, $theme, ['studyyear' => 2, 'declaredduration' => 7]);
+        stage_cancel_entry($cancelled, 2, 'Abandon');
+        $rejected = $generator->create_entry($stage, $student->id, $theme, [
+            'studyyear' => 2, 'declaredduration' => 4,
+            'datestart' => make_timestamp(2026, 5, 1), 'dateend' => make_timestamp(2026, 5, 4),
+        ]);
+        stage_reject_by_deve($rejected, 2, 'Hors délai');
+        $valid = $generator->create_entry($stage, $student->id, $theme, [
+            'studyyear' => 3, 'declaredduration' => 10,
+            'datestart' => make_timestamp(2026, 6, 1), 'dateend' => make_timestamp(2026, 6, 10),
+        ]);
+        stage_apply_deve_validation($valid, 2, 10);
+
+        $progress = stage_get_student_progress($stage->id, $student->id);
+        $themerow = $progress->themes[$theme->id];
+        $this->assertSame(10, $themerow->requiredduration);
+        $this->assertSame([3], $themerow->requiredyears);
+        $this->assertTrue($themerow->done);
+        $this->assertSame(10, $progress->totaldeclared);
+
+        $years = array_map(fn($row) => $row->studyyear, stage_get_student_year_progress($stage->id, $student->id));
+        $this->assertNotContains(2, $years);
+
+        $overview = stage_get_pilotage_overview($stage->id, \context_module::instance($stage->cmid));
+        $this->assertSame(0, reset($overview)->pendingcount);
+    }
 }

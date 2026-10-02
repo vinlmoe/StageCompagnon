@@ -94,7 +94,7 @@ if (empty($lists)) {
         if (!stage_count_evallist_exclusive_answers($list->id)) {
             $actions .= html_writer::link($deleteurl, get_string('delete'), [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => "return confirm('" . addslashes_js(get_string('confirmdeleteevallist', 'mod_stage')) . "');",
+                'onclick' => stage_confirm_onclick(get_string('confirmdeleteevallist', 'mod_stage')),
             ]);
         }
         $table->data[] = [

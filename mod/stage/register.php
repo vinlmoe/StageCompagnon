@@ -187,7 +187,7 @@ if ($mode === 'list') {
         ], 'btn btn-sm btn-secondary mr-1 mb-1');
 
         $conventionactions = stage_render_actions([
-            get_string('requestconvention', 'mod_stage') => stage_convention_can_be_requested($conventionstatus)
+            get_string('requestconvention', 'mod_stage') => stage_convention_request_allowed($entry, true)
                 ? new moodle_url('/mod/stage/convention_request.php', ['id' => $cm->id, 'entryid' => $entry->id,
                     'returnurl' => $rowreturnurl]) : null,
             get_string('conventionreview', 'mod_stage') => $conventionstatus === STAGE_CONVENTION_REQUESTED
@@ -217,7 +217,7 @@ if ($mode === 'list') {
                 'entryid' => $entry->id, 'sesskey' => sesskey(), 'returnurl' => $rowreturnurl]);
             $actions .= html_writer::link($reseturl, get_string('resetentry', 'mod_stage'), [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => "return confirm('" . get_string('confirmresetentry', 'mod_stage') . "');",
+                'onclick' => stage_confirm_onclick(get_string('confirmresetentry', 'mod_stage')),
             ]);
         }
         if ((int) $entry->status !== STAGE_STATUS_ANNULE) {
@@ -380,48 +380,16 @@ if ($mode === 'bulk') {
         $declaredduration = required_param('declaredduration', PARAM_INT);
         $studentids = optional_param_array('students', [], PARAM_INT);
 
-        $start = $datestartraw ? strtotime($datestartraw) : null;
-        $end = $dateendraw ? strtotime($dateendraw) : null;
+        // Champs de date HTML (AAAA-MM-JJ), lus à minuit dans le fuseau de l'utilisateur, comme
+        // les sélecteurs de date des formulaires.
+        $start = \mod_stage\local\csv_importer::parse_date($datestartraw);
+        $end = \mod_stage\local\csv_importer::parse_date($dateendraw);
 
-        // Même contrôle bloquant que dans les formulaires : la plage commune doit être complète et
-        // sa fin ne peut pas précéder son début. Une seule plage ici, donc pas de chevauchement
-        // possible.
-        $bulkperioderror = stage_validate_periods($start && $end ? [['datestart' => $start, 'dateend' => $end]] : []);
-
-        // Un étudiant ayant déjà un stage sur cette thématique et ces mêmes dates est écarté
-        // et signalé, pour ne pas créer de doublon silencieux.
-        $existing = stage_get_existing_theme_pairs($stage->id);
-        $studentsbyid = [];
-        foreach ($students as $student) {
-            $studentsbyid[$student->id] = $student;
-        }
-
-        $bulkresults = (object) ['created' => 0, 'duplicates' => [], 'error' => $bulkperioderror];
-        foreach ($bulkperioderror !== null ? [] : $studentids as $studentid) {
-            $key = stage_duplicate_key($studentid, $themeid, $start, $end);
-            if (isset($existing[$key])) {
-                $bulkresults->duplicates[] = isset($studentsbyid[$studentid])
-                    ? fullname($studentsbyid[$studentid]) : "#$studentid";
-                continue;
-            }
-            // Les stages enregistrés en masse sont déjà signés sur SignVet au moment de leur
-            // enregistrement : pas de gestion de convention à faire dans ce plugin pour eux.
-            stage_register_entry(
-                $stage->id,
-                $studentid,
-                $themeid,
-                $structure,
-                $start,
-                $end,
-                $declaredduration,
-                $studyyear,
-                STAGE_CONVENTION_SIGNVET,
-                $abroad,
-                $country
-            );
-            $existing[$key] = true;
-            $bulkresults->created++;
-        }
+        $bulkresults = stage_bulk_register_entries($stage, $context, $studentids, (object) [
+            'themeid' => $themeid, 'studyyear' => $studyyear, 'abroad' => $abroad, 'country' => $country,
+            'structure' => $structure, 'datestart' => $start, 'dateend' => $end,
+            'declaredduration' => $declaredduration,
+        ]);
     }
 
     echo $OUTPUT->header();

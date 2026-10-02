@@ -67,7 +67,8 @@ function stagesynthesis_get_links($synthesisid) {
     $sql = "SELECT l.id AS linkid, l.stagecmid, cm.visible, s.name AS stagename, c.id AS courseid,
                    c.fullname AS coursename, c.visible AS coursevisible
               FROM {stagesynthesis_link} l
-              JOIN {course_modules} cm ON cm.id = l.stagecmid
+              JOIN {course_modules} cm ON cm.id = l.stagecmid AND cm.deletioninprogress = 0
+              JOIN {modules} m ON m.id = cm.module AND m.name = 'stage'
               JOIN {stage} s ON s.id = cm.instance
               JOIN {course} c ON c.id = cm.course
              WHERE l.synthesisid = :synthesisid
@@ -103,6 +104,7 @@ function stagesynthesis_get_available_stage_activities($userid) {
               JOIN {modules} m ON m.id = cm.module AND m.name = 'stage'
               JOIN {stage} s ON s.id = cm.instance
               JOIN {course} c ON c.id = cm.course
+             WHERE cm.deletioninprogress = 0
           ORDER BY c.fullname ASC, s.name ASC";
 
     $candidates = $DB->get_records_sql($sql);

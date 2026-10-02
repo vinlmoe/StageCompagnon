@@ -142,7 +142,7 @@ if (empty($templates)) {
             ]);
             $actions .= html_writer::link($deleteurl, get_string('delete'), [
                 'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => "return confirm('" . addslashes_js(get_string('confirmdeleteconventiontemplate', 'mod_stage')) . "');",
+                'onclick' => stage_confirm_onclick(get_string('confirmdeleteconventiontemplate', 'mod_stage')),
             ]);
         }
         $table->data[] = [

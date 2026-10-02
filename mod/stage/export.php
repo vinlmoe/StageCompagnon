@@ -308,7 +308,9 @@ foreach ($headers as $col => $header) {
     $sheet->write_string(0, $col, $header, $headerformat);
 }
 
-$exportdateformat = get_string('strftimedate', 'langconfig');
+// Les plages sont écrites en JJ/MM/AAAA, quelle que soit la langue : la restauration de l'export
+// (import_global.php) doit pouvoir les relire.
+$exportdateformat = '%d/%m/%Y';
 $stagetypeoptions = stage_convention_stagetype_options();
 $yearsituationoptions = stage_convention_yearsituation_options();
 $reportmodeoptions = stage_report_mode_options();

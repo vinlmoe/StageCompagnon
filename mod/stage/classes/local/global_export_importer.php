@@ -49,10 +49,14 @@ class global_export_importer {
                 $detail->timemodified = $entry->timemodified;
                 $DB->insert_record('stage_convention_detail', $detail);
             }
-            if ($entry->datestart && $entry->dateend) {
-                \stage_save_entry_periods($entryid, [[
-                    'datestart' => $entry->datestart, 'dateend' => $entry->dateend,
-                ]]);
+            // Les plages exportées sont restaurées telles quelles : un stage en plusieurs plages
+            // ne doit pas devenir une plage continue, qui compterait les jours entre deux.
+            $periods = !empty($saved->periods) ? array_values((array) $saved->periods) : [];
+            if (!$periods && $entry->datestart && $entry->dateend) {
+                $periods = [['datestart' => $entry->datestart, 'dateend' => $entry->dateend]];
+            }
+            if ($periods) {
+                \stage_save_entry_periods($entryid, array_map(fn($period) => (array) $period, $periods));
             }
         }
         $transaction->allow_commit();
@@ -91,6 +95,7 @@ class global_export_importer {
                 ) {
                     $record->$field = self::date($record->$field ?? '');
                 }
+                $record->periods = self::periods($record->periods ?? '');
                 $records[] = $record;
             }
             return ['records' => $records, 'warnings' => []];
@@ -227,6 +232,11 @@ class global_export_importer {
     /**
      * Convertit une date Excel ou une date textuelle issue du même export.
      *
+     * L'export écrit les dates dans le fuseau de l'utilisateur (voir write_date()) : le numéro de
+     * série Excel décrit donc une heure locale, et non une heure UTC. Il est reconverti dans ce
+     * même fuseau, faute de quoi chaque date restaurée serait décalée de l'écart à UTC et ne
+     * correspondrait plus au stage d'origine.
+     *
      * @param mixed $value
      * @return int|null Horodatage, ou null si la valeur n'est pas une date.
      */
@@ -235,10 +245,64 @@ class global_export_importer {
             return null;
         }
         if (is_numeric($value)) {
-            return (int) round(((float) $value - 25569) * 86400);
+            $wallclock = (int) round(((float) $value - 25569) * 86400);
+            [$year, $month, $day, $hour, $minute, $second] = array_map('intval', explode('-', gmdate('Y-n-j-G-i-s', $wallclock)));
+            return make_timestamp($year, $month, $day, $hour, $minute, $second);
         }
-        $timestamp = strtotime((string) $value);
+        $value = trim((string) $value);
+        $timestamp = csv_importer::parse_date($value) ?? self::text_date($value);
+        if ($timestamp === null) {
+            $timestamp = strtotime($value);
+        }
         return $timestamp === false ? null : $timestamp;
+    }
+
+    /**
+     * Date écrite en toutes lettres par l'export (« 15 mars 2026 », « 15 March 2026 »), telle
+     * qu'elle figure dans la colonne des plages de dates.
+     *
+     * @param string $value
+     * @return int|null
+     */
+    private static function text_date(string $value): ?int {
+        $months = [
+            'janvier' => 1, 'fevrier' => 2, 'mars' => 3, 'avril' => 4, 'mai' => 5, 'juin' => 6, 'juillet' => 7,
+            'aout' => 8, 'septembre' => 9, 'octobre' => 10, 'novembre' => 11, 'decembre' => 12,
+            'january' => 1, 'february' => 2, 'march' => 3, 'april' => 4, 'may' => 5, 'june' => 6, 'july' => 7,
+            'august' => 8, 'september' => 9, 'october' => 10, 'november' => 11, 'december' => 12,
+        ];
+        if (!preg_match('/^(\d{1,2}) ([a-z]+) (\d{4})$/', self::normalize($value), $matches)) {
+            return null;
+        }
+        $month = $months[$matches[2]] ?? 0;
+        if (!$month || !checkdate($month, (int) $matches[1], (int) $matches[3])) {
+            return null;
+        }
+        return make_timestamp((int) $matches[3], $month, (int) $matches[1]);
+    }
+
+    /**
+     * Plages de dates d'un stage, lues dans la colonne « Plages de dates » de l'export
+     * (« début - fin ; début - fin », renseignée seulement quand il y en a plusieurs).
+     *
+     * @param string $value
+     * @return array Liste de ['datestart' => int, 'dateend' => int] ; vide si absente ou illisible.
+     */
+    public static function periods(string $value): array {
+        $periods = [];
+        foreach (preg_split('/\s*;\s*/', trim($value), -1, PREG_SPLIT_NO_EMPTY) as $label) {
+            $bounds = preg_split('/\s+-\s+/', $label);
+            if (count($bounds) !== 2) {
+                return [];
+            }
+            $start = self::date($bounds[0]);
+            $end = self::date($bounds[1]);
+            if (!$start || !$end || $end < $start) {
+                return [];
+            }
+            $periods[] = ['datestart' => $start, 'dateend' => $end];
+        }
+        return $periods;
     }
 
     /**

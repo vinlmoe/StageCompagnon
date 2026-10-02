@@ -58,6 +58,16 @@ final class helpers_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : les chiffres étaient supprimés, si bien que « Clinique 1 » et « Clinique 2 »
+     * (thématiques, questions) étaient confondues au transfert et à l'import.
+     */
+    public function test_normalize_name_keeps_digits(): void {
+        $this->assertNotSame(stage_normalize_name('Clinique 1'), stage_normalize_name('Clinique 2'));
+        $this->assertNotSame(stage_normalize_name('Clinique 1'), stage_normalize_name('Clinique'));
+        $this->assertSame('stage 1ere annee', stage_normalize_name('Stage 1ère  ANNÉE'));
+    }
+
+    /**
      * L'année limite de validation d'une thématique est le maximum de sa plage ; une thématique
      * sans plage définie (les deux bornes vides) n'a pas d'année limite.
      */

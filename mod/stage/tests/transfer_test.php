@@ -31,6 +31,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     ::stage_plan_student_transfer
  * @covers     ::stage_execute_student_transfer
+ * @covers     ::stage_get_transfer_students
  */
 final class transfer_test extends \advanced_testcase {
     /**
@@ -116,6 +117,176 @@ final class transfer_test extends \advanced_testcase {
 
         $this->assertEmpty($plan->blockers);
         $this->assertNotEmpty($plan->thememap[$sourcetheme->id]);
+    }
+
+    /**
+     * Régression : des thématiques numérotées étaient toutes rattachées à la dernière d'entre elles.
+     */
+    public function test_numbered_themes_keep_their_own_match(): void {
+        global $DB;
+        [$sourcestage, $targetstage, $student] = $this->prepare_two_stages();
+        $this->getDataGenerator()->enrol_user($student->id, $targetstage->course, 'student');
+        /** @var \mod_stage_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $source1 = $generator->create_theme($sourcestage, ['name' => 'Clinique 1']);
+        $source2 = $generator->create_theme($sourcestage, ['name' => 'Clinique 2']);
+        $target1 = $generator->create_theme($targetstage, ['name' => 'Clinique 1']);
+        $target2 = $generator->create_theme($targetstage, ['name' => 'Clinique 2']);
+        $entry1 = $generator->create_entry($sourcestage, $student->id, $source1);
+        $entry2 = $generator->create_entry($sourcestage, $student->id, $source2, [
+            'datestart' => make_timestamp(2026, 5, 1), 'dateend' => make_timestamp(2026, 5, 10),
+        ]);
+
+        $plan = stage_plan_student_transfer($sourcestage, $targetstage, $student->id);
+        $this->assertEmpty($plan->blockers);
+        $this->assertEquals($target1->id, $plan->thememap[$source1->id]);
+        $this->assertEquals($target2->id, $plan->thememap[$source2->id]);
+
+        [$sourcecontext, $targetcontext] = $this->contexts($sourcestage, $targetstage);
+        stage_execute_student_transfer($sourcestage, $sourcecontext, $targetstage, $targetcontext, $student->id, $plan);
+        $this->assertEquals($target1->id, $DB->get_field('stage_entry', 'themeid', ['id' => $entry1->id]));
+        $this->assertEquals($target2->id, $DB->get_field('stage_entry', 'themeid', ['id' => $entry2->id]));
+    }
+
+    /**
+     * Deux thématiques de même nom dans la cible : aucune n'est choisie au hasard, le transfert
+     * est bloqué.
+     */
+    public function test_blocks_when_target_theme_name_is_ambiguous(): void {
+        [$sourcestage, $targetstage, $student] = $this->prepare_two_stages();
+        $this->getDataGenerator()->enrol_user($student->id, $targetstage->course, 'student');
+        /** @var \mod_stage_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $sourcetheme = $generator->create_theme($sourcestage, ['name' => 'Ruminants']);
+        $generator->create_theme($targetstage, ['name' => 'Ruminants']);
+        $generator->create_theme($targetstage, ['name' => 'RUMINANTS']);
+        $generator->create_entry($sourcestage, $student->id, $sourcetheme);
+
+        $plan = stage_plan_student_transfer($sourcestage, $targetstage, $student->id);
+        $this->assertNotEmpty($plan->blockers);
+        $this->assertNull($plan->thememap[$sourcetheme->id]);
+    }
+
+    /**
+     * Régression : deux questions source rapprochées de la même question cible faisaient échouer
+     * le transfert sur l'index unique des réponses. Seules les correspondances uniques sont
+     * reportées, les autres réponses sont annoncées puis supprimées.
+     */
+    public function test_ambiguous_questions_do_not_collide(): void {
+        global $DB;
+        [$sourcestage, $targetstage, $student] = $this->prepare_two_stages();
+        $this->getDataGenerator()->enrol_user($student->id, $targetstage->course, 'student');
+        /** @var \mod_stage_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $sourcetheme = $generator->create_theme($sourcestage, ['name' => 'Ruminants']);
+        $targettheme = $generator->create_theme($targetstage, ['name' => 'Ruminants']);
+        $question = function ($stage, $name) use ($DB) {
+            return $DB->get_record('stage_question', ['id' => $DB->insert_record('stage_question', (object) [
+                'stageid' => $stage->id, 'themeid' => 0, 'evaltype' => 'student', 'qtype' => 'text', 'name' => $name,
+                'required' => 0, 'sortorder' => 0, 'timecreated' => time(), 'timemodified' => time(),
+            ])]);
+        };
+        $s1 = $question($sourcestage, 'Compétence 1');
+        $s2 = $question($sourcestage, 'Compétence 2');
+        $s3 = $question($sourcestage, 'Bilan');
+        $s4 = $question($sourcestage, 'bilan');
+        $t1 = $question($targetstage, 'Compétence 1');
+        $t2 = $question($targetstage, 'Compétence 2');
+        $t3 = $question($targetstage, 'Bilan');
+        $generator->create_evallist($sourcestage, 'student', [$s1->id, $s2->id, $s3->id, $s4->id], [$sourcetheme]);
+        $generator->create_evallist($targetstage, 'student', [$t1->id, $t2->id, $t3->id], [$targettheme]);
+        $entry = $generator->create_entry($sourcestage, $student->id, $sourcetheme);
+        stage_save_answers($entry->id, [$s1, $s2, $s3, $s4], [
+            $s1->id => 'un', $s2->id => 'deux', $s3->id => 'trois', $s4->id => 'quatre',
+        ]);
+
+        $plan = stage_plan_student_transfer($sourcestage, $targetstage, $student->id);
+        $this->assertEmpty($plan->blockers);
+        $this->assertEquals($t1->id, $plan->questionmap[$sourcetheme->id][$s1->id]);
+        $this->assertEquals($t2->id, $plan->questionmap[$sourcetheme->id][$s2->id]);
+        $this->assertNull($plan->questionmap[$sourcetheme->id][$s3->id]);
+        $this->assertNull($plan->questionmap[$sourcetheme->id][$s4->id]);
+        $this->assertSame(2, $plan->droppedanswers);
+
+        [$sourcecontext, $targetcontext] = $this->contexts($sourcestage, $targetstage);
+        stage_execute_student_transfer($sourcestage, $sourcecontext, $targetstage, $targetcontext, $student->id, $plan);
+        $answers = $DB->get_records_menu('stage_answer', ['entryid' => $entry->id], '', 'questionid, answertext');
+        $this->assertEquals([$t1->id => 'un', $t2->id => 'deux'], $answers);
+    }
+
+    /**
+     * Régression : après un changement de liste d'évaluation de la thématique source, les réponses
+     * aux questions de l'ancienne liste étaient comptées comme perdues et supprimées au transfert.
+     */
+    public function test_answers_to_former_list_questions_are_transferred(): void {
+        global $DB;
+        [$sourcestage, $targetstage, $student] = $this->prepare_two_stages();
+        $this->getDataGenerator()->enrol_user($student->id, $targetstage->course, 'student');
+        /** @var \mod_stage_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $sourcetheme = $generator->create_theme($sourcestage, ['name' => 'Ruminants']);
+        $targettheme = $generator->create_theme($targetstage, ['name' => 'Ruminants']);
+        $question = function ($stage, $name) use ($DB) {
+            return $DB->get_record('stage_question', ['id' => $DB->insert_record('stage_question', (object) [
+                'stageid' => $stage->id, 'themeid' => 0, 'evaltype' => 'student', 'qtype' => 'text', 'name' => $name,
+                'required' => 0, 'sortorder' => 0, 'timecreated' => time(), 'timemodified' => time(),
+            ])]);
+        };
+        $former = $question($sourcestage, 'Bilan');
+        $generator->create_evallist($sourcestage, 'student', [$former->id], [$sourcetheme], 'Ancienne');
+        $entry = $generator->create_entry($sourcestage, $student->id, $sourcetheme);
+        stage_save_answers($entry->id, [$former], [$former->id => 'Réponse']);
+        // La thématique source change de liste ; la cible a gardé la question.
+        $generator->create_evallist($sourcestage, 'student', [$question($sourcestage, 'Autre')->id], [$sourcetheme], 'Nouvelle');
+        $targetq = $question($targetstage, 'Bilan');
+        $generator->create_evallist($targetstage, 'student', [$targetq->id], [$targettheme]);
+
+        $plan = stage_plan_student_transfer($sourcestage, $targetstage, $student->id);
+        $this->assertSame(0, $plan->droppedanswers);
+        [$sourcecontext, $targetcontext] = $this->contexts($sourcestage, $targetstage);
+        stage_execute_student_transfer($sourcestage, $sourcecontext, $targetstage, $targetcontext, $student->id, $plan);
+        $this->assertSame(
+            'Réponse',
+            $DB->get_field('stage_answer', 'answertext', ['entryid' => $entry->id, 'questionid' => $targetq->id])
+        );
+    }
+
+    /**
+     * Un étudiant désinscrit du cours source mais qui y a encore des stages reste transférable.
+     */
+    public function test_unenrolled_student_with_entries_is_offered(): void {
+        global $DB;
+        [$sourcestage, , $student] = $this->prepare_two_stages();
+        /** @var \mod_stage_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $generator->create_entry($sourcestage, $student->id, $generator->create_theme($sourcestage));
+        $enrolled = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($enrolled->id, $sourcestage->course, 'student');
+        [$sourcecontext] = $this->contexts($sourcestage, $sourcestage);
+
+        $manual = $DB->get_record('enrol', ['courseid' => $sourcestage->course, 'enrol' => 'manual'], '*', MUST_EXIST);
+        enrol_get_plugin('manual')->unenrol_user($manual, $student->id);
+
+        $students = stage_get_transfer_students($sourcestage->id, $sourcecontext);
+        $this->assertArrayHasKey($enrolled->id, $students);
+        $this->assertSame(
+            get_string('transferformerstudent', 'mod_stage', fullname($student)),
+            $students[$student->id]
+        );
+    }
+
+    /**
+     * Contextes de module des deux instances.
+     *
+     * @param \stdClass $sourcestage
+     * @param \stdClass $targetstage
+     * @return \context_module[]
+     */
+    private function contexts(\stdClass $sourcestage, \stdClass $targetstage): array {
+        return [
+            \context_module::instance(get_coursemodule_from_instance('stage', $sourcestage->id)->id),
+            \context_module::instance(get_coursemodule_from_instance('stage', $targetstage->id)->id),
+        ];
     }
 
     /**

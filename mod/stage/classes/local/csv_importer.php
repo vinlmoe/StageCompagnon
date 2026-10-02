@@ -18,7 +18,6 @@ namespace mod_stage\local;
 
 use core_text;
 use csv_import_reader;
-use DateTime;
 
 /**
  * Traitement des imports CSV indépendant des formulaires d'envoi de fichier.
@@ -54,12 +53,9 @@ class csv_importer {
         $results = null;
         $uploaderror = null;
 
-        // Excel francophone exporte en points-virgules ; on accepte aussi la virgule.
-        $delimiter = (strpos($content, ';') !== false) ? 'semicolon' : 'comma';
-
         $cir = new csv_import_reader(csv_import_reader::get_new_iid('stage'), 'stage');
 
-        if ($cir->load_csv_content($content, 'UTF-8', $delimiter) === false) {
+        if ($cir->load_csv_content($content, self::detect_encoding($content), self::detect_delimiter($content)) === false) {
             $uploaderror = $cir->get_error();
             $cir->cleanup(true);
         } else {
@@ -75,13 +71,15 @@ class csv_importer {
 
             while ($row = $cir->next()) {
                 $linenum++;
-                // Colonnes attendues : email, theme, structure, datestart, dateend, duration.
+                // Colonnes attendues : email, theme, structure, datestart, dateend, duration, et
+                // studyyear (facultative).
                 $email = isset($row[0]) ? trim($row[0]) : '';
                 $themename = isset($row[1]) ? trim($row[1]) : '';
                 $structure = isset($row[2]) ? trim($row[2]) : '';
                 $datestartraw = isset($row[3]) ? trim($row[3]) : '';
                 $dateendraw = isset($row[4]) ? trim($row[4]) : '';
                 $duration = isset($row[5]) ? (int) trim($row[5]) : 0;
+                $studyyear = isset($row[6]) ? self::parse_studyyear((string) $row[6]) : 0;
 
                 // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête.
                 if ($email === '' || $themename === '' || core_text::strtolower($email) === 'email') {
@@ -104,8 +102,27 @@ class csv_importer {
                     continue;
                 }
 
-                $start = $datestartraw ? strtotime($datestartraw) : false;
-                $end = $dateendraw ? strtotime($dateendraw) : false;
+                // Les dates sont lues au format AAAA-MM-JJ ou JJ/MM/AAAA (celui qu'Excel
+                // francophone réécrit à l'enregistrement), jamais à l'américaine : une date
+                // illisible ou une plage inversée est signalée au lieu d'être vidée ou permutée.
+                $start = self::parse_date($datestartraw);
+                $end = self::parse_date($dateendraw);
+                $baddate = null;
+                if ($datestartraw !== '' && !$start) {
+                    $baddate = $datestartraw;
+                } else if ($dateendraw !== '' && !$end) {
+                    $baddate = $dateendraw;
+                }
+                if ($baddate !== null) {
+                    $results->errors[] = get_string('importerrordate', 'mod_stage', (object) [
+                        'line' => $linenum, 'value' => $baddate,
+                    ]);
+                    continue;
+                }
+                if ($start && $end && $end < $start) {
+                    $results->errors[] = get_string('importerrordaterange', 'mod_stage', $linenum);
+                    continue;
+                }
 
                 $pairkey = stage_duplicate_key($student->id, $theme->id, $start ?: null, $end ?: null);
                 if (isset($existingpairs[$pairkey])) {
@@ -117,25 +134,34 @@ class csv_importer {
                 $existingpairs[$pairkey] = true;
 
                 $records[] = (object) [
-                    'stageid' => $stage->id,
                     'userid' => $student->id,
                     'themeid' => $theme->id,
                     'structure' => $structure,
                     'datestart' => $start ?: null,
                     'dateend' => $end ?: null,
                     'declaredduration' => $duration,
-                    'retainedduration' => 0,
-                    'status' => STAGE_STATUS_ENREGISTRE,
-                    'timecreated' => time(),
-                    'timemodified' => time(),
+                    'studyyear' => $studyyear,
                 ];
             }
             $cir->cleanup(true);
 
-            // Insertion groupée : un import de plusieurs centaines de lignes ne doit pas
-            // déclencher autant de requêtes individuelles.
+            // Création par stage_register_entry(), comme toute saisie : chaque stage daté reçoit
+            // sa plage. Une transaction évite un import à moitié fait en cas d'erreur.
             if ($records) {
-                $DB->insert_records('stage_entry', $records);
+                $transaction = $DB->start_delegated_transaction();
+                foreach ($records as $record) {
+                    stage_register_entry(
+                        $stage->id,
+                        $record->userid,
+                        $record->themeid,
+                        $record->structure,
+                        $record->datestart,
+                        $record->dateend,
+                        $record->declaredduration,
+                        $record->studyyear
+                    );
+                }
+                $transaction->allow_commit();
                 $results->created = count($records);
             }
         }
@@ -169,12 +195,9 @@ class csv_importer {
         $results = null;
         $uploaderror = null;
 
-        // Excel francophone exporte en points-virgules ; on accepte aussi la virgule.
-        $delimiter = (strpos($content, ';') !== false) ? 'semicolon' : 'comma';
-
         $cir = new csv_import_reader(csv_import_reader::get_new_iid('stageteachers'), 'stageteachers');
 
-        if ($cir->load_csv_content($content, 'UTF-8', $delimiter) === false) {
+        if ($cir->load_csv_content($content, self::detect_encoding($content), self::detect_delimiter($content)) === false) {
             $uploaderror = $cir->get_error();
             $cir->cleanup(true);
         } else {
@@ -202,6 +225,7 @@ class csv_importer {
                 }
 
                 $teacherids = [];
+                $invalid = false;
                 foreach ([$teacher1email, $teacher2email] as $teacheremail) {
                     if ($teacheremail === '') {
                         continue;
@@ -211,9 +235,16 @@ class csv_importer {
                         $results->errors[] = get_string('importerrorunknownteacher', 'mod_stage', (object) [
                             'line' => $linenum, 'email' => $teacheremail,
                         ]);
+                        $invalid = true;
                         continue;
                     }
                     $teacherids[] = $teacher->id;
+                }
+                // Une ligne dont un référent n'est pas reconnu (faute de frappe, enseignant non
+                // inscrit) n'est pas appliquée : l'appliquer à moitié retirerait à l'étudiant le
+                // référent qu'il a déjà, alors que le fichier voulait en désigner un.
+                if ($invalid) {
+                    continue;
                 }
 
                 stage_set_student_teachers($stage->id, $student->id, $teacherids);
@@ -228,24 +259,25 @@ class csv_importer {
     /**
      * Importe le CSV après contrôle des droits et du fichier par la page appelante.
      *
-     * Les lignes dont l'étudiant n'a pas pu être rapproché d'un inscrit au cours sont remontées
-     * dans $results->unknownstudents, groupées par libellé : aucune ligne n'est écartée en
-     * silence. La page appelante propose alors à la DEVE de désigner elle-même l'étudiant
-     * inscrit correspondant à chaque libellé, puis rappelle cette méthode avec le même contenu
-     * et la table de correspondance obtenue.
+     * Les lignes dont l'étudiant n'a pas pu être rapproché d'un inscrit au cours (ou l'a été de
+     * plusieurs, en cas d'homonymes) sont remontées dans $results->unknownstudents, groupées par
+     * libellé : aucune ligne n'est écartée en silence. La page appelante propose alors à la DEVE
+     * de désigner elle-même l'étudiant inscrit correspondant à chaque libellé, puis rappelle
+     * cette méthode avec le même contenu, la table de correspondance obtenue et la liste des
+     * lignes encore en attente (voir pending_lines()).
      *
      * @param \stdClass $stage Activité cible.
      * @param \context $context Contexte de l'activité cible.
-     * @param string $content Contenu UTF-8 du CSV.
+     * @param string $content Contenu du CSV (UTF-8 ou Windows-1252).
      * @param array $studentresolutions Libellé d'étudiant non rapproché => identifiant de
-     *        l'étudiant inscrit désigné par la DEVE. Dès que cette table n'est pas vide, seules
-     *        les lignes qu'elle rattache sont importées : les autres l'ont déjà été à la
-     *        première passe et ne seraient plus vues que comme des doublons.
+     *        l'étudiant inscrit désigné par la DEVE.
      * @param array $duplicateresolutions Numéro de ligne => décision de la DEVE pour une ligne qui
      *        ressemblait à un stage déjà enregistré (voir $results->probableduplicates) : 'new'
      *        pour créer le stage malgré tout, 'skip' pour ne pas l'importer, ou l'identifiant du
-     *        stage existant auquel rattacher la ligne. Dès que cette table n'est pas vide, seules
-     *        ses lignes sont traitées ($studentresolutions sert alors à retrouver leur étudiant).
+     *        stage existant auquel rattacher la ligne.
+     * @param array|null $onlylines Numéros des seules lignes à traiter (celles restées en attente
+     *        d'un arbitrage aux passes précédentes), ou null pour tout le fichier. Les deux
+     *        arbitrages sont repris ensemble : trancher l'un ne fait jamais perdre l'autre.
      * @return array Résultats par ligne et erreur de lecture éventuelle.
      */
     public static function stagevet(
@@ -253,7 +285,8 @@ class csv_importer {
         \context $context,
         string $content,
         array $studentresolutions = [],
-        array $duplicateresolutions = []
+        array $duplicateresolutions = [],
+        ?array $onlylines = null
     ): array {
         global $CFG, $DB;
         require_once($CFG->libdir . '/csvlib.class.php');
@@ -321,13 +354,15 @@ class csv_importer {
         $studentsbyname = [];
         // La colonne « Étudiant » de StageVet donne le nom dans l'ordre « Nom Prénom », alors que
         // les colonnes de convention le donnent en deux champs séparés. Les deux ordres sont donc
-        // indexés, et seul un rapprochement sans ambiguïté est retenu (un libellé qui désignerait
-        // deux inscrits différents selon l'ordre de lecture est laissé à l'arbitrage de la DEVE).
+        // indexés, et seul un rapprochement sans ambiguïté est retenu : un libellé qui désigne
+        // plusieurs inscrits (homonymes, ou ordre de lecture ambigu) est laissé à l'arbitrage de
+        // la DEVE plutôt que rattaché au dernier inscrit lu.
         $studentsbyreversedname = [];
         foreach ($students as $student) {
-            $studentsbyemail[core_text::strtolower($student->email)] = $student;
-            $studentsbyname[stage_normalize_name($student->firstname . ' ' . $student->lastname)] = $student;
-            $studentsbyreversedname[stage_normalize_name($student->lastname . ' ' . $student->firstname)] = $student;
+            $studentsbyemail[core_text::strtolower($student->email)][$student->id] = $student;
+            $studentsbyname[stage_normalize_name($student->firstname . ' ' . $student->lastname)][$student->id] = $student;
+            $studentsbyreversedname[stage_normalize_name($student->lastname . ' ' . $student->firstname)][$student->id] =
+                $student;
         }
 
         // Dans l'export StageVet, le « tuteur » est l'enseignant référent de l'école. Il est distinct du
@@ -336,18 +371,16 @@ class csv_importer {
         $teachersbyemail = [];
         $teachersbyname = [];
         foreach (stage_get_potential_teachers($context) as $teacher) {
-            $teachersbyemail[core_text::strtolower($teacher->email)] = $teacher;
-            $teachersbyname[stage_normalize_name($teacher->firstname . ' ' . $teacher->lastname)] = $teacher;
+            $teachersbyemail[core_text::strtolower($teacher->email)][$teacher->id] = $teacher;
+            $teachersbyname[stage_normalize_name($teacher->firstname . ' ' . $teacher->lastname)][$teacher->id] = $teacher;
         }
 
         $results = null;
         $uploaderror = null;
 
-        $delimiter = (strpos($content, ';') !== false) ? 'semicolon' : 'comma';
-
         $cir = new csv_import_reader(csv_import_reader::get_new_iid('stagevet'), 'stagevet');
 
-        if ($cir->load_csv_content($content, 'UTF-8', $delimiter) === false) {
+        if ($cir->load_csv_content($content, self::detect_encoding($content), self::detect_delimiter($content)) === false) {
             $uploaderror = $cir->get_error();
             $cir->cleanup(true);
         } else {
@@ -395,12 +428,7 @@ class csv_importer {
                     'unknownthemes' => [],
                     'errors' => [],
                 ];
-                // Seconde passe : la DEVE a rattaché des libellés à des inscrits. Les lignes que
-                // le fichier suffit à rapprocher ont déjà été importées à la première passe.
-                // Troisième passe éventuelle : la DEVE a tranché pour les lignes qui ressemblaient à
-                // un stage déjà enregistré ; seules ces lignes sont reprises.
-                $duplicatesonly = $duplicateresolutions !== [];
-                $resolvedonly = !$duplicatesonly && $studentresolutions !== [];
+                $onlylines = $onlylines === null ? null : array_flip(array_map('intval', $onlylines));
                 $allthemes = stage_get_themes($stage->id);
                 $entryrecords = [];
                 $detailbyrowkey = [];
@@ -415,8 +443,11 @@ class csv_importer {
                 foreach ($DB->get_records('stage_entry', ['stageid' => $stage->id], 'id ASC', $existingfields) as $existing) {
                     $existingbykey[$existing->userid . '-' . $existing->themeid][$existing->id] = $existing;
                 }
-                // Doublons à l'intérieur du fichier lui-même (même stage répété).
+                // Doublons à l'intérieur du fichier lui-même : même stage répété à l'identique, ou
+                // plages qui se recoupent pour le même étudiant et la même thématique (dates de la
+                // convention d'un côté, du tableau de bord de l'autre).
                 $filepairs = [];
+                $pendingranges = [];
                 // Stages dont les deux évaluations viennent d'être complétées : l'enseignant
                 // référent est sollicité une fois l'import terminé.
                 $torequest = [];
@@ -437,16 +468,18 @@ class csv_importer {
                     if (trim(implode('', array_map('strval', $row))) === '') {
                         continue;
                     }
-                    if ($duplicatesonly && !array_key_exists($linenum, $duplicateresolutions)) {
+                    if ($onlylines !== null && !isset($onlylines[$linenum])) {
                         continue;
                     }
 
                     $student = null;
                     if ($email !== '') {
-                        $student = $studentsbyemail[core_text::strtolower($email)] ?? null;
+                        $student = self::unique_match($studentsbyemail[core_text::strtolower($email)] ?? []);
                     }
                     if (!$student && ($firstname !== '' || $lastname !== '')) {
-                        $student = $studentsbyname[stage_normalize_name($firstname . ' ' . $lastname)] ?? null;
+                        $student = self::unique_match(
+                            $studentsbyname[stage_normalize_name($firstname . ' ' . $lastname)] ?? []
+                        );
                     }
                     if (!$student && $fullname !== '') {
                         // Repli sur la colonne « Étudiant » du tableau de bord StageVet, toujours
@@ -454,12 +487,9 @@ class csv_importer {
                         // « Email étudiant » proviennent de la convention PDF et sont vides tant
                         // que celle-ci n'a pas été analysée par StageVetManager.
                         $namekey = stage_normalize_name($fullname);
-                        $direct = $studentsbyname[$namekey] ?? null;
-                        $reversed = $studentsbyreversedname[$namekey] ?? null;
-                        if ($direct && $reversed && $direct->id !== $reversed->id) {
-                            $direct = $reversed = null;
-                        }
-                        $student = $direct ?: $reversed;
+                        $student = self::unique_match(
+                            ($studentsbyname[$namekey] ?? []) + ($studentsbyreversedname[$namekey] ?? [])
+                        );
                     }
 
                     $studentlabel = trim($firstname . ' ' . $lastname);
@@ -473,18 +503,12 @@ class csv_importer {
                     // Étudiant désigné par la DEVE pour ce libellé. La correspondance est relue
                     // dans la liste des inscrits : un identifiant forgé dans le formulaire ne peut
                     // pas rattacher un stage à quelqu'un qui n'est pas inscrit au cours.
-                    $resolved = false;
                     if (!$student && isset($studentresolutions[$studentlabel])) {
                         $student = $students[(int) $studentresolutions[$studentlabel]] ?? null;
-                        $resolved = $student !== null;
                     }
 
                     if (!$student) {
                         $results->unknownstudents[$studentlabel][] = $linenum;
-                        continue;
-                    }
-
-                    if ($resolvedonly && !$resolved) {
                         continue;
                     }
 
@@ -520,6 +544,7 @@ class csv_importer {
                         continue;
                     }
                     $filepairs[$pairkey] = true;
+                    $rangekey = $student->id . '-' . $theme->id;
 
                     $studenteval = self::clean_evaluation($getcol($row, 'studentevaluation'));
                     $tutoreval = self::clean_evaluation($getcol($row, 'tutorevaluation'));
@@ -543,6 +568,16 @@ class csv_importer {
                     // ceux d'un ancien suivi) pourrait être le même : la DEVE décide, plutôt
                     // qu'un second exemplaire soit créé en silence.
                     if (!$matches) {
+                        // Une ligne précédente du fichier crée déjà ce stage (plage qui recoupe) :
+                        // il ne doit pas être créé une seconde fois.
+                        foreach ($pendingranges[$rangekey] ?? [] as [$pendingstart, $pendingend]) {
+                            if ($pendingstart <= $end && $pendingend >= $start) {
+                                $results->errors[] = get_string('importerrorduplicate', 'mod_stage', (object) [
+                                    'line' => $linenum, 'email' => fullname($student), 'theme' => $themename,
+                                ]);
+                                continue 2;
+                            }
+                        }
                         $probables = stage_find_probable_duplicate_entries(
                             $stage->id,
                             $student->id,
@@ -621,6 +656,7 @@ class csv_importer {
                     // repli pour les anciens exports qui ne fournissent pas la première colonne.
                     $studyyear = self::parse_studyyear($getcol($row, 'studentyear', 'studyyear'));
 
+                    $pendingranges[$rangekey][] = [$start, $end];
                     $rowkey = count($entryrecords);
                     $entryrecords[$rowkey] = (object) [
                         'stageid' => $stage->id,
@@ -678,11 +714,11 @@ class csv_importer {
                     $referentteacher = null;
                     $referentemail = $getcol($row, 'referentteacheremail');
                     if ($referentemail !== '') {
-                        $referentteacher = $teachersbyemail[core_text::strtolower($referentemail)] ?? null;
+                        $referentteacher = self::unique_match($teachersbyemail[core_text::strtolower($referentemail)] ?? []);
                     }
                     $referentname = $getcol($row, 'referentteachername');
                     if (!$referentteacher && $referentname !== '') {
-                        $referentteacher = $teachersbyname[stage_normalize_name($referentname)] ?? null;
+                        $referentteacher = self::unique_match($teachersbyname[stage_normalize_name($referentname)] ?? []);
                     }
                     if ($referentteacher) {
                         $detailbyrowkey[$rowkey]->referentteacherid = $referentteacher->id;
@@ -736,6 +772,74 @@ class csv_importer {
 
         return ['results' => $results, 'error' => $uploaderror];
     }
+
+    /**
+     * Lignes d'un import StageVet qui attendent encore un arbitrage de la DEVE : étudiant non
+     * rapproché ou doublon probable. Ce sont les seules à reprendre à la passe suivante.
+     *
+     * @param \stdClass|null $results Résultats renvoyés par stagevet().
+     * @return int[] Numéros de ligne, triés.
+     */
+    public static function pending_lines(?\stdClass $results): array {
+        if (!$results) {
+            return [];
+        }
+        $lines = array_keys($results->probableduplicates ?? []);
+        foreach ($results->unknownstudents ?? [] as $linenums) {
+            $lines = array_merge($lines, $linenums);
+        }
+        $lines = array_values(array_unique(array_map('intval', $lines)));
+        sort($lines);
+        return $lines;
+    }
+
+    /**
+     * Seul élément d'un ensemble de correspondances, ou null s'il n'y en a aucun ou plusieurs.
+     *
+     * @param array $matches id => enregistrement
+     * @return \stdClass|null
+     */
+    private static function unique_match(array $matches): ?\stdClass {
+        return count($matches) === 1 ? reset($matches) : null;
+    }
+
+    /**
+     * Séparateur du CSV, déterminé sur la seule ligne d'en-tête : un « ; » ou une « , » présents
+     * dans un texte libre (évaluation, adresse) ne doivent pas changer la lecture du fichier.
+     *
+     * @param string $content
+     * @return string Nom de séparateur attendu par csv_import_reader ('semicolon', 'comma', 'tab').
+     */
+    public static function detect_delimiter(string $content): string {
+        $content = str_replace("\xEF\xBB\xBF", '', $content);
+        $header = '';
+        foreach (preg_split('/\R/', $content) as $line) {
+            if (trim($line) !== '') {
+                $header = $line;
+                break;
+            }
+        }
+        $counts = [
+            'semicolon' => substr_count($header, ';'),
+            'comma' => substr_count($header, ','),
+            'tab' => substr_count($header, "\t"),
+        ];
+        arsort($counts);
+        $best = array_key_first($counts);
+        return $counts[$best] > 0 ? $best : 'comma';
+    }
+
+    /**
+     * Encodage du CSV : UTF-8 s'il est valide, sinon Windows-1252, celui des CSV enregistrés par
+     * Excel francophone (sans quoi les accents des en-têtes et des thématiques seraient perdus).
+     *
+     * @param string $content
+     * @return string
+     */
+    public static function detect_encoding(string $content): string {
+        return mb_check_encoding($content, 'UTF-8') ? 'UTF-8' : 'WINDOWS-1252';
+    }
+
     /**
      * Forme normalisée d'un en-tête de colonne, pour une comparaison tolérante : sans BOM, sans
      * accents, apostrophes droite et typographique confondues, casse et espaces ignorés.
@@ -859,18 +963,31 @@ class csv_importer {
     }
 
     /**
-     * Convertit une date StageVet (JJ/MM/AAAA) en timestamp, ou null si vide/invalide.
+     * Convertit une date JJ/MM/AAAA (StageVet, Excel francophone) ou AAAA-MM-JJ en timestamp
+     * (minuit), ou null si elle est vide ou invalide. L'année doit avoir quatre chiffres et la
+     * date exister : « 15/03/26 » ou « 31/02/2026 » sont refusées plutôt que lues comme l'an 26
+     * ou le 3 mars. Une heure éventuelle, ajoutée par un tableur, est ignorée.
      *
-     * @param string $raw
+     * @param string|null $raw
      * @return int|null
      */
     public static function parse_date($raw) {
-        $raw = trim($raw);
+        $raw = trim((string) $raw);
         if ($raw === '') {
             return null;
         }
-        $date = DateTime::createFromFormat('d/m/Y', $raw);
-        return $date ? $date->setTime(0, 0)->getTimestamp() : null;
+        $time = '(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?';
+        if (preg_match('#^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})' . $time . '$#', $raw, $matches)) {
+            [, $day, $month, $year] = $matches;
+        } else if (preg_match('#^(\d{4})-(\d{1,2})-(\d{1,2})' . $time . '$#', $raw, $matches)) {
+            [, $year, $month, $day] = $matches;
+        } else {
+            return null;
+        }
+        if ((int) $year < 1900 || !checkdate((int) $month, (int) $day, (int) $year)) {
+            return null;
+        }
+        return make_timestamp((int) $year, (int) $month, (int) $day);
     }
 
     /**

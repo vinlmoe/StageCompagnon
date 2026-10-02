@@ -52,8 +52,12 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('conventiontem
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-$filemanageroptions = ['subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => $CFG->maxbytes, 'accepted_types' => ['.pdf']];
-$mform = new convention_template_form($baseurl, ['editing' => (bool) $template]);
+$filemanageroptions = [
+    'subdirs' => 0, 'maxfiles' => 1, 'maxbytes' => stage_max_upload_bytes($context), 'accepted_types' => ['.pdf'],
+];
+$mform = new convention_template_form($baseurl, [
+    'editing' => (bool) $template, 'maxbytes' => $filemanageroptions['maxbytes'],
+]);
 
 if ($mform->is_cancelled()) {
     redirect($listurl);

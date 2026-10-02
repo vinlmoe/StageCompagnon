@@ -120,7 +120,24 @@ foreach ($questions as $i => $question) {
 }
 $mform->set_data($formdata);
 
-if ($data = $mform->get_data()) {
+// Questions retirées alors que des réponses en dépendent : rien n'est enregistré, la DEVE en est
+// avertie (voir stage_remove_evallist_question()).
+$blockeddeletions = [];
+$data = $mform->get_data();
+if ($data && $list) {
+    foreach ($data->questionid ?? [] as $i => $questionid) {
+        $questionid = (int) $questionid;
+        if (
+            !empty($data->questiondelete[$i]) && $questionid
+                && $DB->record_exists('stage_evallist_question', ['listid' => $list->id, 'questionid' => $questionid])
+                && stage_count_question_exclusive_answers($list->id, $questionid)
+        ) {
+            $blockeddeletions[] = format_string($DB->get_field('stage_question', 'name', ['id' => $questionid]));
+        }
+    }
+}
+
+if ($data && !$blockeddeletions) {
     $now = time();
     $transaction = $DB->start_delegated_transaction();
 
@@ -212,6 +229,12 @@ if ($returnurlparam !== '') {
 }
 echo html_writer::end_div();
 
+if ($blockeddeletions) {
+    echo $OUTPUT->notification(
+        get_string('evallistquestionsblocked', 'mod_stage', implode(', ', $blockeddeletions)),
+        \core\output\notification::NOTIFY_ERROR
+    );
+}
 if ($fortheme) {
     echo $OUTPUT->notification(get_string('evallistfortheme', 'mod_stage', format_string($fortheme->name)), 'info');
 }

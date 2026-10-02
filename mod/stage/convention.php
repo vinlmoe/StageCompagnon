@@ -101,11 +101,14 @@ if ($isdeve && !optional_param('confirmgenerate', 0, PARAM_BOOL)) {
     echo $OUTPUT->heading($pagetitle);
     echo html_writer::link($backurl, get_string('back'));
 
+    // POST avec sesskey : générer la convention avec son cadre de signatures prévient l'étudiant
+    // par courriel, ce qu'un simple lien (ou un rechargement de page) ne doit pas pouvoir faire.
     echo html_writer::start_tag(
         'form',
-        ['method' => 'get', 'action' => new moodle_url('/mod/stage/convention.php'), 'class' => 'mt-3']
+        ['method' => 'post', 'action' => new moodle_url('/mod/stage/convention.php'), 'class' => 'mt-3']
     );
     echo html_writer::input_hidden_params($baseurl);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
     echo html_writer::start_div('form-check mb-3');
     echo html_writer::checkbox(
         'withsignatures',
@@ -175,10 +178,16 @@ $downloadurl = new moodle_url($baseurl, [
 // rejoué par le bouton « Relancer le téléchargement », qui n'a pas à renvoyer un courriel.
 // L'étudiant qui télécharge lui-même sa convention n'est évidemment pas concerné ($withsignatures
 // n'est de toute façon vrai que pour la DEVE, voir plus haut).
-$notified = null;
-if ($withsignatures) {
+// Le courriel n'est envoyé qu'à la soumission du formulaire (POST, sesskey), puis la page est
+// rechargée en GET : un rechargement ou un retour arrière ne le renvoie pas.
+if ($withsignatures && data_submitted() && confirm_sesskey()) {
     $notified = stage_notify_student_convention_ready($stage, $cm, $entry);
+    redirect(new moodle_url($baseurl, [
+        'confirmgenerate' => 1, 'withsignatures' => 1, 'notified' => $notified ? 1 : 0,
+    ]));
 }
+$notifiedparam = optional_param('notified', -1, PARAM_INT);
+$notified = $withsignatures && $notifiedparam >= 0 ? (bool) $notifiedparam : null;
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading($pagetitle);

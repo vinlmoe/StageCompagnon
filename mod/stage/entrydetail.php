@@ -233,13 +233,13 @@ echo stage_render_entry_checklist_section($stage, $cm, $context, $entry, $PAGE->
 // contenu de l'évaluation.
 $answers = stage_get_answers($entry->id);
 
-$studentquestions = stage_get_questions($entry->themeid, 'student');
+$studentquestions = stage_get_entry_questions($entry, 'student');
 if (!empty($studentquestions) || $entry->studentselfeval) {
     echo $OUTPUT->heading(get_string('studentselfeval', 'mod_stage'), 4);
     echo stage_render_evaluation($studentquestions, $answers, $entry->studentselfeval, FORMAT_HTML);
 }
 
-$teacherquestions = stage_get_questions($entry->themeid, 'teacher');
+$teacherquestions = stage_get_entry_questions($entry, 'teacher');
 if (!empty($teacherquestions) || $entry->teachereval) {
     echo $OUTPUT->heading(get_string('teachereval', 'mod_stage'), 4);
     if (!empty($entry->teacherid)) {
@@ -261,7 +261,7 @@ echo stage_render_report_section($cm, $context, $entry, $theme);
 // Une évaluation du maître de stage importée (StageVet) s'affiche même si l'activité ne sollicite
 // pas elle-même les maîtres de stage.
 if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tutoreval) !== '') {
-    $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
+    $tutorquestions = stage_get_entry_questions($entry, 'tutor');
     // La section s'affiche aussi, pour la DEVE, tant qu'aucune évaluation n'est encore arrivée :
     // c'est là qu'elle retrouve l'adresse du maître de stage et peut relancer l'envoi.
     if (!empty($tutorquestions) || $entry->tutoreval || $isdeve) {
