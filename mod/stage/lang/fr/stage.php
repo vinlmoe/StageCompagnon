@@ -1024,3 +1024,4 @@ $string['historicalimportforce'] = 'Importer quand même';
 $string['historicalimportduplicateswarning'] = "{\$a} ligne(s) ressemblent à un stage déjà enregistré (mêmes dates, "
     . "ou même thématique sans dates). Elles ne seront importées que si vous cochez « Importer quand même ».";
 $string['historicalimportduplicatesskipped'] = '{$a} doublon(s) probable(s) non importé(s).';
+$string['exportratingoutoffive'] = 'Note (sur 5)';

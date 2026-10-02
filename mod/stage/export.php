@@ -413,8 +413,11 @@ foreach ($entries as $entry) {
     $sheet->write_string($row, $col++, $detailvalue('leavemodalities'));
 
     // Les évaluations sont exportées en texte : les réponses aux questionnaires définis par
-    // thématique, elles, ne tiennent pas en colonnes fixes et font l'objet de la feuille 3.
-    $sheet->write_string($row, $col++, html_to_text((string) $entry->studentselfeval, 0, false));
+    // thématique, elles, ne tiennent pas en colonnes fixes et font l'objet de la feuille 3. Un
+    // texte brut (évaluation importée de StageVet, une information par ligne) garde ses retours à
+    // la ligne ; seul un texte saisi dans l'éditeur est converti depuis le HTML.
+    $selfeval = (string) $entry->studentselfeval;
+    $sheet->write_string($row, $col++, $selfeval !== strip_tags($selfeval) ? html_to_text($selfeval, 0, false) : $selfeval);
     $sheet->write_string($row, $col++, $referentsbyuser[$entry->userid]);
     $sheet->write_string($row, $col++, $evaluator ? fullname($evaluator) : '');
     $writedate($sheet, $row, $col++, $entry->teachertime);
@@ -457,6 +460,7 @@ $headers = [
     get_string('evaltype', 'mod_stage'),
     get_string('questionlabel', 'mod_stage'),
     get_string('answer', 'mod_stage'),
+    get_string('exportratingoutoffive', 'mod_stage'),
 ];
 foreach ($headers as $col => $header) {
     $sheet->write_string(0, $col, $header, $headerformat);
@@ -474,24 +478,66 @@ if (!empty($entryids)) {
         $inparams
     );
 
+    // Réponses aux questionnaires de l'activité, puis notes des évaluations textuelles (celles
+    // importées de StageVet : une ligne « libellé : N/5 » par item, voir
+    // stage_parse_evaluation_text()), pour que toutes les notes se filtrent et se comptent au
+    // même endroit. La colonne numérique reste vide pour une réponse sans note.
+    $lines = [];
     foreach ($answerrecords as $answer) {
-        $entry = $entries[$answer->entryid] ?? null;
+        $lines[$answer->entryid][] = [
+            'evaltype' => $answer->evaltype,
+            'label' => format_string($answer->questionname),
+            'answer' => (string) $answer->answertext,
+            'score' => null,
+        ];
+    }
+    foreach ($entryids as $entryid) {
+        $entry = $entries[$entryid] ?? null;
         if (!$entry) {
             continue;
         }
+        foreach (['student' => (string) $entry->studentselfeval, 'tutor' => (string) $entry->tutoreval] as $evaltype => $text) {
+            if (trim($text) === '' || $text !== strip_tags($text)) {
+                continue;
+            }
+            $section = '';
+            foreach (stage_parse_evaluation_text($text) as $block) {
+                if ($block['type'] === 'heading') {
+                    $section = $block['text'];
+                } else if ($block['type'] === 'rating') {
+                    $score = $block['score'];
+                    $lines[$entryid][] = [
+                        'evaltype' => $evaltype,
+                        'label' => ($section !== '' ? $section . ' - ' : '') . $block['label'],
+                        'answer' => $score === null ? get_string('ratingnotprovided', 'mod_stage')
+                            : format_float($score, floor($score) == $score ? 0 : 1, true, true) . '/5',
+                        'score' => $score,
+                    ];
+                }
+            }
+        }
+    }
+    ksort($lines);
+
+    foreach ($lines as $entryid => $entrylines) {
+        $entry = $entries[$entryid];
         $student = $students[$entry->userid] ?? null;
         $theme = $themes[$entry->themeid] ?? null;
-
-        $col = 0;
-        $sheet->write_number($row, $col++, (int) $entry->id);
-        $sheet->write_string($row, $col++, $student ? fullname($student) : '');
-        $sheet->write_string($row, $col++, $theme ? format_string($theme->name) : '');
-        $writedate($sheet, $row, $col++, $entry->datestart);
-        $writedate($sheet, $row, $col++, $entry->dateend);
-        $sheet->write_string($row, $col++, stage_evaltype_label($answer->evaltype));
-        $sheet->write_string($row, $col++, format_string($answer->questionname));
-        $sheet->write_string($row, $col++, (string) $answer->answertext);
-        $row++;
+        foreach ($entrylines as $line) {
+            $col = 0;
+            $sheet->write_number($row, $col++, (int) $entry->id);
+            $sheet->write_string($row, $col++, $student ? fullname($student) : '');
+            $sheet->write_string($row, $col++, $theme ? format_string($theme->name) : '');
+            $writedate($sheet, $row, $col++, $entry->datestart);
+            $writedate($sheet, $row, $col++, $entry->dateend);
+            $sheet->write_string($row, $col++, stage_evaltype_label($line['evaltype']));
+            $sheet->write_string($row, $col++, $line['label']);
+            $sheet->write_string($row, $col++, $line['answer']);
+            if ($line['score'] !== null) {
+                $sheet->write_number($row, $col, $line['score']);
+            }
+            $row++;
+        }
     }
 }
 

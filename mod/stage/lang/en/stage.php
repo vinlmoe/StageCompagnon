@@ -1001,3 +1001,4 @@ $string['historicalimportforce'] = 'Import anyway';
 $string['historicalimportduplicateswarning'] = '{$a} line(s) look like an internship already recorded (same dates, '
     . 'or same theme without dates). They will only be imported if you tick "Import anyway".';
 $string['historicalimportduplicatesskipped'] = '{$a} probable duplicate(s) not imported.';
+$string['exportratingoutoffive'] = 'Rating (out of 5)';
