@@ -35,6 +35,8 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_count_evallist_exclusive_answers
  * @covers     ::stage_get_reusable_evallist_questions
  * @covers     ::stage_get_evallist_themes
+ * @covers     ::stage_import_themes
+ * @covers     ::stage_copy_evallist
  */
 final class evallists_test extends \advanced_testcase {
     /**
@@ -115,5 +117,41 @@ final class evallists_test extends \advanced_testcase {
         $this->assertFalse($DB->record_exists('stage_evallist', ['id' => $list1->id]));
         $this->assertEquals(0, $DB->get_field('stage_theme', 'studentlistid', ['id' => $theme->id]));
         $this->assertTrue($DB->record_exists('stage_question', ['id' => $shared]));
+    }
+
+    /**
+     * La copie des thématiques vers une autre activité emporte les listes qu'elles ont choisies :
+     * chaque liste et chaque question n'est copiée qu'une fois, et les copies restent partagées
+     * comme les originaux.
+     */
+    public function test_import_themes_copies_chosen_lists(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $source = $this->getDataGenerator()->create_module('stage', ['course' => $this->getDataGenerator()->create_course()]);
+        $target = $this->getDataGenerator()->create_module('stage', ['course' => $this->getDataGenerator()->create_course()]);
+        $theme1 = $gen->create_theme($source, ['name' => 'A']);
+        $theme2 = $gen->create_theme($source, ['name' => 'B']);
+        $shared = $this->question($source, 'Partagée');
+        $teacherq = $this->question($source, 'Enseignant', 'teacher');
+        $gen->create_evallist($source, 'student', [$shared], [$theme1, $theme2], 'Commune');
+        $gen->create_evallist($source, 'teacher', [$teacherq], [$theme1], 'Enseignant A');
+        $gen->create_evallist($source, 'student', [$shared], [], 'Inutilisée');
+
+        $this->assertSame(2, stage_import_themes($source->id, $target->id));
+
+        $lists = $DB->get_records('stage_evallist', ['stageid' => $target->id], 'name');
+        $this->assertSame(['Commune', 'Enseignant A'], array_values(array_map(fn($l) => $l->name, $lists)));
+        $this->assertEquals(2, $DB->count_records('stage_question', ['stageid' => $target->id]));
+        $newthemes = $DB->get_records('stage_theme', ['stageid' => $target->id], 'name');
+        [$newa, $newb] = array_values($newthemes);
+        $this->assertEquals($newa->studentlistid, $newb->studentlistid);
+        $this->assertNotEquals(0, $newa->teacherlistid);
+        $this->assertEquals(0, $newb->teacherlistid);
+        $this->assertSame(['Partagée'], array_values(array_map(
+            fn($q) => $q->name,
+            stage_get_questions($newb->id, 'student')
+        )));
+        $this->assertNotEquals($shared, array_key_first(stage_get_questions($newb->id, 'student')));
     }
 }

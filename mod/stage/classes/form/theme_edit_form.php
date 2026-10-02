@@ -250,17 +250,19 @@ class theme_edit_form extends \moodleform {
                 'data-select' => 'id_' . $field,
                 'data-baseurl' => $baseurl,
             ]);
+            // « Nouvelle liste » enregistre d'abord la thématique (rien de la saisie en cours n'est
+            // perdu), puis ouvre la création d'une liste de ce type, choisie automatiquement pour la
+            // thématique à son enregistrement (voir theme_edit.php et evallist_edit.php).
             $mform->addGroup([
                 $mform->createElement('select', $field, '', $options),
                 $mform->createElement('static', $field . 'link', '', $link),
+                $mform->createElement('submit', 'createlist_' . $evaltype, get_string('evallistnew', 'mod_stage'), [
+                    'class' => 'btn-sm',
+                ], false),
             ], $field . 'group', stage_evaltype_label($evaltype), ' ', false);
         }
 
         $mform->addElement('static', 'evallistslinks', '', \html_writer::link(
-            $baseurl,
-            get_string('evallistadd', 'mod_stage'),
-            ['class' => 'btn btn-sm btn-secondary mr-2']
-        ) . \html_writer::link(
             (string) ($customdata['evallistsindexurl'] ?? ''),
             get_string('evallistsmanage', 'mod_stage'),
             ['class' => 'btn btn-sm btn-link']

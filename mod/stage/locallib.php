@@ -4109,8 +4109,9 @@ function stage_execute_student_transfer(
 
 /**
  * Copie les thématiques d'une instance source vers une instance cible (nouvelles thématiques,
- * les originales ne sont pas modifiées). N'importe pas les questions d'évaluation personnalisées
- * associées.
+ * les originales ne sont pas modifiées). Les listes d'évaluation choisies par ces thématiques sont
+ * copiées avec elles (voir stage_copy_evallist()), une seule fois chacune, et la copie de chaque
+ * thématique choisit la copie de ses listes.
  *
  * Les objectifs de stage (documents à télécharger et check-list) font en revanche partie de la
  * définition de la thématique et suivent la copie : les documents seulement si les deux contextes
@@ -4126,8 +4127,19 @@ function stage_import_themes($sourcestageid, $targetstageid, ?context $sourcecon
     global $DB;
 
     $themes = stage_get_themes($sourcestageid);
+    $listmap = [];
+    $questionmap = [];
     foreach ($themes as $theme) {
-        $newthemeid = $DB->insert_record('stage_theme', (object) [
+        $listfields = [];
+        foreach (stage_evallist_fields() as $field) {
+            $sourcelistid = (int) $theme->$field;
+            if ($sourcelistid && !isset($listmap[$sourcelistid])) {
+                $sourcelist = $DB->get_record('stage_evallist', ['id' => $sourcelistid, 'stageid' => $sourcestageid]);
+                $listmap[$sourcelistid] = $sourcelist ? stage_copy_evallist($sourcelist, $targetstageid, $questionmap) : 0;
+            }
+            $listfields[$field] = $sourcelistid ? $listmap[$sourcelistid] : 0;
+        }
+        $newthemeid = $DB->insert_record('stage_theme', (object) array_merge($listfields, [
             'stageid' => $targetstageid,
             'name' => $theme->name,
             'description' => $theme->description,
@@ -4146,7 +4158,7 @@ function stage_import_themes($sourcestageid, $targetstageid, ?context $sourcecon
             'reportmode' => $theme->reportmode,
             'timecreated' => time(),
             'timemodified' => time(),
-        ]);
+        ]));
         foreach (stage_get_theme_durations($theme->id) as $studyyear => $requiredduration) {
             stage_set_theme_duration($newthemeid, $studyyear, $requiredduration);
         }
@@ -4171,6 +4183,42 @@ function stage_import_themes($sourcestageid, $targetstageid, ?context $sourcecon
         }
     }
     return count($themes);
+}
+
+/**
+ * Copie une liste d'évaluation, et ses questions, dans une autre instance. Une question figurant
+ * dans plusieurs listes copiées n'est copiée qu'une fois (voir $questionmap), et reste ainsi
+ * partagée entre les copies comme elle l'était entre les originaux.
+ *
+ * @param stdClass $sourcelist
+ * @param int $targetstageid
+ * @param array $questionmap Question source => question copiée, complété au fil des copies.
+ * @return int Identifiant de la liste copiée.
+ */
+function stage_copy_evallist(stdClass $sourcelist, $targetstageid, array &$questionmap) {
+    global $DB;
+
+    $now = time();
+    $newlistid = $DB->insert_record('stage_evallist', (object) [
+        'stageid' => $targetstageid,
+        'evaltype' => $sourcelist->evaltype,
+        'name' => $sourcelist->name,
+        'timecreated' => $now,
+        'timemodified' => $now,
+    ]);
+    foreach (stage_get_evallist_questions($sourcelist->id) as $question) {
+        if (!isset($questionmap[$question->id])) {
+            $copy = clone $question;
+            unset($copy->id);
+            $copy->stageid = $targetstageid;
+            $copy->themeid = 0;
+            $copy->timecreated = $now;
+            $copy->timemodified = $now;
+            $questionmap[$question->id] = $DB->insert_record('stage_question', $copy);
+        }
+        stage_add_evallist_question($newlistid, $questionmap[$question->id]);
+    }
+    return $newlistid;
 }
 
 /**

@@ -64,8 +64,9 @@ depuis un autre cours).
 3. Ajouter une activité **Gestion des stages**.
 
 Pour un nouveau cours reprenant une configuration existante, utiliser
-**Administration > Importer depuis un autre cours** : copie les thématiques,
-les gabarits de convention (avec leur PDF), les logos et les informations
+**Administration > Importer depuis un autre cours** : copie les thématiques
+(avec les listes d'évaluation qu'elles utilisent, chacune copiée une seule
+fois et toujours choisie par les mêmes thématiques), les gabarits de convention (avec leur PDF), les logos et les informations
 d'établissement d'une autre instance du module. Seules les instances où vous
 pouvez gérer les thématiques sont proposées comme source. Thématiques et
 gabarits s'ajoutent à l'existant ; logos et informations d'établissement le
@@ -95,7 +96,10 @@ Depuis **Administration > Gérer les thématiques** :
   - **Listes d'évaluation** : pour chaque formulaire (auto-évaluation de
     l'étudiant, évaluation de l'enseignant référent, du maître de stage), le
     choix de la liste de questions utilisée, avec un lien « Éditer la liste ».
-    Sans liste, le formulaire se réduit à un commentaire libre.
+    Le bouton « Nouvelle liste » enregistre d'abord la thématique (rien de la
+    saisie en cours n'est perdu), ouvre la création d'une liste de ce type, puis
+    revient à la thématique avec la nouvelle liste déjà choisie. Sans liste, le
+    formulaire se réduit à un commentaire libre.
 
   Un sélecteur en haut de page permet de passer directement à une autre
   thématique, et « Enregistrer et revenir à la liste » ramène au tableau.
@@ -544,7 +548,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `theme_edit_test.php` | Page unique de gestion d'une thématique : années proposées pour les durées par année, pré-remplissage des lignes répétées (check-list, questions) sans que les valeurs par défaut écrasent les valeurs enregistrées. |
 | `admin_forms_test.php` | Pages des conventions et des notifications : formulaire des conventions sans les gabarits, PDF exigé à la création d'un gabarit seulement, une section par e-mail. |
 | `stagevet_evaluations_test.php` | Import StageVet des évaluations : export actuel à 60 colonnes (BOM, cellules multilignes, guillemets), mise à jour d'un stage existant sans doublon ni effacement, évaluation saisie dans l'activité conservée, en-têtes tolérants, courriel unique à l'enseignant référent, notes en étoiles (item nouveau, zéro distinct de « Non renseigné »). |
-| `evallists_test.php` | Listes d'évaluation : questions d'une thématique tirées de la liste choisie pour chaque formulaire, question partagée entre listes conservée à son retrait, question isolée supprimée avec ses réponses, suppression d'une liste. |
+| `evallists_test.php` | Listes d'évaluation : questions d'une thématique tirées de la liste choisie pour chaque formulaire, question partagée entre listes conservée à son retrait, question isolée supprimée avec ses réponses, suppression d'une liste. Copie des listes avec les thématiques importées d'un autre cours. |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :

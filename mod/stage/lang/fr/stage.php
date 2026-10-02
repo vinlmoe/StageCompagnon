@@ -54,7 +54,7 @@ $string['importfromcourse_help'] = "Copiez les thématiques, gabarits de convent
     . "vous avez vous-même le droit de gérer les thématiques sont proposées comme source. Les éléments importés "
     . "s'ajoutent à ceux déjà présents ici (les thématiques et gabarits ne sont pas fusionnés avec les "
     . "existants ; les logos, textes de courriels et informations d'établissement déjà renseignés sont "
-    . "remplacés).";
+    . "remplacés). Les listes d'évaluation choisies par les thématiques copiées sont copiées avec elles.";
 $string['importsource'] = 'Instance source';
 $string['importthemes'] = 'Thématiques';
 $string['importtemplates'] = 'Gabarits de convention';
@@ -1001,3 +1001,5 @@ $string['conventiontemplatelist'] = 'Gabarits';
 $string['conventiontemplateusage'] = 'Demandes de convention';
 $string['conventiontemplatenofile'] = 'Aucun PDF';
 $string['periodremove'] = 'Supprimer cette plage';
+$string['evallistnew'] = 'Nouvelle liste';
+$string['evallistfortheme'] = 'À son enregistrement, cette liste sera choisie pour la thématique « {$a} ».';

@@ -48,7 +48,7 @@ $string['stage:manageteachers'] = 'Assign referent teachers';
 $string['managethemes'] = 'Manage themes';
 $string['administration'] = 'Administration';
 $string['importfromcourse'] = 'Import from another course';
-$string['importfromcourse_help'] = 'Copy the themes, agreement templates, logos, email texts and/or establishment '
+$string['importfromcourse_help'] = 'Copy the themes (with the evaluation lists they use), agreement templates, logos, email texts and/or establishment '
     . "information from another instance of the activity (usually in another course) into this one, so you don't "
     . 'have to redo everything for each new course. Only instances where you yourself can manage themes are '
     . 'offered as a source. Imported items are added to what is already here (themes and templates are not '
@@ -978,3 +978,5 @@ $string['conventiontemplatelist'] = 'Templates';
 $string['conventiontemplateusage'] = 'Agreement requests';
 $string['conventiontemplatenofile'] = 'No PDF';
 $string['periodremove'] = 'Remove this period';
+$string['evallistnew'] = 'New list';
+$string['evallistfortheme'] = 'When saved, this list will be chosen for the theme "{$a}".';

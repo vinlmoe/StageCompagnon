@@ -232,6 +232,19 @@ if ($data = $mform->get_data()) {
     $next = !empty($data->submitandreturn)
         ? $listurl
         : new moodle_url('/mod/stage/theme_edit.php', ['id' => $cm->id, 'themeid' => $savedthemeid]);
+    // « Nouvelle liste » : la thématique vient d'être enregistrée, la création de la liste s'ouvre
+    // et la nouvelle liste sera choisie pour ce formulaire de la thématique.
+    foreach (array_keys(stage_evallist_fields()) as $evaltype) {
+        if (!empty($data->{'createlist_' . $evaltype})) {
+            $back = new moodle_url('/mod/stage/theme_edit.php', ['id' => $cm->id, 'themeid' => $savedthemeid], 'id_questionshdr');
+            $next = new moodle_url('/mod/stage/evallist_edit.php', [
+                'id' => $cm->id,
+                'themeid' => $savedthemeid,
+                'evaltype' => $evaltype,
+                'returnurl' => $back->out_as_local_url(false),
+            ]);
+        }
+    }
     redirect($next, get_string('themesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 

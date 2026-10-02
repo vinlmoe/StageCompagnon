@@ -34,11 +34,21 @@ use mod_stage\form\evallist_edit_form;
 $id = required_param('id', PARAM_INT);
 $listid = optional_param('listid', 0, PARAM_INT);
 $returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
+// Création depuis la page d'une thématique : la nouvelle liste est choisie pour cette thématique,
+// pour le formulaire d'où vient la demande.
+$forthemeid = optional_param('themeid', 0, PARAM_INT);
+$preseteval = optional_param('evaltype', '', PARAM_ALPHA);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
 $stage = $DB->get_record('stage', ['id' => $cm->instance], '*', MUST_EXIST);
 $list = $listid ? $DB->get_record('stage_evallist', ['id' => $listid, 'stageid' => $stage->id], '*', MUST_EXIST) : null;
+$fortheme = (!$list && $forthemeid)
+    ? $DB->get_record('stage_theme', ['id' => $forthemeid, 'stageid' => $stage->id], '*', MUST_EXIST)
+    : null;
+if (!array_key_exists($preseteval, stage_evallist_fields())) {
+    $preseteval = '';
+}
 
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
@@ -46,7 +56,13 @@ require_capability('mod/stage:managethemes', $context);
 
 $indexurl = new moodle_url('/mod/stage/evallists.php', ['id' => $cm->id]);
 $returnurl = $returnurlparam !== '' ? new moodle_url($returnurlparam) : $indexurl;
-$baseurl = new moodle_url('/mod/stage/evallist_edit.php', ['id' => $cm->id, 'listid' => $listid, 'returnurl' => $returnurlparam]);
+$baseurl = new moodle_url('/mod/stage/evallist_edit.php', [
+    'id' => $cm->id,
+    'listid' => $listid,
+    'returnurl' => $returnurlparam,
+    'themeid' => $fortheme ? $fortheme->id : 0,
+    'evaltype' => $preseteval,
+]);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('evallist', 'mod_stage'));
 $PAGE->set_heading(format_string($course->fullname));
@@ -89,6 +105,9 @@ if ($mform->is_cancelled()) {
 // Clés « à plat » (champ[i]) : les valeurs par défaut des lignes répétées sont enregistrées sous
 // cette forme par repeat_elements() et l'emporteraient sur un tableau imbriqué.
 $formdata = ['id' => $cm->id, 'listid' => $listid, 'returnurl' => $returnurlparam, 'name' => $list->name ?? ''];
+if (!$list && $preseteval !== '') {
+    $formdata['evaltype'] = $preseteval;
+}
 foreach ($questions as $i => $question) {
     $formdata["questionid[$i]"] = $question->id;
     $formdata["questionqtype[$i]"] = $question->qtype;
@@ -119,6 +138,9 @@ if ($data = $mform->get_data()) {
             'timemodified' => $now,
         ];
         $list->id = $DB->insert_record('stage_evallist', $list);
+        if ($fortheme) {
+            $DB->set_field('stage_theme', stage_evallist_fields()[$list->evaltype], $list->id, ['id' => $fortheme->id]);
+        }
     }
 
     $existing = [];
@@ -190,6 +212,9 @@ if ($returnurlparam !== '') {
 }
 echo html_writer::end_div();
 
+if ($fortheme) {
+    echo $OUTPUT->notification(get_string('evallistfortheme', 'mod_stage', format_string($fortheme->name)), 'info');
+}
 if ($list) {
     $themes = stage_get_evallist_themes($list);
     echo $OUTPUT->notification(
