@@ -877,9 +877,6 @@ $string['viewthemestages'] = 'View the internships of this theme';
 $string['savethemeandreturn'] = 'Save and return to the list';
 $string['themegeneral'] = 'General settings';
 $string['themedurationssection'] = 'Required duration';
-$string['themedurationsintro'] = 'Enter either a single duration for the whole theme, or a duration per study year '
-    . 'below (the single duration, when not zero, takes precedence). Only the years of the range chosen in the '
-    . 'general settings are shown.';
 $string['requireddurationforyear'] = 'Required duration - {$a}';
 $string['deletechecklistrow'] = 'Delete this objective (and the students\' answers)';
 $string['addchecklistrows'] = 'Add {no} objective(s)';
@@ -939,3 +936,11 @@ $string['teacherevalrequestnotifbody'] = 'The student and workplace tutor evalua
     . 'internship of {$a->student} (theme "{$a->theme}", {$a->stage}). Please complete your evaluation: {$a->url}';
 $string['ratingoutoffive'] = 'Rating: {$a}';
 $string['ratingnotprovided'] = 'Not provided';
+
+// Durations per year: every year editable, empty field = "all years" value.
+$string['themedurationsintro'] = 'Enter either a single duration for the whole theme, or durations per year below '
+    . '(the single duration, when not zero, takes precedence). The "all years" duration applies to any year left '
+    . 'empty; a year filled in, even with 0, uses its own value. Every year can be edited: those in the range chosen '
+    . 'in the general settings are highlighted, the others apply to internships recorded in another study year.';
+$string['durationusesdefault'] = 'default';
+$string['durationinvalid'] = 'Enter a whole number of days, or leave empty.';

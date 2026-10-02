@@ -894,9 +894,6 @@ $string['viewthemestages'] = 'Voir les stages de cette thématique';
 $string['savethemeandreturn'] = 'Enregistrer et revenir à la liste';
 $string['themegeneral'] = 'Paramètres généraux';
 $string['themedurationssection'] = 'Durée requise';
-$string['themedurationsintro'] = "Renseignez soit une durée unique pour toute la thématique, soit une durée par année "
-    . "d'étude ci-dessous (la durée unique, si elle n'est pas nulle, prime). Seules les années de la plage choisie "
-    . "dans les paramètres généraux sont proposées.";
 $string['requireddurationforyear'] = 'Durée requise - {$a}';
 $string['deletechecklistrow'] = 'Supprimer cet objectif (et les réponses des étudiants)';
 $string['addchecklistrows'] = 'Ajouter {no} objectif(s)';
@@ -958,3 +955,12 @@ $string['teacherevalrequestnotifbody'] = "Les évaluations de l'étudiant et du 
     . "{\$a->url}";
 $string['ratingoutoffive'] = 'Note : {$a}';
 $string['ratingnotprovided'] = 'Non renseigné';
+
+// Durées par année : toutes les années modifiables, champ vide = valeur « toutes années ».
+$string['themedurationsintro'] = "Renseignez soit une durée unique pour toute la thématique, soit des durées par "
+    . "année ci-dessous (la durée unique, si elle n'est pas nulle, prime). La durée « toutes années » s'applique à "
+    . "toute année laissée vide ; une année renseignée, même à 0, utilise sa propre valeur. Toutes les années sont "
+    . "modifiables : celles de la plage choisie dans les paramètres généraux sont mises en avant, les autres servent "
+    . "aux stages enregistrés sur une autre année d'étude.";
+$string['durationusesdefault'] = 'défaut';
+$string['durationinvalid'] = 'Saisissez un nombre entier de jours, ou laissez vide.';

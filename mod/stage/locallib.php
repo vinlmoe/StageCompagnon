@@ -381,7 +381,21 @@ function stage_get_theme_durations($themeid) {
 }
 
 /**
- * Années d'étude pour lesquelles une durée par année peut être définie sur une thématique : la
+ * Supprime la durée propre à une année d'étude d'une thématique : la durée requise pour cette
+ * année reprend alors la valeur « toutes années » (année 0, voir stage_get_theme_duration()).
+ *
+ * @param int $themeid
+ * @param int $studyyear
+ * @return void
+ */
+function stage_delete_theme_duration($themeid, $studyyear) {
+    global $DB;
+
+    $DB->delete_records('stage_theme_duration', ['themeid' => $themeid, 'studyyear' => (int) $studyyear]);
+}
+
+/**
+ * Années d'étude mises en avant pour les durées par année d'une thématique : la
  * plage minstudyyear - maxstudyyear, une seule année si l'une des bornes n'est pas spécifiée, ou
  * l'année 0 (non spécifiée) si aucune ne l'est.
  *

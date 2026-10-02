@@ -190,12 +190,17 @@ if ($data = $mform->get_data()) {
     }
     $savedthemeid = (int) $record->id;
 
-    // Durées par année : seules les années de la plage choisie, et seulement en l'absence de
-    // durée unique (les champs sont alors désactivés et non soumis).
+    // Durées par année, en l'absence de durée unique (les champs sont alors désactivés et non
+    // soumis). Un champ vide supprime la valeur propre à l'année, qui reprend alors la valeur
+    // « toutes années » ; enregistrer 0 la masquerait.
     if (empty($record->requiredduration)) {
-        foreach (stage_theme_duration_years($record->minstudyyear, $record->maxstudyyear) as $year) {
-            $field = 'duration_' . $year;
-            stage_set_theme_duration($savedthemeid, $year, max(0, (int) ($data->$field ?? 0)));
+        foreach (array_keys(stage_studyyear_options()) as $year) {
+            $value = trim((string) ($data->{'duration_' . $year} ?? ''));
+            if ($value === '') {
+                stage_delete_theme_duration($savedthemeid, $year);
+            } else {
+                stage_set_theme_duration($savedthemeid, $year, (int) $value);
+            }
         }
     }
 
@@ -348,8 +353,8 @@ echo html_writer::div(implode('', $toc), 'stage-theme-toc mb-3');
 
 $mform->display();
 
-// Seules les années de la plage choisie ont une durée par année : les autres champs sont masqués
-// à mesure que la plage change, avec la même règle que stage_theme_duration_years().
+// Toutes les années restent modifiables ; celles de la plage choisie sont mises en avant à mesure
+// que la plage change (même règle que stage_theme_duration_years()).
 $js = <<<'JS'
 (function() {
     var min = document.getElementById('id_minstudyyear');
@@ -372,7 +377,8 @@ $js = <<<'JS'
             var year = parseInt(input.getAttribute('data-stage-durationyear'), 10);
             var row = input.closest('.fitem') || input.closest('.form-group');
             if (row) {
-                row.style.display = (year >= lo && year <= hi) ? '' : 'none';
+                var inrange = year === 0 || (lo > 0 && year >= lo && year <= hi);
+                row.style.opacity = inrange ? '' : '0.6';
             }
         });
     }

@@ -113,9 +113,11 @@ class theme_edit_form extends \moodleform {
     }
 
     /**
-     * Durée requise : soit une durée unique, soit une durée par année d'étude couverte. Un champ
-     * est créé pour chaque année possible ; seules celles de la plage choisie sont affichées
-     * (voir le script de theme_edit.php) et enregistrées.
+     * Durée requise : soit une durée unique, soit une durée par année d'étude. Toutes les années
+     * sont proposées, et pas seulement celles de la plage de la thématique : la durée requise
+     * d'un stage est lue pour l'année d'étude du stage lui-même (voir stage_get_theme_duration()),
+     * qui peut sortir de la plage (stage refait, thématique sans plage vérifiée chaque année). Un
+     * champ laissé vide renvoie à la valeur « toutes années » ; un 0 est une valeur à part entière.
      *
      * @param \MoodleQuickForm $mform
      */
@@ -135,10 +137,13 @@ class theme_edit_form extends \moodleform {
                 'text',
                 'duration_' . $year,
                 get_string('requireddurationforyear', 'mod_stage', stage_studyyear_label($year)),
-                ['size' => 6, 'data-stage-durationyear' => $year]
+                [
+                    'size' => 6,
+                    'data-stage-durationyear' => $year,
+                    'placeholder' => $year ? get_string('durationusesdefault', 'mod_stage') : '',
+                ]
             );
-            $mform->setType('duration_' . $year, PARAM_INT);
-            $mform->setDefault('duration_' . $year, 0);
+            $mform->setType('duration_' . $year, PARAM_RAW_TRIMMED);
             // La durée unique, si elle est renseignée, prime sur les durées par année.
             $mform->disabledIf('duration_' . $year, 'requiredduration', 'neq', 0);
         }
@@ -321,6 +326,13 @@ class theme_edit_form extends \moodleform {
      */
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
+
+        foreach (array_keys(stage_studyyear_options()) as $year) {
+            $value = trim((string) ($data['duration_' . $year] ?? ''));
+            if ($value !== '' && !ctype_digit($value)) {
+                $errors['duration_' . $year] = get_string('durationinvalid', 'mod_stage');
+            }
+        }
 
         if (
             !empty($data['minstudyyear']) && !empty($data['maxstudyyear'])
