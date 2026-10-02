@@ -931,3 +931,30 @@ $string['conventiontemplateusedby'] = 'Utilisé par {$a} demande(s) de conventio
 $string['deleteconventiontemplaterow'] = 'Supprimer ce gabarit';
 $string['newconventiontemplate_hint'] = "Renseignez un nom et déposez le PDF pour créer un gabarit à l'enregistrement ; "
     . "laissez ces champs vides sinon.";
+
+// Import StageVet : évaluations de l'étudiant et du maître de stage, mise à jour des stages existants.
+$string['importstagevetevalhelp'] = "Évaluations : les colonnes « Évaluation par le maître de stage » et "
+    . "« Évaluation par l’étudiant » (facultatives, intitulés reconnus sans tenir compte des accents, de la casse "
+    . "ni du type d'apostrophe) complètent l'évaluation de chaque stage. Un stage déjà présent (même étudiant, même "
+    . "thématique, plage de dates qui se recoupe) n'est pas recréé : il est mis à jour avec ces évaluations. Une "
+    . "cellule vide ne supprime jamais une évaluation déjà enregistrée. Dès que l'évaluation de l'étudiant et celle "
+    . "du maître de stage sont toutes deux disponibles, l'enseignant référent reçoit un courriel lui demandant "
+    . "d'évaluer le stage. Les notes « x/5 » sont affichées en étoiles.";
+$string['importstagevetupdated'] = '{$a} stage(s) déjà présent(s) mis à jour.';
+$string['importstagevetunchanged'] = '{$a} stage(s) déjà présent(s), sans nouvelle information : inchangé(s).';
+$string['importstagevetevaluations'] = '{$a} évaluation(s) importée(s).';
+$string['importstagevetnotified'] = "{\$a} stage(s) dont les deux évaluations sont désormais disponibles : "
+    . "l'enseignant référent a été invité par courriel à évaluer.";
+$string['importstagevetnoreferent'] = "Évaluations complètes, mais aucun enseignant référent n'est attribué à : {\$a}. "
+    . "Attribuez-en un pour qu'il puisse évaluer le stage.";
+$string['importstageveterrorambiguous'] = 'Ligne {$a->line} ({$a->student}, {$a->theme}) : plusieurs stages déjà '
+    . 'enregistrés correspondent à ces dates ; la ligne est ignorée pour ne pas mettre à jour le mauvais stage.';
+$string['importstagevetevalkept'] = 'Ligne {$a->line} ({$a->student}) : « {$a->evaluation} » déjà saisie dans '
+    . "l'activité, conservée telle quelle.";
+$string['emailkeyteacherevalrequest'] = "Demande d'évaluation après import des évaluations (à l'enseignant référent)";
+$string['teacherevalrequestnotifsubject'] = 'Stage à évaluer - {$a}';
+$string['teacherevalrequestnotifbody'] = "Les évaluations de l'étudiant et du maître de stage sont disponibles pour "
+    . "le stage de {\$a->student} (thématique « {\$a->theme} », {\$a->stage}). Merci de procéder à votre évaluation : "
+    . "{\$a->url}";
+$string['ratingoutoffive'] = 'Note : {$a}';
+$string['ratingnotprovided'] = 'Non renseigné';

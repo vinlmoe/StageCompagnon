@@ -138,11 +138,7 @@ if ($objectivelinks !== '') {
 
 if (!empty($entry->tutortime)) {
     echo $OUTPUT->notification(get_string_manager()->get_string('tutorevalalreadysubmitted', 'mod_stage', null, $lang), 'success');
-    if (!empty($questions)) {
-        echo stage_render_answers_readonly($questions, stage_get_answers($entry->id), $lang);
-    } else if ($entry->tutoreval) {
-        echo html_writer::div(format_text($entry->tutoreval, FORMAT_PLAIN));
-    }
+    echo stage_render_evaluation($questions, stage_get_answers($entry->id), $entry->tutoreval, FORMAT_PLAIN, $lang);
     echo $OUTPUT->footer();
     exit;
 }

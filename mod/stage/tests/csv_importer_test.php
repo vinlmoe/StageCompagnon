@@ -176,9 +176,13 @@ final class csv_importer_test extends \advanced_testcase {
         $this->assertEquals($teacher->id, $detail->referentteacherid);
         $this->assertSame('Maître Test', $detail->tutorname);
         $this->assertEquals(1, $detail->nightpresence);
+        // Réimporter le même fichier ne crée pas de doublon : le stage est reconnu, et laissé
+        // inchangé faute d'information nouvelle.
         $again = csv_importer::stagevet($stage, $context, $csv);
         $this->assertSame(0, $again['results']->created);
-        $this->assertCount(1, $again['results']->errors);
+        $this->assertSame(1, $again['results']->unchanged);
+        $this->assertEmpty($again['results']->errors);
+        $this->assertEquals(1, $DB->count_records('stage_entry', ['stageid' => $stage->id]));
     }
 
     /**

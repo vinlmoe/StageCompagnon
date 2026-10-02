@@ -914,3 +914,28 @@ $string['conventiontemplateusedby'] = 'Used by {$a} convention request(s): this 
 $string['deleteconventiontemplaterow'] = 'Delete this template';
 $string['newconventiontemplate_hint'] = 'Enter a name and upload the PDF to create a template on save; otherwise '
     . 'leave these fields empty.';
+
+// StageVet import: student and workplace tutor evaluations, update of existing internships.
+$string['importstagevetevalhelp'] = 'Evaluations: the "Évaluation par le maître de stage" and "Évaluation par '
+    . 'l’étudiant" columns (optional; headers matched regardless of accents, case or apostrophe style) complete '
+    . 'the evaluation of each internship. An internship already present (same student, same theme, overlapping '
+    . 'dates) is not created again: it is updated with these evaluations. An empty cell never deletes an '
+    . 'evaluation already recorded. As soon as both the student and workplace tutor evaluations are available, the '
+    . 'referent teacher receives an email asking them to evaluate the internship. "x/5" ratings are shown as stars.';
+$string['importstagevetupdated'] = '{$a} existing internship(s) updated.';
+$string['importstagevetunchanged'] = '{$a} existing internship(s) with no new information: unchanged.';
+$string['importstagevetevaluations'] = '{$a} evaluation(s) imported.';
+$string['importstagevetnotified'] = '{$a} internship(s) now have both evaluations: the referent teacher has been '
+    . 'asked by email to evaluate.';
+$string['importstagevetnoreferent'] = 'Evaluations complete, but no referent teacher is assigned to: {$a}. '
+    . 'Assign one so the internship can be evaluated.';
+$string['importstageveterrorambiguous'] = 'Line {$a->line} ({$a->student}, {$a->theme}): several recorded '
+    . 'internships match these dates; the line is skipped so as not to update the wrong one.';
+$string['importstagevetevalkept'] = 'Line {$a->line} ({$a->student}): "{$a->evaluation}" already entered in the '
+    . 'activity, kept as is.';
+$string['emailkeyteacherevalrequest'] = 'Evaluation request after evaluations import (to the referent teacher)';
+$string['teacherevalrequestnotifsubject'] = 'Internship to evaluate - {$a}';
+$string['teacherevalrequestnotifbody'] = 'The student and workplace tutor evaluations are available for the '
+    . 'internship of {$a->student} (theme "{$a->theme}", {$a->stage}). Please complete your evaluation: {$a->url}';
+$string['ratingoutoffive'] = 'Rating: {$a}';
+$string['ratingnotprovided'] = 'Not provided';

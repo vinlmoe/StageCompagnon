@@ -127,9 +127,7 @@ if ($entryid) {
     $studentquestions = stage_get_questions($entry->themeid, 'student');
     if (!empty($studentquestions) || $entry->studentselfeval) {
         echo $OUTPUT->heading(get_string('studentselfeval', 'mod_stage'), 4);
-        echo !empty($studentquestions)
-            ? stage_render_answers_readonly($studentquestions, $answers)
-            : html_writer::div(format_text($entry->studentselfeval, FORMAT_HTML));
+        echo stage_render_evaluation($studentquestions, $answers, $entry->studentselfeval, FORMAT_HTML);
     }
 
     $teacherquestions = stage_get_questions($entry->themeid, 'teacher');
@@ -142,13 +140,13 @@ if ($entryid) {
 
     echo stage_render_report_section($cm, $context, $entry, $theme);
 
-    if (stage_tutor_evaluation_enabled($stage, $theme)) {
+    // Une évaluation du maître de stage importée (StageVet) s'affiche même si l'activité ne
+    // sollicite pas elle-même les maîtres de stage.
+    if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tutoreval) !== '') {
         $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
         echo $OUTPUT->heading(get_string('tutorevalheading', 'mod_stage'), 4);
-        if (!empty($tutorquestions) && $entry->tutortime) {
-            echo stage_render_answers_readonly($tutorquestions, $answers);
-        } else if ($entry->tutoreval) {
-            echo html_writer::div(format_text($entry->tutoreval, FORMAT_PLAIN));
+        if ($entry->tutortime || trim((string) $entry->tutoreval) !== '') {
+            echo stage_render_evaluation($tutorquestions, $answers, $entry->tutoreval);
         } else if (!empty($entry->tutorbypassed)) {
             echo $OUTPUT->notification(get_string('tutorevalbypassednotice', 'mod_stage'), 'warning');
         } else {

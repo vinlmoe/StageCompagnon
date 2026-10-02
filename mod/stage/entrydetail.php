@@ -236,9 +236,7 @@ $answers = stage_get_answers($entry->id);
 $studentquestions = stage_get_questions($entry->themeid, 'student');
 if (!empty($studentquestions) || $entry->studentselfeval) {
     echo $OUTPUT->heading(get_string('studentselfeval', 'mod_stage'), 4);
-    echo !empty($studentquestions)
-        ? stage_render_answers_readonly($studentquestions, $answers)
-        : html_writer::div(format_text($entry->studentselfeval, FORMAT_HTML));
+    echo stage_render_evaluation($studentquestions, $answers, $entry->studentselfeval, FORMAT_HTML);
 }
 
 $teacherquestions = stage_get_questions($entry->themeid, 'teacher');
@@ -260,7 +258,9 @@ if (!empty($teacherquestions) || $entry->teachereval) {
 
 echo stage_render_report_section($cm, $context, $entry, $theme);
 
-if (stage_tutor_evaluation_enabled($stage, $theme)) {
+// Une évaluation du maître de stage importée (StageVet) s'affiche même si l'activité ne sollicite
+// pas elle-même les maîtres de stage.
+if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tutoreval) !== '') {
     $tutorquestions = stage_get_questions($entry->themeid, 'tutor');
     // La section s'affiche aussi, pour la DEVE, tant qu'aucune évaluation n'est encore arrivée :
     // c'est là qu'elle retrouve l'adresse du maître de stage et peut relancer l'envoi.
@@ -269,9 +269,7 @@ if (stage_tutor_evaluation_enabled($stage, $theme)) {
         if ($entry->tutortime) {
             echo html_writer::tag('p', html_writer::tag('strong', get_string('evaluatedby', 'mod_stage') . ' : ')
                 . userdate($entry->tutortime, $datetimeformat), ['class' => 'text-muted']);
-            echo (!empty($tutorquestions))
-                ? stage_render_answers_readonly($tutorquestions, $answers)
-                : html_writer::div(format_text((string) $entry->tutoreval, FORMAT_PLAIN));
+            echo stage_render_evaluation($tutorquestions, $answers, $entry->tutoreval);
         } else if (!empty($entry->tutorbypassed)) {
             echo $OUTPUT->notification(get_string('tutorevalbypassednotice', 'mod_stage'), 'warning');
         } else if ($isdeve) {

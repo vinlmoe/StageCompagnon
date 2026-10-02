@@ -39,6 +39,11 @@
  * référence consultable, mais ne déclenchent aucune génération de PDF ni gestion de convention
  * dans ce plugin.
  *
+ * Les colonnes facultatives « Évaluation par le maître de stage » et « Évaluation par l’étudiant »
+ * complètent l'évaluation du stage. Une ligne qui correspond à un stage déjà enregistré (même
+ * étudiant, même thématique, plage qui se recoupe) le met à jour au lieu d'en créer un second ; dès
+ * que les deux évaluations sont réunies, l'enseignant référent est invité par courriel à évaluer.
+ *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -147,10 +152,22 @@ if ($uploaderror !== null) {
 }
 
 if ($results) {
+    $summary = [get_string('importresult', 'mod_stage', $results->created)];
+    foreach (['updated', 'unchanged', 'evaluations', 'notified'] as $counter) {
+        if (!empty($results->$counter)) {
+            $summary[] = get_string('importstagevet' . $counter, 'mod_stage', $results->$counter);
+        }
+    }
     echo $OUTPUT->notification(
-        get_string('importresult', 'mod_stage', $results->created),
+        implode(html_writer::empty_tag('br'), $summary),
         \core\output\notification::NOTIFY_SUCCESS
     );
+    if (!empty($results->noreferent)) {
+        echo $OUTPUT->notification(
+            get_string('importstagevetnoreferent', 'mod_stage', s(implode(', ', $results->noreferent))),
+            \core\output\notification::NOTIFY_WARNING
+        );
+    }
 
     // Rapport groupé : un étudiant ou une thématique manquant sur cent lignes ne doit apparaître
     // qu'une fois, avec la liste des lignes concernées, plutôt que cent messages identiques.
@@ -246,6 +263,7 @@ if ($results) {
 }
 
 echo $OUTPUT->box(get_string('importstagevetcsv_help', 'mod_stage'), 'generalbox mb-3');
+echo $OUTPUT->box(get_string('importstagevetevalhelp', 'mod_stage'), 'generalbox mb-3');
 
 echo html_writer::start_tag('form', [
     'method' => 'post', 'action' => $baseurl, 'enctype' => 'multipart/form-data',

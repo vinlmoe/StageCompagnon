@@ -292,7 +292,17 @@ class csv_importer {
             'présence jour férié' => 'holidaypresence',
             'présence à domicile' => 'homebased',
             'montant gratification' => 'gratificationamount',
+            // Évaluations récupérées par StageVet Manager (colonnes facultatives : un export
+            // antérieur qui ne les contient pas s'importe comme avant).
+            'évaluation par le maître de stage' => 'tutorevaluation',
+            'évaluation par l’étudiant' => 'studentevaluation',
         ];
+        // Les en-têtes sont comparés sous une forme normalisée (casse, accents, apostrophe droite
+        // ou typographique, espaces, BOM) : un fichier retouché dans un tableur reste reconnu.
+        $normalizedmap = [];
+        foreach ($columnmap as $header => $key) {
+            $normalizedmap[self::normalize_header($header)] = $key;
+        }
 
         $themes = stage_get_themes($stage->id, true);
         $themesbyname = [];
@@ -342,8 +352,8 @@ class csv_importer {
                 // Associe chaque colonne du fichier (par en-tête, normalisé) à sa clé interne.
                 $colindex = [];
                 foreach ($columns as $index => $header) {
-                    $key = $columnmap[core_text::strtolower(trim($header))] ?? null;
-                    if ($key) {
+                    $key = $normalizedmap[self::normalize_header($header)] ?? self::guess_evaluation_column($header);
+                    if ($key && !isset($colindex[$key])) {
                         $colindex[$key] = $index;
                     }
                 }
@@ -366,15 +376,38 @@ class csv_importer {
                 // qu'une ligne d'erreur par occurrence) pour produire un rapport lisible même sur
                 // un fichier de plusieurs centaines de lignes concernant le même étudiant ou la
                 // même thématique manquante (ex. un étudiant non encore inscrit au cours).
-                $results = (object) ['created' => 0, 'unknownstudents' => [], 'unknownthemes' => [], 'errors' => []];
+                $results = (object) [
+                    'created' => 0,
+                    'updated' => 0,
+                    'unchanged' => 0,
+                    'evaluations' => 0,
+                    'notified' => 0,
+                    'noreferent' => [],
+                    'unknownstudents' => [],
+                    'unknownthemes' => [],
+                    'errors' => [],
+                ];
                 // Seconde passe : la DEVE a rattaché des libellés à des inscrits. Les lignes que
                 // le fichier suffit à rapprocher ont déjà été importées à la première passe.
                 $resolvedonly = $studentresolutions !== [];
                 $entryrecords = [];
                 $detailbyrowkey = [];
+                $studentbyrowkey = [];
                 $cir->init();
                 $linenum = 1;
-                $existingpairs = stage_get_existing_theme_pairs($stage->id);
+                // Stages déjà enregistrés, par étudiant et thématique : une ligne qui correspond à
+                // l'un d'eux le met à jour (évaluations) au lieu d'en créer un second.
+                $existingbykey = [];
+                $existingfields = 'id, userid, themeid, datestart, dateend, status, conventionstatus, '
+                    . 'studentselfeval, tutoreval, tutortime';
+                foreach ($DB->get_records('stage_entry', ['stageid' => $stage->id], 'id ASC', $existingfields) as $existing) {
+                    $existingbykey[$existing->userid . '-' . $existing->themeid][$existing->id] = $existing;
+                }
+                // Doublons à l'intérieur du fichier lui-même (même stage répété).
+                $filepairs = [];
+                // Stages dont les deux évaluations viennent d'être complétées : l'enseignant
+                // référent est sollicité une fois l'import terminé.
+                $torequest = [];
 
                 while ($row = $cir->next()) {
                     $linenum++;
@@ -465,13 +498,55 @@ class csv_importer {
                     }
 
                     $pairkey = stage_duplicate_key($student->id, $theme->id, $start, $end);
-                    if (isset($existingpairs[$pairkey])) {
+                    if (isset($filepairs[$pairkey])) {
                         $results->errors[] = get_string('importerrorduplicate', 'mod_stage', (object) [
                             'line' => $linenum, 'email' => fullname($student), 'theme' => $themename,
                         ]);
                         continue;
                     }
-                    $existingpairs[$pairkey] = true;
+                    $filepairs[$pairkey] = true;
+
+                    $studenteval = self::clean_evaluation($getcol($row, 'studentevaluation'));
+                    $tutoreval = self::clean_evaluation($getcol($row, 'tutorevaluation'));
+
+                    // Stage déjà présent : mêmes étudiant et thématique, et plage qui recoupe celle
+                    // du fichier (les dates de la convention peuvent différer de quelques jours
+                    // de celles du tableau de bord utilisées lors d'un import précédent).
+                    $matches = self::find_existing_entries(
+                        $existingbykey[$student->id . '-' . $theme->id] ?? [],
+                        $start,
+                        $end
+                    );
+                    if (count($matches) > 1) {
+                        $results->errors[] = get_string('importstageveterrorambiguous', 'mod_stage', (object) [
+                            'line' => $linenum, 'student' => fullname($student), 'theme' => $themename,
+                        ]);
+                        continue;
+                    }
+                    if ($matches) {
+                        $existing = reset($matches);
+                        $outcome = self::apply_evaluations($existing, $studenteval, $tutoreval);
+                        foreach ($outcome['kept'] as $kind) {
+                            $results->errors[] = get_string('importstagevetevalkept', 'mod_stage', (object) [
+                                'line' => $linenum,
+                                'student' => fullname($student),
+                                'evaluation' => get_string(
+                                    $kind === 'student' ? 'studentselfeval' : 'tutorevalheading',
+                                    'mod_stage'
+                                ),
+                            ]);
+                        }
+                        if ($outcome['changed']) {
+                            $results->updated++;
+                            $results->evaluations += $outcome['changed'];
+                        } else {
+                            $results->unchanged++;
+                        }
+                        if ($outcome['completed']) {
+                            $torequest[$existing->id] = $student;
+                        }
+                        continue;
+                    }
 
                     // Les compteurs en jours viennent tous de la convention PDF. Sans elle, la
                     // seule durée de l'export est le libellé du tableau de bord, exprimé en
@@ -507,11 +582,19 @@ class csv_importer {
                         'dateend' => $end,
                         'declaredduration' => $duration,
                         'retainedduration' => 0,
-                        'status' => STAGE_STATUS_ENREGISTRE,
+                        // L'évaluation de l'étudiant, si l'export la fournit, tient lieu de son
+                        // auto-évaluation ; celle du maître de stage remplace l'invitation que
+                        // l'activité lui aurait sinon envoyée.
+                        'status' => $studenteval !== '' ? STAGE_STATUS_EVAL_ETUDIANT : STAGE_STATUS_ENREGISTRE,
+                        'studentselfeval' => $studenteval !== '' ? $studenteval : null,
+                        'tutoreval' => $tutoreval !== '' ? $tutoreval : null,
+                        'tutortime' => $tutoreval !== '' ? time() : null,
                         'conventionstatus' => STAGE_CONVENTION_SIGNVET,
                         'timecreated' => time(),
                         'timemodified' => time(),
                     ];
+                    $results->evaluations += ($studenteval !== '' ? 1 : 0) + ($tutoreval !== '' ? 1 : 0);
+                    $studentbyrowkey[$rowkey] = $student;
 
                     $detailbyrowkey[$rowkey] = (object) [
                         'referentteacherid' => null,
@@ -572,13 +655,153 @@ class csv_importer {
                     $detailbyrowkey[$rowkey]->timecreated = time();
                     $detailbyrowkey[$rowkey]->timemodified = time();
                     $DB->insert_record('stage_convention_detail', $detailbyrowkey[$rowkey]);
+                    if (!empty($record->studentselfeval) && !empty($record->tutoreval)) {
+                        $torequest[$entryid] = $studentbyrowkey[$rowkey];
+                    }
                 }
                 $results->created = count($entryrecords);
+
+                // Les deux évaluations amont sont disponibles : l'enseignant référent est invité
+                // à évaluer à son tour. Un étudiant sans référent est signalé à la DEVE, qui
+                // devra en désigner un pour que l'évaluation puisse avoir lieu.
+                if ($torequest) {
+                    $cm = get_coursemodule_from_id('stage', $context->instanceid, 0, false, MUST_EXIST);
+                    foreach ($torequest as $entryid => $student) {
+                        $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
+                        if (stage_notify_teachers_eval_request($stage, $cm, $entry, $student)) {
+                            $results->notified++;
+                        } else {
+                            $results->noreferent[$student->id] = fullname($student);
+                        }
+                    }
+                }
             }
         }
 
         return ['results' => $results, 'error' => $uploaderror];
     }
+    /**
+     * Forme normalisée d'un en-tête de colonne, pour une comparaison tolérante : sans BOM, sans
+     * accents, apostrophes droite et typographique confondues, casse et espaces ignorés.
+     *
+     * @param string $header
+     * @return string
+     */
+    public static function normalize_header($header) {
+        $header = str_replace("\xEF\xBB\xBF", '', (string) $header);
+        return stage_normalize_name($header);
+    }
+
+    /**
+     * Reconnaît une colonne d'évaluation dont l'intitulé s'écarte de celui de l'export actuel
+     * (« Evaluation maitre de stage », « Évaluation étudiant », etc.).
+     *
+     * @param string $header
+     * @return string|null 'tutorevaluation', 'studentevaluation' ou null
+     */
+    public static function guess_evaluation_column($header) {
+        $normalized = ' ' . self::normalize_header($header) . ' ';
+        if (strpos($normalized, ' evaluation') === false) {
+            return null;
+        }
+        if (preg_match('/ (maitre|maitres|tuteur entreprise|encadrant|tutor) /', $normalized)) {
+            return 'tutorevaluation';
+        }
+        if (preg_match('/ (etudiant|etudiante|stagiaire|student) /', $normalized)) {
+            return 'studentevaluation';
+        }
+        return null;
+    }
+
+    /**
+     * Met en forme une évaluation lue dans l'export : retours à la ligne unifiés, espaces de fin
+     * de ligne et lignes vides en excès retirés. Une cellule vide, ou qui ne fait qu'annoncer
+     * l'absence d'évaluation, donne une chaîne vide : elle n'efface jamais une évaluation déjà
+     * enregistrée (une extraction incomplète ne doit rien faire perdre).
+     *
+     * @param string $raw
+     * @return string
+     */
+    public static function clean_evaluation($raw) {
+        $text = preg_replace('/\R/u', "\n", (string) $raw);
+        $text = preg_replace('/[ \t]+$/mu', '', $text);
+        $text = trim(preg_replace("/\n{3,}/", "\n\n", $text));
+        $placeholder = '/^(aucune?\s+(évaluation|evaluation)(\s+(disponible|fournie|récupérée|recuperee))?|non\s+disponible|'
+            . 'non\s+renseign\S*|n\/?a|-+)\.?$/iu';
+        return preg_match($placeholder, $text) ? '' : $text;
+    }
+
+    /**
+     * Stages déjà enregistrés auxquels une ligne de l'export correspond : la même plage d'abord,
+     * puis, à défaut, toute plage qui la recoupe.
+     *
+     * @param array $candidates Stages du même étudiant sur la même thématique.
+     * @param int $start
+     * @param int $end
+     * @return array Stages correspondants (vide : la ligne crée un stage).
+     */
+    public static function find_existing_entries(array $candidates, $start, $end) {
+        $exact = array_filter($candidates, fn($entry) => (int) $entry->datestart === (int) $start
+            && (int) $entry->dateend === (int) $end);
+        if ($exact) {
+            return $exact;
+        }
+        return array_filter($candidates, fn($entry) => !empty($entry->datestart) && !empty($entry->dateend)
+            && $entry->datestart <= $end && $entry->dateend >= $start);
+    }
+
+    /**
+     * Reporte sur un stage existant les évaluations de l'export. Une évaluation vide dans le
+     * fichier ne change rien. Un stage importé de StageVet reçoit la version la plus récente de
+     * l'export ; pour un stage créé autrement, une évaluation déjà saisie dans l'activité n'est
+     * jamais remplacée (elle est signalée comme conservée).
+     *
+     * @param \stdClass $entry Stage existant (champs lus par stagevet()), mis à jour en place.
+     * @param string $studenteval
+     * @param string $tutoreval
+     * @return array ['changed' => nombre d'évaluations écrites, 'kept' => types conservés,
+     *               'completed' => les deux évaluations viennent d'être réunies]
+     */
+    public static function apply_evaluations(\stdClass $entry, $studenteval, $tutoreval) {
+        global $DB;
+
+        $hadboth = trim((string) $entry->studentselfeval) !== '' && trim((string) $entry->tutoreval) !== '';
+        $fromstagevet = (int) $entry->conventionstatus === STAGE_CONVENTION_SIGNVET;
+        $update = (object) ['id' => $entry->id];
+        $changed = 0;
+        $kept = [];
+
+        $incoming = ['student' => ['studentselfeval', $studenteval], 'tutor' => ['tutoreval', $tutoreval]];
+        foreach ($incoming as $kind => [$field, $value]) {
+            $current = trim((string) $entry->$field);
+            if ($value === '' || $current === $value) {
+                continue;
+            }
+            if ($current !== '' && !$fromstagevet) {
+                $kept[] = $kind;
+                continue;
+            }
+            $update->$field = $entry->$field = $value;
+            $changed++;
+        }
+        if (isset($update->tutoreval)) {
+            $update->tutortime = $entry->tutortime = time();
+        }
+        // L'évaluation de l'étudiant fait avancer un stage simplement enregistré, jamais un stage
+        // annulé, non validé ou déjà évalué par l'enseignant.
+        if (isset($update->studentselfeval) && (int) $entry->status === STAGE_STATUS_ENREGISTRE) {
+            $update->status = $entry->status = STAGE_STATUS_EVAL_ETUDIANT;
+        }
+        if ($changed) {
+            $update->timemodified = time();
+            $DB->update_record('stage_entry', $update);
+        }
+
+        $hasboth = trim((string) $entry->studentselfeval) !== '' && trim((string) $entry->tutoreval) !== '';
+        $awaitingteacher = in_array((int) $entry->status, [STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT], true);
+        return ['changed' => $changed, 'kept' => $kept, 'completed' => !$hadboth && $hasboth && $awaitingteacher];
+    }
+
     /**
      * Convertit une date StageVet (JJ/MM/AAAA) en timestamp, ou null si vide/invalide.
      *

@@ -172,6 +172,39 @@ Les noms de thématiques doivent correspondre exactement aux intitulés StageVet
 rapport d'import liste, groupés par valeur et avec leurs numéros de ligne, les
 étudiants et les thématiques introuvables.
 
+#### Évaluations de l'étudiant et du maître de stage
+
+Les colonnes `Évaluation par le maître de stage` et `Évaluation par l’étudiant`
+(export StageVet à 60 colonnes) sont facultatives : un export plus ancien
+s'importe comme avant. Leurs intitulés sont reconnus sans tenir compte des
+accents, de la casse, du type d'apostrophe ni du BOM, et des variantes comme
+`Evaluation maitre de stage` sont acceptées.
+
+- **Stage déjà présent** : une ligne dont l'étudiant et la thématique
+  correspondent à un stage existant, avec une plage de dates qui se recoupe, met
+  ce stage à jour au lieu d'en créer un second. Réimporter le même fichier ne crée
+  donc pas de doublon. Si plusieurs stages correspondent, la ligne est signalée
+  et ignorée.
+- **Politique de mise à jour** : une cellule vide (ou « Aucune évaluation »)
+  n'efface jamais une évaluation enregistrée. Un stage importé de StageVet
+  reçoit la version la plus récente de l'export ; pour un stage créé autrement,
+  une évaluation déjà saisie dans l'activité est conservée et signalée.
+- **Effets** : l'évaluation de l'étudiant fait passer un stage enregistré au
+  statut « Auto-évalué par l'étudiant » ; celle du maître de stage est
+  enregistrée comme son évaluation, et l'activité ne lui envoie alors plus
+  d'invitation.
+- **Demande d'évaluation à l'enseignant** : dès que les deux évaluations d'un
+  stage sont réunies (à la création ou lors d'un import ultérieur), ses
+  enseignants référents reçoivent un courriel les invitant à l'évaluer, une seule
+  fois. Le texte est personnalisable dans **Notifications** (« Demande
+  d'évaluation après import des évaluations »). Le rapport d'import liste les
+  étudiants sans référent.
+- **Affichage** : chaque ligne `libellé : N/5` devient une note en étoiles,
+  groupée sous sa rubrique, quel que soit l'item (un item nouveau dans
+  StageVet est pris en compte sans modification). `Non renseigné` reste une
+  absence de note, distincte de `0/5`. Les commentaires sont affichés en texte
+  échappé, retours à la ligne conservés.
+
 ### Import de l'ancien suivi Excel
 
 La page **Importer un ancien suivi Excel** reprend les stages validés des
@@ -493,6 +526,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `convention_ready_notification_test.php` | Courriel « convention téléchargeable » : présence dans les e-mails personnalisables, contenu par défaut, prise en compte d'un texte personnalisé. |
 | `theme_edit_test.php` | Page unique de gestion d'une thématique : années proposées pour les durées par année, pré-remplissage des lignes répétées (check-list, questions) sans que les valeurs par défaut écrasent les valeurs enregistrées. |
 | `admin_forms_test.php` | Pages uniques des conventions et des notifications : chargement des formulaires, gabarit utilisé non supprimable, nom et PDF exigés ensemble pour un nouveau gabarit, une section par e-mail. |
+| `stagevet_evaluations_test.php` | Import StageVet des évaluations : export actuel à 60 colonnes (BOM, cellules multilignes, guillemets), mise à jour d'un stage existant sans doublon ni effacement, évaluation saisie dans l'activité conservée, en-têtes tolérants, courriel unique à l'enseignant référent, notes en étoiles (item nouveau, zéro distinct de « Non renseigné »). |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :

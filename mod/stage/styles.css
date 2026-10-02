@@ -1,3 +1,45 @@
 .stage-navlinks a {
     margin-right: 0.5rem;
 }
+
+/* Évaluations importées (StageVet) : notes sur 5 en étoiles, regroupées par rubrique. */
+.stage-evaluation-table {
+    max-width: 52rem;
+}
+.stage-evaluation-table td:last-child {
+    width: 12rem;
+}
+.stage-evaluation-table .stage-evaluation-section {
+    background-color: #f1f3f5;
+    border-top: 2px solid #dee2e6;
+}
+.stage-evaluation-table .stage-evaluation-overall td {
+    font-weight: bold;
+}
+.stage-stars {
+    white-space: nowrap;
+}
+.stage-star {
+    font-size: 1.15em;
+    line-height: 1;
+}
+.stage-star-full {
+    color: #e0a100;
+}
+.stage-star-empty {
+    color: #ced4da;
+}
+.stage-star-half {
+    background: linear-gradient(90deg, #e0a100 50%, #ced4da 50%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.stage-stars-value {
+    color: #495057;
+    font-size: .875em;
+}
+.stage-evaluation-comment {
+    border-left: 3px solid #dee2e6;
+    padding-left: .75rem;
+}

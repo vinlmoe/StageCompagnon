@@ -1679,6 +1679,12 @@ function stage_get_email_definitions() {
             'bodystring' => 'tutorevalnotifbody',
             'vars' => ['student', 'stage', 'url'],
         ],
+        'teacherevalrequest' => [
+            'label' => get_string('emailkeyteacherevalrequest', 'mod_stage'),
+            'subjectstring' => 'teacherevalrequestnotifsubject',
+            'bodystring' => 'teacherevalrequestnotifbody',
+            'vars' => ['student', 'stage', 'theme', 'url'],
+        ],
         'conventionreminder' => [
             'label' => get_string('emailkeyconventionreminder', 'mod_stage'),
             'subjectstring' => 'conventionremindernotifsubject',
@@ -1825,6 +1831,243 @@ function stage_notify_teachers_selfeval(stdClass $stage, stdClass $cm, stdClass 
     foreach ($teachers as $teacher) {
         email_to_user($teacher, $noreply, $text->subject, $text->body);
     }
+}
+
+/**
+ * Demande aux enseignants référents d'un étudiant d'évaluer un stage dont l'évaluation par
+ * l'étudiant et celle du maître de stage sont toutes deux disponibles (cas d'un stage importé de
+ * StageVet, dont les deux évaluations arrivent par le fichier d'import plutôt que par les
+ * formulaires de l'activité).
+ *
+ * @param stdClass $stage
+ * @param stdClass $cm Course module.
+ * @param stdClass $entry
+ * @param stdClass $student
+ * @return int Nombre d'enseignants sollicités (0 si l'étudiant n'a aucun référent).
+ */
+function stage_notify_teachers_eval_request(stdClass $stage, stdClass $cm, stdClass $entry, stdClass $student) {
+    global $DB;
+
+    $teachers = stage_get_student_teachers($stage->id, $entry->userid);
+    if (empty($teachers)) {
+        return 0;
+    }
+
+    $themename = (string) $DB->get_field('stage_theme', 'name', ['id' => $entry->themeid]);
+    $url = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
+    $text = stage_resolve_email_text($stage->id, 'teacherevalrequest', [
+        'student' => fullname($student),
+        'stage' => format_string($stage->name),
+        'theme' => format_string($themename),
+        'url' => $url->out(false),
+    ]);
+    $noreply = core_user::get_noreply_user();
+
+    foreach ($teachers as $teacher) {
+        email_to_user($teacher, $noreply, $text->subject, $text->body);
+    }
+    return count($teachers);
+}
+
+/**
+ * Découpe un texte d'évaluation libre (tel que l'exporte StageVet, une information par ligne) en
+ * blocs exploitables pour l'affichage : rubriques, notes sur 5, champs « libellé : valeur »,
+ * commentaires et texte libre. L'analyse est volontairement tolérante (espaces, virgule
+ * décimale, « 4 / 5 », deux-points précédé ou non d'une espace) et ne devine rien : une note
+ * « Non renseigné » reste une absence de note, jamais un zéro.
+ *
+ * @param string $text
+ * @return array Liste de blocs ['type' => heading|rating|field|comment|text, ...] :
+ *               heading {text} ; rating {label, score (float|null), overall (bool)} ;
+ *               field {label, value} ; comment {label, text} ; text {text}.
+ */
+function stage_parse_evaluation_text($text) {
+    $lines = preg_split('/\R/u', trim((string) $text));
+    $blocks = [];
+    $rating = '/^(.+?)\s*:\s*(\d+(?:[.,]\d+)?)\s*\/\s*5\s*\.?$/u';
+    $missing = '/^(.+?)\s*:\s*(non\s+renseign\S*|not\s+(?:provided|filled\S*)|n\/?a)\s*\.?$/iu';
+    $commentlabel = '/^(commentaires?|comments?)\s*:?$/iu';
+
+    $isscoreline = function ($line) use ($rating, $missing) {
+        return preg_match($rating, $line) || preg_match($missing, $line);
+    };
+    // Une ligne courte, sans deux-points ni ponctuation finale, suivie d'une note : c'est un
+    // intitulé de rubrique (« Savoir-être », « Accueil »).
+    $isheading = function ($index) use ($lines, $isscoreline) {
+        $line = trim($lines[$index]);
+        if ($line === '' || core_text::strlen($line) > 80 || strpos($line, ':') !== false || preg_match('/[.!?]$/u', $line)) {
+            return false;
+        }
+        for ($next = $index + 1; $next < count($lines); $next++) {
+            $candidate = trim($lines[$next]);
+            if ($candidate !== '') {
+                return (bool) $isscoreline($candidate);
+            }
+        }
+        return false;
+    };
+
+    $comment = null;
+    foreach ($lines as $index => $rawline) {
+        $line = trim($rawline);
+        $structural = $line !== '' && ($isscoreline($line) || $isheading($index) || preg_match($commentlabel, $line));
+        if ($comment !== null && !$structural) {
+            if ($line !== '' || $comment['text'] !== '') {
+                $comment['text'] .= ($comment['text'] === '' ? '' : "\n") . $line;
+            }
+            continue;
+        }
+        if ($comment !== null) {
+            $comment['text'] = trim($comment['text']);
+            $blocks[] = $comment;
+            $comment = null;
+        }
+        if ($line === '') {
+            continue;
+        }
+
+        if (preg_match($rating, $line, $m)) {
+            $score = (float) str_replace(',', '.', $m[2]);
+            $blocks[] = [
+                'type' => 'rating',
+                'label' => $m[1],
+                'score' => ($score >= 0 && $score <= 5) ? $score : null,
+                'overall' => (bool) preg_match('/^(avis\s+global|recommandation|overall)/iu', $m[1]),
+            ];
+        } else if (preg_match($missing, $line, $m)) {
+            $blocks[] = [
+                'type' => 'rating',
+                'label' => $m[1],
+                'score' => null,
+                'overall' => (bool) preg_match('/^(avis\s+global|recommandation|overall)/iu', $m[1]),
+            ];
+        } else if (preg_match($commentlabel, $line, $m)) {
+            $comment = ['type' => 'comment', 'label' => $m[1], 'text' => ''];
+        } else if ($isheading($index)) {
+            $blocks[] = ['type' => 'heading', 'text' => $line];
+        } else if (preg_match('/^([^:]{1,120}?)\s*:\s+(.+)$/u', $line, $m)) {
+            $blocks[] = ['type' => 'field', 'label' => $m[1], 'value' => $m[2]];
+        } else {
+            $blocks[] = ['type' => 'text', 'text' => $line];
+        }
+    }
+    if ($comment !== null) {
+        $comment['text'] = trim($comment['text']);
+        $blocks[] = $comment;
+    }
+    return $blocks;
+}
+
+/**
+ * Rend une note sur 5 en étoiles (pleines, demi, vides), suivie de la note chiffrée : la valeur
+ * exacte reste lisible et les lecteurs d'écran annoncent « 4 sur 5 » plutôt que cinq symboles.
+ *
+ * @param float $score Entre 0 et 5.
+ * @return string HTML
+ */
+function stage_render_stars($score) {
+    $score = max(0, min(5, (float) $score));
+    $rounded = round($score * 2) / 2;
+    $stars = '';
+    for ($i = 1; $i <= 5; $i++) {
+        if ($rounded >= $i) {
+            $class = 'stage-star stage-star-full';
+        } else if ($rounded >= $i - 0.5) {
+            $class = 'stage-star stage-star-half';
+        } else {
+            $class = 'stage-star stage-star-empty';
+        }
+        $stars .= html_writer::span('★', $class);
+    }
+    $label = format_float($score, (floor($score) == $score) ? 0 : 1, true, true) . '/5';
+    return html_writer::span(
+        html_writer::span($stars, '', ['aria-hidden' => 'true'])
+            . html_writer::span($label, 'stage-stars-value ml-2'),
+        'stage-stars',
+        ['title' => $label, 'aria-label' => get_string('ratingoutoffive', 'mod_stage', $label)]
+    );
+}
+
+/**
+ * Affiche un texte d'évaluation : les notes sur 5 sous forme d'un tableau à étoiles, regroupées
+ * par rubrique, les commentaires et le texte libre en clair (échappé, retours à la ligne
+ * conservés). Un texte qui ne contient aucune note, ou qui contient du HTML (commentaire saisi
+ * dans l'éditeur de l'activité), est affiché comme auparavant.
+ *
+ * @param string|null $text
+ * @param int $format Format du texte lorsqu'il n'est pas analysé (FORMAT_HTML ou FORMAT_PLAIN).
+ * @return string HTML
+ */
+function stage_render_evaluation_text($text, $format = FORMAT_PLAIN) {
+    $text = (string) $text;
+    if (trim($text) === '') {
+        return '';
+    }
+    // Seul un texte saisi dans l'éditeur (FORMAT_HTML) peut contenir du balisage voulu ; dans un
+    // texte brut, un « <...> » n'est que du texte, échappé à l'affichage.
+    $hashtml = (int) $format === FORMAT_HTML && $text !== strip_tags($text);
+    $blocks = $hashtml ? [] : stage_parse_evaluation_text($text);
+    $hasrating = false;
+    foreach ($blocks as $block) {
+        if ($block['type'] === 'rating') {
+            $hasrating = true;
+            break;
+        }
+    }
+    if (!$hasrating) {
+        return html_writer::div(format_text($text, $hashtml ? $format : FORMAT_PLAIN), 'stage-evaluation-text');
+    }
+
+    $out = '';
+    $rows = [];
+    $flush = function () use (&$rows, &$out) {
+        if ($rows) {
+            $out .= html_writer::tag('table', html_writer::tag('tbody', implode('', $rows)), [
+                'class' => 'table table-sm stage-evaluation-table mb-3',
+            ]);
+            $rows = [];
+        }
+    };
+    foreach ($blocks as $block) {
+        switch ($block['type']) {
+            case 'heading':
+                $rows[] = html_writer::tag('tr', html_writer::tag('th', s($block['text']), [
+                    'colspan' => 2, 'scope' => 'colgroup', 'class' => 'stage-evaluation-section',
+                ]));
+                break;
+            case 'rating':
+                $value = $block['score'] === null
+                    ? html_writer::span(get_string('ratingnotprovided', 'mod_stage'), 'text-muted font-italic')
+                    : stage_render_stars($block['score']);
+                $rows[] = html_writer::tag(
+                    'tr',
+                    html_writer::tag('td', s($block['label'])) . html_writer::tag('td', $value, ['class' => 'text-nowrap']),
+                    ['class' => $block['overall'] ? 'stage-evaluation-overall' : '']
+                );
+                break;
+            case 'field':
+                $rows[] = html_writer::tag(
+                    'tr',
+                    html_writer::tag('td', s($block['label'])) . html_writer::tag('td', s($block['value']))
+                );
+                break;
+            case 'comment':
+                $flush();
+                if ($block['text'] !== '') {
+                    $out .= html_writer::div(
+                        html_writer::div(s($block['label']), 'font-weight-bold mb-1')
+                            . html_writer::div(nl2br(s($block['text'])), 'stage-evaluation-comment-text'),
+                        'stage-evaluation-comment mb-3'
+                    );
+                }
+                break;
+            default:
+                $flush();
+                $out .= html_writer::tag('p', s($block['text']));
+        }
+    }
+    $flush();
+    return html_writer::div($out, 'stage-evaluation');
 }
 
 /**
@@ -2270,6 +2513,34 @@ function stage_render_entry_summary(stdClass $entry, $theme = null, $student = n
     );
 
     return stage_render_detail_section(get_string('stagesummary', 'mod_stage'), $rows);
+}
+
+/**
+ * Rend une évaluation (étudiant, enseignant ou maître de stage) en lecture seule : les réponses
+ * au questionnaire de la thématique, puis le texte libre éventuel (notes sur 5 en étoiles, voir
+ * stage_render_evaluation_text()). Une évaluation importée de StageVet n'arrive que sous forme de
+ * texte : un questionnaire resté sans aucune réponse n'est alors pas affiché, pour ne pas
+ * présenter une série de questions vides au-dessus de l'évaluation réelle.
+ *
+ * @param array $questions Questions de la thématique pour ce type d'évaluation.
+ * @param array $answers Réponses de la saisie, indexées par questionid.
+ * @param string|null $text Texte libre de l'évaluation.
+ * @param int $format Format du texte libre lorsqu'il ne contient aucune note.
+ * @param string $lang Langue d'affichage des questions.
+ * @return string HTML, vide si l'évaluation ne contient rien.
+ */
+function stage_render_evaluation(array $questions, array $answers, $text, $format = FORMAT_PLAIN, $lang = 'fr') {
+    $hastext = trim((string) $text) !== '';
+    // Questions et réponses sont toutes deux indexées par identifiant de question.
+    $hasanswers = (bool) array_intersect_key($answers, $questions);
+    $out = '';
+    if (!empty($questions) && ($hasanswers || !$hastext)) {
+        $out .= stage_render_answers_readonly($questions, $answers, $lang);
+    }
+    if ($hastext) {
+        $out .= stage_render_evaluation_text($text, $format);
+    }
+    return $out;
 }
 
 /**
