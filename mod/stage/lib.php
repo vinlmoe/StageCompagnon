@@ -182,11 +182,12 @@ function stage_delete_instance($id) {
     // zones de fichiers juste après.
     stage_delete_entries($DB->get_fieldset_select('stage_entry', 'id', 'stageid = ?', [$id]));
     $DB->delete_records('stage_entry_teacher', ['stageid' => $id]);
-    $questionids = $DB->get_fieldset_select('stage_question', 'id', 'stageid = ?', [$id]);
-    if ($questionids) {
-        [$insql, $inparams] = $DB->get_in_or_equal($questionids);
-        $DB->delete_records_select('stage_question_theme', "questionid $insql", $inparams);
+    $listids = $DB->get_fieldset_select('stage_evallist', 'id', 'stageid = ?', [$id]);
+    if ($listids) {
+        [$insql, $inparams] = $DB->get_in_or_equal($listids);
+        $DB->delete_records_select('stage_evallist_question', "listid $insql", $inparams);
     }
+    $DB->delete_records('stage_evallist', ['stageid' => $id]);
     $DB->delete_records('stage_question', ['stageid' => $id]);
     $themeids = $DB->get_fieldset_select('stage_theme', 'id', 'stageid = ?', [$id]);
     if ($themeids) {

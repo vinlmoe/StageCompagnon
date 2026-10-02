@@ -21,6 +21,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
 require_once($CFG->dirroot . '/mod/stage/classes/form/theme_edit_form.php');
+require_once($CFG->dirroot . '/mod/stage/classes/form/evallist_edit_form.php');
 
 /**
  * Tests de la page unique de gestion d'une thématique (theme_edit.php) : années proposées pour
@@ -31,6 +32,7 @@ require_once($CFG->dirroot . '/mod/stage/classes/form/theme_edit_form.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     ::stage_theme_duration_years
  * @covers     \mod_stage\form\theme_edit_form
+ * @covers     \mod_stage\form\evallist_edit_form
  */
 final class theme_edit_test extends \advanced_testcase {
     /**
@@ -56,9 +58,7 @@ final class theme_edit_test extends \advanced_testcase {
         $form = new class (null, [
             'teachers' => [],
             'checklistcount' => 1,
-            'questioncount' => 1,
-            'questioninfo' => [0 => 'Info'],
-            'reusable' => [],
+            'evallists' => [],
             'tutorenabled' => false,
             'filemanageroptions' => [],
         ]) extends \mod_stage\form\theme_edit_form {
@@ -74,6 +74,30 @@ final class theme_edit_test extends \advanced_testcase {
         $form->set_data([
             'checklistid[0]' => 12,
             'checklistsortorder[0]' => 5,
+        ]);
+        $mform = $form->get_mform();
+        $this->assertEquals(12, $mform->getElement('checklistid[0]')->getValue());
+        $this->assertEquals(5, $mform->getElement('checklistsortorder[0]')->getValue());
+        $this->assertEquals(0, $mform->getElement('checklistsortorder[1]')->getValue());
+
+        // Même mécanique pour les questions d'une liste d'évaluation (evallist_edit.php).
+        $form = new class (null, [
+            'editing' => true,
+            'evaltype' => 'student',
+            'questioncount' => 1,
+            'questioninfo' => [0 => 'Info'],
+            'reusable' => [],
+        ]) extends \mod_stage\form\evallist_edit_form {
+            /**
+             * Accès au formulaire QuickForm sous-jacent.
+             *
+             * @return \MoodleQuickForm
+             */
+            public function get_mform(): \MoodleQuickForm {
+                return $this->_form;
+            }
+        };
+        $form->set_data([
             'questionid[0]' => 34,
             'questionqtype[0]' => 'choice',
             'questionrequired[0]' => 0,
@@ -81,8 +105,6 @@ final class theme_edit_test extends \advanced_testcase {
         ]);
         $mform = $form->get_mform();
 
-        $this->assertEquals(12, $mform->getElement('checklistid[0]')->getValue());
-        $this->assertEquals(5, $mform->getElement('checklistsortorder[0]')->getValue());
         $this->assertEquals(34, $mform->getElement('questionid[0]')->getValue());
         $this->assertEquals(['choice'], $mform->getElement('questionqtype[0]')->getValue());
         $this->assertEmpty($mform->getElement('questionrequired[0]')->getValue());
@@ -91,5 +113,7 @@ final class theme_edit_test extends \advanced_testcase {
         // Ligne vide : valeurs par défaut.
         $this->assertEquals(['text'], $mform->getElement('questionqtype[1]')->getValue());
         $this->assertEquals(1, $mform->getElement('questionrequired[1]')->getValue());
+        // Liste non destinée au maître de stage : pas de version anglaise.
+        $this->assertFalse($mform->elementExists('questionnameen[0]'));
     }
 }

@@ -31,6 +31,9 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class restore_stage_activity_structure_step extends restore_activity_structure_step {
+    /** @var array Thématique restaurée => anciens identifiants de ses listes d'évaluation. */
+    protected $themelists = [];
+
     /**
      * Déclare les chemins à restaurer.
      *
@@ -64,9 +67,16 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
             '/activity/stage/conventiontemplates/conventiontemplate'
         );
         $paths[] = new restore_path_element('stage_question', '/activity/stage/questions/question');
+        // Sauvegardes antérieures aux listes d'évaluation : rattachements directs question ->
+        // thématique, convertis en listes (voir process_stage_question_theme()).
         $paths[] = new restore_path_element(
             'stage_question_theme',
             '/activity/stage/questions/question/questionthemes/questiontheme'
+        );
+        $paths[] = new restore_path_element('stage_evallist', '/activity/stage/evallists/evallist');
+        $paths[] = new restore_path_element(
+            'stage_evallist_question',
+            '/activity/stage/evallists/evallist/evallistquestions/evallistquestion'
         );
         $paths[] = new restore_path_element(
             'stage_email_template',
@@ -131,10 +141,21 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         $oldid = $data->id;
         $data->stageid = $this->get_new_parentid('stage');
 
+        // Les listes d'évaluation sont restaurées après les thématiques : leurs identifiants sont
+        // mis de côté et remplacés une fois les listes recréées (voir after_execute()).
+        $oldlists = [];
+        foreach (['studentlistid', 'teacherlistid', 'tutorlistid'] as $field) {
+            $oldlists[$field] = (int) ($data->$field ?? 0);
+            $data->$field = 0;
+        }
+
         // La thématique porte désormais des fichiers (les documents d'objectifs) : la
         // correspondance doit le déclarer pour qu'after_execute() puisse les rattacher.
         $newitemid = $DB->insert_record('stage_theme', $data);
         $this->set_mapping('stage_theme', $oldid, $newitemid, true);
+        if (array_filter($oldlists)) {
+            $this->themelists[$newitemid] = $oldlists;
+        }
     }
 
     /**
@@ -246,7 +267,9 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
     }
 
     /**
-     * Restaure le rattachement d'une question à une thématique supplémentaire.
+     * Convertit le rattachement direct d'une question à une thématique (sauvegarde antérieure aux
+     * listes d'évaluation) : la question rejoint la liste de la thématique pour son type
+     * d'évaluation, créée au besoin et nommée d'après la thématique.
      *
      * @param array $data
      */
@@ -254,17 +277,63 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         global $DB;
 
         $data = (object) $data;
-        unset($data->id);
-
         $themeid = $this->get_mappingid('stage_theme', $data->themeid);
-        if (!$themeid) {
+        $questionid = $this->get_new_parentid('stage_question');
+        if (!$themeid || !$questionid) {
             return;
         }
+        $evaltype = $DB->get_field('stage_question', 'evaltype', ['id' => $questionid]);
+        $field = stage_evallist_fields()[$evaltype] ?? null;
+        if (!$field) {
+            return;
+        }
+        $theme = $DB->get_record('stage_theme', ['id' => $themeid], 'id, stageid, name, ' . $field, MUST_EXIST);
+        if (empty($theme->$field)) {
+            $theme->$field = $DB->insert_record('stage_evallist', (object) [
+                'stageid' => $theme->stageid,
+                'evaltype' => $evaltype,
+                'name' => core_text::substr($theme->name . ' - ' . stage_evaltype_label($evaltype), 0, 255),
+                'timecreated' => time(),
+                'timemodified' => time(),
+            ]);
+            $DB->set_field('stage_theme', $field, $theme->$field, ['id' => $themeid]);
+        }
+        stage_add_evallist_question($theme->$field, $questionid);
+    }
 
-        $data->questionid = $this->get_new_parentid('stage_question');
-        $data->themeid = $themeid;
+    /**
+     * Restaure une liste d'évaluation.
+     *
+     * @param array $data
+     */
+    protected function process_stage_evallist($data) {
+        global $DB;
 
-        $DB->insert_record('stage_question_theme', $data);
+        $data = (object) $data;
+        $oldid = $data->id;
+        $data->stageid = $this->get_new_parentid('stage');
+        $newitemid = $DB->insert_record('stage_evallist', $data);
+        $this->set_mapping('stage_evallist', $oldid, $newitemid);
+    }
+
+    /**
+     * Restaure l'appartenance d'une question à une liste d'évaluation.
+     *
+     * @param array $data
+     */
+    protected function process_stage_evallist_question($data) {
+        global $DB;
+
+        $data = (object) $data;
+        $questionid = $this->get_mappingid('stage_question', $data->questionid);
+        if (!$questionid) {
+            return;
+        }
+        $DB->insert_record('stage_evallist_question', (object) [
+            'listid' => $this->get_new_parentid('stage_evallist'),
+            'questionid' => $questionid,
+            'timecreated' => $data->timecreated ?? time(),
+        ]);
     }
 
     /**
@@ -448,6 +517,17 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
      * Rattache les fichiers une fois toutes les correspondances établies.
      */
     protected function after_execute() {
+        global $DB;
+
+        // Liste d'évaluation choisie par chaque thématique, une fois les listes recréées.
+        foreach ($this->themelists as $themeid => $oldlists) {
+            $update = ['id' => $themeid];
+            foreach ($oldlists as $field => $oldlistid) {
+                $update[$field] = $oldlistid ? ((int) $this->get_mappingid('stage_evallist', $oldlistid) ?: 0) : 0;
+            }
+            $DB->update_record('stage_theme', (object) $update);
+        }
+
         // Zones sans itemid, rattachées au contexte du module.
         $this->add_related_files('mod_stage', 'intro', null);
         $this->add_related_files('mod_stage', 'conventionlogoleft', null);

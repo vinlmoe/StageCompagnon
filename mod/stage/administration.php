@@ -67,6 +67,11 @@ if ($canmanagethemes) {
             new moodle_url('/mod/stage/themes.php', ['id' => $cm->id]),
         ],
         [
+            get_string('evallists', 'mod_stage'),
+            get_string('evallists_desc', 'mod_stage'),
+            new moodle_url('/mod/stage/evallists.php', ['id' => $cm->id]),
+        ],
+        [
             get_string('manageyearrequirements', 'mod_stage'),
             get_string('manageyearrequirements_desc', 'mod_stage'),
             new moodle_url('/mod/stage/year_requirements.php', ['id' => $cm->id]),

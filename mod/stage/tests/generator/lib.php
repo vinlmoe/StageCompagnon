@@ -138,4 +138,37 @@ class mod_stage_generator extends testing_module_generator {
         $stageid = is_object($stage) ? $stage->id : $stage;
         stage_set_student_teachers($stageid, $studentid, [$teacherid]);
     }
+
+    /**
+     * Crée une liste d'évaluation, y range les questions données et la fait choisir par les
+     * thématiques données (pour son type d'évaluation).
+     *
+     * @param stdClass|int $stage
+     * @param string $evaltype 'student', 'teacher' ou 'tutor'
+     * @param int[] $questionids
+     * @param stdClass[]|int[] $themes
+     * @param string $name
+     * @return stdClass La liste créée.
+     */
+    public function create_evallist($stage, $evaltype, array $questionids = [], array $themes = [], $name = 'Liste') {
+        global $DB;
+
+        $stageid = is_object($stage) ? $stage->id : $stage;
+        $list = (object) [
+            'stageid' => $stageid,
+            'evaltype' => $evaltype,
+            'name' => $name,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ];
+        $list->id = $DB->insert_record('stage_evallist', $list);
+        foreach ($questionids as $questionid) {
+            stage_add_evallist_question($list->id, $questionid);
+        }
+        $field = stage_evallist_fields()[$evaltype];
+        foreach ($themes as $theme) {
+            $DB->set_field('stage_theme', $field, $list->id, ['id' => is_object($theme) ? $theme->id : $theme]);
+        }
+        return $list;
+    }
 }

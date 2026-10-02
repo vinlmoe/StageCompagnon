@@ -92,15 +92,31 @@ Depuis **Administration > Gérer les thématiques** :
   - **Enseignants responsables** : sélection avec recherche ;
   - **Objectifs de stage** : documents et check-list (voir ci-dessous), dont
     les éléments s'éditent directement en ligne ;
-  - **Questions d'évaluation** : questions (choix multiples ou commentaire
-    libre) qui remplacent le commentaire libre générique dans les formulaires
-    d'évaluation, éditées en ligne. Une ligne vide crée une question ; une
-    question peut être réutilisée sur plusieurs thématiques (champ
-    « Réutiliser des questions d'autres thématiques »), et une question
-    partagée est signalée comme telle puisque sa modification vaut pour toutes.
+  - **Listes d'évaluation** : pour chaque formulaire (auto-évaluation de
+    l'étudiant, évaluation de l'enseignant référent, du maître de stage), le
+    choix de la liste de questions utilisée, avec un lien « Éditer la liste ».
+    Sans liste, le formulaire se réduit à un commentaire libre.
 
   Un sélecteur en haut de page permet de passer directement à une autre
   thématique, et « Enregistrer et revenir à la liste » ramène au tableau.
+
+### Listes d'évaluation
+
+**Administration > Listes d'évaluation** regroupe les questionnaires de
+l'activité. Une liste a un nom et un formulaire de destination (étudiant,
+enseignant référent ou maître de stage), fixé à sa création ; elle s'édite sur
+sa propre page : questions à choix multiples ou à commentaire libre, modifiées
+directement dans la page (une ligne vide crée une question), version anglaise
+pour les questions du maître de stage, et reprise de questions d'autres listes
+du même formulaire. Une même liste peut servir à plusieurs thématiques, et une
+question peut figurer dans plusieurs listes : sa modification vaut alors pour
+toutes, ce que la page signale. Retirer d'une liste une question qui ne figure
+dans aucune autre la supprime avec ses réponses ; une liste dont les questions
+ont déjà reçu des réponses ne peut pas être supprimée.
+
+À la mise à jour du plugin, les questions déjà rattachées aux thématiques sont
+regroupées en listes (une par thématique et par formulaire, partagée entre les
+thématiques qui avaient exactement les mêmes questions), sans perte de réponse.
 
 ### Objectifs de stage
 
@@ -343,8 +359,8 @@ une fois (les e-mails déjà personnalisés sont signalés et ouverts) :
   entreprise, qui n'a pas de compte Moodle) reçoit un courriel contenant un
   lien à jeton unique vers un questionnaire d'évaluation. Ce questionnaire
   suit les mêmes règles que ceux de l'étudiant et de l'enseignant référent
-  (voir §4, **Questions d'évaluation**, type « Maître de stage ») : questions
-  définies par thématique, ou à défaut simple commentaire libre. Le lien ne
+  (voir §4, **Listes d'évaluation**, formulaire « Maître de stage ») : liste
+  choisie par la thématique, ou à défaut simple commentaire libre. Le lien ne
   nécessite aucune authentification et n'est utilisable qu'une fois ; la
   réponse du maître de stage est ensuite affichée, en lecture seule, à
   l'enseignant référent et à la DEVE au moment de leur propre évaluation, ainsi
@@ -527,6 +543,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `theme_edit_test.php` | Page unique de gestion d'une thématique : années proposées pour les durées par année, pré-remplissage des lignes répétées (check-list, questions) sans que les valeurs par défaut écrasent les valeurs enregistrées. |
 | `admin_forms_test.php` | Pages uniques des conventions et des notifications : chargement des formulaires, gabarit utilisé non supprimable, nom et PDF exigés ensemble pour un nouveau gabarit, une section par e-mail. |
 | `stagevet_evaluations_test.php` | Import StageVet des évaluations : export actuel à 60 colonnes (BOM, cellules multilignes, guillemets), mise à jour d'un stage existant sans doublon ni effacement, évaluation saisie dans l'activité conservée, en-têtes tolérants, courriel unique à l'enseignant référent, notes en étoiles (item nouveau, zéro distinct de « Non renseigné »). |
+| `evallists_test.php` | Listes d'évaluation : questions d'une thématique tirées de la liste choisie pour chaque formulaire, question partagée entre listes conservée à son retrait, question isolée supprimée avec ses réponses, suppression d'une liste. |
 
 `tests/generator/lib.php` fournit un générateur de données de test
 (`mod_stage_generator`), utilisable comme n'importe quel générateur Moodle :

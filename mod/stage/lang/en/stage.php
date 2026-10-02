@@ -880,14 +880,8 @@ $string['themedurationssection'] = 'Required duration';
 $string['requireddurationforyear'] = 'Required duration - {$a}';
 $string['deletechecklistrow'] = 'Delete this objective (and the students\' answers)';
 $string['addchecklistrows'] = 'Add {no} objective(s)';
-$string['themequestionsintro'] = 'Edit the questions directly below; fill in a blank row to create one. A question '
-    . 'shared with other themes is changed for all of them.';
 $string['newquestionrow'] = 'New question (leave empty to ignore)';
 $string['addquestionrows'] = 'Add {no} question(s)';
-$string['unlinkquestionrow'] = 'Remove this question from the theme';
-$string['unlinkquestionrow_help'] = 'The question is removed from this theme only. If no other theme uses it any '
-    . 'more, it is deleted together with the answers already recorded.';
-$string['questionsharedwith'] = '- also used by: {$a}';
 $string['attachquestions'] = 'Reuse questions from other themes';
 $string['attachquestions_help'] = 'The selected questions are attached to this theme on save, without being '
     . 'duplicated: any later change applies to every theme using them.';
@@ -944,3 +938,39 @@ $string['themedurationsintro'] = 'Enter either a single duration for the whole t
     . 'in the general settings are highlighted, the others apply to internships recorded in another study year.';
 $string['durationusesdefault'] = 'default';
 $string['durationinvalid'] = 'Enter a whole number of days, or leave empty.';
+
+// Named evaluation lists (evallists.php, evallist_edit.php).
+$string['evallist'] = 'Evaluation list';
+$string['evallists'] = 'Evaluation lists';
+$string['evallists_desc'] = 'The evaluation questionnaires (student, referent teacher, workplace tutor), each as a '
+    . 'named list of questions that themes choose from.';
+$string['evallists_help'] = 'An evaluation list groups the questions of one form (student self-assessment, referent '
+    . 'teacher or workplace tutor evaluation). Each theme chooses, on its management page, the list used for each of '
+    . 'its forms; the same list can serve several themes. Without a list, the form is a free comment.';
+$string['evallistname'] = 'List name';
+$string['evallisttype'] = 'Applies to form';
+$string['evallisttype_help'] = 'The form this list is for. It is fixed on creation: a theme chooses one list per form.';
+$string['evallistsaveandreturn'] = 'Save and return';
+$string['evallistquestionsintro'] = 'Edit the questions directly below; fill in a blank row to create one. A question '
+    . 'that also belongs to other lists is changed for all of them.';
+$string['removequestionrow'] = 'Remove this question from the list';
+$string['removequestionrow_help'] = 'The question is removed from this list only. If it belongs to no other list, it '
+    . 'is deleted together with the answers already recorded.';
+$string['questionsharedwithlists'] = 'Also in: {$a}';
+$string['evallistsaved'] = 'Evaluation list saved.';
+$string['evallistadd'] = 'Create an evaluation list';
+$string['evallistsmanage'] = 'Manage all lists';
+$string['evallistusedby'] = 'Used by themes: {$a}';
+$string['evallistunused'] = 'No theme uses this list yet.';
+$string['evallistunusedshort'] = 'None';
+$string['evallistthemes'] = 'Themes';
+$string['evallistinuse'] = 'Answers have already been recorded for the questions of this list: it cannot be deleted. '
+    . 'You can remove it from the themes that use it.';
+$string['evallistdeleted'] = 'Evaluation list deleted.';
+$string['noevallistsyet'] = 'No evaluation list has been created yet.';
+$string['confirmdeleteevallist'] = 'Delete this list? Themes using it will fall back to a free comment, and its '
+    . 'questions that belong to no other list will be deleted.';
+$string['evallistnone'] = 'No list (free comment)';
+$string['evallistedit'] = 'Edit the list';
+$string['themeevallistsintro'] = 'Choose the list of questions used for each evaluation form of this theme. Lists are '
+    . 'edited on their own page; the same list can serve several themes.';

@@ -66,13 +66,8 @@ if ($action === 'delete' && $themeid) {
             STAGE_THEME_OBJECTIVE_FILEAREA,
             $theme->id
         );
-        // Les questions passent par stage_unlink_question_theme() plutôt que par une suppression
-        // directe des rattachements : une question partagée avec une autre thématique doit
-        // survivre, une question qui n'était plus rattachée qu'à celle-ci doit disparaître avec
-        // ses réponses, exactement comme lors d'une suppression depuis questions.php.
-        foreach ($DB->get_fieldset_select('stage_question_theme', 'questionid', 'themeid = ?', [$theme->id]) as $qid) {
-            stage_unlink_question_theme($qid, $theme->id);
-        }
+        // Les listes d'évaluation choisies par la thématique ne lui appartiennent pas : elles
+        // restent disponibles pour les autres thématiques (voir evallists.php).
         $DB->delete_records('stage_theme', ['id' => $theme->id]);
         redirect($baseurl, get_string('themedeleted', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     } else {

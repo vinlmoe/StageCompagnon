@@ -23,18 +23,18 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 /**
  * Formulaire unique de gestion d'une thématique (DEVE) : paramètres généraux, durées requises par
- * année, enseignants responsables, documents et check-list d'objectifs, questions d'évaluation.
+ * année, enseignants responsables, documents et check-list d'objectifs, choix des listes
+ * d'évaluation (éditées à part, voir evallists.php).
  * Il remplace la navigation entre cinq pages distinctes par une seule page, enregistrée en une
  * fois (voir theme_edit.php).
  *
  * Données attendues dans customdata :
- * - themes : id => libellé, toutes les thématiques de l'activité (partage des questions) ;
  * - teachers : id => nom complet, enseignants pouvant être responsables ;
  * - checklistcount : nombre d'éléments de check-list existants ;
- * - questioncount : nombre de questions existantes ;
- * - questioninfo : index de ligne => texte informatif (thématiques partagées) ;
- * - reusable : id => libellé, questions d'autres thématiques pouvant être associées ;
- * - tutorenabled : l'évaluation par le maître de stage est-elle activée pour l'activité ;
+ * - evallists : evaltype => [id => nom], listes d'évaluation disponibles par type ;
+ * - evallisturl : URL de base de l'édition d'une liste (evallist_edit.php), complétée de listid ;
+ * - evallistsindexurl : URL de la page qui gère toutes les listes (evallists.php) ;
+ * - tutorenabled : la liste du maître de stage est-elle proposée ;
  * - filemanageroptions : options du gestionnaire de fichiers des documents d'objectifs.
  *
  * @package   mod_stage
@@ -42,7 +42,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class theme_edit_form extends \moodleform {
-    /** @var int Lignes vides proposées pour ajouter des éléments de check-list ou des questions. */
+    /** @var int Lignes vides proposées pour ajouter des éléments de check-list. */
     const BLANK_ROWS = 2;
 
     /**
@@ -61,7 +61,7 @@ class theme_edit_form extends \moodleform {
         $this->define_durations($mform);
         $this->define_teachers($mform, $customdata['teachers'] ?? []);
         $this->define_objectives($mform, $customdata);
-        $this->define_questions($mform, $customdata);
+        $this->define_evallists($mform, $customdata);
 
         $buttons = [
             $mform->createElement('submit', 'submitbutton', get_string('savechanges')),
@@ -225,96 +225,46 @@ class theme_edit_form extends \moodleform {
     }
 
     /**
-     * Questions d'évaluation de la thématique, éditables en ligne, et association de questions
-     * déjà définies pour d'autres thématiques.
+     * Choix, pour chaque formulaire d'évaluation, de la liste de questions utilisée par la
+     * thématique. Les listes elles-mêmes s'éditent sur leur propre page : un lien y mène
+     * (« Éditer la liste », mis à jour par le script de theme_edit.php selon la liste choisie).
      *
      * @param \MoodleQuickForm $mform
      * @param array $customdata
      */
-    protected function define_questions(\MoodleQuickForm $mform, array $customdata) {
-        $mform->addElement('header', 'questionshdr', get_string('evalquestions', 'mod_stage'));
+    protected function define_evallists(\MoodleQuickForm $mform, array $customdata) {
+        $mform->addElement('header', 'questionshdr', get_string('evallists', 'mod_stage'));
         $mform->setExpanded('questionshdr', true);
-        $mform->addElement('static', 'questionsintro', '', get_string('themequestionsintro', 'mod_stage'));
+        $mform->addElement('static', 'evallistsintro', '', get_string('themeevallistsintro', 'mod_stage'));
 
-        if (!empty($customdata['reusable'])) {
-            $mform->addElement(
-                'autocomplete',
-                'attachquestionids',
-                get_string('attachquestions', 'mod_stage'),
-                $customdata['reusable'],
-                ['multiple' => true, 'noselectionstring' => get_string('noselection', 'form')]
-            );
-            $mform->addHelpButton('attachquestionids', 'attachquestions', 'mod_stage');
-        }
-
-        $evaltypeoptions = [
-            'student' => get_string('evaltype_student', 'mod_stage'),
-            'teacher' => get_string('evaltype_teacher', 'mod_stage'),
-        ];
+        $evaltypes = ['student', 'teacher'];
         if (!empty($customdata['tutorenabled'])) {
-            $evaltypeoptions['tutor'] = get_string('evaltype_tutor', 'mod_stage');
+            $evaltypes[] = 'tutor';
         }
-        $qtypeoptions = [
-            'choice' => get_string('qtype_choice', 'mod_stage'),
-            'text' => get_string('qtype_text', 'mod_stage'),
-        ];
-
-        $row = [
-            $mform->createElement('static', 'questionrowhdr', '', \html_writer::tag('hr', '')),
-            $mform->createElement('static', 'questioninfo', '', ''),
-            $mform->createElement('hidden', 'questionid', 0),
-            $mform->createElement('select', 'questionevaltype', get_string('evaltype', 'mod_stage'), $evaltypeoptions),
-            $mform->createElement('select', 'questionqtype', get_string('qtype', 'mod_stage'), $qtypeoptions),
-            $mform->createElement('text', 'questionname', get_string('questionlabel', 'mod_stage'), ['size' => 64]),
-            $mform->createElement(
-                'textarea',
-                'questionoptions',
-                get_string('choiceoptions', 'mod_stage'),
-                ['rows' => 4, 'cols' => 50]
-            ),
-            $mform->createElement('text', 'questionnameen', get_string('questionlabelen', 'mod_stage'), ['size' => 64]),
-            $mform->createElement(
-                'textarea',
-                'questionoptionsen',
-                get_string('choiceoptionsen', 'mod_stage'),
-                ['rows' => 4, 'cols' => 50]
-            ),
-            $mform->createElement('advcheckbox', 'questionrequired', get_string('questionrequired', 'mod_stage')),
-            $mform->createElement('text', 'questionsortorder', get_string('sortorder', 'mod_stage'), ['size' => 4]),
-            $mform->createElement('advcheckbox', 'questiondelete', get_string('unlinkquestionrow', 'mod_stage')),
-        ];
-        $options = [
-            'questionid' => ['type' => PARAM_INT],
-            'questionevaltype' => ['default' => 'student'],
-            'questionqtype' => ['default' => 'text'],
-            'questionname' => ['type' => PARAM_TEXT],
-            'questionoptions' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'eq', 'text']],
-            'questionnameen' => ['type' => PARAM_TEXT, 'hideif' => ['questionevaltype', 'neq', 'tutor']],
-            'questionoptionsen' => ['type' => PARAM_TEXT, 'hideif' => ['questionevaltype', 'neq', 'tutor']],
-            'questionrequired' => ['default' => 1],
-            'questionsortorder' => ['type' => PARAM_INT, 'default' => 0],
-            'questiondelete' => ['helpbutton' => ['unlinkquestionrow', 'mod_stage']],
-        ];
-        $repeats = $this->repeat_elements(
-            $row,
-            (int) ($customdata['questioncount'] ?? 0) + self::BLANK_ROWS,
-            $options,
-            'questionrepeats',
-            'questionaddrows',
-            self::BLANK_ROWS,
-            get_string('addquestionrows', 'mod_stage'),
-            true
-        );
-
-        // Le second masquage des options anglaises (question à commentaire libre) n'est pas
-        // exprimable dans les options de repeat_elements, qui n'acceptent qu'une condition.
-        for ($i = 0; $i < $repeats; $i++) {
-            $mform->hideIf("questionoptionsen[$i]", "questionqtype[$i]", 'eq', 'text');
-            $info = $customdata['questioninfo'][$i] ?? '';
-            $mform->getElement("questioninfo[$i]")->setText(
-                $info !== '' ? $info : \html_writer::span(get_string('newquestionrow', 'mod_stage'), 'text-muted')
-            );
+        $baseurl = (string) ($customdata['evallisturl'] ?? '');
+        foreach ($evaltypes as $evaltype) {
+            $field = stage_evallist_fields()[$evaltype];
+            $options = [0 => get_string('evallistnone', 'mod_stage')] + ($customdata['evallists'][$evaltype] ?? []);
+            $link = \html_writer::link($baseurl, get_string('evallistedit', 'mod_stage'), [
+                'class' => 'btn btn-sm btn-outline-secondary ml-2 stage-evallist-edit',
+                'data-select' => 'id_' . $field,
+                'data-baseurl' => $baseurl,
+            ]);
+            $mform->addGroup([
+                $mform->createElement('select', $field, '', $options),
+                $mform->createElement('static', $field . 'link', '', $link),
+            ], $field . 'group', stage_evaltype_label($evaltype), ' ', false);
         }
+
+        $mform->addElement('static', 'evallistslinks', '', \html_writer::link(
+            $baseurl,
+            get_string('evallistadd', 'mod_stage'),
+            ['class' => 'btn btn-sm btn-secondary mr-2']
+        ) . \html_writer::link(
+            (string) ($customdata['evallistsindexurl'] ?? ''),
+            get_string('evallistsmanage', 'mod_stage'),
+            ['class' => 'btn btn-sm btn-link']
+        ));
     }
 
     /**
@@ -346,22 +296,6 @@ class theme_edit_form extends \moodleform {
         foreach ($data['checklistid'] ?? [] as $i => $itemid) {
             if (!empty($itemid) && empty($data['checklistdelete'][$i]) && trim((string) $data['checklistname'][$i]) === '') {
                 $errors["checklistname[$i]"] = get_string('required');
-            }
-        }
-
-        foreach ($data['questionid'] ?? [] as $i => $questionid) {
-            if (!empty($data['questiondelete'][$i])) {
-                continue;
-            }
-            $name = trim((string) ($data['questionname'][$i] ?? ''));
-            if ($name === '') {
-                if (!empty($questionid)) {
-                    $errors["questionname[$i]"] = get_string('required');
-                }
-                continue;
-            }
-            if (($data['questionqtype'][$i] ?? '') === 'choice' && trim((string) ($data['questionoptions'][$i] ?? '')) === '') {
-                $errors["questionoptions[$i]"] = get_string('choiceoptionsrequired', 'mod_stage');
             }
         }
 

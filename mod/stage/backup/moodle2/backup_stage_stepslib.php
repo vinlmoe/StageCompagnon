@@ -60,6 +60,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $theme = new backup_nested_element('theme', ['id'], [
             'name', 'description', 'mandatory', 'requiredduration', 'minstudyyear', 'maxstudyyear',
             'sortorder', 'visible', 'tutorevaluationenabled', 'reportmode',
+            'studentlistid', 'teacherlistid', 'tutorlistid',
             'timecreated', 'timemodified',
         ]);
 
@@ -92,8 +93,12 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             'required', 'sortorder', 'timecreated', 'timemodified',
         ]);
 
-        $questionthemes = new backup_nested_element('questionthemes');
-        $questiontheme = new backup_nested_element('questiontheme', ['id'], ['themeid', 'timecreated']);
+        // Listes d'évaluation : sauvegardées après les questions, dont elles référencent les
+        // identifiants ; la restauration remet ensuite à jour la liste choisie par chaque thématique.
+        $evallists = new backup_nested_element('evallists');
+        $evallist = new backup_nested_element('evallist', ['id'], ['evaltype', 'name', 'timecreated', 'timemodified']);
+        $evallistquestions = new backup_nested_element('evallistquestions');
+        $evallistquestion = new backup_nested_element('evallistquestion', ['id'], ['questionid', 'timecreated']);
 
         $emailtemplates = new backup_nested_element('emailtemplates');
         $emailtemplate = new backup_nested_element('emailtemplate', ['id'], [
@@ -172,8 +177,11 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
 
         $stage->add_child($questions);
         $questions->add_child($question);
-        $question->add_child($questionthemes);
-        $questionthemes->add_child($questiontheme);
+
+        $stage->add_child($evallists);
+        $evallists->add_child($evallist);
+        $evallist->add_child($evallistquestions);
+        $evallistquestions->add_child($evallistquestion);
 
         $stage->add_child($emailtemplates);
         $emailtemplates->add_child($emailtemplate);
@@ -207,7 +215,8 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $yearrequirement->set_source_table('stage_year_requirement', ['stageid' => backup::VAR_PARENTID], 'studyyear');
         $conventiontemplate->set_source_table('stage_convention_template', ['stageid' => backup::VAR_PARENTID], 'id');
         $question->set_source_table('stage_question', ['stageid' => backup::VAR_PARENTID], 'sortorder, id');
-        $questiontheme->set_source_table('stage_question_theme', ['questionid' => backup::VAR_PARENTID], 'id');
+        $evallist->set_source_table('stage_evallist', ['stageid' => backup::VAR_PARENTID], 'id');
+        $evallistquestion->set_source_table('stage_evallist_question', ['listid' => backup::VAR_PARENTID], 'id');
         $emailtemplate->set_source_table('stage_email_template', ['stageid' => backup::VAR_PARENTID], 'emailkey');
 
         // Les enseignants responsables d'une thématique relèvent du paramétrage de l'activité et

@@ -195,6 +195,8 @@ final class backup_restore_test extends \advanced_testcase {
             'timemodified' => $now,
         ]);
 
+        $list = $stagegen->create_evallist($stage, 'student', [$questionid], [$theme], 'Bilan étudiant');
+
         $checklistitem = $stagegen->create_checklist_item($theme, ['name' => 'Consultation en autonomie']);
 
         $entry = $stagegen->create_entry($stage, $student->id, $theme);
@@ -293,6 +295,16 @@ final class backup_restore_test extends \advanced_testcase {
         $this->assertCount(1, $newquestions);
         $newquestion = reset($newquestions);
         $this->assertEquals($newtheme->id, $newquestion->themeid);
+
+        // Liste d'évaluation : recréée, avec la question de la copie, et choisie par la thématique
+        // de la copie.
+        $newlists = $DB->get_records('stage_evallist', ['stageid' => $newstage->id]);
+        $this->assertCount(1, $newlists);
+        $newlist = reset($newlists);
+        $this->assertNotEquals($list->id, $newlist->id);
+        $this->assertSame('Bilan étudiant', $newlist->name);
+        $this->assertEquals($newlist->id, $DB->get_field('stage_theme', 'studentlistid', ['id' => $newtheme->id]));
+        $this->assertEquals([$newquestion->id], array_keys(stage_get_questions($newtheme->id, 'student')));
         $newanswers = $DB->get_records('stage_answer', ['entryid' => $newentry->id]);
         $this->assertCount(1, $newanswers);
         $newanswer = reset($newanswers);

@@ -16,8 +16,9 @@
 
 /**
  * Gestion d'une thématique de stage par la DEVE, en une seule page : paramètres généraux, durées
- * requises par année, enseignants responsables, documents et check-list d'objectifs, questions
- * d'évaluation. Tout s'enregistre en une fois ; un sélecteur permet de passer directement d'une
+ * requises par année, enseignants responsables, documents et check-list d'objectifs, choix des
+ * listes d'évaluation (éditées sur leur propre page, evallist_edit.php). Tout s'enregistre en
+ * une fois ; un sélecteur permet de passer directement d'une
  * thématique à l'autre sans repasser par la liste.
  *
  * @package   mod_stage
@@ -52,7 +53,6 @@ $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
 $filemanageroptions = ['subdirs' => 0, 'maxfiles' => 20, 'maxbytes' => $CFG->maxbytes];
-$evaltypes = ['student', 'teacher', 'tutor'];
 
 $allthemes = stage_get_themes($stage->id);
 $themelabels = [];
@@ -68,48 +68,26 @@ foreach (stage_get_potential_teachers($context) as $teacher) {
 // Éléments existants de la thématique, dans l'ordre où ils sont présentés dans le formulaire :
 // les lignes soumises y sont rapportées par leur id, jamais crues sur parole.
 $checklist = $theme ? array_values(stage_get_theme_checklist($theme->id)) : [];
-$questions = [];
-if ($theme) {
-    foreach ($evaltypes as $evaltype) {
-        $questions = array_merge($questions, array_values(stage_get_questions($theme->id, $evaltype)));
-    }
+// Listes d'évaluation disponibles pour chaque formulaire.
+$evallists = [];
+foreach (stage_get_evallists($stage->id) as $list) {
+    $evallists[$list->evaltype][$list->id] = format_string($list->name);
 }
-
-$questioninfo = [];
-$hastutorquestion = false;
-foreach ($questions as $i => $question) {
-    $hastutorquestion = $hastutorquestion || $question->evaltype === 'tutor';
-    $info = html_writer::tag('strong', stage_evaltype_label($question->evaltype));
-    $shared = array_diff(stage_get_question_themeids($question->id), [$theme->id]);
-    $sharedlabels = array_intersect_key($themelabels, array_flip($shared));
-    if (!empty($sharedlabels)) {
-        $info .= ' ' . html_writer::span(
-            get_string('questionsharedwith', 'mod_stage', implode(', ', $sharedlabels)),
-            'text-warning'
-        );
-    }
-    $questioninfo[$i] = $info;
-}
-
-$reusable = [];
-if ($theme) {
-    foreach (stage_get_reusable_questions($stage->id, $theme->id) as $question) {
-        $typelabel = $question->qtype === 'choice'
-            ? get_string('qtype_choice', 'mod_stage') : get_string('qtype_text', 'mod_stage');
-        $reusable[$question->id] = format_string($question->name)
-            . ' (' . stage_evaltype_label($question->evaltype) . ', ' . $typelabel . ')';
-    }
-}
+$evallisturl = new moodle_url('/mod/stage/evallist_edit.php', [
+    'id' => $cm->id,
+    'returnurl' => (new moodle_url('/mod/stage/theme_edit.php', ['id' => $cm->id, 'themeid' => $themeid], 'id_questionshdr'))
+        ->out_as_local_url(false),
+]);
 
 $mform = new theme_edit_form($baseurl, [
     'teachers' => $teacheroptions,
     'checklistcount' => count($checklist),
-    'questioncount' => count($questions),
-    'questioninfo' => $questioninfo,
-    'reusable' => $reusable,
-    // Une question existante destinée au maître de stage reste éditable même si l'évaluation par
-    // le maître de stage a depuis été désactivée : sinon son formulaire la basculerait en silence.
-    'tutorenabled' => !empty($stage->tutorevaluationenabled) || $hastutorquestion,
+    'evallists' => $evallists,
+    'evallisturl' => $evallisturl->out(false),
+    'evallistsindexurl' => (new moodle_url('/mod/stage/evallists.php', ['id' => $cm->id]))->out(false),
+    // Une liste déjà choisie pour le maître de stage reste visible même si l'évaluation par le
+    // maître de stage a depuis été désactivée : sinon l'enregistrement la retirerait en silence.
+    'tutorenabled' => !empty($stage->tutorevaluationenabled) || !empty($theme->tutorlistid),
     'filemanageroptions' => $filemanageroptions,
 ]);
 
@@ -131,7 +109,8 @@ $formdata = ['id' => $cm->id, 'themeid' => $themeid, 'objectivefiles' => $drafti
 if ($theme) {
     foreach (
         ['name', 'description', 'mandatory', 'requiredduration', 'minstudyyear', 'maxstudyyear', 'sortorder',
-            'visible', 'tutorevaluationenabled', 'reportmode'] as $field
+            'visible', 'tutorevaluationenabled', 'reportmode', 'studentlistid', 'teacherlistid', 'tutorlistid',
+        ] as $field
     ) {
         $formdata[$field] = $theme->$field;
     }
@@ -147,17 +126,6 @@ foreach ($checklist as $i => $item) {
     $formdata["checklistname[$i]"] = $item->name;
     $formdata["checklistdescription[$i]"] = $item->description;
     $formdata["checklistsortorder[$i]"] = $item->sortorder;
-}
-foreach ($questions as $i => $question) {
-    $formdata["questionid[$i]"] = $question->id;
-    $formdata["questionevaltype[$i]"] = $question->evaltype;
-    $formdata["questionqtype[$i]"] = $question->qtype;
-    $formdata["questionname[$i]"] = $question->name;
-    $formdata["questionoptions[$i]"] = $question->options;
-    $formdata["questionnameen[$i]"] = $question->nameen;
-    $formdata["questionoptionsen[$i]"] = $question->optionsen;
-    $formdata["questionrequired[$i]"] = $question->required;
-    $formdata["questionsortorder[$i]"] = $question->sortorder;
 }
 $mform->set_data($formdata);
 
@@ -181,6 +149,16 @@ if ($data = $mform->get_data()) {
             ? (int) $data->reportmode : STAGE_REPORT_NONE,
         'timemodified' => $now,
     ];
+    // Liste d'évaluation de chaque formulaire : seule une liste de cette activité et de ce type
+    // est acceptée. Un champ absent du formulaire (maître de stage non proposé) garde sa valeur.
+    foreach (stage_evallist_fields() as $evaltype => $field) {
+        if (isset($data->$field)) {
+            $listid = (int) $data->$field;
+            $record->$field = isset($evallists[$evaltype][$listid]) ? $listid : 0;
+        } else {
+            $record->$field = $theme ? (int) $theme->$field : 0;
+        }
+    }
     if ($theme) {
         $record->id = $theme->id;
         $DB->update_record('stage_theme', $record);
@@ -240,57 +218,6 @@ if ($data = $mform->get_data()) {
         }
     }
 
-    // Questions d'évaluation.
-    $existingquestions = [];
-    foreach ($questions as $question) {
-        $existingquestions[(int) $question->id] = $question;
-    }
-    foreach ($data->questionid ?? [] as $i => $questionid) {
-        $questionid = (int) $questionid;
-        $name = trim((string) ($data->questionname[$i] ?? ''));
-        $delete = !empty($data->questiondelete[$i]);
-        $qtype = ($data->questionqtype[$i] ?? 'text') === 'choice' ? 'choice' : 'text';
-        $evaltype = in_array($data->questionevaltype[$i] ?? '', $evaltypes, true) ? $data->questionevaltype[$i] : 'student';
-        $question = (object) [
-            'stageid' => $stage->id,
-            'evaltype' => $evaltype,
-            'qtype' => $qtype,
-            'name' => $name,
-            'nameen' => $data->questionnameen[$i] ?? null,
-            'options' => $qtype === 'choice' ? ($data->questionoptions[$i] ?? null) : null,
-            'optionsen' => $qtype === 'choice' ? ($data->questionoptionsen[$i] ?? null) : null,
-            'required' => !empty($data->questionrequired[$i]) ? 1 : 0,
-            'sortorder' => (int) ($data->questionsortorder[$i] ?? 0),
-            'timemodified' => $now,
-        ];
-        if ($questionid && isset($existingquestions[$questionid])) {
-            if ($delete) {
-                // Retire la question de cette thématique seulement : partagée, elle survit
-                // ailleurs ; sinon elle disparaît avec ses réponses.
-                stage_unlink_question_theme($questionid, $savedthemeid);
-            } else {
-                $question->id = $questionid;
-                $DB->update_record('stage_question', $question);
-            }
-        } else if (!$questionid && !$delete && $name !== '') {
-            $question->themeid = $savedthemeid;
-            $question->timecreated = $now;
-            $newid = $DB->insert_record('stage_question', $question);
-            stage_set_question_themes($newid, [$savedthemeid]);
-        }
-    }
-
-    // Questions d'autres thématiques associées à celle-ci.
-    foreach ((array) ($data->attachquestionids ?? []) as $questionid) {
-        $questionid = (int) $questionid;
-        if (!isset($reusable[$questionid])) {
-            continue;
-        }
-        $themeids = stage_get_question_themeids($questionid);
-        $themeids[] = $savedthemeid;
-        stage_set_question_themes($questionid, $themeids);
-    }
-
     $transaction->allow_commit();
 
     file_save_draft_area_files(
@@ -343,7 +270,7 @@ $sections = [
     'id_teachershdr' => get_string('themeteachers', 'mod_stage'),
     'id_objectiveshdr' => get_string('themeobjectives', 'mod_stage'),
     'id_checklisthdr' => get_string('themechecklist', 'mod_stage'),
-    'id_questionshdr' => get_string('evalquestions', 'mod_stage'),
+    'id_questionshdr' => get_string('evallists', 'mod_stage'),
 ];
 $toc = [];
 foreach ($sections as $anchor => $label) {
@@ -385,6 +312,21 @@ $js = <<<'JS'
     min.addEventListener('change', update);
     max.addEventListener('change', update);
     update();
+
+    // Le lien « Éditer la liste » suit la liste choisie dans le menu voisin.
+    document.querySelectorAll('.stage-evallist-edit').forEach(function(link) {
+        var select = document.getElementById(link.getAttribute('data-select'));
+        if (!select) {
+            return;
+        }
+        var refresh = function() {
+            var listid = parseInt(select.value, 10) || 0;
+            link.href = link.getAttribute('data-baseurl') + '&listid=' + listid;
+            link.style.display = listid ? '' : 'none';
+        };
+        select.addEventListener('change', refresh);
+        refresh();
+    });
 })();
 JS;
 echo html_writer::script($js);

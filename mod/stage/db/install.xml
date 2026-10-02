@@ -58,6 +58,12 @@
             COMMENT="Évaluation par le maître de stage proposée pour cette thématique (tant que l'option est aussi activée globalement pour l'activité)"/>
         <FIELD NAME="reportmode" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0"
             COMMENT="Dépôt du rapport de stage lors de l'auto-évaluation : 0 aucun, 1 facultatif, 2 obligatoire"/>
+        <FIELD NAME="studentlistid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Liste d'évaluation (stage_evallist) de l'auto-évaluation de l'étudiant, 0 = commentaire libre"/>
+        <FIELD NAME="teacherlistid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Liste d'évaluation de l'enseignant référent, 0 = commentaire libre"/>
+        <FIELD NAME="tutorlistid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Liste d'évaluation du maître de stage, 0 = commentaire libre"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
@@ -343,20 +349,34 @@
         <INDEX NAME="themeid-evaltype" UNIQUE="false" FIELDS="themeid, evaltype"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="stage_question_theme" COMMENT="Association d'une question d'évaluation à une ou plusieurs thématiques (réutilisation)">
+    <TABLE NAME="stage_evallist" COMMENT="Liste d'évaluation nommée : questionnaire d'un type d'évaluation, choisi par une ou plusieurs thématiques">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="evaltype" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="student, teacher ou tutor"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="stage_evallist_question" COMMENT="Question d'une liste d'évaluation (une question peut figurer dans plusieurs listes)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="listid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="listid" TYPE="foreign" FIELDS="listid" REFTABLE="stage_evallist" REFFIELDS="id"/>
         <KEY NAME="questionid" TYPE="foreign" FIELDS="questionid" REFTABLE="stage_question" REFFIELDS="id"/>
-        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="questionid-themeid" UNIQUE="true" FIELDS="questionid, themeid"/>
+        <INDEX NAME="listid-questionid" UNIQUE="true" FIELDS="listid, questionid"/>
       </INDEXES>
     </TABLE>
 

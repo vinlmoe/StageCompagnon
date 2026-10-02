@@ -226,13 +226,13 @@ final class audit_regression_test extends \advanced_testcase {
         $this->getDataGenerator()->enrol_user($student->id, $course->id, 'student');
         $target1 = $gen->create_theme($target, ['name' => 'Ruminants']);
         $target2 = $gen->create_theme($target, ['name' => 'Equins']);
-        $question = function ($activity, $themes) use ($DB) {
+        $question = function ($activity, $themes) use ($DB, $gen) {
             $qid = $DB->insert_record('stage_question', (object) [
                 'stageid' => $activity->id, 'themeid' => $themes[0], 'name' => 'Bilan',
                 'evaltype' => 'student', 'qtype' => 'text', 'required' => 0, 'sortorder' => 0,
                 'timecreated' => time(), 'timemodified' => time(),
             ]);
-            stage_set_question_themes($qid, $themes);
+            $gen->create_evallist($activity, 'student', [$qid], $themes);
             return $qid;
         };
         $sourceq = $question($stage, [$theme->id, $source2->id]);

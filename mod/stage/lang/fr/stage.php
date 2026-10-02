@@ -897,14 +897,8 @@ $string['themedurationssection'] = 'Durée requise';
 $string['requireddurationforyear'] = 'Durée requise - {$a}';
 $string['deletechecklistrow'] = 'Supprimer cet objectif (et les réponses des étudiants)';
 $string['addchecklistrows'] = 'Ajouter {no} objectif(s)';
-$string['themequestionsintro'] = "Modifiez les questions directement ci-dessous ; remplissez une ligne vide pour en "
-    . "créer une. Une question partagée avec d'autres thématiques est modifiée pour toutes.";
 $string['newquestionrow'] = 'Nouvelle question (laisser vide pour ignorer)';
 $string['addquestionrows'] = 'Ajouter {no} question(s)';
-$string['unlinkquestionrow'] = 'Retirer cette question de la thématique';
-$string['unlinkquestionrow_help'] = "La question est retirée de cette thématique seulement. Si elle n'est plus "
-    . "utilisée par aucune autre thématique, elle est supprimée avec les réponses déjà enregistrées.";
-$string['questionsharedwith'] = '- également utilisée par : {$a}';
 $string['attachquestions'] = "Réutiliser des questions d'autres thématiques";
 $string['attachquestions_help'] = "Les questions choisies sont associées à cette thématique à l'enregistrement, "
     . "sans être dupliquées : toute modification ultérieure s'applique à toutes les thématiques qui les utilisent.";
@@ -964,3 +958,42 @@ $string['themedurationsintro'] = "Renseignez soit une durée unique pour toute l
     . "aux stages enregistrés sur une autre année d'étude.";
 $string['durationusesdefault'] = 'défaut';
 $string['durationinvalid'] = 'Saisissez un nombre entier de jours, ou laissez vide.';
+
+// Listes d'évaluation nommées (evallists.php, evallist_edit.php).
+$string['evallist'] = "Liste d'évaluation";
+$string['evallists'] = "Listes d'évaluation";
+$string['evallists_desc'] = "Les questionnaires d'évaluation (étudiant, enseignant référent, maître de stage), "
+    . "chacun sous forme d'une liste de questions nommée, que les thématiques choisissent.";
+$string['evallists_help'] = "Une liste d'évaluation regroupe les questions d'un formulaire (auto-évaluation de "
+    . "l'étudiant, évaluation de l'enseignant référent ou du maître de stage). Chaque thématique choisit, dans sa "
+    . "page de gestion, la liste utilisée pour chacun de ses formulaires ; une même liste peut servir à plusieurs "
+    . "thématiques. Sans liste, le formulaire se réduit à un commentaire libre.";
+$string['evallistname'] = 'Nom de la liste';
+$string['evallisttype'] = 'Formulaire concerné';
+$string['evallisttype_help'] = "Le formulaire auquel la liste est destinée. Il est fixé à la création : une "
+    . "thématique choisit une liste par formulaire.";
+$string['evallistsaveandreturn'] = 'Enregistrer et revenir';
+$string['evallistquestionsintro'] = "Modifiez les questions directement ci-dessous ; remplissez une ligne vide pour "
+    . "en créer une. Une question qui figure aussi dans d'autres listes est modifiée pour toutes.";
+$string['removequestionrow'] = 'Retirer cette question de la liste';
+$string['removequestionrow_help'] = "La question est retirée de cette liste seulement. Si elle ne figure dans aucune "
+    . "autre liste, elle est supprimée avec les réponses déjà enregistrées.";
+$string['questionsharedwithlists'] = 'Figure aussi dans : {$a}';
+$string['evallistsaved'] = "La liste d'évaluation a été enregistrée.";
+$string['evallistadd'] = "Créer une liste d'évaluation";
+$string['evallistsmanage'] = 'Gérer toutes les listes';
+$string['evallistusedby'] = 'Utilisée par les thématiques : {$a}';
+$string['evallistunused'] = "Cette liste n'est encore choisie par aucune thématique.";
+$string['evallistunusedshort'] = 'Aucune';
+$string['evallistthemes'] = 'Thématiques';
+$string['evallistinuse'] = "Des réponses ont déjà été enregistrées pour les questions de cette liste : elle ne peut "
+    . "pas être supprimée. Vous pouvez la retirer des thématiques qui l'utilisent.";
+$string['evallistdeleted'] = "La liste d'évaluation a été supprimée.";
+$string['noevallistsyet'] = "Aucune liste d'évaluation n'a encore été créée.";
+$string['confirmdeleteevallist'] = "Supprimer cette liste ? Les thématiques qui l'utilisent passeront au commentaire "
+    . "libre, et ses questions qui ne figurent dans aucune autre liste seront supprimées.";
+$string['evallistnone'] = 'Aucune liste (commentaire libre)';
+$string['evallistedit'] = 'Éditer la liste';
+$string['themeevallistsintro'] = "Choisissez la liste de questions utilisée pour chaque formulaire d'évaluation de "
+    . "cette thématique. Les listes s'éditent sur leur propre page ; une même liste peut servir à plusieurs "
+    . "thématiques.";

@@ -1033,5 +1033,106 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092000, 'stage');
     }
 
+    if ($oldversion < 2026100200) {
+        // Listes d'évaluation nommées : les questions ne sont plus rattachées directement aux
+        // thématiques (stage_question_theme) mais regroupées en listes, et chaque thématique
+        // choisit une liste par type d'évaluation.
+        $listtable = new xmldb_table('stage_evallist');
+        $listtable->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $listtable->add_field('stageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $listtable->add_field('evaltype', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, null);
+        $listtable->add_field('name', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $listtable->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $listtable->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $listtable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $listtable->add_key('stageid', XMLDB_KEY_FOREIGN, ['stageid'], 'stage', ['id']);
+        if (!$dbman->table_exists($listtable)) {
+            $dbman->create_table($listtable);
+        }
+
+        $linktable = new xmldb_table('stage_evallist_question');
+        $linktable->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $linktable->add_field('listid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $linktable->add_field('questionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $linktable->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $linktable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $linktable->add_key('listid', XMLDB_KEY_FOREIGN, ['listid'], 'stage_evallist', ['id']);
+        $linktable->add_key('questionid', XMLDB_KEY_FOREIGN, ['questionid'], 'stage_question', ['id']);
+        $linktable->add_index('listid-questionid', XMLDB_INDEX_UNIQUE, ['listid', 'questionid']);
+        if (!$dbman->table_exists($linktable)) {
+            $dbman->create_table($linktable);
+        }
+
+        $themetable = new xmldb_table('stage_theme');
+        $previous = 'reportmode';
+        foreach (['studentlistid', 'teacherlistid', 'tutorlistid'] as $fieldname) {
+            $field = new xmldb_field($fieldname, XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', $previous);
+            if (!$dbman->field_exists($themetable, $field)) {
+                $dbman->add_field($themetable, $field);
+            }
+            $previous = $fieldname;
+        }
+
+        // Reprise : pour chaque thématique et chaque type d'évaluation, l'ensemble de questions
+        // qui lui était rattaché devient une liste. Des thématiques qui partageaient exactement
+        // les mêmes questions partagent la même liste. Les questions gardent leur identifiant, et
+        // donc les réponses déjà enregistrées.
+        $oldtable = new xmldb_table('stage_question_theme');
+        if ($dbman->table_exists($oldtable)) {
+            $labels = [
+                'student' => get_string('evaltype_student', 'mod_stage'),
+                'teacher' => get_string('evaltype_teacher', 'mod_stage'),
+                'tutor' => get_string('evaltype_tutor', 'mod_stage'),
+            ];
+            $themes = $DB->get_records('stage_theme', null, 'stageid, sortorder, id', 'id, stageid, name');
+            $createdlists = [];
+            foreach ($themes as $theme) {
+                $rows = $DB->get_records_sql(
+                    'SELECT q.id, q.evaltype
+                       FROM {stage_question_theme} qt
+                       JOIN {stage_question} q ON q.id = qt.questionid
+                      WHERE qt.themeid = :themeid
+                   ORDER BY q.id',
+                    ['themeid' => $theme->id]
+                );
+                $bytype = [];
+                foreach ($rows as $row) {
+                    $bytype[$row->evaltype][] = (int) $row->id;
+                }
+                $update = (object) ['id' => $theme->id];
+                foreach ($bytype as $evaltype => $questionids) {
+                    if (!isset($labels[$evaltype])) {
+                        continue;
+                    }
+                    $key = $theme->stageid . '|' . $evaltype . '|' . implode(',', $questionids);
+                    if (!isset($createdlists[$key])) {
+                        $listid = $DB->insert_record('stage_evallist', (object) [
+                            'stageid' => $theme->stageid,
+                            'evaltype' => $evaltype,
+                            'name' => core_text::substr($theme->name . ' - ' . $labels[$evaltype], 0, 255),
+                            'timecreated' => time(),
+                            'timemodified' => time(),
+                        ]);
+                        foreach ($questionids as $questionid) {
+                            $DB->insert_record('stage_evallist_question', (object) [
+                                'listid' => $listid,
+                                'questionid' => $questionid,
+                                'timecreated' => time(),
+                            ]);
+                        }
+                        $createdlists[$key] = $listid;
+                    }
+                    $update->{$evaltype . 'listid'} = $createdlists[$key];
+                }
+                if (count((array) $update) > 1) {
+                    $DB->update_record('stage_theme', $update);
+                }
+            }
+            $dbman->drop_table($oldtable);
+        }
+
+        upgrade_mod_savepoint(true, 2026100200, 'stage');
+    }
+
     return true;
 }

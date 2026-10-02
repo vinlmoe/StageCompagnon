@@ -2085,112 +2085,208 @@ function stage_render_evaluation_text($text, $format = FORMAT_PLAIN) {
 }
 
 /**
- * Liste les questions d'évaluation définies par la DEVE pour une thématique et un type
- * d'évaluation donnés ('student' ou 'teacher').
+ * Types d'évaluation et champ de la thématique qui désigne la liste utilisée pour chacun.
+ *
+ * @return array evaltype => nom du champ de stage_theme
+ */
+function stage_evallist_fields() {
+    return ['student' => 'studentlistid', 'teacher' => 'teacherlistid', 'tutor' => 'tutorlistid'];
+}
+
+/**
+ * Liste les questions d'évaluation d'une thématique pour un type d'évaluation : celles de la liste
+ * d'évaluation choisie par la thématique pour ce type (aucune si elle n'en a pas choisi, le
+ * formulaire se réduisant alors à un commentaire libre).
  *
  * @param int $themeid
- * @param string $evaltype 'student' ou 'teacher'
- * @return array
+ * @param string $evaltype 'student', 'teacher' ou 'tutor'
+ * @return array id => stage_question
  */
 function stage_get_questions($themeid, $evaltype) {
     global $DB;
 
-    $sql = "SELECT q.*
-              FROM {stage_question} q
-              JOIN {stage_question_theme} qt ON qt.questionid = q.id
-             WHERE qt.themeid = :themeid AND q.evaltype = :evaltype
-          ORDER BY q.sortorder ASC, q.id ASC";
-    return $DB->get_records_sql($sql, ['themeid' => $themeid, 'evaltype' => $evaltype]);
-}
-
-/**
- * Liste les ids des thématiques auxquelles une question est actuellement associée.
- *
- * @param int $questionid
- * @return int[]
- */
-function stage_get_question_themeids($questionid) {
-    global $DB;
-
-    return array_values($DB->get_fieldset_select('stage_question_theme', 'themeid', 'questionid = ?', [$questionid]));
-}
-
-/**
- * Remplace les associations thématique(s) <-> question par la liste donnée, ce qui permet de
- * réutiliser une même question (même intitulé, mêmes options) pour plusieurs thématiques.
- *
- * @param int $questionid
- * @param int[] $themeids
- * @return void
- */
-function stage_set_question_themes($questionid, array $themeids) {
-    global $DB;
-
-    $themeids = array_unique(array_map('intval', $themeids));
-
-    if (empty($themeids)) {
-        $DB->delete_records('stage_question_theme', ['questionid' => $questionid]);
-        return;
+    $field = stage_evallist_fields()[$evaltype] ?? null;
+    if (!$field) {
+        return [];
     }
+    $listid = (int) $DB->get_field('stage_theme', $field, ['id' => $themeid]);
+    return $listid ? stage_get_evallist_questions($listid) : [];
+}
 
-    [$insql, $inparams] = $DB->get_in_or_equal($themeids, SQL_PARAMS_NAMED, 'th', false);
-    $DB->delete_records_select(
-        'stage_question_theme',
-        "questionid = :questionid AND themeid $insql",
-        array_merge(['questionid' => $questionid], $inparams)
+/**
+ * Questions d'une liste d'évaluation, dans l'ordre d'affichage.
+ *
+ * @param int $listid
+ * @return array id => stage_question
+ */
+function stage_get_evallist_questions($listid) {
+    global $DB;
+
+    return $DB->get_records_sql(
+        "SELECT q.*
+           FROM {stage_question} q
+           JOIN {stage_evallist_question} lq ON lq.questionid = q.id
+          WHERE lq.listid = :listid
+       ORDER BY q.sortorder ASC, q.id ASC",
+        ['listid' => $listid]
     );
+}
 
-    foreach ($themeids as $themeid) {
-        if (!$DB->record_exists('stage_question_theme', ['questionid' => $questionid, 'themeid' => $themeid])) {
-            $DB->insert_record('stage_question_theme', (object) [
-                'questionid' => $questionid,
-                'themeid' => $themeid,
-                'timecreated' => time(),
-            ]);
-        }
+/**
+ * Listes d'évaluation d'une activité, éventuellement limitées à un type d'évaluation.
+ *
+ * @param int $stageid
+ * @param string|null $evaltype
+ * @return array id => stage_evallist
+ */
+function stage_get_evallists($stageid, $evaltype = null) {
+    global $DB;
+
+    $params = ['stageid' => $stageid];
+    if ($evaltype !== null) {
+        $params['evaltype'] = $evaltype;
+    }
+    return $DB->get_records('stage_evallist', $params, 'evaltype ASC, name ASC, id ASC');
+}
+
+/**
+ * Thématiques qui utilisent une liste d'évaluation.
+ *
+ * @param stdClass $list
+ * @return array id => stage_theme
+ */
+function stage_get_evallist_themes(stdClass $list) {
+    global $DB;
+
+    $field = stage_evallist_fields()[$list->evaltype] ?? null;
+    if (!$field) {
+        return [];
+    }
+    return $DB->get_records('stage_theme', ['stageid' => $list->stageid, $field => $list->id], 'sortorder, name');
+}
+
+/**
+ * Ajoute une question à une liste d'évaluation (sans effet si elle y figure déjà).
+ *
+ * @param int $listid
+ * @param int $questionid
+ * @return void
+ */
+function stage_add_evallist_question($listid, $questionid) {
+    global $DB;
+
+    if (!$DB->record_exists('stage_evallist_question', ['listid' => $listid, 'questionid' => $questionid])) {
+        $DB->insert_record('stage_evallist_question', (object) [
+            'listid' => $listid,
+            'questionid' => $questionid,
+            'timecreated' => time(),
+        ]);
     }
 }
 
 /**
- * Supprime l'association d'une question à une thématique donnée. Si la question n'est plus
- * associée à aucune thématique après cette suppression, elle est entièrement supprimée (avec
- * les réponses déjà enregistrées pour cette question).
+ * Retire une question d'une liste d'évaluation. Une question qui ne figure plus dans aucune liste
+ * est supprimée avec les réponses déjà enregistrées pour elle, comme le faisait auparavant son
+ * détachement de sa dernière thématique.
  *
+ * @param int $listid
  * @param int $questionid
- * @param int $themeid
  * @return void
  */
-function stage_unlink_question_theme($questionid, $themeid) {
+function stage_remove_evallist_question($listid, $questionid) {
     global $DB;
 
-    $DB->delete_records('stage_question_theme', ['questionid' => $questionid, 'themeid' => $themeid]);
-
-    if (!$DB->record_exists('stage_question_theme', ['questionid' => $questionid])) {
+    $DB->delete_records('stage_evallist_question', ['listid' => $listid, 'questionid' => $questionid]);
+    if (!$DB->record_exists('stage_evallist_question', ['questionid' => $questionid])) {
         $DB->delete_records('stage_answer', ['questionid' => $questionid]);
         $DB->delete_records('stage_question', ['id' => $questionid]);
     }
 }
 
 /**
- * Liste les questions d'un stage déjà définies pour d'autres thématiques que celle donnée, afin
- * de permettre à la DEVE de réutiliser une question existante sans la recréer.
+ * Nombre de réponses déjà enregistrées pour les questions d'une liste qui n'appartiennent à
+ * aucune autre liste : ce sont celles que la suppression de la liste ferait disparaître.
  *
- * @param int $stageid
- * @param int $themeid Thématique courante, exclue des associations déjà en place.
- * @return array
+ * @param int $listid
+ * @return int
  */
-function stage_get_reusable_questions($stageid, $themeid) {
+function stage_count_evallist_exclusive_answers($listid) {
     global $DB;
 
-    $sql = "SELECT DISTINCT q.*
-              FROM {stage_question} q
-              JOIN {stage_question_theme} qt ON qt.questionid = q.id
-             WHERE q.stageid = :stageid
-               AND q.id NOT IN (
-                    SELECT questionid FROM {stage_question_theme} WHERE themeid = :themeid
-               )
-          ORDER BY q.name ASC";
-    return $DB->get_records_sql($sql, ['stageid' => $stageid, 'themeid' => $themeid]);
+    return (int) $DB->count_records_sql(
+        "SELECT COUNT(a.id)
+           FROM {stage_answer} a
+           JOIN {stage_evallist_question} lq ON lq.questionid = a.questionid
+          WHERE lq.listid = :listid
+            AND NOT EXISTS (
+                SELECT 1 FROM {stage_evallist_question} other
+                 WHERE other.questionid = lq.questionid AND other.listid <> lq.listid
+            )",
+        ['listid' => $listid]
+    );
+}
+
+/**
+ * Supprime une liste d'évaluation : les thématiques qui l'utilisaient reviennent au commentaire
+ * libre, et ses questions sont retirées (voir stage_remove_evallist_question()).
+ *
+ * @param stdClass $list
+ * @return void
+ */
+function stage_delete_evallist(stdClass $list) {
+    global $DB;
+
+    $field = stage_evallist_fields()[$list->evaltype] ?? null;
+    if ($field) {
+        $DB->set_field('stage_theme', $field, 0, ['stageid' => $list->stageid, $field => $list->id]);
+    }
+    foreach ($DB->get_fieldset_select('stage_evallist_question', 'questionid', 'listid = ?', [$list->id]) as $questionid) {
+        stage_remove_evallist_question($list->id, $questionid);
+    }
+    $DB->delete_records('stage_evallist', ['id' => $list->id]);
+}
+
+/**
+ * Autres listes d'évaluation qui contiennent une question (pour signaler qu'une modification de
+ * la question les concerne aussi).
+ *
+ * @param int $questionid
+ * @param int $exceptlistid
+ * @return array id => nom de la liste
+ */
+function stage_get_question_other_evallists($questionid, $exceptlistid) {
+    global $DB;
+
+    return $DB->get_records_sql_menu(
+        "SELECT l.id, l.name
+           FROM {stage_evallist} l
+           JOIN {stage_evallist_question} lq ON lq.listid = l.id
+          WHERE lq.questionid = :questionid AND l.id <> :listid
+       ORDER BY l.name",
+        ['questionid' => $questionid, 'listid' => $exceptlistid]
+    );
+}
+
+/**
+ * Questions d'autres listes du même type d'évaluation, pouvant être ajoutées à une liste sans
+ * être recréées.
+ *
+ * @param stdClass $list
+ * @return array id => stage_question
+ */
+function stage_get_reusable_evallist_questions(stdClass $list) {
+    global $DB;
+
+    return $DB->get_records_sql(
+        "SELECT DISTINCT q.*
+           FROM {stage_question} q
+           JOIN {stage_evallist_question} lq ON lq.questionid = q.id
+           JOIN {stage_evallist} l ON l.id = lq.listid
+          WHERE l.stageid = :stageid AND l.evaltype = :evaltype
+            AND q.id NOT IN (SELECT questionid FROM {stage_evallist_question} WHERE listid = :listid)
+       ORDER BY q.name ASC",
+        ['stageid' => $list->stageid, 'evaltype' => $list->evaltype, 'listid' => $list->id]
+    );
 }
 
 /**
