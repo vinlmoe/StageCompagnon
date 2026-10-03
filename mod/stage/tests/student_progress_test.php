@@ -112,4 +112,68 @@ final class student_progress_test extends \advanced_testcase {
         $overview = stage_get_pilotage_overview($stage->id, \context_module::instance($stage->cmid));
         $this->assertSame(0, reset($overview)->pendingcount);
     }
+
+    /**
+     * Le tableau de pilotage précharge les données de toute la promotion : il donne exactement le
+     * même bilan que le calcul étudiant par étudiant, en un nombre de requêtes qui ne dépend plus
+     * du nombre d'étudiants (plus de 16 000 requêtes auparavant pour 180 étudiants).
+     *
+     * @covers ::stage_get_pilotage_overview
+     * @covers \mod_stage\local\progress_cache
+     */
+    public function test_pilotage_overview_is_batched_and_identical(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $course = $gen->create_course();
+        $stage = $gen->create_module('stage', ['course' => $course]);
+        $DB->update_record('stage', (object) ['id' => $stage->id, 'requiredabroaddays' => 10, 'abroadbeforeyear' => 4]);
+        /** @var \mod_stage_generator $generator */
+        $generator = $gen->get_plugin_generator('mod_stage');
+        $themes = [];
+        foreach ([[0, 0, 0], [2, 4, 0], [0, 0, 15]] as $i => [$min, $max, $flat]) {
+            $theme = $generator->create_theme($stage, [
+                'name' => "Thématique $i", 'mandatory' => 1, 'minstudyyear' => $min, 'maxstudyyear' => $max,
+                'requiredduration' => $flat,
+            ]);
+            stage_set_theme_duration($theme->id, 0, 4);
+            stage_set_theme_duration($theme->id, 3, 8);
+            $themes[] = $theme;
+        }
+        stage_set_year_requirement($stage->id, 3, 20);
+        $context = \context_module::instance($stage->cmid);
+
+        $count = 0;
+        foreach ([5, 15] as $size) {
+            for (; $count < $size; $count++) {
+                $student = $gen->create_user();
+                $gen->enrol_user($student->id, $course->id, 'student');
+                foreach ($themes as $t => $theme) {
+                    $entry = $generator->create_entry($stage, $student->id, $theme, [
+                        'studyyear' => 2 + ($count + $t) % 3, 'declaredduration' => 6,
+                        'abroad' => $t === 1 ? 1 : 0, 'datestart' => make_timestamp(2026, 1 + $t, 1),
+                        'dateend' => make_timestamp(2026, 1 + $t, 6),
+                    ]);
+                    if (($count + $t) % 4) {
+                        stage_apply_deve_validation($entry, 2, 6);
+                    }
+                    if ($t === 2) {
+                        stage_set_entry_stagetype($entry->id, 'complementaire');
+                    }
+                }
+            }
+            $before = $DB->perf_get_queries();
+            $rows = stage_get_pilotage_overview($stage->id, $context);
+            $queries[$size] = $DB->perf_get_queries() - $before;
+
+            $reference = stage_build_pilotage_rows($stage->id, stage_get_enrolled_students($context));
+            $this->assertSame(json_encode(array_values($reference)), json_encode(array_values($rows)));
+        }
+        // Le nombre de requêtes ne croît pas avec la taille de la promotion (à une ou deux
+        // requêtes près, selon les caches internes de Moodle sur les inscriptions).
+        $this->assertLessThanOrEqual($queries[5] + 2, $queries[15]);
+        $this->assertLessThan(20, $queries[15]);
+        // Le cache est vidé : un calcul isolé interroge de nouveau la base.
+        $this->assertFalse(\mod_stage\local\progress_cache::covers($stage->id));
+    }
 }

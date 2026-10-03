@@ -287,6 +287,10 @@ function stage_save_tutor_evaluation_setting($stageid, $enabled) {
 function stage_get_themes($stageid, $onlyvisible = false) {
     global $DB;
 
+    if (\mod_stage\local\progress_cache::covers($stageid)) {
+        return \mod_stage\local\progress_cache::themes($onlyvisible);
+    }
+
     $params = ['stageid' => $stageid];
     $where = 'stageid = :stageid';
     if ($onlyvisible) {
@@ -398,6 +402,10 @@ function stage_render_abroad_rules(stdClass $stage) {
 function stage_get_theme_duration($themeid, $studyyear) {
     global $DB;
 
+    if (\mod_stage\local\progress_cache::has_theme($themeid)) {
+        return \mod_stage\local\progress_cache::theme_duration($themeid, $studyyear);
+    }
+
     $flat = $DB->get_field('stage_theme', 'requiredduration', ['id' => $themeid]);
     if (!empty($flat)) {
         return (int) $flat;
@@ -478,6 +486,16 @@ function stage_theme_duration_years($minstudyyear, $maxstudyyear) {
 function stage_get_student_abroad_days($stageid, $userid) {
     global $DB;
 
+    if (\mod_stage\local\progress_cache::covers($stageid, $userid)) {
+        $days = 0;
+        foreach (\mod_stage\local\progress_cache::entries($userid) as $entry) {
+            if (!empty($entry->abroad) && (int) $entry->status === STAGE_STATUS_VALIDE_DEVE) {
+                $days += (int) $entry->retainedduration;
+            }
+        }
+        return $days;
+    }
+
     return (int) $DB->get_field_sql(
         'SELECT COALESCE(SUM(retainedduration), 0)
            FROM {stage_entry}
@@ -525,6 +543,10 @@ function stage_set_theme_duration($themeid, $studyyear, $requiredduration) {
 function stage_get_year_requirement($stageid, $studyyear) {
     global $DB;
 
+    if (\mod_stage\local\progress_cache::covers($stageid)) {
+        return \mod_stage\local\progress_cache::year_requirements()[(int) $studyyear] ?? 0;
+    }
+
     $duration = $DB->get_field(
         'stage_year_requirement',
         'requiredduration',
@@ -542,6 +564,10 @@ function stage_get_year_requirement($stageid, $studyyear) {
  */
 function stage_get_year_requirements($stageid) {
     global $DB;
+
+    if (\mod_stage\local\progress_cache::covers($stageid)) {
+        return \mod_stage\local\progress_cache::year_requirements();
+    }
 
     $requirements = [];
     foreach ($DB->get_records('stage_year_requirement', ['stageid' => $stageid]) as $record) {
@@ -655,7 +681,9 @@ function stage_get_student_year_progress($stageid, $userid) {
     $mandatorythemes = array_filter(stage_get_themes($stageid, true), function ($theme) {
         return !empty($theme->mandatory);
     });
-    $abroadbeforeyear = (int) $DB->get_field('stage', 'abroadbeforeyear', ['id' => $stageid]);
+    $abroadbeforeyear = \mod_stage\local\progress_cache::covers($stageid)
+        ? (int) \mod_stage\local\progress_cache::stage()->abroadbeforeyear
+        : (int) $DB->get_field('stage', 'abroadbeforeyear', ['id' => $stageid]);
     $abroadprogress = $abroadbeforeyear > 0 ? stage_get_student_abroad_progress($stageid, $userid) : null;
 
     // Années à considérer : celles où l'étudiant a des saisies, celles où une durée totale est
@@ -783,7 +811,9 @@ function stage_get_student_year_progress($stageid, $userid) {
 function stage_get_student_abroad_progress($stageid, $userid) {
     global $DB;
 
-    $stage = $DB->get_record('stage', ['id' => $stageid], 'requiredabroaddays, abroadbeforeyear', MUST_EXIST);
+    $stage = \mod_stage\local\progress_cache::covers($stageid)
+        ? \mod_stage\local\progress_cache::stage()
+        : $DB->get_record('stage', ['id' => $stageid], 'requiredabroaddays, abroadbeforeyear', MUST_EXIST);
     $required = (int) $stage->requiredabroaddays;
     $retained = stage_get_student_abroad_days($stageid, $userid);
 
@@ -804,6 +834,10 @@ function stage_get_student_abroad_progress($stageid, $userid) {
  */
 function stage_get_student_entries($stageid, $userid) {
     global $DB;
+
+    if (\mod_stage\local\progress_cache::covers($stageid, $userid)) {
+        return \mod_stage\local\progress_cache::entries($userid);
+    }
 
     return $DB->get_records('stage_entry', ['stageid' => $stageid, 'userid' => $userid], 'timecreated DESC');
 }
@@ -3348,11 +3382,28 @@ function stage_paginate(array $items, $page, moodle_url $baseurl, $perpage = STA
 function stage_get_pilotage_overview($stageid, context $context, ?array $restrictuserids = null) {
     $students = stage_get_enrolled_students($context);
     if ($restrictuserids !== null) {
-        $students = array_filter($students, function ($student) use ($restrictuserids) {
-            return in_array($student->id, $restrictuserids);
-        });
+        $restrict = array_flip(array_map('intval', $restrictuserids));
+        $students = array_filter($students, fn($student) => isset($restrict[(int) $student->id]));
     }
 
+    // Les données de toute la promotion sont chargées une fois pour toutes plutôt qu'étudiant par
+    // étudiant (voir \mod_stage\local\progress_cache) : une dizaine de requêtes au lieu de plusieurs milliers.
+    \mod_stage\local\progress_cache::prime($stageid, array_keys($students));
+    try {
+        return stage_build_pilotage_rows($stageid, $students);
+    } finally {
+        \mod_stage\local\progress_cache::clear();
+    }
+}
+
+/**
+ * Lignes du tableau de pilotage, une par étudiant (voir stage_get_pilotage_overview()).
+ *
+ * @param int $stageid
+ * @param array $students Étudiants, indexés par identifiant.
+ * @return array
+ */
+function stage_build_pilotage_rows($stageid, array $students) {
     $rows = [];
     foreach ($students as $student) {
         $progress = stage_get_student_progress($stageid, $student->id);
@@ -5079,6 +5130,11 @@ function stage_get_convention_detail($entryid) {
  */
 function stage_get_entry_stagetypes(array $entryids) {
     global $DB;
+
+    $cached = \mod_stage\local\progress_cache::stagetypes($entryids);
+    if ($cached !== null) {
+        return $cached;
+    }
 
     $stagetypes = [];
     foreach ($entryids as $entryid) {
