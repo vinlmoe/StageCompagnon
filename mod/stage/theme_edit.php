@@ -80,6 +80,8 @@ $evallisturl = new moodle_url('/mod/stage/evallist_edit.php', [
 ]);
 
 $mform = new theme_edit_form($baseurl, [
+    'stageid' => $stage->id,
+    'themeid' => $themeid,
     'teachers' => $teacheroptions,
     'checklistcount' => count($checklist),
     'evallists' => $evallists,

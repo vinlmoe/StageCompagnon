@@ -661,6 +661,7 @@ $string['themevisibilitytoggled'] = "L'activation de la thématique a été mise
 $string['themevisible_help'] = "Cliquez sur Oui/Non dans la colonne « Visible » pour activer ou désactiver une "
     . "thématique pour ce cours. Une thématique désactivée n'est plus proposée à l'enregistrement d'un stage "
     . "(par la DEVE ou par l'étudiant), mais reste affichée ici et sur les stages déjà enregistrés dessus.";
+$string['themenametaken'] = 'Une autre thématique de cette activité porte déjà ce nom.';
 $string['themeinuse'] = 'Impossible de supprimer : des stages utilisent cette thématique.';
 $string['bulkthemessaved'] = 'Les thématiques ont été mises à jour.';
 $string['teachersassigned'] = 'Les enseignants référents ont été mis à jour.';

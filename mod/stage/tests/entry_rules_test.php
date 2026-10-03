@@ -44,6 +44,9 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_reset_userdata
  * @covers     ::stage_get_entries_needing_convention_reminder
  * @covers     \mod_stage\task\send_convention_reminders
+ * @covers     ::stage_update_entry_fields
+ * @covers     ::stage_theme_name_taken
+ * @covers     ::stage_can_edit_entry_checklist
  */
 final class entry_rules_test extends \advanced_testcase {
     /**
@@ -343,6 +346,64 @@ final class entry_rules_test extends \advanced_testcase {
         $this->assertFalse($DB->record_exists('stage_entry_teacher', ['stageid' => $stage->id]));
         $this->assertEmpty(stage_get_report_files($context, $entry->id));
         $this->assertTrue($DB->record_exists('stage_theme', ['id' => $theme->id]));
+    }
+
+    /**
+     * Régression : les étapes du circuit réécrivaient la saisie entière, chargée en début de page.
+     * Les dates recalculées juste avant à partir des nouvelles plages (revue de la convention par
+     * la DEVE ou par l'enseignant référent) étaient ainsi remplacées par les anciennes.
+     */
+    public function test_workflow_steps_do_not_restore_stale_dates(): void {
+        global $DB;
+        [, $stage, , $student, $theme] = $this->fixture();
+        $entry = $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_entry($stage, $student->id, $theme);
+        $DB->set_field('stage_entry', 'conventionstatus', STAGE_CONVENTION_TEACHERPENDING, ['id' => $entry->id]);
+        $entry->conventionstatus = STAGE_CONVENTION_TEACHERPENDING;
+
+        // La page a chargé $entry, puis enregistre les plages corrigées dans le formulaire.
+        stage_save_entry_periods($entry->id, [
+            ['datestart' => make_timestamp(2026, 4, 1), 'dateend' => make_timestamp(2026, 4, 20)],
+        ]);
+        stage_teacher_validate_convention($entry, 2);
+        stage_convention_mark_edited($entry, 2);
+        stage_convention_mark_signed($entry, 2);
+
+        $saved = $DB->get_record('stage_entry', ['id' => $entry->id]);
+        $this->assertEquals(make_timestamp(2026, 4, 1), $saved->datestart);
+        $this->assertEquals(make_timestamp(2026, 4, 20), $saved->dateend);
+        $this->assertEquals(STAGE_CONVENTION_SIGNED, $saved->conventionstatus);
+        $this->assertEquals(2, $saved->conventionteachervalidatedby);
+    }
+
+    /**
+     * Deux thématiques d'une même activité ne peuvent pas porter le même nom (sous forme
+     * normalisée) : les rapprochements par nom des imports et du transfert seraient ambigus.
+     */
+    public function test_theme_names_must_be_unique(): void {
+        [, $stage, , , $theme] = $this->fixture();
+        $this->assertTrue(stage_theme_name_taken($stage->id, '  CLINIQUE '));
+        $this->assertFalse(stage_theme_name_taken($stage->id, 'Clinique', $theme->id));
+        $this->assertFalse(stage_theme_name_taken($stage->id, 'Clinique 2'));
+    }
+
+    /**
+     * Modifier la check-list d'un stage demande la capacité de gestion des stages : la seule
+     * capacité de consultation (viewall) ne suffit pas.
+     */
+    public function test_checklist_edition_requires_management_capability(): void {
+        global $DB;
+        [$course, $stage, $context, $student, $theme] = $this->fixture();
+        $entry = $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_entry($stage, $student->id, $theme);
+        $observer = $this->getDataGenerator()->create_user();
+        $roleid = $this->getDataGenerator()->create_role();
+        assign_capability('mod/stage:viewall', CAP_ALLOW, $roleid, $context->id);
+        role_assign($roleid, $observer->id, $context->id);
+        $this->assertTrue(has_capability('mod/stage:viewall', $context, $observer));
+        $this->assertFalse(stage_can_edit_entry_checklist($stage, $entry, $context, $observer->id));
+
+        $deve = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($deve->id, $course->id, 'editingteacher');
+        $this->assertTrue(stage_can_edit_entry_checklist($stage, $entry, $context, $deve->id));
     }
 
     /**

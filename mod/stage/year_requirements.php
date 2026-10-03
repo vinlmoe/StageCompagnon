@@ -52,12 +52,14 @@ $years = range(1, 6);
 
 if (data_submitted() && confirm_sesskey()) {
     foreach ($years as $year) {
-        $duration = optional_param('duration_' . $year, 0, PARAM_INT);
+        // Une durée négative n'a pas de sens et fausserait les bilans : elle est ramenée à zéro.
+        $duration = max(0, optional_param('duration_' . $year, 0, PARAM_INT));
         stage_set_year_requirement($stage->id, $year, $duration);
     }
 
-    $stage->requiredabroaddays = optional_param('requiredabroaddays', 0, PARAM_INT);
-    $stage->abroadbeforeyear = optional_param('abroadbeforeyear', 0, PARAM_INT);
+    $stage->requiredabroaddays = max(0, optional_param('requiredabroaddays', 0, PARAM_INT));
+    $abroadbeforeyear = optional_param('abroadbeforeyear', 0, PARAM_INT);
+    $stage->abroadbeforeyear = $abroadbeforeyear >= 0 && $abroadbeforeyear <= 6 ? $abroadbeforeyear : 0;
     $stage->abroadrule = optional_param('abroadrule', '', PARAM_TEXT);
     $stage->timemodified = time();
     $DB->update_record('stage', $stage);

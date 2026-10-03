@@ -287,6 +287,10 @@ function stage_save_tutor_evaluation_setting($stageid, $enabled) {
 function stage_get_themes($stageid, $onlyvisible = false) {
     global $DB;
 
+    if (\mod_stage\local\progress_cache::covers($stageid)) {
+        return \mod_stage\local\progress_cache::themes($onlyvisible);
+    }
+
     $params = ['stageid' => $stageid];
     $where = 'stageid = :stageid';
     if ($onlyvisible) {
@@ -398,6 +402,10 @@ function stage_render_abroad_rules(stdClass $stage) {
 function stage_get_theme_duration($themeid, $studyyear) {
     global $DB;
 
+    if (\mod_stage\local\progress_cache::has_theme($themeid)) {
+        return \mod_stage\local\progress_cache::theme_duration($themeid, $studyyear);
+    }
+
     $flat = $DB->get_field('stage_theme', 'requiredduration', ['id' => $themeid]);
     if (!empty($flat)) {
         return (int) $flat;
@@ -478,6 +486,16 @@ function stage_theme_duration_years($minstudyyear, $maxstudyyear) {
 function stage_get_student_abroad_days($stageid, $userid) {
     global $DB;
 
+    if (\mod_stage\local\progress_cache::covers($stageid, $userid)) {
+        $days = 0;
+        foreach (\mod_stage\local\progress_cache::entries($userid) as $entry) {
+            if (!empty($entry->abroad) && (int) $entry->status === STAGE_STATUS_VALIDE_DEVE) {
+                $days += (int) $entry->retainedduration;
+            }
+        }
+        return $days;
+    }
+
     return (int) $DB->get_field_sql(
         'SELECT COALESCE(SUM(retainedduration), 0)
            FROM {stage_entry}
@@ -525,6 +543,10 @@ function stage_set_theme_duration($themeid, $studyyear, $requiredduration) {
 function stage_get_year_requirement($stageid, $studyyear) {
     global $DB;
 
+    if (\mod_stage\local\progress_cache::covers($stageid)) {
+        return \mod_stage\local\progress_cache::year_requirements()[(int) $studyyear] ?? 0;
+    }
+
     $duration = $DB->get_field(
         'stage_year_requirement',
         'requiredduration',
@@ -542,6 +564,10 @@ function stage_get_year_requirement($stageid, $studyyear) {
  */
 function stage_get_year_requirements($stageid) {
     global $DB;
+
+    if (\mod_stage\local\progress_cache::covers($stageid)) {
+        return \mod_stage\local\progress_cache::year_requirements();
+    }
 
     $requirements = [];
     foreach ($DB->get_records('stage_year_requirement', ['stageid' => $stageid]) as $record) {
@@ -655,7 +681,9 @@ function stage_get_student_year_progress($stageid, $userid) {
     $mandatorythemes = array_filter(stage_get_themes($stageid, true), function ($theme) {
         return !empty($theme->mandatory);
     });
-    $abroadbeforeyear = (int) $DB->get_field('stage', 'abroadbeforeyear', ['id' => $stageid]);
+    $abroadbeforeyear = \mod_stage\local\progress_cache::covers($stageid)
+        ? (int) \mod_stage\local\progress_cache::stage()->abroadbeforeyear
+        : (int) $DB->get_field('stage', 'abroadbeforeyear', ['id' => $stageid]);
     $abroadprogress = $abroadbeforeyear > 0 ? stage_get_student_abroad_progress($stageid, $userid) : null;
 
     // Années à considérer : celles où l'étudiant a des saisies, celles où une durée totale est
@@ -783,7 +811,9 @@ function stage_get_student_year_progress($stageid, $userid) {
 function stage_get_student_abroad_progress($stageid, $userid) {
     global $DB;
 
-    $stage = $DB->get_record('stage', ['id' => $stageid], 'requiredabroaddays, abroadbeforeyear', MUST_EXIST);
+    $stage = \mod_stage\local\progress_cache::covers($stageid)
+        ? \mod_stage\local\progress_cache::stage()
+        : $DB->get_record('stage', ['id' => $stageid], 'requiredabroaddays, abroadbeforeyear', MUST_EXIST);
     $required = (int) $stage->requiredabroaddays;
     $retained = stage_get_student_abroad_days($stageid, $userid);
 
@@ -804,6 +834,10 @@ function stage_get_student_abroad_progress($stageid, $userid) {
  */
 function stage_get_student_entries($stageid, $userid) {
     global $DB;
+
+    if (\mod_stage\local\progress_cache::covers($stageid, $userid)) {
+        return \mod_stage\local\progress_cache::entries($userid);
+    }
 
     return $DB->get_records('stage_entry', ['stageid' => $stageid, 'userid' => $userid], 'timecreated DESC');
 }
@@ -1167,6 +1201,51 @@ function stage_bulk_register_entries(stdClass $stage, context $context, array $s
     }
     $transaction->allow_commit();
     return $results;
+}
+
+/**
+ * Indique si une autre thématique de l'activité porte déjà ce nom (comparé sous forme normalisée,
+ * voir stage_normalize_name()). Deux thématiques homonymes rendraient ambigus les rapprochements
+ * par nom : imports CSV et StageVet, transfert d'étudiant, copie depuis un autre cours.
+ *
+ * @param int $stageid
+ * @param string $name
+ * @param int $excludethemeid Thématique en cours de modification, à ne pas compter.
+ * @return bool
+ */
+function stage_theme_name_taken($stageid, $name, $excludethemeid = 0) {
+    $key = stage_normalize_name($name);
+    foreach (stage_get_themes($stageid) as $theme) {
+        if ((int) $theme->id !== (int) $excludethemeid && stage_normalize_name($theme->name) === $key) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Enregistre les seuls champs donnés d'une saisie, à partir de l'objet passé.
+ *
+ * Les étapes du circuit (évaluations, conventions, annulation...) ne réécrivent ainsi que ce
+ * qu'elles changent : réécrire l'objet entier, chargé en début de page, rétablirait les valeurs
+ * qu'une autre étape vient de modifier entre-temps, comme les dates recalculées par
+ * stage_save_entry_periods() juste avant la validation d'une convention.
+ *
+ * @param stdClass $entry Saisie (id et valeurs des champs à enregistrer).
+ * @param string[] $fields
+ * @return void
+ */
+function stage_update_entry_fields(stdClass $entry, array $fields) {
+    global $DB;
+
+    $record = (object) ['id' => $entry->id];
+    foreach ($fields as $field) {
+        // Un champ absent de l'objet (saisie partielle) n'est pas écrasé.
+        if (property_exists($entry, $field)) {
+            $record->$field = $entry->$field;
+        }
+    }
+    $DB->update_record('stage_entry', $record);
 }
 
 /**
@@ -1662,7 +1741,7 @@ function stage_apply_student_eval(stdClass $entry, $selfeval = null) {
         $entry->status = STAGE_STATUS_EVAL_ETUDIANT;
     }
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['studentselfeval', 'status', 'timemodified']);
 }
 
 /**
@@ -1686,7 +1765,7 @@ function stage_apply_teacher_eval(stdClass $entry, $teacherid, $comment = null) 
         $entry->status = STAGE_STATUS_EVAL_ENSEIGNANT;
     }
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
 }
 
 /**
@@ -1716,7 +1795,7 @@ function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retaineddura
     $entry->retainedduration = $retainedduration > 0 ? $retainedduration : $entry->declaredduration;
     $entry->status = STAGE_STATUS_VALIDE_DEVE;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['deveuserid', 'devecomment', 'devetime', 'retainedduration', 'status', 'timemodified']);
 }
 
 /**
@@ -1740,7 +1819,7 @@ function stage_reject_by_teacher(stdClass $entry, $teacherid, $comment) {
     $entry->teachertime = time();
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
 }
 
 /**
@@ -1767,7 +1846,7 @@ function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
     $entry->devetime = time();
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['deveuserid', 'devecomment', 'devetime', 'status', 'timemodified']);
 }
 
 /**
@@ -1789,7 +1868,7 @@ function stage_reset_entry(stdClass $entry) {
     $entry->status = STAGE_STATUS_ENREGISTRE;
     $entry->tutorbypassed = 0;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['tutortoken', 'tutorrequesttime', 'status', 'tutorbypassed', 'timemodified']);
 }
 
 /**
@@ -1812,7 +1891,9 @@ function stage_cancel_entry(stdClass $entry, $byuserid, $comment) {
     $entry->canceltime = time();
     $entry->cancelcomment = $comment;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, [
+        'status', 'tutortoken', 'tutorrequesttime', 'cancelledby', 'canceltime', 'cancelcomment', 'timemodified',
+    ]);
 }
 
 /**
@@ -3301,11 +3382,28 @@ function stage_paginate(array $items, $page, moodle_url $baseurl, $perpage = STA
 function stage_get_pilotage_overview($stageid, context $context, ?array $restrictuserids = null) {
     $students = stage_get_enrolled_students($context);
     if ($restrictuserids !== null) {
-        $students = array_filter($students, function ($student) use ($restrictuserids) {
-            return in_array($student->id, $restrictuserids);
-        });
+        $restrict = array_flip(array_map('intval', $restrictuserids));
+        $students = array_filter($students, fn($student) => isset($restrict[(int) $student->id]));
     }
 
+    // Les données de toute la promotion sont chargées une fois pour toutes plutôt qu'étudiant par
+    // étudiant (voir \mod_stage\local\progress_cache) : une dizaine de requêtes au lieu de plusieurs milliers.
+    \mod_stage\local\progress_cache::prime($stageid, array_keys($students));
+    try {
+        return stage_build_pilotage_rows($stageid, $students);
+    } finally {
+        \mod_stage\local\progress_cache::clear();
+    }
+}
+
+/**
+ * Lignes du tableau de pilotage, une par étudiant (voir stage_get_pilotage_overview()).
+ *
+ * @param int $stageid
+ * @param array $students Étudiants, indexés par identifiant.
+ * @return array
+ */
+function stage_build_pilotage_rows($stageid, array $students) {
     $rows = [];
     foreach ($students as $student) {
         $progress = stage_get_student_progress($stageid, $student->id);
@@ -5033,6 +5131,11 @@ function stage_get_convention_detail($entryid) {
 function stage_get_entry_stagetypes(array $entryids) {
     global $DB;
 
+    $cached = \mod_stage\local\progress_cache::stagetypes($entryids);
+    if ($cached !== null) {
+        return $cached;
+    }
+
     $stagetypes = [];
     foreach ($entryids as $entryid) {
         $stagetypes[$entryid] = 'obligatoire';
@@ -5130,7 +5233,7 @@ function stage_set_entry_convention_exempt(stdClass $entry, $exempt) {
 
     $entry->conventionstatus = $newstatus;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['conventionstatus', 'timemodified']);
 }
 
 /**
@@ -5152,7 +5255,7 @@ function stage_request_convention(stdClass $entry, $templateid, $requireteacherv
         ? STAGE_CONVENTION_TEACHERPENDING : STAGE_CONVENTION_REQUESTED;
     $entry->conventionrequesttime = time();
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['conventiontemplateid', 'conventionstatus', 'conventionrequesttime', 'timemodified']);
 }
 
 /**
@@ -5170,7 +5273,9 @@ function stage_teacher_validate_convention(stdClass $entry, $byuserid) {
     $entry->conventionteachervalidatedby = $byuserid;
     $entry->conventionteachervalidatetime = time();
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, [
+        'conventionstatus', 'conventionteachervalidatedby', 'conventionteachervalidatetime', 'timemodified',
+    ]);
 }
 
 /**
@@ -5213,7 +5318,41 @@ function stage_convention_mark_edited(stdClass $entry, $byuserid) {
     $entry->conventioneditedby = $byuserid;
     $entry->conventionedittime = time();
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['conventionstatus', 'conventioneditedby', 'conventionedittime', 'timemodified']);
+}
+
+/**
+ * Validation d'une demande de convention par la DEVE depuis sa revue (convention_review.php) :
+ * la convention passe au statut « éditée », puis, si le PDF peut être produit et que la DEVE a
+ * demandé l'exemplaire à signer (cadre de signatures), l'étudiant est prévenu qu'elle est prête.
+ *
+ * Le courriel part ici, à la soumission du formulaire de revue, et non plus dans la page de
+ * téléchargement qui suit (convention.php) : celle-ci n'envoie plus rien sur une simple requête
+ * GET, afin qu'un rechargement ou un lien ne renvoie pas le courriel.
+ *
+ * @param stdClass $stage
+ * @param stdClass $cm Course module.
+ * @param context $context Contexte du module.
+ * @param stdClass $entry Saisie, mise à jour en place.
+ * @param int $byuserid DEVE qui valide.
+ * @param bool $withsignatures Exemplaire à faire signer demandé.
+ * @return array ['error' => identifiant de chaîne ou null, 'notified' => bool ou null si sans objet]
+ */
+function stage_convention_validate_from_review(
+    stdClass $stage,
+    stdClass $cm,
+    context $context,
+    stdClass $entry,
+    $byuserid,
+    $withsignatures
+) {
+    stage_convention_mark_edited($entry, $byuserid);
+    $error = stage_check_convention_pdf_prerequisites($entry, $context);
+    $notified = null;
+    if ($error === null && $withsignatures) {
+        $notified = stage_notify_student_convention_ready($stage, $cm, $entry);
+    }
+    return ['error' => $error, 'notified' => $notified];
 }
 
 /**
@@ -5231,7 +5370,7 @@ function stage_convention_mark_signed(stdClass $entry, $byuserid) {
     $entry->conventionsignedby = $byuserid;
     $entry->conventionsigntime = time();
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['conventionstatus', 'conventionsignedby', 'conventionsigntime', 'timemodified']);
 }
 
 /**
@@ -5252,7 +5391,9 @@ function stage_reject_convention(stdClass $entry, $byuserid, $comment) {
     $entry->conventionrejecttime = time();
     $entry->conventionrejectcomment = $comment;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, [
+        'conventionstatus', 'conventionrejectedby', 'conventionrejecttime', 'conventionrejectcomment', 'timemodified',
+    ]);
 }
 
 /**
@@ -6369,7 +6510,9 @@ function stage_can_edit_entry_checklist(stdClass $stage, stdClass $entry, contex
 
     $userid = $userid ?: $USER->id;
 
-    if (has_capability('mod/stage:viewall', $context, $userid)) {
+    // Modifier la check-list est une écriture : la capacité de consultation (viewall) ne suffit
+    // pas, il faut celle de la DEVE qui gère les stages.
+    if (has_capability('mod/stage:registerstages', $context, $userid)) {
         return true;
     }
 

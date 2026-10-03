@@ -29,6 +29,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @copyright  2026 Sébastien Lefebvre
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     ::stage_notify_student_convention_ready
+ * @covers     ::stage_convention_validate_from_review
  * @covers     ::stage_get_email_definitions
  * @covers     ::stage_resolve_email_text
  */
@@ -114,6 +115,50 @@ final class convention_ready_notification_test extends \advanced_testcase {
         $this->assertStringContainsString('votre convention', $body);
         $this->assertStringContainsString('Animaux de compagnie', $body);
         $this->assertStringNotContainsString('{{', $body);
+    }
+
+    /**
+     * Régression : depuis que la page de téléchargement n'envoie plus le courriel sur une simple
+     * requête GET, la validation par la DEVE depuis sa revue ne prévenait plus l'étudiant. Le
+     * courriel part désormais à la validation elle-même, seulement pour l'exemplaire à signer et
+     * si le PDF peut être produit.
+     */
+    public function test_review_validation_notifies_only_for_printable_signed_copy(): void {
+        global $DB, $USER;
+        [$stage, $cm, $entry] = $this->prepare();
+        $this->setAdminUser();
+        $context = \context_module::instance($cm->id);
+        $DB->set_field('stage_entry', 'conventionstatus', STAGE_CONVENTION_REQUESTED, ['id' => $entry->id]);
+        $entry = $DB->get_record('stage_entry', ['id' => $entry->id]);
+        $sink = $this->redirectEmails();
+
+        // Sans gabarit, le PDF ne peut pas être produit : pas de courriel.
+        $outcome = stage_convention_validate_from_review($stage, $cm, $context, $entry, $USER->id, true);
+        $this->assertSame('conventionnotemplatechosen', $outcome['error']);
+        $this->assertNull($outcome['notified']);
+        $this->assertEquals(STAGE_CONVENTION_EDITED, $DB->get_field('stage_entry', 'conventionstatus', ['id' => $entry->id]));
+        $this->assertCount(0, $sink->get_messages());
+
+        $templateid = $DB->insert_record('stage_convention_template', (object) [
+            'stageid' => $stage->id, 'name' => 'Standard', 'lang' => 'fr', 'timecreated' => time(), 'timemodified' => time(),
+        ]);
+        get_file_storage()->create_file_from_string([
+            'contextid' => $context->id, 'component' => 'mod_stage', 'filearea' => 'conventiontemplate',
+            'itemid' => $templateid, 'filepath' => '/', 'filename' => 'gabarit.pdf',
+        ], '%PDF-1.4');
+        $entry->conventiontemplateid = $templateid;
+        $DB->set_field('stage_entry', 'conventiontemplateid', $templateid, ['id' => $entry->id]);
+
+        $outcome = stage_convention_validate_from_review($stage, $cm, $context, $entry, $USER->id, false);
+        $this->assertNull($outcome['error']);
+        $this->assertNull($outcome['notified']);
+        $this->assertCount(0, $sink->get_messages());
+
+        $outcome = stage_convention_validate_from_review($stage, $cm, $context, $entry, $USER->id, true);
+        $this->assertNull($outcome['error']);
+        $this->assertTrue($outcome['notified']);
+        $this->assertCount(1, $sink->get_messages());
+        $sink->close();
     }
 
     /**
