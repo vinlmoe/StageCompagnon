@@ -153,30 +153,33 @@ if ($mform->is_cancelled()) {
     stage_save_entry_periods($entry->id, stage_extract_submitted_periods($data));
 
     if (!empty($data->validateconvention)) {
-        stage_convention_mark_edited($entry, $USER->id);
-
-        // Génère et télécharge immédiatement le PDF de la convention, plutôt que d'obliger la
-        // DEVE à revenir ensuite sur la liste pour cliquer "Générer la convention" séparément.
-        $entry = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
-        $error = stage_check_convention_pdf_prerequisites($entry, $context);
-        if ($error !== null) {
+        $outcome = stage_convention_validate_from_review(
+            $stage,
+            $cm,
+            $context,
+            $entry,
+            $USER->id,
+            !empty($data->withsignatures)
+        );
+        if ($outcome['error'] !== null) {
             redirect(
                 $backurl,
-                get_string('conventionvalidatedpdferror', 'mod_stage', get_string($error, 'mod_stage')),
+                get_string('conventionvalidatedpdferror', 'mod_stage', get_string($outcome['error'], 'mod_stage')),
                 null,
                 \core\output\notification::NOTIFY_WARNING
             );
         }
-        // Le téléchargement passe par convention.php, qui lance le fichier puis ramène à la liste
-        // des conventions : envoyer le PDF directement en réponse à ce formulaire laisserait la
-        // DEVE sur l'écran de validation, cette convention étant pourtant traitée.
-        redirect(new moodle_url('/mod/stage/convention.php', [
+        $params = [
             'id' => $cm->id,
             'entryid' => $entry->id,
             'confirmgenerate' => 1,
             'withsignatures' => !empty($data->withsignatures) ? 1 : 0,
             'returnurl' => $backurl->out_as_local_url(false),
-        ]));
+        ];
+        if ($outcome['notified'] !== null) {
+            $params['notified'] = $outcome['notified'] ? 1 : 0;
+        }
+        redirect(new moodle_url('/mod/stage/convention.php', $params));
     } else if (!empty($data->rejectconvention)) {
         stage_reject_convention($entry, $USER->id, $data->rejectcomment);
         stage_notify_student_convention_rejected($stage, $cm, $entry, $data->rejectcomment);

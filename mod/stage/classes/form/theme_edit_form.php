@@ -279,6 +279,16 @@ class theme_edit_form extends \moodleform {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 
+        if (
+            !empty($this->_customdata['stageid'])
+                && stage_theme_name_taken($this->_customdata['stageid'], $data['name'], $this->_customdata['themeid'] ?? 0)
+        ) {
+            $errors['name'] = get_string('themenametaken', 'mod_stage');
+        }
+        if ((int) ($data['requiredduration'] ?? 0) < 0) {
+            $errors['requiredduration'] = get_string('durationinvalid', 'mod_stage');
+        }
+
         foreach (array_keys(stage_studyyear_options()) as $year) {
             $value = trim((string) ($data['duration_' . $year] ?? ''));
             if ($value !== '' && !ctype_digit($value)) {

@@ -644,6 +644,7 @@ $string['themevisibilitytoggled'] = "The theme's activation has been updated.";
 $string['themevisible_help'] = 'Click Yes/No in the "Visible" column to activate or deactivate a theme for this '
     . 'course. A deactivated theme is no longer offered when registering an internship (by the DEVE or the '
     . 'student), but stays listed here and on internships already registered on it.';
+$string['themenametaken'] = 'Another theme of this activity already has this name.';
 $string['themeinuse'] = 'Cannot delete: internships use this theme.';
 $string['bulkthemessaved'] = 'Themes updated.';
 $string['teachersassigned'] = 'Referent teachers updated.';

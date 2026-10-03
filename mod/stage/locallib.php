@@ -1170,6 +1170,51 @@ function stage_bulk_register_entries(stdClass $stage, context $context, array $s
 }
 
 /**
+ * Indique si une autre thématique de l'activité porte déjà ce nom (comparé sous forme normalisée,
+ * voir stage_normalize_name()). Deux thématiques homonymes rendraient ambigus les rapprochements
+ * par nom : imports CSV et StageVet, transfert d'étudiant, copie depuis un autre cours.
+ *
+ * @param int $stageid
+ * @param string $name
+ * @param int $excludethemeid Thématique en cours de modification, à ne pas compter.
+ * @return bool
+ */
+function stage_theme_name_taken($stageid, $name, $excludethemeid = 0) {
+    $key = stage_normalize_name($name);
+    foreach (stage_get_themes($stageid) as $theme) {
+        if ((int) $theme->id !== (int) $excludethemeid && stage_normalize_name($theme->name) === $key) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Enregistre les seuls champs donnés d'une saisie, à partir de l'objet passé.
+ *
+ * Les étapes du circuit (évaluations, conventions, annulation...) ne réécrivent ainsi que ce
+ * qu'elles changent : réécrire l'objet entier, chargé en début de page, rétablirait les valeurs
+ * qu'une autre étape vient de modifier entre-temps, comme les dates recalculées par
+ * stage_save_entry_periods() juste avant la validation d'une convention.
+ *
+ * @param stdClass $entry Saisie (id et valeurs des champs à enregistrer).
+ * @param string[] $fields
+ * @return void
+ */
+function stage_update_entry_fields(stdClass $entry, array $fields) {
+    global $DB;
+
+    $record = (object) ['id' => $entry->id];
+    foreach ($fields as $field) {
+        // Un champ absent de l'objet (saisie partielle) n'est pas écrasé.
+        if (property_exists($entry, $field)) {
+            $record->$field = $entry->$field;
+        }
+    }
+    $DB->update_record('stage_entry', $record);
+}
+
+/**
  * Met à jour les données de fond (thématique, année d'étude, structure, mobilité, dates, durée)
  * d'une saisie de stage, à l'initiative de la DEVE.
  *
@@ -1662,7 +1707,7 @@ function stage_apply_student_eval(stdClass $entry, $selfeval = null) {
         $entry->status = STAGE_STATUS_EVAL_ETUDIANT;
     }
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['studentselfeval', 'status', 'timemodified']);
 }
 
 /**
@@ -1686,7 +1731,7 @@ function stage_apply_teacher_eval(stdClass $entry, $teacherid, $comment = null) 
         $entry->status = STAGE_STATUS_EVAL_ENSEIGNANT;
     }
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
 }
 
 /**
@@ -1716,7 +1761,7 @@ function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retaineddura
     $entry->retainedduration = $retainedduration > 0 ? $retainedduration : $entry->declaredduration;
     $entry->status = STAGE_STATUS_VALIDE_DEVE;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['deveuserid', 'devecomment', 'devetime', 'retainedduration', 'status', 'timemodified']);
 }
 
 /**
@@ -1740,7 +1785,7 @@ function stage_reject_by_teacher(stdClass $entry, $teacherid, $comment) {
     $entry->teachertime = time();
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
 }
 
 /**
@@ -1767,7 +1812,7 @@ function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
     $entry->devetime = time();
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['deveuserid', 'devecomment', 'devetime', 'status', 'timemodified']);
 }
 
 /**
@@ -1789,7 +1834,7 @@ function stage_reset_entry(stdClass $entry) {
     $entry->status = STAGE_STATUS_ENREGISTRE;
     $entry->tutorbypassed = 0;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['tutortoken', 'tutorrequesttime', 'status', 'tutorbypassed', 'timemodified']);
 }
 
 /**
@@ -1812,7 +1857,9 @@ function stage_cancel_entry(stdClass $entry, $byuserid, $comment) {
     $entry->canceltime = time();
     $entry->cancelcomment = $comment;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, [
+        'status', 'tutortoken', 'tutorrequesttime', 'cancelledby', 'canceltime', 'cancelcomment', 'timemodified',
+    ]);
 }
 
 /**
@@ -5130,7 +5177,7 @@ function stage_set_entry_convention_exempt(stdClass $entry, $exempt) {
 
     $entry->conventionstatus = $newstatus;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['conventionstatus', 'timemodified']);
 }
 
 /**
@@ -5152,7 +5199,7 @@ function stage_request_convention(stdClass $entry, $templateid, $requireteacherv
         ? STAGE_CONVENTION_TEACHERPENDING : STAGE_CONVENTION_REQUESTED;
     $entry->conventionrequesttime = time();
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['conventiontemplateid', 'conventionstatus', 'conventionrequesttime', 'timemodified']);
 }
 
 /**
@@ -5170,7 +5217,9 @@ function stage_teacher_validate_convention(stdClass $entry, $byuserid) {
     $entry->conventionteachervalidatedby = $byuserid;
     $entry->conventionteachervalidatetime = time();
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, [
+        'conventionstatus', 'conventionteachervalidatedby', 'conventionteachervalidatetime', 'timemodified',
+    ]);
 }
 
 /**
@@ -5213,7 +5262,41 @@ function stage_convention_mark_edited(stdClass $entry, $byuserid) {
     $entry->conventioneditedby = $byuserid;
     $entry->conventionedittime = time();
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['conventionstatus', 'conventioneditedby', 'conventionedittime', 'timemodified']);
+}
+
+/**
+ * Validation d'une demande de convention par la DEVE depuis sa revue (convention_review.php) :
+ * la convention passe au statut « éditée », puis, si le PDF peut être produit et que la DEVE a
+ * demandé l'exemplaire à signer (cadre de signatures), l'étudiant est prévenu qu'elle est prête.
+ *
+ * Le courriel part ici, à la soumission du formulaire de revue, et non plus dans la page de
+ * téléchargement qui suit (convention.php) : celle-ci n'envoie plus rien sur une simple requête
+ * GET, afin qu'un rechargement ou un lien ne renvoie pas le courriel.
+ *
+ * @param stdClass $stage
+ * @param stdClass $cm Course module.
+ * @param context $context Contexte du module.
+ * @param stdClass $entry Saisie, mise à jour en place.
+ * @param int $byuserid DEVE qui valide.
+ * @param bool $withsignatures Exemplaire à faire signer demandé.
+ * @return array ['error' => identifiant de chaîne ou null, 'notified' => bool ou null si sans objet]
+ */
+function stage_convention_validate_from_review(
+    stdClass $stage,
+    stdClass $cm,
+    context $context,
+    stdClass $entry,
+    $byuserid,
+    $withsignatures
+) {
+    stage_convention_mark_edited($entry, $byuserid);
+    $error = stage_check_convention_pdf_prerequisites($entry, $context);
+    $notified = null;
+    if ($error === null && $withsignatures) {
+        $notified = stage_notify_student_convention_ready($stage, $cm, $entry);
+    }
+    return ['error' => $error, 'notified' => $notified];
 }
 
 /**
@@ -5231,7 +5314,7 @@ function stage_convention_mark_signed(stdClass $entry, $byuserid) {
     $entry->conventionsignedby = $byuserid;
     $entry->conventionsigntime = time();
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, ['conventionstatus', 'conventionsignedby', 'conventionsigntime', 'timemodified']);
 }
 
 /**
@@ -5252,7 +5335,9 @@ function stage_reject_convention(stdClass $entry, $byuserid, $comment) {
     $entry->conventionrejecttime = time();
     $entry->conventionrejectcomment = $comment;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    stage_update_entry_fields($entry, [
+        'conventionstatus', 'conventionrejectedby', 'conventionrejecttime', 'conventionrejectcomment', 'timemodified',
+    ]);
 }
 
 /**
@@ -6369,7 +6454,9 @@ function stage_can_edit_entry_checklist(stdClass $stage, stdClass $entry, contex
 
     $userid = $userid ?: $USER->id;
 
-    if (has_capability('mod/stage:viewall', $context, $userid)) {
+    // Modifier la check-list est une écriture : la capacité de consultation (viewall) ne suffit
+    // pas, il faut celle de la DEVE qui gère les stages.
+    if (has_capability('mod/stage:registerstages', $context, $userid)) {
         return true;
     }
 
