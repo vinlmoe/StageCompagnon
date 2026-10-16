@@ -1,0 +1,630 @@
+% Guide de paramétrage illustré de StageCompagnon (mod_stage et mod_stagesynthesis).
+% Compilation : latexmk -pdf guide-parametrage.tex (deux passes pdflatex suffisent sinon).
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage[margin=2.2cm,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[most]{tcolorbox}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{moodle}{HTML}{0F6CBF}
+\definecolor{cadre}{HTML}{B0B7BF}
+
+\hypersetup{
+  pdftitle={StageCompagnon -- Guide de paramétrage},
+  pdfauthor={Sébastien Lefebvre},
+  colorlinks=true, linkcolor=moodle, urlcolor=moodle
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small StageCompagnon -- Guide de paramétrage}
+\rhead{\small\nouppercase{\leftmark}}
+\cfoot{\small\thepage}
+
+\setlist{itemsep=2pt, topsep=4pt}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+
+% Capture d'écran encadrée, numérotée et référencée par fig:<fichier>.
+% \capture[largeur]{fichier}{légende}
+\newcommand{\capture}[3][\linewidth]{%
+  \begin{figure}[H]
+    \centering
+    \setlength{\fboxsep}{0pt}%
+    \fcolorbox{cadre}{white}{\includegraphics[width=\dimexpr#1-2\fboxrule\relax,height=0.70\textheight,keepaspectratio]{images/#2}}
+    \caption{#3}
+    \label{fig:#2}
+  \end{figure}}
+
+% Chemin de navigation dans l'interface : \chemin{Administration > Gérer les thématiques}
+\newcommand{\chemin}[1]{\textsf{\textbf{\color{moodle}#1}}}
+% Bouton ou libellé d'interface
+\newcommand{\bouton}[1]{\textsf{«~#1~»}}
+
+\newtcolorbox{astuce}{colback=moodle!5, colframe=moodle, fonttitle=\bfseries,
+  title=Bon à savoir, boxrule=0.6pt, arc=2pt}
+\newtcolorbox{attention}{colback=orange!6, colframe=orange!80!black, fonttitle=\bfseries,
+  title=Attention, boxrule=0.6pt, arc=2pt}
+
+\begin{document}
+
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+  \centering
+  \vspace*{3cm}
+  {\Huge\bfseries StageCompagnon\par}
+  \vspace{0.6cm}
+  {\LARGE Guide de paramétrage illustré\par}
+  \vspace{0.4cm}
+  {\large Modules Moodle \og Gestion des stages\fg{} (\texttt{mod\_stage})\\
+   et \og Suivi des stages\fg{} (\texttt{mod\_stagesynthesis})\par}
+  \vspace{1.5cm}
+  \setlength{\fboxsep}{0pt}
+  \fcolorbox{cadre}{white}{\includegraphics[width=0.85\linewidth]{images/18_dashboard}}
+  \vfill
+  {\large Sébastien Lefebvre\par}
+  {\large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ---------------------------------------------------------------------------
+\section{Avant de commencer}
+
+\subsection{Objet du guide}
+
+Ce guide accompagne pas à pas la mise en service des deux modules d'activité
+StageCompagnon dans Moodle, depuis l'installation jusqu'à la vérification du
+circuit complet d'un stage. Chaque étape est illustrée par une capture d'écran.
+Il complète les fichiers \texttt{INSTALL.md} des deux modules, qui restent la
+référence technique (formats d'import, RGPD, sauvegarde, tests).
+
+\begin{astuce}
+Les captures ont été réalisées sur un Moodle~4.5 de démonstration, avec des
+personnes et des structures fictives. Les menus propres à Moodle (barre du haut,
+participants\ldots) peuvent apparaître en partie en anglais sur ces captures :
+sur votre plateforme, ils suivent la langue installée. Les écrans des deux
+modules, eux, sont tels que vos utilisateurs les verront.
+\end{astuce}
+
+\subsection{Qui fait quoi}
+
+Le module s'appuie uniquement sur les rôles standard de Moodle : \textbf{aucun
+rôle \og DEVE\fg{} spécifique ne doit être créé}.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l l X@{}}
+\toprule
+\textbf{Rôle Moodle} & \textbf{Rôle fonctionnel} & \textbf{Dans le guide} \\
+\midrule
+Gestionnaire / administrateur & Administration du site & Installation (§\ref{sec:installation}), services web (§\ref{sec:ws}) \\
+Enseignant (\texttt{editingteacher}) & Personnel DEVE & Tout le paramétrage de l'activité (§\ref{sec:cours} à §\ref{sec:enregistrement}) \\
+Enseignant non éditeur (\texttt{teacher}) & Enseignant référent & Validation des conventions, évaluation (§\ref{sec:verification}) \\
+Étudiant (\texttt{student}) & Étudiant & Demande de convention, auto-évaluation \\
+--- (aucun compte) & Maître de stage & Évaluation par lien à jeton \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Dans les exemples, \emph{Claire Martin} représente la DEVE, \emph{Paul Durand}
+et \emph{Julie Bernard} sont enseignants référents, et la promotion de
+5\textsuperscript{e}~année compte huit étudiants.
+
+\subsection{Ordre recommandé}
+
+\begin{enumerate}
+  \item Installer les modules (administrateur).
+  \item Créer le cours de promotion et y inscrire les personnes avec le bon rôle.
+  \item Ajouter l'activité \og Gestion des stages\fg{}.
+  \item Depuis la page \chemin{Administration} de l'activité : thématiques,
+        durées par année, listes d'évaluation, gabarits de convention,
+        notifications, enseignants référents.
+  \item Enregistrer ou importer les stages.
+  \item Vérifier le circuit avec un compte étudiant et un compte référent.
+  \item Facultatif : créer le cours \og Suivi des stages\fg{} pour les référents
+        répartis sur plusieurs promotions.
+\end{enumerate}
+
+Pour une nouvelle promotion, l'étape~4 se réduit le plus souvent à un import
+depuis le cours de l'année précédente (§\ref{sec:import-cours}).
+
+% ---------------------------------------------------------------------------
+\section{Installation des modules}
+\label{sec:installation}
+
+Copier les dossiers dans l'installation Moodle, puis lancer la mise à jour :
+
+\begin{verbatim}
+cp -r mod/stage           <moodle>/mod/stage
+cp -r mod/stagesynthesis  <moodle>/mod/stagesynthesis   # facultatif
+php admin/cli/upgrade.php
+\end{verbatim}
+
+La mise à jour peut aussi se faire depuis l'interface : en se connectant en
+administrateur, Moodle détecte les nouveaux modules et propose de les installer.
+
+\begin{itemize}
+  \item Prérequis : Moodle~4.0 ou supérieur, PHP~7.4 ou supérieur.
+  \item \texttt{mod\_stagesynthesis} dépend de \texttt{mod\_stage} : installer
+        les deux, ou seulement \texttt{mod\_stage}.
+  \item La bibliothèque FPDI, qui assemble les conventions PDF, est fournie
+        dans le dossier \texttt{mod/stage/thirdparty}.
+\end{itemize}
+
+Vérifier ensuite la présence des deux modules dans
+\chemin{Administration du site > Plugins > Activités > Gérer les activités}
+(figure~\ref{fig:01_plugins}).
+
+\capture{01_plugins}{Les deux modules installés et activés dans la liste des activités.}
+
+% ---------------------------------------------------------------------------
+\section{Préparer le cours de promotion}
+\label{sec:cours}
+
+\subsection{Créer le cours et inscrire les participants}
+
+\begin{enumerate}
+  \item Créer un cours dédié par promotion, par exemple
+        \og Stages -- Promotion A5 (2026-2027)\fg{}.
+  \item Inscrire, depuis \chemin{Participants} :
+    \begin{itemize}
+      \item les étudiants avec le rôle \bouton{Étudiant} ;
+      \item les enseignants référents avec le rôle \bouton{Enseignant non éditeur} ;
+      \item le personnel DEVE avec le rôle \bouton{Enseignant}.
+    \end{itemize}
+\end{enumerate}
+
+\capture{02c_participants}{Participants du cours : la DEVE (Claire Martin) est
+\og Enseignant\fg{}, les référents sont \og Enseignant non éditeur\fg{}.}
+
+\begin{attention}
+Un enseignant inscrit avec le rôle \og Enseignant\fg{} dispose de tous les droits
+DEVE sur l'activité (validation finale, conventions, paramétrage). Réservez ce
+rôle au personnel de scolarité.
+\end{attention}
+
+\subsection{Ajouter l'activité \og Gestion des stages\fg{}}
+
+En mode édition, \chemin{Ajouter une activité ou ressource > Gestion des stages}.
+Le formulaire ne demande que trois informations :
+
+\begin{itemize}
+  \item \textbf{Nom de l'activité}, par exemple \og Gestion des stages -- A5\fg{} ;
+  \item \textbf{Description} (facultative), affichée en tête de chaque page ;
+  \item \textbf{Année d'étude courante des étudiants} : sert de référence
+        \(N\) pour classer les stages en dette (\(N-1\)) ou en anticipation
+        (\(N+1\)) dans les bilans. Laisser \og Non spécifiée\fg{} si le cours
+        mélange plusieurs années.
+\end{itemize}
+
+\capture{02_add_stage}{Création de l'activité : nom et année d'étude courante.}
+
+Tout le reste du paramétrage se fait ensuite depuis l'activité elle-même.
+
+\capture[0.8\linewidth]{02b_course}{L'activité dans le cours de promotion.}
+
+% ---------------------------------------------------------------------------
+\section{La page Administration de l'activité}
+
+En ouvrant l'activité, la DEVE arrive sur le \textbf{tableau de pilotage}. Une
+barre de boutons commune donne accès à toutes les pages ; le bouton
+\bouton{Administration} regroupe le paramétrage (figure~\ref{fig:03_administration}).
+
+\capture{03_administration}{La page Administration : chaque bouton ouvre une
+page de paramétrage, avec un rappel de son rôle.}
+
+Les sections suivantes reprennent ces pages dans l'ordre conseillé.
+
+% ---------------------------------------------------------------------------
+\section{Thématiques de stage}
+\label{sec:thematiques}
+
+Une \textbf{thématique} est un type de stage (animaux de compagnie, équine,
+santé publique\ldots). Elle porte la durée exigée, les années concernées, les
+objectifs et les questionnaires d'évaluation.
+
+\subsection{Liste des thématiques}
+
+\chemin{Administration > Gérer les thématiques}.
+
+\capture{04_themes}{Liste des thématiques, modifiable en masse.}
+
+\begin{itemize}
+  \item \bouton{Ajouter une thématique} pour chaque type de stage possible.
+  \item Le tableau permet de modifier \textbf{en une seule soumission} les années
+        minimum et maximum, le caractère obligatoire, l'évaluation par le maître de
+        stage et le rapport de stage de toutes les lignes
+        (\bouton{Enregistrer les modifications}).
+  \item La colonne \textbf{Visible} est un interrupteur : une thématique désactivée
+        n'est plus proposée à l'enregistrement d'un stage, mais reste affichée sur
+        les stages déjà enregistrés.
+  \item Un clic sur le nom ouvre la page de gestion de la thématique.
+\end{itemize}
+
+\subsection{Gérer une thématique}
+
+La page \og Gérer la thématique\fg{} réunit tous les volets sur une seule page,
+enregistrés en une fois. Un sélecteur en haut de page permet de passer à une
+autre thématique sans revenir à la liste.
+
+\capture{05a_theme_top}{Paramètres généraux d'une thématique.}
+
+\paragraph{Paramètres généraux.} Nom, description, plage d'années d'étude,
+caractère obligatoire, ordre d'affichage, visibilité, évaluation par le maître de
+stage pour cette thématique, et \textbf{rapport de stage} (aucun, facultatif ou
+obligatoire).
+
+\paragraph{Durée requise.} Soit une durée unique pour toute la thématique, soit
+une durée par année d'étude. Seules les années de la plage choisie sont
+modifiables ; une année laissée vide reprend la durée unique.
+
+\capture[0.85\linewidth]{05b_theme_durations}{Durée requise : durée unique et durées par année.}
+
+\paragraph{Enseignants responsables.} Sélection avec recherche. Un enseignant
+responsable accède aux stages réalisés sur cette thématique et aux rapports
+déposés.
+
+\capture[0.85\linewidth]{05c_theme_teachers}{Enseignants responsables de la thématique.}
+
+\paragraph{Objectifs de stage.} Deux volets complémentaires :
+\begin{itemize}
+  \item \textbf{Documents d'objectifs} : fichiers téléchargeables par l'étudiant,
+        les enseignants et le maître de stage ;
+  \item \textbf{Check-list d'objectifs} : éléments que l'étudiant coche lors de
+        sa demande de convention ; tout élément laissé décoché doit être justifié.
+        La check-list n'apparaît pas dans la convention.
+\end{itemize}
+
+\capture[0.85\linewidth]{05d_theme_objectives}{Dépôt des documents d'objectifs.}
+\capture[0.85\linewidth]{05e_theme_checklist}{Check-list d'objectifs : une ligne par objectif.}
+
+\paragraph{Listes d'évaluation.} Pour chacun des trois formulaires
+(auto-évaluation de l'étudiant, évaluation de l'enseignant, maître de stage),
+choisir la liste de questions utilisée. \bouton{Nouvelle liste} enregistre d'abord
+la thématique, ouvre la création d'une liste, puis revient avec la nouvelle liste
+déjà choisie. Sans liste, le formulaire se réduit à un commentaire libre.
+
+\capture[0.85\linewidth]{05f_theme_lists}{Choix des listes d'évaluation de la thématique.}
+
+% ---------------------------------------------------------------------------
+\section{Durées requises par année et mobilité internationale}
+
+\chemin{Administration > Durées totales requises par année}.
+
+\begin{itemize}
+  \item \textbf{Durée totale par année d'étude}, toutes thématiques confondues
+        (les stages complémentaires ne comptent pas) ;
+  \item \textbf{Mobilité internationale} : nombre de jours de stage à l'étranger
+        exigés, année d'étude avant laquelle l'obligation doit être remplie, et
+        consigne affichée aux étudiants.
+\end{itemize}
+
+\capture{06_year_requirements}{Exemple : 60~jours exigés en 5\textsuperscript{e}~année
+et 20~jours de mobilité internationale avant la 5\textsuperscript{e}~année.}
+
+Ces valeurs alimentent le bilan annuel visible par l'étudiant
+(figure~\ref{fig:20_student}) et le tableau de pilotage.
+
+% ---------------------------------------------------------------------------
+\section{Listes d'évaluation}
+
+\chemin{Administration > Listes d'évaluation} regroupe les questionnaires de
+l'activité.
+
+\capture{07_evallists}{Les listes d'évaluation et les thématiques qui les utilisent.}
+
+\begin{itemize}
+  \item Une liste a un nom et un \textbf{formulaire de destination} (étudiant,
+        enseignant référent ou maître de stage), fixé à sa création.
+  \item Questions à \textbf{choix multiples} (une option par ligne) ou à
+        \textbf{commentaire libre}. Une ligne vide en bas de page crée une
+        nouvelle question.
+  \item Les questions destinées au maître de stage ont une \textbf{version
+        anglaise}, utilisée lorsque la convention est en anglais.
+  \item Une même liste peut servir à plusieurs thématiques ; une question peut
+        figurer dans plusieurs listes, et sa modification vaut alors pour toutes.
+\end{itemize}
+
+\capture{08_evallist_edit}{Édition d'une liste destinée au maître de stage, avec
+les intitulés anglais.}
+
+\begin{attention}
+Retirer d'une liste une question qui ne figure dans aucune autre la supprime
+\emph{avec ses réponses}. Une liste dont les questions ont déjà reçu des réponses
+ne peut pas être supprimée.
+\end{attention}
+
+% ---------------------------------------------------------------------------
+\section{Conventions de stage}
+\label{sec:conventions}
+
+\chemin{Administration > Gabarits de convention}. La page présente la liste des
+gabarits, puis un formulaire unique pour les autres réglages.
+
+\subsection{Gabarits}
+
+Un gabarit est le PDF des articles juridiques (pages~2 et suivantes) ajouté
+derrière la première page générée par le module. Plusieurs gabarits peuvent
+coexister, en français ou en anglais : l'étudiant choisit le sien lors de sa
+demande.
+
+\capture{09a_templates_list}{Liste des gabarits avec le nombre de demandes qui
+les utilisent.}
+
+\capture[0.85\linewidth]{10_convention_template}{Ajout ou modification d'un gabarit :
+nom, langue et PDF (obligatoire à la création).}
+
+Un gabarit déjà utilisé par une demande ne peut plus être supprimé.
+
+\subsection{Validation par l'enseignant référent}
+
+L'option \bouton{Exiger la validation de l'enseignant.e référent.e avant
+transmission à la DEVE} fait passer toute demande étudiante par le référent, qui
+peut la corriger, la valider ou la refuser avec un motif.
+
+\capture[0.85\linewidth]{09b_templates_settings}{Paramètres généraux des conventions.}
+
+\subsection{Établissement d'enseignement et logos}
+
+Les informations de l'établissement (nom, adresse, représentant et sa qualité,
+téléphone, courriel, personne ayant délégation de signature) sont imprimées en
+tête de toutes les conventions. Deux logos PNG se placent en haut à gauche et à
+droite de la première page.
+
+\capture[0.85\linewidth]{09c_templates_establishment}{Informations de l'établissement.}
+\capture[0.85\linewidth]{09d_templates_logos}{Logos de la convention.}
+
+% ---------------------------------------------------------------------------
+\section{Notifications et courriels}
+
+\chemin{Administration > Notifications et e-mails}, page unique enregistrée en
+une fois.
+
+\capture{12_notifications}{Activation de l'évaluation par le maître de stage et
+liste des courriels personnalisables.}
+
+\paragraph{Évaluation par le maître de stage.} Une fois la case cochée, dès que
+l'étudiant s'est auto-évalué sur un stage engagé (convention signée ou dispense),
+son maître de stage reçoit un courriel avec un \textbf{lien à usage unique}, sans
+compte Moodle. Sa réponse est ensuite affichée au référent et à la DEVE.
+
+\paragraph{Personnalisation des courriels.} Une section par courriel envoyé par
+l'activité (auto-évaluation soumise, convention à valider, convention refusée,
+convention prête à télécharger, invitation du maître de stage, demande
+d'évaluation après import, rappel de convention non signée). Les variables
+disponibles sont rappelées sous chaque formulaire et s'insèrent avec la syntaxe
+\texttt{\{\{variable\}\}}. Laisser sujet et corps vides restaure le texte par
+défaut.
+
+\capture[0.85\linewidth]{12b_notification_open}{Personnalisation du courriel
+\og convention prête à télécharger\fg{}.}
+
+% ---------------------------------------------------------------------------
+\section{Enseignants référents}
+
+\chemin{Administration > Attribuer les enseignants référents}. Chaque étudiant
+doit avoir au moins un référent pour pouvoir demander une convention.
+
+\capture{11_teachers}{Attribution des référents : une ligne par étudiant ;
+Nathan Lambert est signalé \og Sans référent\fg{}.}
+
+\begin{itemize}
+  \item Les référents se choisissent directement dans le tableau (recherche par
+        ligne) ; toute la page s'enregistre en une fois.
+  \item Le filtre \bouton{Étudiants sans référent uniquement} repère les oublis.
+  \item L'\textbf{action en masse} ajoute, remplace ou retire un enseignant pour
+        les étudiants cochés ou pour tous ceux retenus par le filtre.
+  \item \bouton{Importer un fichier CSV} attend les colonnes
+        \texttt{studentemail;teacher1email;teacher2email}.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Reprendre le paramétrage d'un autre cours}
+\label{sec:import-cours}
+
+Pour une nouvelle promotion, \chemin{Administration > Importer depuis un autre
+cours} copie en une fois les thématiques (avec leurs listes d'évaluation et
+objectifs), les gabarits de convention, les logos, les textes de courriels et les
+informations d'établissement.
+
+\capture{13_admin_import}{Import du paramétrage depuis l'activité d'une autre promotion.}
+
+\begin{astuce}
+Seules les activités où vous pouvez gérer les thématiques sont proposées comme
+source. Thématiques et gabarits s'ajoutent à l'existant (un élément de même nom
+n'est pas recopié) ; logos, courriels et informations d'établissement remplacent
+ceux déjà présents.
+\end{astuce}
+
+% ---------------------------------------------------------------------------
+\section{Enregistrer les stages}
+\label{sec:enregistrement}
+
+La page \chemin{Enregistrer des stages} propose plusieurs voies, chacune avec un
+statut de convention initial différent :
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X l@{}}
+\toprule
+\textbf{Méthode} & \textbf{Statut de convention initial} \\
+\midrule
+Enregistrer un stage (un étudiant, un stage) & Non demandée \\
+Enregistrer des stages en masse (une thématique, plusieurs étudiants) & Signée (StageVet) \\
+Importer un fichier CSV & Non demandée \\
+Importer un export StageVet (CSV) & Signée (StageVet) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\capture{14_register}{Liste des stages enregistrés et boutons d'enregistrement et d'import.}
+
+L'import CSV générique attend les colonnes suivantes :
+\begin{center}
+\texttt{email;theme;structure;datestart;dateend;duration;studyyear}
+\end{center}
+(séparateur point-virgule ou virgule, en-tête facultatif, dates au format
+\texttt{AAAA-MM-JJ} ou \texttt{JJ/MM/AAAA}).
+
+\capture{15_import}{Import d'un fichier CSV générique.}
+
+\begin{astuce}
+Les étudiants peuvent aussi enregistrer eux-mêmes un stage hors StageVet avec le
+bouton \bouton{Faire une demande de convention (hors StageVet)}, à condition
+d'avoir un référent et qu'au moins un gabarit de convention existe.
+\end{astuce}
+
+% ---------------------------------------------------------------------------
+\section{Vérifier le circuit}
+\label{sec:verification}
+
+Une fois le paramétrage terminé, il est recommandé de suivre un stage de bout en
+bout avec un compte de test de chaque rôle.
+
+\subsection{Côté étudiant}
+
+L'étudiant arrive sur \og Mes stages\fg{} : synthèse, bilan par année d'étude,
+thématiques obligatoires (avec le bouton \bouton{Objectifs}), mobilité
+internationale et liste de ses stages.
+
+\capture{20_student}{Page \og Mes stages\fg{} d'une étudiante.}
+\capture{20b_student_stages}{Ses stages, avec leur statut et celui de la convention.}
+
+Depuis un stage simplement enregistré, il dépose sa demande de convention :
+langue et gabarit, référent, plages de dates, coordonnées, structure d'accueil,
+tuteur, modalités particulières, gratification et congés, puis la check-list
+d'objectifs de la thématique.
+
+\capture{27_convention_request}{Formulaire de demande de convention (début).}
+
+\subsection{Côté enseignant référent}
+
+Si la validation par le référent est activée (§\ref{sec:conventions}), la demande
+apparaît en tête de sa page \chemin{Validation enseignant}, avec un courriel
+d'avertissement. Il y trouve aussi les stages à évaluer.
+
+\capture{19_teacher}{Page \og Validation enseignant\fg{} d'un référent.}
+\capture{26_teacher_validate}{Validation d'une demande de convention par le référent.}
+
+\subsection{Côté DEVE}
+
+\paragraph{Conventions.} La page \chemin{Conventions de stage} liste les demandes
+en cours. \bouton{Générer la convention} ouvre la demande, entièrement éditable :
+\bouton{Valider} produit le PDF, \bouton{Refuser} la renvoie à l'étudiant avec un
+motif. Une fois le document signé retourné, \bouton{Marquer signée} (PDF signé
+facultatif) ouvre l'auto-évaluation.
+
+\capture{16_conventions}{Suivi des conventions par la DEVE.}
+\capture{25a_review_top}{Génération de la convention : la demande est éditable.}
+\capture{25b_review_generate}{Option de cadre de signatures pour un exemplaire papier.}
+
+\begin{astuce}
+Générer avec le cadre de signatures envoie à l'étudiant le courriel
+\og convention prête à télécharger\fg{}. Une nouvelle génération avec cadre le
+renvoie : c'est voulu, la convention régénérée remplaçant la précédente.
+\end{astuce}
+
+\paragraph{Validation finale.} La page \chemin{Validation DEVE} permet la
+validation unitaire (durée retenue, jours effectifs, commentaire) ou en masse,
+le marquage \og non validé\fg{} et la réinitialisation d'une saisie.
+
+\capture{17_deve}{Validation DEVE : liste filtrable et validation en masse.}
+\capture{29_deve_validate}{Validation d'un stage : évaluations, jours effectifs et durée retenue.}
+
+\paragraph{Pilotage.} Le \chemin{Tableau de pilotage} donne la vue d'ensemble de
+la promotion ; \bouton{Voir le détail} ouvre la situation complète d'un étudiant.
+
+\capture{18_dashboard}{Tableau de pilotage de la promotion.}
+
+% ---------------------------------------------------------------------------
+\section{Module complémentaire \og Suivi des stages\fg{}}
+
+Ce module donne à chaque enseignant référent une vue unique de tous ses
+étudiants, toutes promotions confondues. Il ne stocke aucune donnée de stage et
+n'accorde aucun droit supplémentaire.
+
+\begin{enumerate}
+  \item Créer un cours dédié, par exemple \og Suivi des référents de stage\fg{},
+        et y inscrire les référents (\og Enseignant non éditeur\fg{} suffit).
+  \item Ajouter une activité \bouton{Suivi des stages}.
+  \item En tant qu'enseignant éditeur ou gestionnaire, ouvrir
+        \chemin{Gérer les liens} et cocher les activités \og Gestion des
+        stages\fg{} (une par promotion) à agréger.
+\end{enumerate}
+
+\capture{21_add_synthesis}{Création de l'activité \og Suivi des stages\fg{}.}
+\capture{22_synth_links}{Choix des activités liées (seules celles que vous gérez sont proposées).}
+
+Le référent voit alors un tableau de pilotage et une liste de stages communs à
+toutes les promotions liées, avec les demandes de convention à valider en tête.
+L'évaluation elle-même se fait toujours dans le cours de la promotion.
+
+\capture{23_synth_view}{Pilotage multi-promotions d'un référent.}
+\capture{24_synth_entries}{Demandes de convention et stages à évaluer, toutes promotions confondues.}
+
+\begin{astuce}
+Retirer un enseignant d'un cours de promotion, ou lui retirer son rôle de
+référent, le retire automatiquement de la synthèse : aucune synchronisation n'est
+nécessaire. Après une restauration sur un autre site, vérifier la liste depuis
+\chemin{Gérer les liens}.
+\end{astuce}
+
+% ---------------------------------------------------------------------------
+\section{Services web (facultatif)}
+\label{sec:ws}
+
+Deux fonctions sont regroupées dans le service prédéfini \og Gestion des stages
+(mod\_stage)\fg{} :
+\texttt{mod\_stage\_register\_entries} (enregistrer des stages) et
+\texttt{mod\_stage\_get\_my\_stages} (stages de l'utilisateur authentifié).
+
+\begin{enumerate}
+  \item Activer les services web et le protocole REST
+        (\chemin{Administration du site > Serveur > Services web}).
+  \item Activer le service \og Gestion des stages (mod\_stage)\fg{} et y
+        autoriser un compte de service.
+  \item Générer un jeton pour ce compte.
+\end{enumerate}
+
+\capture{30_ws}{Le service prédéfini dans la liste des services externes.}
+
+% ---------------------------------------------------------------------------
+\section{Récapitulatif}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}c X l@{}}
+\toprule
+\(\square\) & \textbf{Étape} & \textbf{Où} \\
+\midrule
+\(\square\) & Modules installés & Administration du site \\
+\(\square\) & Cours de promotion créé, rôles attribués & Participants \\
+\(\square\) & Activité ajoutée, année d'étude courante renseignée & Cours \\
+\(\square\) & Thématiques : années, durées, objectifs, listes & Gérer les thématiques \\
+\(\square\) & Durées par année et mobilité internationale & Durées totales requises \\
+\(\square\) & Questionnaires étudiant, référent, maître de stage & Listes d'évaluation \\
+\(\square\) & Gabarits PDF, établissement, logos & Gabarits de convention \\
+\(\square\) & Évaluation du maître de stage, courriels & Notifications et e-mails \\
+\(\square\) & Chaque étudiant a un référent & Attribuer les référents \\
+\(\square\) & Stages enregistrés ou importés & Enregistrer des stages \\
+\(\square\) & Circuit testé avec les trois rôles & Comptes de test \\
+\(\square\) & (Facultatif) Suivi des stages lié aux promotions & Gérer les liens \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\end{document}
