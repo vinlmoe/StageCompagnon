@@ -20,6 +20,12 @@
 \usepackage[most]{tcolorbox}
 \usepackage[hidelinks]{hyperref}
 
+% Version du guide : à mettre à jour à chaque modification, avec une ligne dans l'historique.
+\newcommand{\versionguide}{1.2}
+\newcommand{\dateguide}{16 octobre 2026}
+\newcommand{\versionstage}{0.5.1}
+\newcommand{\versionsynthese}{0.2.1}
+
 \definecolor{moodle}{HTML}{0F6CBF}
 \definecolor{cadre}{HTML}{B0B7BF}
 
@@ -33,6 +39,7 @@
 \fancyhf{}
 \lhead{\small StageCompagnon -- Guide de paramétrage}
 \rhead{\small\nouppercase{\leftmark}}
+\lfoot{\small Version \versionguide{} -- \dateguide}
 \cfoot{\small\thepage}
 
 \setlist{itemsep=2pt, topsep=4pt}
@@ -83,10 +90,29 @@
   \fcolorbox{cadre}{white}{\includegraphics[width=0.85\linewidth]{images/18_dashboard}}
   \vfill
   {\large Sébastien Lefebvre\par}
-  {\large \today\par}
+  \vspace{0.3cm}
+  {\large Version \versionguide{} -- \dateguide\par}
+  {\small Modules couverts : \texttt{mod\_stage} \versionstage,
+   \texttt{mod\_stagesynthesis} \versionsynthese\par}
 \end{titlepage}
 
 \tableofcontents
+
+\section*{Historique des versions}
+\addcontentsline{toc}{section}{Historique des versions}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l l X@{}}
+\toprule
+\textbf{Version} & \textbf{Date} & \textbf{Modifications} \\
+\midrule
+1.0 & 16 octobre 2026 & Première version : installation, paramétrage de l'activité, test du circuit, suivi multi-promotions. \\
+1.1 & 16 octobre 2026 & Texte resserré ; effets de l'année d'étude courante ; éléments non repris par l'import. \\
+1.2 & 16 octobre 2026 & Un cours par promotion ; explications regroupées par cas (mise en place, rentrée, redoublement) ; transfert d'un étudiant ; partie Courriels (textes standard, variables, exemples) ; moment réel de l'invitation du maître de stage. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
 \newpage
 
 % ===========================================================================
