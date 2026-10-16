@@ -94,8 +94,8 @@ php admin/cli/upgrade.php
 Les procédures détaillées — mise en place d'un cours, rôles à créer, imports,
 configuration des conventions et des courriels — sont dans les deux `INSTALL.md`.
 
-Un **guide de paramétrage illustré** (captures d'écran à l'appui) reprend ces étapes
-pas à pas : [`docs/guide-parametrage/guide-parametrage.pdf`](docs/guide-parametrage/guide-parametrage.pdf)
+Guide de paramétrage avec captures d'écran :
+[`docs/guide-parametrage/guide-parametrage.pdf`](docs/guide-parametrage/guide-parametrage.pdf)
 (source LaTeX dans le même dossier, `latexmk -pdf guide-parametrage.tex`).
 
 ## Contrôle continu
