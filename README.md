@@ -23,10 +23,10 @@ Moodle :
 ```
 Étudiant ──demande de convention──▶ Enseignant référent ──▶ DEVE ──▶ convention signée
     │                                (validation optionnelle)              │
+    │                     Maître de stage (lien à jeton, sans compte) ◀────┤ dès le 1er jour du stage
     │                                                                      ▼
     └──auto-évaluation◀────────────────────────────────────────── ouverture des évaluations
                 │
-                ├──▶ Maître de stage (lien à jeton, sans compte Moodle)
                 └──▶ Enseignant référent ──▶ DEVE : durée retenue, validation finale
 ```
 
@@ -66,10 +66,13 @@ pas de savoir si le courriel a été envoyé : ils sont considérés comme déj�
 pour éviter une relance générale. La DEVE peut relancer manuellement ceux qui
 n'ont pas été reçus.
 
-L'invitation automatique du maître de stage n'est envoyée que pour un stage
-engagé : convention signée (ici ou sur SignVet) ou dispense, stage encore en
-attente de son avis (ni évalué par l'enseignant, ni validé, ni annulé) et
-évaluation non contournée par la DEVE. Une copie ou une restauration du cours
+L'invitation automatique du maître de stage ne dépend pas de l'auto-évaluation de
+l'étudiant : une tâche planifiée quotidienne (6 h 45) l'envoie une seule fois, à
+partir du premier jour du stage. Elle n'est envoyée que pour un stage engagé :
+convention signée (ici ou sur SignVet) ou dispense, stage encore en attente de son
+avis (ni évalué par l'enseignant, ni validé, ni annulé), évaluation non contournée
+par la DEVE, évaluation par le maître de stage activée pour l'activité et pour la
+thématique, et courriel du maître de stage renseigné dans la demande de convention. Une copie ou une restauration du cours
 conserve l'état « déjà invité » : les maîtres de stage ne sont pas réinvités.
 
 Un étudiant ne peut demander une convention, et donc modifier un stage, que tant

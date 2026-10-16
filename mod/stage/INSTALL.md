@@ -388,9 +388,16 @@ Depuis **Administration > Notifications**, sur une seule page enregistrée en
 une fois (les e-mails déjà personnalisés sont signalés et ouverts) :
 
 - **Évaluation par le maître de stage** (case à cocher) : une fois activée,
-  dès que l'étudiant s'auto-évalue, son maître de stage (l'encadrant en
-  entreprise, qui n'a pas de compte Moodle) reçoit un courriel contenant un
-  lien à jeton unique vers un questionnaire d'évaluation. Ce questionnaire
+  le maître de stage (l'encadrant en entreprise, qui n'a pas de compte Moodle)
+  reçoit un courriel contenant un lien à jeton unique vers un questionnaire
+  d'évaluation. L'envoi ne dépend pas de l'auto-évaluation de l'étudiant : la
+  tâche planifiée « Envoi des invitations à évaluer le stage aux maîtres de
+  stage » (chaque jour à 6 h 45) l'envoie une seule fois, à partir du premier
+  jour du stage, si la convention est signée (ici ou sur StageVet) ou le stage
+  dispensé, si la thématique autorise l'évaluation par le maître de stage, si
+  son courriel figure dans la demande de convention et si le stage n'est encore
+  ni évalué par l'enseignant, ni validé, ni annulé. La DEVE peut renvoyer
+  l'invitation depuis la validation DEVE ou le détail de la saisie. Ce questionnaire
   suit les mêmes règles que ceux de l'étudiant et de l'enseignant référent
   (voir §4, **Listes d'évaluation**, formulaire « Maître de stage ») : liste
   choisie par la thématique, ou à défaut simple commentaire libre. Le lien ne
