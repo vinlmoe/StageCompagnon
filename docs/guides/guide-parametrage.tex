@@ -1,100 +1,19 @@
-% Guide de paramétrage de StageCompagnon (mod_stage et mod_stagesynthesis).
-% Compilation : latexmk -pdf guide-parametrage.tex (deux passes pdflatex suffisent sinon).
+% Guide de paramétrage et de gestion de StageCompagnon, pour la DEVE.
+% Compilation : latexmk -pdf guide-parametrage.tex
 \documentclass[11pt,a4paper]{article}
 
-\usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
-\usepackage{lmodern}
-\usepackage[french]{babel}
-\usepackage[margin=2.2cm,headheight=14pt]{geometry}
-\usepackage{microtype}
-\usepackage{amssymb}
-\usepackage{graphicx}
-\usepackage{float}
-\usepackage[font=small,labelfont=bf]{caption}
-\usepackage{xcolor}
-\usepackage{booktabs}
-\usepackage{tabularx}
-\usepackage{enumitem}
-\usepackage{fancyhdr}
-\usepackage[most]{tcolorbox}
-\usepackage[hidelinks]{hyperref}
-
 % Version du guide : à mettre à jour à chaque modification, avec une ligne dans l'historique.
-\newcommand{\versionguide}{1.2}
+\newcommand{\titreguide}{Guide de paramétrage et de gestion}
+\newcommand{\versionguide}{1.3}
 \newcommand{\dateguide}{16 octobre 2026}
 \newcommand{\versionstage}{0.5.1}
 \newcommand{\versionsynthese}{0.2.1}
 
-\definecolor{moodle}{HTML}{0F6CBF}
-\definecolor{cadre}{HTML}{B0B7BF}
-
-\hypersetup{
-  pdftitle={StageCompagnon -- Guide de paramétrage},
-  pdfauthor={Sébastien Lefebvre},
-  colorlinks=true, linkcolor=moodle, urlcolor=moodle
-}
-
-\pagestyle{fancy}
-\fancyhf{}
-\lhead{\small StageCompagnon -- Guide de paramétrage}
-\rhead{\small\nouppercase{\leftmark}}
-\lfoot{\small Version \versionguide{} -- \dateguide}
-\cfoot{\small\thepage}
-
-\setlist{itemsep=2pt, topsep=4pt}
-\setlength{\parskip}{4pt}
-\setlength{\parindent}{0pt}
-\setlength{\emergencystretch}{2em}
-
-% Capture d'écran encadrée, numérotée et référencée par fig:<fichier>.
-% \capture[largeur]{fichier}{légende}
-\newcommand{\capture}[3][\linewidth]{%
-  \begin{figure}[H]
-    \centering
-    \setlength{\fboxsep}{0pt}%
-    \fcolorbox{cadre}{white}{\includegraphics[width=\dimexpr#1-2\fboxrule\relax,height=0.70\textheight,keepaspectratio]{images/#2}}
-    \caption{#3}
-    \label{fig:#2}
-  \end{figure}}
-
-% Chemin de navigation dans l'interface : \chemin{Administration > Gérer les thématiques}
-\newcommand{\chemin}[1]{\textsf{\textbf{\color{moodle}#1}}}
-% Bouton ou libellé d'interface
-\newcommand{\bouton}[1]{\textsf{«~#1~»}}
-
-\newtcolorbox{astuce}{colback=moodle!5, colframe=moodle, fonttitle=\bfseries,
-  title=À noter, boxrule=0.6pt, arc=2pt}
-\newtcolorbox{attention}{colback=orange!6, colframe=orange!80!black, fonttitle=\bfseries,
-  title=Attention, boxrule=0.6pt, arc=2pt}
-% Texte de courriel : \begin{courriel}{Sujet}...\end{courriel}
-\newtcolorbox{courriel}[1]{colback=black!3, colframe=black!40, boxrule=0.4pt, arc=1pt,
-  fonttitle=\small\sffamily, coltitle=black, colbacktitle=black!10, title={Sujet : #1},
-  fontupper=\small\sffamily, left=6pt, right=6pt}
-% Variable de courriel : \var{student} donne {{student}}
-\newcommand{\var}[1]{\texttt{\{\{#1\}\}}}
+\usepackage{guide-commun}
 
 \begin{document}
 
-\begin{titlepage}
-  \centering
-  \vspace*{3cm}
-  {\Huge\bfseries StageCompagnon\par}
-  \vspace{0.6cm}
-  {\LARGE Guide de paramétrage\par}
-  \vspace{0.4cm}
-  {\large Modules Moodle \og Gestion des stages\fg{} (\texttt{mod\_stage})\\
-   et \og Suivi des stages\fg{} (\texttt{mod\_stagesynthesis})\par}
-  \vspace{1.5cm}
-  \setlength{\fboxsep}{0pt}
-  \fcolorbox{cadre}{white}{\includegraphics[width=0.85\linewidth]{images/18_dashboard}}
-  \vfill
-  {\large Sébastien Lefebvre\par}
-  \vspace{0.3cm}
-  {\large Version \versionguide{} -- \dateguide\par}
-  {\small Modules couverts : \texttt{mod\_stage} \versionstage,
-   \texttt{mod\_stagesynthesis} \versionsynthese\par}
-\end{titlepage}
+\pagedegarde{Pour la DEVE et les administrateurs Moodle}{18_dashboard}
 
 \tableofcontents
 
@@ -109,6 +28,7 @@
 1.0 & 16 octobre 2026 & Première version : installation, paramétrage de l'activité, test du circuit, suivi multi-promotions. \\
 1.1 & 16 octobre 2026 & Texte resserré ; effets de l'année d'étude courante ; éléments non repris par l'import. \\
 1.2 & 16 octobre 2026 & Un cours par promotion ; explications regroupées par cas (mise en place, rentrée, redoublement) ; transfert d'un étudiant ; partie Courriels (textes standard, variables, exemples) ; moment réel de l'invitation du maître de stage. \\
+1.3 & 16 octobre 2026 & Cas \og gestion du circuit des stages\fg{} et \og fin d'année : bilan et diplomation\fg{} ; guides étudiant et enseignant référent séparés. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -136,7 +56,7 @@ Trois réglages et actions découlent de ce choix :
         par import.
 \end{itemize}
 
-\subsection{Les trois cas}
+\subsection{Les cas traités}
 
 \begin{center}
 \begin{tabularx}{\linewidth}{@{}l l X@{}}
@@ -144,13 +64,16 @@ Trois réglages et actions découlent de ce choix :
 \textbf{Cas} & \textbf{Quand} & \textbf{Ce qu'on fait} \\
 \midrule
 Mise en place (§\ref{sec:cas1}) & Arrivée d'une promotion & Créer le cours, importer ou saisir le paramétrage, inscrire, attribuer les référents \\
-Rentrée (§\ref{sec:cas2}) & Chaque année & Passer l'activité à l'année suivante, vérifier les référents \\
-Redoublement (§\ref{sec:cas3}) & Fin d'année, avant la rentrée & Transférer l'étudiant et ses stages vers la promotion suivante \\
+Circuit (§\ref{sec:cas2}) & Toute l'année & Enregistrer les stages, traiter les conventions, valider \\
+Fin d'année (§\ref{sec:cas3}) & Fin de chaque année, fin de cursus & Bilan de promotion, jury, diplomation, archivage \\
+Redoublement (§\ref{sec:cas4}) & Après le jury & Transférer l'étudiant et ses stages vers la promotion suivante \\
+Rentrée (§\ref{sec:cas5}) & Chaque année & Passer l'activité à l'année suivante, vérifier les référents \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
-La partie \ref{sec:courriels} détaille les courriels : textes standard,
+Le guide étudiant et le guide enseignant référent décrivent le circuit vu par
+ces deux publics. La partie \ref{sec:courriels} détaille les courriels : textes standard,
 variables et exemples de personnalisation.
 
 \subsection{Rôles}
@@ -426,37 +349,8 @@ Dates au format \texttt{AAAA-MM-JJ} ou \texttt{JJ/MM/AAAA}. En-tête facultatif.
 \subsection{Tester le circuit}
 \label{sec:verification}
 
-Suivez un stage avec un compte de chaque rôle.
-
-\paragraph{Étudiant.} La page \og Mes stages\fg{} présente son bilan par année,
-ses thématiques obligatoires, la mobilité et ses stages. Pour un stage
-enregistré, il dépose sa demande de convention.
-
-\capture{20_student}{Page \og Mes stages\fg{}.}
-\capture{20b_student_stages}{Stages et statut des conventions.}
-\capture{27_convention_request}{Demande de convention (début).}
-
-\paragraph{Référent.} Les demandes à valider apparaissent en tête de
-\chemin{Validation enseignant}, au-dessus des stages à évaluer.
-
-\capture{19_teacher}{Page \og Validation enseignant\fg{}.}
-\capture{26_teacher_validate}{Validation d'une demande par le référent.}
-
-\paragraph{DEVE.} \chemin{Conventions de stage} :
-\bouton{Générer la convention} ouvre la demande ; \bouton{Valider} produit le
-PDF, \bouton{Refuser} la renvoie à l'étudiant ; \bouton{Marquer signée} ouvre
-l'auto-évaluation.
-
-\capture{16_conventions}{Suivi des conventions.}
-\capture{25a_review_top}{Demande ouverte pour génération.}
-\capture{25b_review_generate}{Cadre de signatures pour un exemplaire papier.}
-
-\chemin{Validation DEVE} : validation unitaire ou en masse, refus,
-réinitialisation. Le \chemin{Tableau de pilotage} résume la promotion.
-
-\capture{17_deve}{Validation DEVE.}
-\capture{29_deve_validate}{Validation d'un stage.}
-\capture{18_dashboard}{Tableau de pilotage.}
+Avant d'ouvrir l'activité, suivez un stage de bout en bout : côté étudiant et
+référent avec leurs guides, côté DEVE avec le cas~2.
 
 \subsection{Lier la promotion au suivi multi-promotions}
 
@@ -477,36 +371,213 @@ de toutes les promotions. Il ne stocke aucune donnée.
 \capture{24_synth_entries}{Demandes à valider et stages à évaluer.}
 
 % ===========================================================================
-\section{Cas 2 : à chaque rentrée}
+\section{Cas 2 : gérer le circuit des stages}
 \label{sec:cas2}
 
-Pour chaque promotion en cours :
-\begin{enumerate}
-  \item \textbf{Traiter d'abord les redoublants} (§\ref{sec:cas3}), tant que
-        l'année d'étude n'a pas changé.
-  \item \textbf{Passer à l'année suivante} : dans l'activité,
-        \chemin{Paramètres > Année d'étude courante des étudiants}, augmenter
-        d'une année (par exemple de \og 4e année\fg{} à \og 5e année\fg{}).
-  \item \textbf{Vérifier les référents} (§\ref{sec:referents}) si l'équipe
-        change.
-  \item \textbf{Vérifier les durées} de la nouvelle année
-        (§\ref{sec:durees}) si les exigences ont évolué.
-\end{enumerate}
-Pour la promotion qui arrive, appliquer le cas~1, en important le paramétrage
-d'une promotion existante.
+\subsection{Le circuit}
 
-\capture{34_update_year}{Paramètres de l'activité de la promotion 2031 : l'année
-passe ici de 4\textsuperscript{e} à 5\textsuperscript{e}~année.}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}c >{\raggedright\arraybackslash}X l l@{}}
+\toprule
+& \textbf{Étape} & \textbf{Par} & \textbf{Statut de convention} \\
+\midrule
+1 & Stage enregistré & DEVE ou étudiant & Non demandée \\
+2 & Demande de convention & Étudiant ou DEVE & Demandée \\
+3 & Validation de la demande (si activée) & Référent & En attente de l'enseignant référent \\
+4 & Génération du PDF & DEVE & Éditée \\
+5 & Retour de la convention signée & DEVE & Signée \\
+6 & Invitation du maître de stage, dès le 1\textsuperscript{er} jour & Tâche automatique & \\
+7 & Auto-évaluation, dès le 1\textsuperscript{er} jour & Étudiant & \\
+8 & Évaluation & Référent & \\
+9 & Validation finale, durée retenue & DEVE & \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Statut du stage au fil des étapes : \statut{Enregistré}, \statut{Évalué par
+l'étudiant}, \statut{Évalué par l'enseignant}, \statut{Validé DEVE}. Hors
+circuit : \statut{Non validé} et \statut{Annulé}. Les stages conventionnés par
+StageVet entrent directement à l'étape~5 (\statut{Signée (StageVet)}).
+
+Le guide étudiant et le guide enseignant référent décrivent les étapes 2, 3, 7
+et~8 de leur côté.
+
+\subsection{Suivre la promotion}
+
+Le \chemin{Tableau de pilotage} donne, par étudiant, les thématiques
+obligatoires validées, les stages en attente, la durée retenue et le statut.
+\bouton{Voir le détail} ouvre le dossier complet d'un étudiant.
+
+\capture{18_dashboard}{Tableau de pilotage de la promotion.}
+\capture{47_student_detail}{Dossier d'une étudiante : bilan par année, thématiques, stages et actions.}
+
+\subsection{Enregistrer ou modifier un stage}
+
+\chemin{Enregistrer des stages > Modifier} sur une ligne, ou \bouton{Enregistrer
+un stage}. Le formulaire porte la thématique, l'année d'étude de rattachement,
+la structure, les plages de dates, la durée déclarée et le stage à l'étranger.
+
+La case \bouton{Dispenser de convention} passe le stage en \statut{Sans
+convention} : l'auto-évaluation s'ouvre sans demande ni signature.
+
+\capture{40_register_edit}{Modification d'un stage par la DEVE.}
+
+\subsection{Traiter les conventions}
+
+\paragraph{Demande au nom de l'étudiant.} Pour un stage enregistré, la DEVE peut
+déposer la demande elle-même (\bouton{Demander la convention}). Elle passe
+directement à l'étape~4, sans validation du référent.
+
+\capture{41_convention_request_deve}{Demande de convention déposée par la DEVE.}
+
+\paragraph{Génération.} \chemin{Conventions de stage} liste les demandes en
+cours. \bouton{Générer la convention} ouvre la demande, modifiable.
+\bouton{Valider} produit le PDF et passe la convention en \statut{Éditée} ;
+\bouton{Refuser} la renvoie à l'étudiant avec un motif obligatoire.
+
+\capture{16_conventions}{Suivi des conventions.}
+\capture{25a_review_top}{Demande ouverte pour génération.}
+\capture{25b_review_generate}{Cadre de signatures pour un exemplaire papier.}
+
+Le cadre de signatures est précoché si l'étudiant ou le référent a demandé un
+exemplaire papier. Générer avec le cadre envoie à l'étudiant le courriel
+\og convention prête\fg{}.
+
+\paragraph{Signature.} À réception du document signé, \bouton{Marquer signée}.
+Le PDF signé est facultatif ; s'il est joint, l'étudiant et son référent peuvent
+le télécharger.
+
+\capture{42_convention_sign}{Passage au statut \og Signée\fg{}.}
+
+Une convention non signée 7~jours avant le début du stage déclenche un rappel
+automatique à l'étudiant (une fois par stage).
+
+\subsection{Pendant et après le stage}
+
+\paragraph{Maître de stage.} L'invitation part automatiquement
+(§\ref{sec:liste-courriels}). Le détail d'une saisie affiche sa réponse et
+permet de renvoyer l'invitation. Sur la page de validation DEVE du stage, la DEVE
+peut aussi ignorer cette évaluation pour qu'elle ne bloque plus la validation.
+
+\capture{44_entrydetail}{Détail d'une saisie : convention, auto-évaluation et
+évaluation du maître de stage.}
+
+\paragraph{Validation finale.} \chemin{Validation DEVE} liste les stages par
+étape. Pour chacun : jours effectifs, durée retenue, commentaire, puis
+\bouton{Valider} ou \bouton{Marquer non validé}. La validation en masse retient
+la durée déclarée. La DEVE peut valider sans attendre l'évaluation du référent
+ou du maître de stage.
+
+\capture{17_deve}{Validation DEVE.}
+\capture{45_deve_validate_lea}{Validation d'un stage : les trois évaluations, les
+jours effectifs et la durée retenue.}
+
+Seule la durée retenue d'un stage \statut{Validé DEVE} compte dans les bilans.
+
+\subsection{Corriger ou annuler}
+
+\begin{itemize}
+  \item \bouton{Réinitialiser (autoriser une nouvelle saisie)} rouvre un stage
+        déjà évalué ou non validé : l'étudiant et le référent peuvent de nouveau
+        le modifier.
+  \item \bouton{Annuler ce stage}, avec un motif obligatoire, le passe en
+        \statut{Annulé}. La saisie est conservée et le lien du maître de stage
+        révoqué. Un stage annulé doit être réinitialisé avant toute validation.
+  \item La check-list d'objectifs se corrige depuis le détail de la saisie.
+\end{itemize}
+
+\capture{43_cancel}{Annulation d'un stage.}
+
+\subsection{Enseignants responsables de thématique}
+
+Un enseignant responsable d'une thématique (§\ref{sec:thematiques}) dispose de
+la page \chemin{Stages par thématique} : tous les stages de la thématique et les
+rapports déposés, téléchargeables un par un ou en archive ZIP.
+
+\capture{46_theme_stages}{Stages d'une thématique, vus par son enseignante responsable.}
+
+% ===========================================================================
+\section{Cas 3 : fin d'année, bilan et diplomation}
+\label{sec:cas3}
+
+\subsection{Règle de validation d'une année}
+
+Une année d'étude est validée quand, sur les seuls stages \statut{Validé DEVE} :
+\begin{itemize}
+  \item la durée totale retenue atteint la durée exigée pour l'année
+        (§\ref{sec:durees}) ;
+  \item chaque thématique obligatoire due cette année-là atteint sa durée
+        requise. Une thématique répartie sur plusieurs années (par exemple de la
+        4\textsuperscript{e} à la 5\textsuperscript{e}) n'est vérifiée qu'à sa
+        dernière année, en cumulant toute sa plage ;
+  \item à l'année fixée, l'obligation de mobilité internationale est remplie.
+\end{itemize}
+Les stages complémentaires sont affichés mais ne comptent pas.
+
+\subsection{Bilan de fin d'année}
+
+Avant le jury :
+\begin{enumerate}
+  \item Traiter les stages en attente : colonne \og Stages en attente\fg{} du
+        tableau de pilotage, puis \chemin{Conventions de stage} et
+        \chemin{Validation DEVE}.
+  \item Éditer le \bouton{Bilan de promotion (PDF)}. Il couvre les années
+        \(1\) à \(N\) (année courante) et place en tête les étudiants qui ne
+        valident pas une année échue, du plus en retard au moins en retard.
+  \item Si besoin, \bouton{Exporter en Excel} pour retravailler les données.
+\end{enumerate}
+
+\capture{50_bilan_pdf}{Bilan de promotion (PDF), à diffuser au jury.}
+
+L'export Excel contient trois feuilles :
+\begin{itemize}
+  \item \textbf{Bilan de promotion} : une ligne par étudiant, mêmes informations
+        que le PDF ;
+  \item \textbf{Stages} : une ligne par stage, avec la convention, les
+        évaluations, le rapport, la validation et l'annulation ;
+  \item \textbf{Réponses aux questionnaires} : une ligne par réponse.
+\end{itemize}
+
+\capture{51_export_xlsx}{Export Excel, feuille \og Bilan de promotion\fg{}.}
+
+Après le jury : les redoublants sont transférés (cas~4), puis la promotion passe
+à l'année suivante (cas~5).
+
+\subsection{Diplomation}
+
+En dernière année, l'année courante de l'activité est la dernière du cursus : le
+bilan porte donc sur tout le cursus. Un étudiant est diplômable, pour les stages,
+quand il figure dans la partie \og Étudiants à jour\fg{} du bilan de promotion.
+
+Une fois les diplômes délivrés :
+\begin{enumerate}
+  \item Éditer le bilan de promotion définitif (PDF) et l'export Excel, et les
+        archiver avec le dossier du jury.
+  \item Télécharger les rapports de stage (archive ZIP par thématique, depuis
+        \chemin{Stages par thématique}) et les conventions signées dont la
+        conservation est obligatoire.
+  \item Faire une sauvegarde du cours avec les données des utilisateurs
+        (\chemin{Plus > Réutilisation de cours > Sauvegarde}, case
+        \og Inclure les utilisateurs inscrits\fg{}). Elle contient stages,
+        conventions, évaluations et fichiers.
+  \item Masquer le cours aux étudiants, puis, à l'échéance de la durée de
+        conservation fixée par l'établissement, le supprimer.
+  \item Décocher la promotion dans le suivi multi-promotions
+        (\chemin{Gérer les liens}).
+\end{enumerate}
+
+\capture[0.85\linewidth]{52_backup}{Sauvegarde du cours de la promotion.}
 
 \begin{attention}
-L'année ne change jamais d'elle-même, et la réinitialisation du cours ne la
-modifie pas. Ne réinitialisez pas le cours d'une promotion : elle supprimerait les
-stages et les attributions de référents des années précédentes.
+La suppression d'un compte étudiant, ou une demande d'effacement RGPD, supprime
+ses stages et ses conventions signées. Extrayez au préalable les documents à
+conserver.
 \end{attention}
 
 % ===========================================================================
-\section{Cas 3 : un étudiant redouble}
-\label{sec:cas3}
+\section{Cas 4 : un étudiant redouble}
+\label{sec:cas4}
 
 L'étudiant quitte sa promotion pour la suivante. Ses stages \textbf{sont
 déplacés}, pas copiés : son bilan le suit et disparaît du cours de départ.
@@ -562,6 +633,34 @@ tableau de pilotage de son ancienne promotion, sans stage.
 Les stages gardent l'année d'étude à laquelle ils ont été rattachés. Le même
 transfert sert pour un changement de promotion ou une réorientation vers un autre
 cours.
+
+% ===========================================================================
+\section{Cas 5 : à chaque rentrée}
+\label{sec:cas5}
+
+Pour chaque promotion en cours :
+\begin{enumerate}
+  \item \textbf{Traiter d'abord les redoublants} (§\ref{sec:cas4}), tant que
+        l'année d'étude n'a pas changé.
+  \item \textbf{Passer à l'année suivante} : dans l'activité,
+        \chemin{Paramètres > Année d'étude courante des étudiants}, augmenter
+        d'une année (par exemple de \og 4e année\fg{} à \og 5e année\fg{}).
+  \item \textbf{Vérifier les référents} (§\ref{sec:referents}) si l'équipe
+        change.
+  \item \textbf{Vérifier les durées} de la nouvelle année
+        (§\ref{sec:durees}) si les exigences ont évolué.
+\end{enumerate}
+Pour la promotion qui arrive, appliquer le cas~1, en important le paramétrage
+d'une promotion existante.
+
+\capture{34_update_year}{Paramètres de l'activité de la promotion 2031 : l'année
+passe ici de 4\textsuperscript{e} à 5\textsuperscript{e}~année.}
+
+\begin{attention}
+L'année ne change jamais d'elle-même, et la réinitialisation du cours ne la
+modifie pas. Ne réinitialisez pas le cours d'une promotion : elle supprimerait les
+stages et les attributions de référents des années précédentes.
+\end{attention}
 
 % ===========================================================================
 \section{Courriels}
@@ -784,6 +883,12 @@ Services web}), activer le service, y autoriser un compte, générer un jeton.
 \(\square\) & Courriels relus ou personnalisés & Notifications et e-mails \\
 \(\square\) & Un référent par étudiant & Attribuer les référents \\
 \(\square\) & Activité cochée dans le suivi multi-promotions & Gérer les liens \\
+\midrule
+ & \textbf{Fin d'année} & \\
+\midrule
+\(\square\) & Stages en attente traités & Conventions, Validation DEVE \\
+\(\square\) & Bilan de promotion édité pour le jury & Bilan de promotion (PDF) \\
+\(\square\) & Diplomation : exports, rapports, sauvegarde, cours masqué & Sauvegarde du cours \\
 \midrule
  & \textbf{Rentrée} & \\
 \midrule

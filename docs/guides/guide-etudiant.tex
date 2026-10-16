@@ -1,0 +1,245 @@
+% Guide étudiant de StageCompagnon (mod_stage).
+% Compilation : latexmk -pdf guide-etudiant.tex
+\documentclass[11pt,a4paper]{article}
+
+% Version du guide : à mettre à jour à chaque modification, avec une ligne dans l'historique.
+\newcommand{\titreguide}{Guide étudiant}
+\newcommand{\versionguide}{1.0}
+\newcommand{\dateguide}{16 octobre 2026}
+\newcommand{\versionstage}{0.5.1}
+\newcommand{\versionsynthese}{0.2.1}
+
+\usepackage{guide-commun}
+
+\begin{document}
+
+\pagedegarde{Suivre ses stages, demander une convention, s'auto-évaluer}{60a_student_top}
+
+\tableofcontents
+
+\section*{Historique des versions}
+\addcontentsline{toc}{section}{Historique des versions}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l l X@{}}
+\toprule
+\textbf{Version} & \textbf{Date} & \textbf{Modifications} \\
+\midrule
+1.0 & 16 octobre 2026 & Première version. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\newpage
+
+% ===========================================================================
+\section{Votre espace de stages}
+
+Vos stages sont suivis dans le cours Moodle de votre promotion, par exemple
+\og Stages -- Promotion 2030\fg{}, du début à la fin de votre cursus. Ouvrez
+l'activité \og Stages\fg{} de ce cours : vous arrivez sur la page
+\og Mes stages\fg{}.
+
+\capture{60a_student_top}{Haut de la page \og Mes stages\fg{} : consignes, bouton
+de demande de convention et synthèse.}
+
+La page comprend :
+\begin{itemize}
+  \item la \textbf{synthèse} : durée retenue, années validées, thématiques
+        obligatoires validées, mobilité internationale ;
+  \item le \textbf{bilan par année d'étude}, jusqu'à votre année actuelle ;
+  \item les \textbf{thématiques obligatoires}, avec la date limite et le bouton
+        \bouton{Objectifs} ;
+  \item la \textbf{mobilité internationale} exigée ;
+  \item la liste de \textbf{tous vos stages}, avec leurs statuts et les actions
+        possibles.
+\end{itemize}
+
+\capture{60b_student_bilan}{Bilan par année, thématiques obligatoires et mobilité.}
+
+Seule la \textbf{durée retenue} compte : elle est fixée par la scolarité (DEVE)
+à la validation du stage. Tant qu'un stage n'est pas validé, sa durée retenue
+reste à~0.
+
+% ===========================================================================
+\section{Avant le stage}
+
+\subsection{Consulter les objectifs}
+
+Le bouton \bouton{Objectifs} d'une thématique ouvre ses documents à télécharger
+et la check-list des objectifs à atteindre. Cette page est consultable à tout
+moment, avant même d'avoir trouvé un stage.
+
+\capture{62_objectives}{Objectifs d'une thématique.}
+
+\subsection{Stage StageVet ou non}
+
+\begin{itemize}
+  \item \textbf{Chez un vétérinaire en France} : la convention est établie par
+        StageVet. La scolarité enregistre le stage dans Moodle ; vous n'avez pas
+        de demande à faire ici.
+  \item \textbf{Autre stage} (structure non vétérinaire, étranger, etc.) : vous
+        demandez la convention dans Moodle (§\ref{sec:demande}).
+\end{itemize}
+
+% ===========================================================================
+\section{Demander une convention}
+\label{sec:demande}
+
+\begin{attention}
+Déposez la demande au moins \textbf{2~semaines} avant le début du stage,
+\textbf{4~semaines} pour un stage à l'étranger. Sans convention signée, le stage
+ne peut pas commencer.
+\end{attention}
+
+\subsection{Deux points de départ}
+
+\begin{itemize}
+  \item Le stage n'apparaît pas dans votre liste :
+        \bouton{Faire une demande de convention (hors StageVet)}. Un seul
+        formulaire enregistre le stage et la demande.
+  \item Le stage a été enregistré par la scolarité : \bouton{Demander la
+        convention} sur sa ligne.
+\end{itemize}
+
+Il vous faut un enseignant référent. S'il n'en a pas été attribué, le formulaire
+vous le signale : contactez la scolarité.
+
+\subsection{Remplir le formulaire}
+
+\capture{65_request_top}{Début du formulaire : stage, gabarit et référent.}
+
+Tous les champs sont obligatoires, sauf le lieu du stage s'il est identique à
+l'adresse de l'organisme. Le formulaire demande :
+\begin{itemize}
+  \item le stage : thématique, année d'étude, structure, durée, stage à
+        l'étranger ;
+  \item la langue et le modèle de convention ;
+  \item votre enseignant référent, votre situation et le type de stage ;
+  \item les plages de dates (plusieurs si le stage est en plusieurs fois) ;
+  \item vos coordonnées, l'organisme d'accueil et le \textbf{tuteur}
+        (maître de stage). Vérifiez son courriel : il recevra le lien
+        d'évaluation ;
+  \item les modalités particulières, la gratification, les congés ;
+  \item la \textbf{check-list d'objectifs} de la thématique : cochez les
+        objectifs que le stage permettra d'atteindre et justifiez chaque objectif
+        non coché.
+\end{itemize}
+
+Cochez \bouton{Convention papier} si un exemplaire à signer à la main est
+nécessaire.
+
+\subsection{Suivi de la demande}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+\textbf{Statut de convention} & \textbf{Signification} \\
+\midrule
+\statut{Non demandée} & Aucune demande déposée. \\
+\statut{En attente de l'enseignant référent} & Votre référent doit valider la demande. \\
+\statut{Demandée} & La scolarité traite la demande. \\
+\statut{Refusée} & À corriger : voir le motif reçu par courriel. \\
+\statut{Éditée} & Convention prête : à télécharger, faire signer et rapporter. \\
+\statut{Signée} & Convention signée : le stage peut avoir lieu. \\
+\statut{Signée (StageVet)} & Convention établie par StageVet. \\
+\statut{Sans convention} & Stage dispensé de convention. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Refus.} Vous recevez le motif par courriel, avec un lien vers votre
+demande. Corrigez-la et soumettez-la à nouveau.
+
+\paragraph{Convention prête.} Vous recevez un courriel. Sur la ligne du stage,
+\bouton{Consulter la convention} télécharge le PDF. Faites-le signer par toutes
+les parties et rapportez-le à la scolarité.
+
+\capture{60c_student_stages}{Vos stages : un stage signé à auto-évaluer, une
+convention éditée à télécharger, un stage dont la convention est à demander.}
+
+Si la convention n'est pas signée 7~jours avant le début du stage, vous recevez
+un rappel.
+
+\begin{astuce}
+Vous ne pouvez modifier un stage que tant qu'il est au statut
+\statut{Enregistré} et que sa demande n'est pas en cours. Ensuite, adressez-vous
+à la scolarité.
+\end{astuce}
+
+% ===========================================================================
+\section{Pendant et après le stage}
+
+\subsection{Évaluation par le maître de stage}
+
+À partir du premier jour du stage, votre maître de stage reçoit par courriel un
+lien vers un questionnaire, sans création de compte. Prévenez-le.
+
+\subsection{Votre auto-évaluation}
+
+Le bouton \bouton{Auto-évaluer mon stage} est utilisable dès le premier jour du
+stage, une fois la convention signée.
+
+\capture{64_selfeval}{Auto-évaluation : jours effectifs et questionnaire.}
+
+\begin{enumerate}
+  \item \textbf{Jours de stage effectifs} : cochez les jours réellement
+        travaillés, puis \bouton{Enregistrer}. La réglementation impose au moins
+        un jour de repos par semaine.
+  \item \textbf{Rapport de stage}, si la thématique le demande : déposez vos
+        documents.
+  \item \textbf{Questionnaire} : répondez aux questions (les questions marquées
+        d'un astérisque sont obligatoires), puis \bouton{Enregistrer}.
+\end{enumerate}
+
+\begin{attention}
+Une auto-évaluation enregistrée n'est plus modifiable. En cas d'erreur, demandez
+à la scolarité de rouvrir la saisie.
+\end{attention}
+
+Le stage passe à \statut{Évalué par l'étudiant} et votre référent est prévenu.
+
+\subsection{Validation}
+
+\begin{enumerate}
+  \item Votre référent évalue le stage : \statut{Évalué par l'enseignant}.
+  \item La scolarité fixe la durée retenue et valide : \statut{Validé DEVE}.
+        Votre bilan est mis à jour.
+\end{enumerate}
+
+Un stage \statut{Non validé} ou \statut{Annulé} ne compte pas : contactez la
+scolarité.
+
+% ===========================================================================
+\section{Courriels que vous recevez}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+\textbf{Courriel} & \textbf{Ce qu'il faut faire} \\
+\midrule
+Convention refusée & Corriger la demande et la soumettre de nouveau. \\
+Convention disponible & Télécharger, faire signer, rapporter à la scolarité. \\
+Convention non signée & Le stage commence dans moins de 7~jours : régulariser au plus vite. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Les courriels partent d'une adresse \og no-reply\fg{} : n'y répondez pas,
+écrivez à la scolarité.
+
+% ===========================================================================
+\section{En résumé}
+
+\begin{enumerate}
+  \item Consulter les objectifs de la thématique.
+  \item Stage hors StageVet : demander la convention 2~semaines avant
+        (4~à l'étranger).
+  \item Télécharger la convention éditée, la faire signer, la rapporter.
+  \item Prévenir le maître de stage qu'il recevra un lien d'évaluation.
+  \item Dès le premier jour : renseigner les jours effectifs, puis
+        s'auto-évaluer en fin de stage.
+  \item Vérifier dans \og Mes stages\fg{} que le stage est validé.
+\end{enumerate}
+
+\end{document}

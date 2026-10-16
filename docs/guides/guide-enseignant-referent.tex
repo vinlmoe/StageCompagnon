@@ -1,0 +1,197 @@
+% Guide enseignant référent de StageCompagnon (mod_stagesynthesis et mod_stage).
+% Compilation : latexmk -pdf guide-enseignant-referent.tex
+\documentclass[11pt,a4paper]{article}
+
+% Version du guide : à mettre à jour à chaque modification, avec une ligne dans l'historique.
+\newcommand{\titreguide}{Guide enseignant référent}
+\newcommand{\versionguide}{1.0}
+\newcommand{\dateguide}{16 octobre 2026}
+\newcommand{\versionstage}{0.5.1}
+\newcommand{\versionsynthese}{0.2.1}
+
+\usepackage{guide-commun}
+
+\begin{document}
+
+\pagedegarde{Suivre ses étudiants de toutes les promotions, valider les conventions, évaluer les stages}{70_synth_dashboard}
+
+\tableofcontents
+
+\section*{Historique des versions}
+\addcontentsline{toc}{section}{Historique des versions}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l l X@{}}
+\toprule
+\textbf{Version} & \textbf{Date} & \textbf{Modifications} \\
+\midrule
+1.0 & 16 octobre 2026 & Première version. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\newpage
+
+% ===========================================================================
+\section{Votre rôle}
+
+En tant qu'enseignant référent, vous :
+\begin{itemize}
+  \item validez les demandes de convention de vos étudiants, si la scolarité
+        (DEVE) l'a demandé ;
+  \item évaluez leurs stages après leur auto-évaluation ;
+  \item suivez leur avancement sur l'ensemble du cursus.
+\end{itemize}
+La validation finale et la durée retenue relèvent de la DEVE.
+
+Vos étudiants sont répartis dans plusieurs cours de promotion
+(\og Stages -- Promotion 2030\fg{}, \og Stages -- Promotion 2031\fg{}, etc.).
+Le cours \og Suivi des référents de stage\fg{} les regroupe : c'est votre point
+d'entrée.
+
+% ===========================================================================
+\section{Le suivi multi-promotions}
+
+Ouvrez le cours \og Suivi des référents de stage\fg{}, puis l'activité
+\og Suivi de mes étudiants\fg{}.
+
+\subsection{Tableau de pilotage}
+
+Une ligne par étudiant qui vous est attribué, toutes promotions confondues :
+cours, année d'étude actuelle de sa promotion, thématiques obligatoires validées,
+stages en attente, durée retenue et statut.
+
+\capture{70_synth_dashboard}{Vos étudiants des promotions 2030 et 2031.}
+
+\bouton{Voir le détail} ouvre le dossier de l'étudiant : bilan par année,
+thématiques obligatoires, mobilité internationale et liste de ses stages.
+
+\capture{72_synth_student_detail}{Dossier d'une étudiante.}
+
+\subsection{Stages à traiter}
+
+Le lien \bouton{Validation enseignant} ouvre la liste de travail :
+\begin{itemize}
+  \item en tête, les \textbf{demandes de convention à valider} ;
+  \item puis les \textbf{stages à évaluer}, filtrables par étudiant, thématique
+        et étape, et triables.
+\end{itemize}
+
+\capture{71_synth_entries}{Demandes de convention et stages à évaluer, toutes
+promotions confondues.}
+
+Chaque bouton (\bouton{Valider la demande}, \bouton{Évaluer}) ouvre la page
+correspondante dans le cours de la promotion de l'étudiant.
+
+\begin{astuce}
+Vous ne voyez que les étudiants qui vous sont attribués. Si un étudiant manque, ou
+si une promotion n'apparaît pas, contactez la DEVE : elle gère les attributions
+et les promotions reliées au suivi.
+\end{astuce}
+
+% ===========================================================================
+\section{Valider une demande de convention}
+
+Vous êtes prévenu par courriel (\og Convention de stage à valider\fg{}).
+
+\capture{26_teacher_validate}{Demande de convention à valider.}
+
+La demande est entièrement modifiable. Vérifiez en particulier les dates, la
+structure d'accueil, le tuteur et la check-list d'objectifs. Cochez
+\bouton{Convention papier} si un exemplaire à signer à la main est nécessaire.
+
+\begin{itemize}
+  \item \bouton{Valider} : la demande part à la DEVE, qui édite la convention.
+  \item \bouton{Refuser}, avec un motif : la demande revient à l'étudiant, qui
+        reçoit le motif par courriel.
+\end{itemize}
+
+Une fois la convention éditée, vous pouvez la télécharger
+(\bouton{Consulter la convention}) ; une fois signée, télécharger le PDF signé
+s'il a été déposé.
+
+% ===========================================================================
+\section{Évaluer un stage}
+
+Vous êtes prévenu par courriel quand l'étudiant s'est auto-évalué
+(\og Auto-évaluation de stage à évaluer\fg{}), ou quand un import StageVet a
+réuni ses évaluations (\og Stage à évaluer\fg{}).
+
+\bouton{Évaluer} ouvre la page du stage. Elle présente le stage,
+l'auto-évaluation de l'étudiant et, si elle est activée, l'évaluation du maître
+de stage.
+
+\capture{74a_teacher_eval_top}{Stage, auto-évaluation et évaluation du maître de stage.}
+
+\begin{enumerate}
+  \item \textbf{Jours de stage effectifs} : corrigez si besoin les jours
+        cochés par l'étudiant, puis \bouton{Enregistrer}.
+  \item \textbf{Évaluation de l'enseignant} : répondez au questionnaire, puis
+        \bouton{Valider}. Le stage passe à \statut{Évalué par l'enseignant} et
+        part à la DEVE pour la validation finale.
+  \item Si le stage ne peut pas être retenu : \bouton{Marquer non validé}, avec
+        un motif obligatoire. Le stage passe à \statut{Non validé} ; seule la
+        DEVE peut le rouvrir.
+\end{enumerate}
+
+\capture{74b_teacher_eval_form}{Jours effectifs, évaluation et refus.}
+
+% ===========================================================================
+\section{Consulter le détail d'un stage}
+
+Dans le dossier d'un étudiant, \bouton{Voir le détail} sur un stage affiche tout ce qui a été saisi : stage,
+jours effectifs, convention (encadrement, stagiaire, structure d'accueil,
+modalités), check-list d'objectifs et évaluations.
+
+\capture{76_entrydetail_teacher}{Détail d'un stage.}
+
+Depuis cette page, vous pouvez corriger la check-list d'objectifs de l'étudiant.
+
+% ===========================================================================
+\section{Depuis le cours d'une promotion}
+
+Les mêmes actions sont disponibles dans chaque cours de promotion, page
+\chemin{Validation enseignant} de l'activité \og Stages\fg{}. La liste y est
+limitée à cette promotion.
+
+\capture{73_teacher_list}{Page \og Validation enseignant\fg{} d'un cours de promotion.}
+
+% ===========================================================================
+\section{Enseignant responsable d'une thématique}
+
+Si la DEVE vous a désigné responsable d'une thématique, la page
+\chemin{Stages par thématique} liste tous les stages de cette thématique, quel
+que soit le référent, avec les rapports déposés, téléchargeables un par un ou en
+archive ZIP.
+
+\capture{46_theme_stages}{Stages d'une thématique.}
+
+% ===========================================================================
+\section{Courriels que vous recevez}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+\textbf{Courriel} & \textbf{Action} \\
+\midrule
+Convention de stage à valider & Valider ou refuser la demande. \\
+Auto-évaluation de stage à évaluer & Évaluer le stage. \\
+Stage à évaluer (après import StageVet) & Évaluer le stage. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Chaque courriel contient un lien direct vers la page à ouvrir.
+
+% ===========================================================================
+\section{En résumé}
+
+\begin{enumerate}
+  \item Point d'entrée : cours \og Suivi des référents de stage\fg{}.
+  \item Valider ou refuser les demandes de convention.
+  \item Évaluer les stages auto-évalués : jours effectifs, questionnaire,
+        \bouton{Valider}.
+  \item Suivre l'avancement de chaque étudiant dans son dossier.
+\end{enumerate}
+
+\end{document}
