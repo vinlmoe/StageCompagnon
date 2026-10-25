@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/vinlmoe/StageCompagnon/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vinlmoe/StageCompagnon/actions/workflows/ci.yml)
 [![Moodle 4.0+](https://img.shields.io/badge/Moodle-4.0%2B-f98012?logo=moodle&logoColor=white)](https://moodle.org)
-[![PHP 8.2](https://img.shields.io/badge/PHP-8.2-777bb4?logo=php&logoColor=white)](https://www.php.net)
+[![PHP 7.4+](https://img.shields.io/badge/PHP-7.4%2B-777bb4?logo=php&logoColor=white)](https://www.php.net)
 [![Licence GPL v3+](https://img.shields.io/badge/licence-GPL%20v3%2B-blue)](https://www.gnu.org/licenses/gpl-3.0)
 
 Deux modules d'activité Moodle pour la gestion des stages étudiants en école
@@ -115,10 +115,13 @@ Chaque poussée déclenche `.github/workflows/ci.yml`, en deux temps :
   compris. Une seule règle est désactivée, et le fichier dit pourquoi : le sniff qui exige
   qu'un commentaire commence par `[A-Z0-9]` ne reconnaît pas les capitales accentuées, et
   s'y conformer imposerait d'écrire « Ecran » pour « Écran ».
-- **Moodle** — `moodle-plugin-ci` installe un Moodle 4.5 avec PostgreSQL et les modules du
+- **Moodle** — `moodle-plugin-ci` installe un Moodle avec PostgreSQL et les modules du
   dépôt, puis enchaîne analyse syntaxique, validation de la structure du module, points de
-  sauvegarde de la mise à jour, gabarits Mustache et tests PHPUnit. Le contrôle des blocs de
-  documentation (`phpdoc`) est présent mais non bloquant : son relevé reste à trier.
+  sauvegarde de la mise à jour, blocs de documentation (`phpdoc`), gabarits Mustache et tests
+  PHPUnit. Tous ces contrôles sont bloquants. Le job tourne sur deux combinaisons : Moodle 4.0
+  avec PHP 7.4, la borne basse annoncée par `version.php` et par ce README, et Moodle 4.5 avec
+  PHP 8.2. Le workflow peut aussi être lancé à la main depuis l'onglet *Actions*
+  (`workflow_dispatch`), par exemple pour vérifier une branche avant d'ouvrir une demande de fusion.
 
 Pour rejouer le contrôle de style en local :
 
@@ -176,7 +179,11 @@ silencieuses — dates dérivées des plages, bilans de validation, transfert
 inter-cours, accès aux conventions, règles RGPD — et n'est pas exhaustive.
 Étendre `tests/` au même format à mesure que de nouvelles règles sont ajoutées.
 
+L'historique des versions des deux modules est tenu dans [`CHANGELOG.md`](CHANGELOG.md) :
+y ajouter une entrée à chaque changement de `version.php`. Les conventions d'édition
+(indentation, fins de ligne) sont décrites dans `.editorconfig`.
+
 ## Licence
 
-GNU GPL v3 ou ultérieure, comme Moodle. FPDI est distribué sous licence MIT
-(voir `mod/stage/thirdpartylibs.xml`).
+GNU GPL v3 ou ultérieure, comme Moodle ; le texte complet est dans [`LICENSE`](LICENSE).
+FPDI est distribué sous licence MIT (voir `mod/stage/thirdpartylibs.xml`).

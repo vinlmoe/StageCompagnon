@@ -36,6 +36,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_render_actions
  * @covers     ::stage_render_status_badge
  * @covers     ::stage_teacher_assignment_options
+ * @covers     ::stage_optional_status_param
  */
 final class helpers_test extends \advanced_testcase {
     /**
@@ -150,5 +151,27 @@ final class helpers_test extends \advanced_testcase {
         $this->assertStringContainsString('Alice', $selected);
         $this->assertStringContainsString('selected="selected"', $selected);
         $this->assertStringNotContainsString('Bruno', $selected);
+    }
+
+    /**
+     * Le filtre de statut distingue « tous les statuts » (chaîne vide) du statut 0, accepte les
+     * codes négatifs et ignore ce qui n'est pas un code.
+     */
+    public function test_optional_status_param_keeps_empty_and_negative_codes(): void {
+        $cases = [
+            '' => '',
+            '0' => '0',
+            '3' => '3',
+            '-2' => '-2',
+            '007' => '7',
+            'abc' => '',
+            '1;drop' => '',
+        ];
+        foreach ($cases as $given => $expected) {
+            $_GET['status'] = (string) $given;
+            $this->assertSame($expected, stage_optional_status_param('status'), "Valeur reçue : '$given'");
+        }
+        unset($_GET['status']);
+        $this->assertSame('', stage_optional_status_param('status'));
     }
 }

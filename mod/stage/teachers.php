@@ -103,7 +103,7 @@ if (data_submitted() && confirm_sesskey() && !empty($teacheroptions)) {
 
     $bulkteacher = optional_param('bulkteacher', 0, PARAM_INT);
     $bulkmode = optional_param('bulkmode', 'add', PARAM_ALPHA);
-    $bulkapply = optional_param('bulkapply', '', PARAM_RAW) !== '';
+    $bulkapply = optional_param('bulkapply', '', PARAM_TEXT) !== '';
     if ($bulkapply && !isset($teacheroptions[$bulkteacher])) {
         // Rien n'est enregistré : les modifications du tableau auraient été appliquées sans
         // l'action en masse que la DEVE pensait lancer.

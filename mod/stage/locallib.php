@@ -3296,6 +3296,21 @@ function stage_sort_header($label, $key, moodle_url $baseurl, $currentsort, $cur
 }
 
 /**
+ * Lit un filtre de statut facultatif passé en paramètre de requête.
+ *
+ * La valeur vide signifie « tous les statuts » et doit le rester : lue en PARAM_INT, elle
+ * deviendrait 0, c'est-à-dire STAGE_STATUS_ENREGISTRE. Les codes de statut peuvent être
+ * négatifs (STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ANNULE). Toute autre valeur est ignorée.
+ *
+ * @param string $name Nom du paramètre.
+ * @return string Chaîne vide, ou le code de statut sous forme de chaîne d'entier.
+ */
+function stage_optional_status_param($name) {
+    $value = optional_param($name, '', PARAM_ALPHANUMEXT);
+    return preg_match('/^-?\d+$/', $value) ? (string) (int) $value : '';
+}
+
+/**
  * Rend le formulaire de recherche/filtre (nom étudiant, thématique, étape de validation)
  * au-dessus des listes de saisies de stage. Les autres paramètres présents dans $baseurl
  * (id, mode...) sont préservés en champs cachés.

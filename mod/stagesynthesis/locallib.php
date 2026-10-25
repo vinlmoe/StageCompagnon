@@ -202,24 +202,24 @@ function stagesynthesis_get_active_links($synthesisid, $userid) {
 /**
  * Thématiques proposées dans le filtre, toutes activités actives confondues : chaque thématique
  * est propre à une instance mod_stage, donc identifiée dans le filtre par la paire
- * "stagecmid:themeid" (deux instances peuvent avoir un même id de thématique sans rapport entre
+ * "stagecmid-themeid" (deux instances peuvent avoir un même id de thématique sans rapport entre
  * elles) et étiquetée avec son cours pour rester compréhensible dans une liste combinée.
  *
  * @param array $activelinks Voir stagesynthesis_get_active_links().
- * @return array "stagecmid:themeid" => libellé
+ * @return array "stagecmid-themeid" => libellé
  */
 function stagesynthesis_get_theme_options(array $activelinks) {
     $options = [];
     foreach ($activelinks as $stagecmid => $link) {
         foreach ($link->themes as $theme) {
-            $options[$stagecmid . ':' . $theme->id] = format_string($link->coursename) . ' – ' . format_string($theme->name);
+            $options[$stagecmid . '-' . $theme->id] = format_string($link->coursename) . ' – ' . format_string($theme->name);
         }
     }
     return $options;
 }
 
 /**
- * Décompose une valeur de filtre de thématique combiné ("stagecmid:themeid") si elle correspond
+ * Décompose une valeur de filtre de thématique combiné ("stagecmid-themeid") si elle correspond
  * bien à une des options proposées ; sinon, ignore silencieusement une valeur invalide ou forgée
  * plutôt que de la répercuter dans une requête SQL.
  *
@@ -231,14 +231,14 @@ function stagesynthesis_parse_theme_filter($value, array $themeoptions) {
     if ($value === '' || !isset($themeoptions[$value])) {
         return null;
     }
-    [$stagecmid, $themeid] = explode(':', $value, 2);
+    [$stagecmid, $themeid] = explode('-', $value, 2);
     return [(int) $stagecmid, (int) $themeid];
 }
 
 /**
  * Rend le formulaire de recherche/filtre au-dessus de la liste combinée : mêmes filtres que
  * stage_render_list_filters() (nom étudiant, thématique, statut), la thématique étant ici une
- * valeur combinée "stagecmid:themeid" (voir stagesynthesis_get_theme_options()).
+ * valeur combinée "stagecmid-themeid" (voir stagesynthesis_get_theme_options()).
  *
  * @param moodle_url $baseurl
  * @param array $themeoptions

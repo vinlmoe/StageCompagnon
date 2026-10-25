@@ -78,7 +78,7 @@ if (empty($entry->tutortime) && data_submitted() && confirm_sesskey()) {
     foreach ($questions as $question) {
         $submitted[$question->id] = optional_param('q_' . $question->id, '', PARAM_TEXT);
     }
-    $submittedcomment = optional_param('tutoreval', '', PARAM_RAW);
+    $submittedcomment = optional_param('tutoreval', '', PARAM_TEXT);
     $submiterror = stage_submit_tutor_eval($entry, $questions, $submitted, $submittedcomment, $lang);
     if ($submiterror === null) {
         redirect(new moodle_url('/mod/stage/tutor_eval.php', ['token' => $token]));
