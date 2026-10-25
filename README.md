@@ -120,8 +120,9 @@ Chaque poussée déclenche `.github/workflows/ci.yml`, en deux temps :
   sauvegarde de la mise à jour, blocs de documentation (`phpdoc`), gabarits Mustache et tests
   PHPUnit. Tous ces contrôles sont bloquants. Le job tourne sur deux combinaisons : Moodle 4.0
   avec PHP 7.4, la borne basse annoncée par `version.php` et par ce README, et Moodle 4.5 avec
-  PHP 8.2. Sur cette dernière, la couverture de code est mesurée avec pcov : le résumé figure
-  dans le journal de l'étape PHPUnit et les rapports Clover sont publiés en artefact du job. Le
+  PHP 8.2. Sur cette dernière, la couverture de code est mesurée avec pcov (résumé dans le
+  journal de l'étape PHPUnit, rapports Clover en artefact du job) et les scénarios Behat de
+  `mod/stage/tests/behat/` sont joués sans JavaScript, sur le serveur web intégré de PHP. Le
   workflow peut aussi être lancé à la main depuis l'onglet *Actions* (`workflow_dispatch`), par
   exemple pour vérifier une branche avant d'ouvrir une demande de fusion.
 
@@ -181,7 +182,25 @@ vendor/bin/phpunit --testsuite mod_stagesynthesis_testsuite
 
 `mod/stage/tests/generator/lib.php` fournit un générateur de données
 (`mod_stage_generator`) pour créer thématiques, saisies et attributions de
-référent dans les tests.
+référent dans les tests. Son pendant Behat (`behat_mod_stage_generator.php`)
+expose les mêmes entités aux scénarios (`the following "mod_stage > entries"
+exist`), et `tests/behat/behat_mod_stage.php` sait ouvrir les pages de gestion
+d'une activité (`I am on the "Stages" "mod_stage > Teacher validation" page`).
+
+Les scénarios Behat de `mod/stage/tests/behat/` parcourent le circuit du stage
+dans l'interface : auto-évaluation, évaluation et non-validation par
+l'enseignant référent, validation DEVE, tableau de pilotage, validation d'une
+demande de convention par l'enseignant référent. Ils n'exigent pas de navigateur :
+
+```bash
+php admin/tool/behat/cli/init.php            # $CFG->behat_wwwroot, behat_prefix, behat_dataroot requis
+php -S localhost:8000 &                       # depuis la racine Moodle, sur l'URL de behat_wwwroot
+php admin/tool/behat/cli/run.php --tags=@mod_stage
+```
+
+Les listes (filtres, tableau de pilotage, badges, boutons d'action) sont rendues par des gabarits
+Mustache de `mod/stage/templates/` et des classes de `mod_stage\output` ; les pages héritées
+rendent encore le reste en PHP avec `html_writer`, et migrent au fil des évolutions.
 
 La couverture porte sur la logique métier la plus sensible aux régressions
 silencieuses — dates dérivées des plages, bilans de validation, transfert

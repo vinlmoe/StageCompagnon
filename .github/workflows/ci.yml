@@ -44,7 +44,8 @@ jobs:
     # Les deux bornes de la plage annoncée par version.php (Moodle 4.0+) et par le README
     # (PHP 7.4+) : la plus basse garantit la compatibilité promise, la plus récente suit
     # la version de Moodle déployée. La couverture de code n'est mesurée que sur cette
-    # dernière : une seule mesure suffit, et pcov ralentit la suite.
+    # dernière : une seule mesure suffit, et pcov ralentit la suite. Les scénarios Behat ne
+    # tournent que là aussi : la combinaison basse reste un contrôle de compatibilité rapide.
     strategy:
       fail-fast: false
       matrix:
@@ -52,9 +53,11 @@ jobs:
           - moodle: MOODLE_400_STABLE
             php: "7.4"
             coverage: none
+            behat: "no"
           - moodle: MOODLE_405_STABLE
             php: "8.2"
             coverage: pcov
+            behat: "yes"
 
     services:
       postgres:
@@ -163,6 +166,17 @@ jobs:
           moodle-plugin-ci phpunit $coverage mod/stagesynthesis || check_status=1
           [ -f coverage.xml ] && mv coverage.xml coverage-mod_stagesynthesis.xml
           exit "$check_status"
+
+      - name: Behat features
+        if: ${{ !cancelled() && matrix.behat == 'yes' && steps.moodle_install.outcome == 'success' }}
+        env:
+          # Les scénarios n'utilisent pas JavaScript : seul le serveur PHP est nécessaire, pas
+          # Selenium, que moodle-plugin-ci démarrerait sinon dans Docker.
+          MOODLE_START_BEHAT_SERVERS: "NO"
+        run: |
+          php -S localhost:8000 -t moodle > php-server.log 2>&1 &
+          sleep 2
+          moodle-plugin-ci behat --profile default --dump mod/stage
 
       - name: Coverage report (Clover)
         if: ${{ !cancelled() && matrix.coverage == 'pcov' && steps.moodle_install.outcome == 'success' }}

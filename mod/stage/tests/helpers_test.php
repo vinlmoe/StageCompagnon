@@ -40,8 +40,11 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_sort_pilotage_rows
  * @covers     ::stage_render_pilotage_status
  * @covers     ::stage_pilotage_columns
- * @covers     ::stage_render_pilotage_table
  * @covers     ::stage_render_pilotage_search_form
+ * @covers     ::stage_render_list_filters
+ * @covers     ::stage_status_filter_options
+ * @covers     \mod_stage\output\pilotage_table
+ * @covers     \mod_stage\output\list_filters
  */
 final class helpers_test extends \advanced_testcase {
     /**
@@ -322,7 +325,8 @@ final class helpers_test extends \advanced_testcase {
         ] + $common;
         $this->assertSame(['course', 'student', 'progress', 'pending', 'retained', 'status', 'actions'], array_keys($columns));
 
-        $html = stage_render_pilotage_table($columns, $rows, 0, $listurl);
+        global $OUTPUT;
+        $html = $OUTPUT->render(new \mod_stage\output\pilotage_table($columns, $rows, 0, $listurl));
         $this->assertStringContainsString('Promotion Martin', $html);
         $this->assertStringContainsString('Zoé Martin', $html);
         $this->assertStringContainsString('2 / 4', $html);
@@ -333,5 +337,32 @@ final class helpers_test extends \advanced_testcase {
         $form = stage_render_pilotage_search_form($listurl, 7, 'O\'Neil');
         $this->assertStringContainsString('value="O&#039;Neil"', $form);
         $this->assertStringNotContainsString('&amp;#039;', $form);
+        $this->assertStringContainsString('name="id" value="7"', $form);
+        $this->assertStringNotContainsString('<select', $form);
+    }
+
+    /**
+     * Les filtres de liste : paramètres non filtrants conservés en champs cachés, option courante
+     * sélectionnée, statut « tous » distinct du statut 0, filtre de statut facultatif.
+     */
+    public function test_render_list_filters_keeps_context_and_selection(): void {
+        $listurl = new \moodle_url('/mod/stage/register.php', [
+            'id' => 7, 'search' => 'dur', 'themeid' => 12, 'status' => '0', 'tsort' => 'student', 'tdir' => 'DESC',
+        ]);
+        $themes = [(object) ['id' => 12, 'name' => 'Clinique'], (object) ['id' => 13, 'name' => 'Rurale']];
+
+        $html = stage_render_list_filters($listurl, $themes, 'dur', 12, '0');
+        $this->assertStringContainsString('name="id" value="7"', $html);
+        $this->assertStringNotContainsString('name="tsort"', $html);
+        $this->assertStringContainsString('value="dur"', $html);
+        $this->assertMatchesRegularExpression('/<option value="12" selected>Clinique/', $html);
+        $this->assertMatchesRegularExpression('/<option value="13">Rurale/', $html);
+        $this->assertMatchesRegularExpression('/<option value="0" selected>/', $html);
+        $this->assertMatchesRegularExpression('/<option value="">[^<]*<\/option>/', $html);
+        $this->assertStringContainsString('action="https://www.example.com/moodle/mod/stage/register.php?id=7"', $html);
+
+        $nostatus = stage_render_list_filters($listurl, $themes, '', 0, '', false);
+        $this->assertStringNotContainsString('name="status"', $nostatus);
+        $this->assertStringContainsString('name="themeid"', $nostatus);
     }
 }

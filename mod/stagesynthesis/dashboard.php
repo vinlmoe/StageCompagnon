@@ -130,7 +130,7 @@ if (empty($rows)) {
             },
         ],
     ] + $common;
-    echo stage_render_pilotage_table($columns, $rows, $page, $listurl);
+    echo $OUTPUT->render(new \mod_stage\output\pilotage_table($columns, $rows, $page, $listurl));
 }
 
 echo $OUTPUT->footer();

@@ -15,6 +15,8 @@ changements. À tenir à jour à chaque modification de `version.php`.
   main (`workflow_dispatch`). La couverture de code est mesurée (pcov) sur la combinaison la plus
   récente, résumée dans le journal du job et publiée en artefact Clover.
 - Tests : cas tabulaires portés en `dataProvider` (filtre de statut, chevauchements de plages).
+- CI : scénarios Behat joués sans JavaScript (serveur web intégré de PHP, profil `default`) sur
+  la combinaison Moodle 4.5 / PHP 8.2.
 
 ### mod_stage
 - Événements Moodle : consultation de l'activité et chaque transition du circuit (stage
@@ -25,6 +27,13 @@ changements. À tenir à jour à chaque modification de `version.php`.
 - Tableaux de pilotage de `mod_stage` et `mod_stagesynthesis` rendus par des fonctions communes
   (formulaire de recherche, tri, colonnes, tableau paginé) au lieu de deux copies du même code.
   Au passage, la recherche courante n'est plus doublement échappée dans le champ de recherche.
+- Premiers gabarits Mustache (`templates/`) et classes de sortie (`classes/output/`) : filtres
+  des listes, tableau de pilotage, badges de statut, boutons d'action. Les fonctions de rendu
+  existantes y délèguent ; le contrôle Mustache de la CI porte désormais sur de vrais gabarits.
+- Scénarios Behat du circuit (`tests/behat/circuit.feature`) : auto-évaluation de l'étudiant,
+  évaluation et non-validation par l'enseignant référent, validation DEVE avec durée retenue,
+  tableau de pilotage, validation d'une demande de convention par l'enseignant référent. Générateur Behat (thématiques, saisies, attributions) et navigation vers
+  les pages de gestion.
 - Paramètres de requête lus avec leur type exact au lieu de `PARAM_RAW` : filtres de statut
   (nouvelle fonction `stage_optional_status_param`, qui conserve la distinction entre
   « tous les statuts » et le statut 0), boutons d'action et commentaires en texte brut.

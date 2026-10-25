@@ -92,7 +92,7 @@ if (empty($rows)) {
     $columns = stage_pilotage_columns($listurl, $sortkey, $tdir, function ($row) use ($cm) {
         return new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id, 'studentid' => $row->user->id]);
     });
-    echo stage_render_pilotage_table($columns, $rows, $page, $listurl);
+    echo $OUTPUT->render(new \mod_stage\output\pilotage_table($columns, $rows, $page, $listurl));
 }
 
 echo $OUTPUT->footer();

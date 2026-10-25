@@ -3036,15 +3036,17 @@ function stage_render_detail_section($heading, array $rows) {
  * @return string HTML, ou $empty si aucune action n'est proposée.
  */
 function stage_render_actions(array $links, $class = 'btn btn-sm btn-secondary mr-1 mb-1', $empty = '-') {
-    $out = '';
+    global $OUTPUT;
+
+    $actions = [];
     foreach ($links as $label => $url) {
         if ($url === null) {
             continue;
         }
-        $out .= html_writer::link($url, $label, ['class' => $class]);
+        $actions[] = ['label' => $label, 'url' => $url instanceof moodle_url ? $url->out(false) : $url, 'class' => $class];
     }
 
-    return $out !== '' ? $out : $empty;
+    return $OUTPUT->render_from_template('mod_stage/actions', ['actions' => $actions, 'empty' => $empty]);
 }
 
 /**
@@ -3369,42 +3371,40 @@ function stage_optional_status_param($name) {
  * @return string
  */
 function stage_render_list_filters(moodle_url $baseurl, array $themes, $search, $themeid, $status, $showstatus = true) {
-    $formurl = new moodle_url($baseurl);
-    $formurl->remove_params('search', 'themeid', 'status', 'tsort', 'tdir');
-
-    $out = html_writer::start_tag('form', ['method' => 'get', 'action' => $formurl, 'class' => 'form-inline stage-filters mb-3']);
-    foreach ($formurl->params() as $key => $value) {
-        $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $key, 'value' => $value]);
-    }
-    $out .= html_writer::empty_tag('input', [
-        'type' => 'text', 'name' => 'search', 'value' => s($search),
-        'placeholder' => get_string('searchstudent', 'mod_stage'), 'class' => 'form-control mr-2',
-    ]);
+    global $OUTPUT;
 
     $themeoptions = [0 => get_string('allthemes', 'mod_stage')];
     foreach ($themes as $theme) {
         $themeoptions[$theme->id] = format_string($theme->name);
     }
-    $out .= html_writer::select($themeoptions, 'themeid', $themeid, false, ['class' => 'form-control mr-2']);
-
+    $selects = ['themeid' => ['options' => $themeoptions, 'selected' => $themeid]];
     if ($showstatus) {
-        $statusoptions = ['' => get_string('allstatuses', 'mod_stage')];
-        foreach (
-            [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
-                STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode
-        ) {
-            $statusoptions[$statuscode] = stage_status_label($statuscode);
-        }
-        $out .= html_writer::select($statusoptions, 'status', $status, false, ['class' => 'form-control mr-2']);
+        $selects['status'] = ['options' => stage_status_filter_options(), 'selected' => $status];
     }
 
-    $out .= html_writer::empty_tag('input', [
-        'type' => 'submit', 'value' => get_string('search'), 'class' => 'btn btn-secondary mr-2',
-    ]);
-    $out .= html_writer::link($formurl, get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
-    $out .= html_writer::end_tag('form');
+    return $OUTPUT->render(new \mod_stage\output\list_filters(
+        $baseurl,
+        ['search', 'themeid', 'status', 'tsort', 'tdir'],
+        $search,
+        $selects
+    ));
+}
 
-    return $out;
+/**
+ * Options du filtre de statut des listes de saisies : « tous les statuts » (valeur vide), puis les
+ * statuts du moins au plus avancé.
+ *
+ * @return array valeur => libellé
+ */
+function stage_status_filter_options() {
+    $options = ['' => get_string('allstatuses', 'mod_stage')];
+    foreach (
+        [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
+            STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode
+    ) {
+        $options[$statuscode] = stage_status_label($statuscode);
+    }
+    return $options;
 }
 
 /**
@@ -3678,9 +3678,12 @@ function stage_render_navlinks(stdClass $cm, context $context) {
  * @return string HTML
  */
 function stage_render_status_badge($done) {
-    return $done
-        ? html_writer::span(get_string('themedone', 'mod_stage'), 'badge badge-success')
-        : html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
+    global $OUTPUT;
+
+    return $OUTPUT->render_from_template('mod_stage/status_badge', [
+        'done' => (bool) $done,
+        'label' => get_string($done ? 'themedone' : 'themetodo', 'mod_stage'),
+    ]);
 }
 
 /**
@@ -7142,25 +7145,15 @@ function stage_delete_entries(array $entryids, ?context $context = null) {
  * Formulaire de recherche par nom des tableaux de pilotage (mod_stage et mod_stagesynthesis).
  *
  * @param moodle_url $baseurl URL de la page sans filtre ; cible du formulaire et du lien « réinitialiser ».
- * @param int $cmid Identifiant du module, transmis en champ caché.
+ * @param int $cmid Identifiant du module, conservé en champ caché.
  * @param string $search Recherche courante.
  * @return string HTML.
  */
 function stage_render_pilotage_search_form(moodle_url $baseurl, $cmid, $search) {
-    $out = html_writer::start_tag('form', [
-        'method' => 'get', 'action' => $baseurl, 'class' => 'form-inline stage-filters mb-3',
-    ]);
-    $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'id', 'value' => $cmid]);
-    $out .= html_writer::empty_tag('input', [
-        'type' => 'text', 'name' => 'search', 'value' => $search,
-        'placeholder' => get_string('searchstudent', 'mod_stage'), 'class' => 'form-control mr-2',
-    ]);
-    $out .= html_writer::empty_tag('input', [
-        'type' => 'submit', 'value' => get_string('search'), 'class' => 'btn btn-secondary mr-2',
-    ]);
-    $out .= html_writer::link($baseurl, get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
-    $out .= html_writer::end_tag('form');
-    return $out;
+    global $OUTPUT;
+
+    $listurl = new moodle_url($baseurl, ['id' => $cmid]);
+    return $OUTPUT->render(new \mod_stage\output\list_filters($listurl, ['search', 'tsort', 'tdir', 'page'], $search));
 }
 
 /**
@@ -7221,23 +7214,26 @@ function stage_sort_pilotage_rows(array $rows, $search, $tsort, $tdir, array $ex
  * @return string HTML.
  */
 function stage_render_pilotage_status(stdClass $row) {
-    if (!empty($row->complete)) {
-        return html_writer::span(get_string('themedone', 'mod_stage'), 'badge badge-success');
+    global $OUTPUT;
+
+    $done = !empty($row->complete);
+    $validatedyears = '';
+    if (!$done) {
+        $years = array_filter($row->yearprogress, function ($yearrow) {
+            return !empty($yearrow->done);
+        });
+        if (!empty($years)) {
+            $labels = array_map(function ($yearrow) {
+                return stage_studyyear_label($yearrow->studyyear);
+            }, $years);
+            $validatedyears = get_string('validatedyears', 'mod_stage', implode(', ', $labels));
+        }
     }
-    $out = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
-    $validatedyears = array_filter($row->yearprogress, function ($yearrow) {
-        return !empty($yearrow->done);
-    });
-    if (!empty($validatedyears)) {
-        $labels = array_map(function ($yearrow) {
-            return stage_studyyear_label($yearrow->studyyear);
-        }, $validatedyears);
-        $out .= html_writer::div(
-            get_string('validatedyears', 'mod_stage', implode(', ', $labels)),
-            'text-muted small'
-        );
-    }
-    return $out;
+    return $OUTPUT->render_from_template('mod_stage/pilotage_status', [
+        'done' => $done,
+        'label' => get_string($done ? 'themedone' : 'themetodo', 'mod_stage'),
+        'validatedyears' => $validatedyears,
+    ]);
 }
 
 /**
@@ -7294,28 +7290,4 @@ function stage_pilotage_columns(moodle_url $listurl, $sortkey, $tdir, callable $
             },
         ],
     ];
-}
-
-/**
- * Rend un tableau de pilotage paginé à partir de ses colonnes (voir stage_pilotage_columns()).
- *
- * @param array $columns clé => ['head' => en-tête, 'cell' => fonction (ligne) => cellule], dans l'ordre d'affichage.
- * @param stdClass[] $rows Lignes déjà filtrées et triées.
- * @param int $page Page courante.
- * @param moodle_url $listurl URL de la liste avec ses filtres, pour la barre de pagination.
- * @return string HTML : tableau suivi de la barre de pagination.
- */
-function stage_render_pilotage_table(array $columns, array $rows, $page, moodle_url $listurl) {
-    [$rows, $pagingbarhtml] = stage_paginate($rows, $page, $listurl);
-
-    $table = new html_table();
-    $table->head = array_column(array_values($columns), 'head');
-    foreach ($rows as $row) {
-        $cells = [];
-        foreach ($columns as $column) {
-            $cells[] = call_user_func($column['cell'], $row);
-        }
-        $table->data[] = $cells;
-    }
-    return html_writer::table($table) . $pagingbarhtml;
 }
