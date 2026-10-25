@@ -98,7 +98,8 @@ Les procédures détaillées — mise en place d'un cours, rôles à créer, imp
 configuration des conventions et des courriels — sont dans les deux `INSTALL.md`.
 
 Guides avec captures d'écran, dans [`docs/guides/`](docs/guides) (source LaTeX
-dans le même dossier, `latexmk -pdf <guide>.tex`) :
+dans le même dossier, `latexmk -pdf <guide>.tex` ; les captures se refont avec les outils de
+[`docs/guides/captures/`](docs/guides/captures)) :
 
 | Guide | Public | Contenu |
 |---|---|---|

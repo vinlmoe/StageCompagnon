@@ -1,0 +1,396 @@
+[
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/administration.php?id=1",
+  "file": "03_administration"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/themes.php?id=1",
+  "file": "04_themes"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/theme_edit.php?id=1&themeid=2",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "05a_theme_top",
+  "to": "#id_durationshdr"
+ },
+ {
+  "user": "cmartin",
+  "file": "05b_theme_durations",
+  "element": "#id_durationshdr"
+ },
+ {
+  "user": "cmartin",
+  "file": "05c_theme_teachers",
+  "element": "#id_teachershdr"
+ },
+ {
+  "user": "cmartin",
+  "file": "05d_theme_objectives",
+  "element": "#id_objectiveshdr"
+ },
+ {
+  "user": "cmartin",
+  "file": "05e_theme_checklist",
+  "element": "#id_checklisthdr"
+ },
+ {
+  "user": "cmartin",
+  "file": "05f_theme_lists",
+  "element": "#id_questionshdr"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/year_requirements.php?id=1",
+  "file": "06_year_requirements"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/evallists.php?id=1",
+  "file": "07_evallists"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/evallist_edit.php?id=1&listid=2",
+  "file": "08_evallist_edit"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/convention_templates.php?id=1",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "09a_templates_list",
+  "to": "#id_settingshdr"
+ },
+ {
+  "user": "cmartin",
+  "file": "09b_templates_settings",
+  "element": "#id_settingshdr"
+ },
+ {
+  "user": "cmartin",
+  "file": "09c_templates_establishment",
+  "element": "#id_establishmenthdr"
+ },
+ {
+  "user": "cmartin",
+  "file": "09d_templates_logos",
+  "element": "#id_logoshdr"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/convention_template.php?id=1&templateid=1",
+  "file": "10_convention_template"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/teachers.php?id=1",
+  "file": "11_teachers"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/notifications.php?id=1",
+  "file": "12_notifications"
+ },
+ {
+  "user": "cmartin",
+  "actions": [
+   [
+    "expand",
+    "#id_email_selfeval_hdr"
+   ]
+  ],
+  "file": "12b_notification_open",
+  "element": "#id_email_selfeval_hdr"
+ },
+ {
+  "user": "cmartin",
+  "actions": [
+   [
+    "expand",
+    "#id_email_conventionready_hdr"
+   ]
+  ],
+  "file": "12c_notification_custom",
+  "element": "#id_email_conventionready_hdr"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/administration_import.php?id=4",
+  "actions": [
+   [
+    "select",
+    "#id_sourcestageid",
+    "1"
+   ]
+  ],
+  "file": "13_admin_import"
+ },
+ {
+  "user": "cmartin",
+  "actions": [
+   [
+    "click",
+    "#id_submitbutton"
+   ],
+   [
+    "wait"
+   ]
+  ],
+  "file": "13c_import_done",
+  "keepalerts": true
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/register.php?id=1",
+  "file": "14_register"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/import.php?id=1",
+  "file": "15_import"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/conventions.php?id=1",
+  "file": "16_conventions"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/deve.php?id=1",
+  "file": "17_deve"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/dashboard.php?id=1",
+  "file": "18_dashboard"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stagesynthesis/administration.php?id=3",
+  "actions": [
+   [
+    "eval",
+    "document.querySelectorAll('input[type=checkbox][value=\"2\"]').forEach(c => c.checked = false)"
+   ]
+  ],
+  "file": "22_synth_links"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stagesynthesis/dashboard.php?id=3",
+  "file": "23_synth_view"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stagesynthesis/entries.php?id=3",
+  "file": "24_synth_entries"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/convention_review.php?id=1&entryid=6",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "25a_review_top",
+  "to": "#id_hostheader"
+ },
+ {
+  "user": "cmartin",
+  "file": "25b_review_generate",
+  "element": "#id_generationheader"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stage/convention_teacher_validate.php?id=1&entryid=8",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "26_teacher_validate",
+  "to": "#id_hostheader"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/register.php?id=1&entryid=5",
+  "file": "40_register_edit"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/convention_request.php?id=1&entryid=4",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "41_convention_request_deve",
+  "to": "#id_studentheader"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/convention_sign.php?id=1&entryid=5",
+  "file": "42_convention_sign"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/cancel_entry.php?id=1&entryid=6",
+  "file": "43_cancel"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/entrydetail.php?id=1&entryid=10",
+  "file": "44_entrydetail"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/deve.php?id=1&entryid=10",
+  "file": "45_deve_validate_lea"
+ },
+ {
+  "user": "jbernard",
+  "url": "/mod/stage/theme_stages.php?id=1&themeid=3",
+  "file": "46_theme_stages"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/dashboard.php?id=1&studentid=10",
+  "file": "47_student_detail"
+ },
+ {
+  "user": "cleroy",
+  "url": "/mod/stage/view.php?id=1",
+  "file": "60a_student_top",
+  "to": ":is(h3,h4):has-text('Bilan par année')"
+ },
+ {
+  "user": "cleroy",
+  "file": "60b_student_bilan",
+  "from": ":is(h3,h4):has-text('Bilan par année')",
+  "to": ":is(h3,h4):has-text('Tous mes stages')"
+ },
+ {
+  "user": "cleroy",
+  "file": "60c_student_stages",
+  "from": ":is(h3,h4):has-text('Tous mes stages')"
+ },
+ {
+  "user": "cleroy",
+  "url": "/mod/stage/theme_objectives_view.php?id=1&themeid=2",
+  "file": "62_objectives"
+ },
+ {
+  "user": "cleroy",
+  "url": "/mod/stage/entry.php?id=1&entryid=13",
+  "file": "64_selfeval"
+ },
+ {
+  "user": "cleroy",
+  "url": "/mod/stage/student_register.php?id=1&entryid=4",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "65_request_top",
+  "to": "#id_studentheader"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stage/teacher.php?id=1",
+  "file": "73_teacher_list"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stage/teacher.php?id=1&entryid=10",
+  "file": "74a_teacher_eval_top",
+  "to": ":is(h3,h4):has-text('Jours')"
+ },
+ {
+  "user": "pdurand",
+  "file": "74b_teacher_eval_form",
+  "from": ":is(h3,h4):has-text('Jours')"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stage/entrydetail.php?id=1&entryid=10",
+  "file": "76_entrydetail_teacher"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/transfer.php?id=1",
+  "actions": [
+   [
+    "select",
+    "#id_userid",
+    "7"
+   ],
+   [
+    "select",
+    "#id_targetstageid",
+    "2"
+   ]
+  ],
+  "file": "31_transfer_form"
+ },
+ {
+  "user": "cmartin",
+  "actions": [
+   [
+    "click",
+    "#id_submitbutton"
+   ],
+   [
+    "wait"
+   ]
+  ],
+  "file": "32_transfer_preview"
+ },
+ {
+  "user": "cmartin",
+  "actions": [
+   [
+    "clicktext",
+    "Confirmer le transfert"
+   ]
+  ],
+  "file": "33_transfer_done",
+  "keepalerts": true
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/register.php?id=2",
+  "file": "35_target_entries"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/teachers.php?id=2",
+  "file": "36_target_teachers"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stagesynthesis/dashboard.php?id=3",
+  "file": "70_synth_dashboard"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stagesynthesis/entries.php?id=3",
+  "file": "71_synth_entries"
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stagesynthesis/dashboard.php?id=3&studentid=10&cmid=1",
+  "file": "72_synth_student_detail"
+ }
+]

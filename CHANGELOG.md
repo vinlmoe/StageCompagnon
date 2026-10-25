@@ -45,6 +45,12 @@ changements. À tenir à jour à chaque modification de `version.php`.
   lue en `PARAM_ALPHANUMEXT`. Seuls les liens de filtre mis en favori avant ce changement sont
   concernés : ils reviennent à « toutes les thématiques ».
 
+## Documentation — 2026-10-25
+- Captures d'écran des trois guides refaites (guide de paramétrage 1.4, guides étudiant et
+  enseignant référent 1.1) sur un site de démonstration reconstitué par script, après le passage
+  des listes et tableaux aux gabarits Mustache. Outils rejouables dans `docs/guides/captures/` :
+  jeu de données, plan de captures et pilote de navigateur.
+
 ## Documentation — 2026-10-16
 - Guide de paramétrage illustré (LaTeX et PDF), versions 1.0 à 1.3 : mise en place d'une
   promotion, circuit des stages, fin d'année et diplomation, redoublement, rentrée, courriels.
