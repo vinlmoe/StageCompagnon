@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -37,8 +38,26 @@ jobs:
         run: phpcs --standard=phpcs.xml -p
 
   moodle:
-    name: Moodle checks and PHPUnit
+    name: Moodle ${{ matrix.moodle }} / PHP ${{ matrix.php }}
     runs-on: ubuntu-24.04
+
+    # Les deux bornes de la plage annoncée par version.php (Moodle 4.0+) et par le README
+    # (PHP 7.4+) : la plus basse garantit la compatibilité promise, la plus récente suit
+    # la version de Moodle déployée. La couverture de code n'est mesurée que sur cette
+    # dernière : une seule mesure suffit, et pcov ralentit la suite. Les scénarios Behat ne
+    # tournent que là aussi : la combinaison basse reste un contrôle de compatibilité rapide.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - moodle: MOODLE_400_STABLE
+            php: "7.4"
+            coverage: none
+            behat: "no"
+          - moodle: MOODLE_405_STABLE
+            php: "8.2"
+            coverage: pcov
+            behat: "yes"
 
     services:
       postgres:
@@ -63,11 +82,11 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.2"
+          php-version: ${{ matrix.php }}
           extensions: pgsql, pdo_pgsql, gd, intl, mbstring, soap, zip
           ini-values: max_input_vars=5000, opcache.enable_cli=1
           tools: composer
-          coverage: none
+          coverage: ${{ matrix.coverage }}
 
       - name: Install moodle-plugin-ci
         run: |
@@ -84,7 +103,7 @@ jobs:
           cp -R mod/stagesynthesis ci-extra-plugins/stagesynthesis
           moodle-plugin-ci install \
             --moodle=moodle \
-            --branch=MOODLE_405_STABLE \
+            --branch=${{ matrix.moodle }} \
             --db-type=pgsql \
             --db-host=127.0.0.1 \
             --db-name=moodle \
@@ -116,15 +135,13 @@ jobs:
           moodle-plugin-ci savepoints mod/stagesynthesis || check_status=1
           exit "$check_status"
 
-      - name: PHPDoc for mod_stage
+      - name: PHPDoc
         if: ${{ !cancelled() && steps.moodle_install.outcome == 'success' }}
-        continue-on-error: true
-        run: moodle-plugin-ci phpdoc --max-warnings=0 mod/stage
-
-      - name: PHPDoc for mod_stagesynthesis
-        if: ${{ !cancelled() && steps.moodle_install.outcome == 'success' }}
-        continue-on-error: true
-        run: moodle-plugin-ci phpdoc --max-warnings=0 mod/stagesynthesis
+        run: |
+          check_status=0
+          moodle-plugin-ci phpdoc --max-warnings=0 mod/stage || check_status=1
+          moodle-plugin-ci phpdoc --max-warnings=0 mod/stagesynthesis || check_status=1
+          exit "$check_status"
 
       - name: Mustache templates
         if: ${{ !cancelled() && steps.moodle_install.outcome == 'success' }}
@@ -138,6 +155,34 @@ jobs:
         if: ${{ !cancelled() && steps.moodle_install.outcome == 'success' }}
         run: |
           check_status=0
-          moodle-plugin-ci phpunit mod/stage || check_status=1
-          moodle-plugin-ci phpunit mod/stagesynthesis || check_status=1
+          coverage=""
+          if [ "${{ matrix.coverage }}" = "pcov" ]; then
+            coverage="--coverage-text --coverage-clover --coverage-pcov"
+          fi
+          # moodle-plugin-ci écrit le rapport Clover dans ./coverage.xml : il est renommé après
+          # chaque module pour que le second ne recouvre pas le premier.
+          moodle-plugin-ci phpunit $coverage mod/stage || check_status=1
+          [ -f coverage.xml ] && mv coverage.xml coverage-mod_stage.xml
+          moodle-plugin-ci phpunit $coverage mod/stagesynthesis || check_status=1
+          [ -f coverage.xml ] && mv coverage.xml coverage-mod_stagesynthesis.xml
           exit "$check_status"
+
+      - name: Behat features
+        if: ${{ !cancelled() && matrix.behat == 'yes' && steps.moodle_install.outcome == 'success' }}
+        env:
+          # Les scénarios n'utilisent pas JavaScript : seul le serveur PHP est nécessaire, pas
+          # Selenium, que moodle-plugin-ci démarrerait sinon dans Docker.
+          MOODLE_START_BEHAT_SERVERS: "NO"
+        run: |
+          php -S localhost:8000 -t moodle > php-server.log 2>&1 &
+          sleep 2
+          moodle-plugin-ci behat --profile default --dump mod/stage
+
+      - name: Coverage report (Clover)
+        if: ${{ !cancelled() && matrix.coverage == 'pcov' && steps.moodle_install.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-clover
+          path: coverage-*.xml
+          if-no-files-found: warn
+          retention-days: 30

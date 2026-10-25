@@ -31,7 +31,7 @@ $entryid = optional_param('entryid', 0, PARAM_INT);
 $returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 $search = optional_param('search', '', PARAM_TEXT);
 $filterthemeid = optional_param('themeid', 0, PARAM_INT);
-$filterstatus = optional_param('status', '', PARAM_RAW);
+$filterstatus = stage_optional_status_param('status');
 $tsort = optional_param('tsort', 'timecreated', PARAM_ALPHA);
 $tdir = optional_param('tdir', 'ASC', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);
@@ -99,8 +99,8 @@ if ($entryid) {
     }
 
     if (data_submitted() && confirm_sesskey()) {
-        if (optional_param('rejectstage', '', PARAM_RAW) !== '') {
-            $comment = optional_param('devecomment', '', PARAM_RAW);
+        if (optional_param('rejectstage', '', PARAM_TEXT) !== '') {
+            $comment = optional_param('devecomment', '', PARAM_TEXT);
             if (trim($comment) === '') {
                 redirect(
                     $entryurl,
@@ -112,7 +112,7 @@ if ($entryid) {
             stage_reject_by_deve($entry, $USER->id, $comment);
         } else {
             $retained = optional_param('retainedduration', 0, PARAM_INT);
-            $comment = optional_param('devecomment', '', PARAM_RAW);
+            $comment = optional_param('devecomment', '', PARAM_TEXT);
             stage_apply_deve_validation($entry, $USER->id, $retained, $comment);
         }
         redirect($backurl, get_string('evalsaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);

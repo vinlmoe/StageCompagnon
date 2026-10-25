@@ -36,4 +36,15 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/stagesynthesis:view', $context);
 
+// Trace de consultation dans les journaux Moodle, avant la redirection : dashboard.php, qui n'est
+// pas une page d'activité au sens de Moodle, ne la laisserait pas.
+$stagesynthesis = $DB->get_record('stagesynthesis', ['id' => $cm->instance], '*', MUST_EXIST);
+$event = \mod_stagesynthesis\event\course_module_viewed::create([
+    'objectid' => $stagesynthesis->id,
+    'context' => $context,
+]);
+$event->add_record_snapshot('course', $course);
+$event->add_record_snapshot('stagesynthesis', $stagesynthesis);
+$event->trigger();
+
 redirect(new moodle_url('/mod/stagesynthesis/dashboard.php', ['id' => $cm->id]));

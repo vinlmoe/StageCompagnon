@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/vinlmoe/StageCompagnon/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vinlmoe/StageCompagnon/actions/workflows/ci.yml)
 [![Moodle 4.0+](https://img.shields.io/badge/Moodle-4.0%2B-f98012?logo=moodle&logoColor=white)](https://moodle.org)
-[![PHP 8.2](https://img.shields.io/badge/PHP-8.2-777bb4?logo=php&logoColor=white)](https://www.php.net)
+[![PHP 7.4+](https://img.shields.io/badge/PHP-7.4%2B-777bb4?logo=php&logoColor=white)](https://www.php.net)
 [![Licence GPL v3+](https://img.shields.io/badge/licence-GPL%20v3%2B-blue)](https://www.gnu.org/licenses/gpl-3.0)
 
 Deux modules d'activité Moodle pour la gestion des stages étudiants en école
@@ -98,7 +98,8 @@ Les procédures détaillées — mise en place d'un cours, rôles à créer, imp
 configuration des conventions et des courriels — sont dans les deux `INSTALL.md`.
 
 Guides avec captures d'écran, dans [`docs/guides/`](docs/guides) (source LaTeX
-dans le même dossier, `latexmk -pdf <guide>.tex`) :
+dans le même dossier, `latexmk -pdf <guide>.tex` ; les captures se refont avec les outils de
+[`docs/guides/captures/`](docs/guides/captures)) :
 
 | Guide | Public | Contenu |
 |---|---|---|
@@ -115,10 +116,16 @@ Chaque poussée déclenche `.github/workflows/ci.yml`, en deux temps :
   compris. Une seule règle est désactivée, et le fichier dit pourquoi : le sniff qui exige
   qu'un commentaire commence par `[A-Z0-9]` ne reconnaît pas les capitales accentuées, et
   s'y conformer imposerait d'écrire « Ecran » pour « Écran ».
-- **Moodle** — `moodle-plugin-ci` installe un Moodle 4.5 avec PostgreSQL et les modules du
+- **Moodle** — `moodle-plugin-ci` installe un Moodle avec PostgreSQL et les modules du
   dépôt, puis enchaîne analyse syntaxique, validation de la structure du module, points de
-  sauvegarde de la mise à jour, gabarits Mustache et tests PHPUnit. Le contrôle des blocs de
-  documentation (`phpdoc`) est présent mais non bloquant : son relevé reste à trier.
+  sauvegarde de la mise à jour, blocs de documentation (`phpdoc`), gabarits Mustache et tests
+  PHPUnit. Tous ces contrôles sont bloquants. Le job tourne sur deux combinaisons : Moodle 4.0
+  avec PHP 7.4, la borne basse annoncée par `version.php` et par ce README, et Moodle 4.5 avec
+  PHP 8.2. Sur cette dernière, la couverture de code est mesurée avec pcov (résumé dans le
+  journal de l'étape PHPUnit, rapports Clover en artefact du job) et les scénarios Behat de
+  `mod/stage/tests/behat/` sont joués sans JavaScript, sur le serveur web intégré de PHP. Le
+  workflow peut aussi être lancé à la main depuis l'onglet *Actions* (`workflow_dispatch`), par
+  exemple pour vérifier une branche avant d'ouvrir une demande de fusion.
 
 Pour rejouer le contrôle de style en local :
 
@@ -152,6 +159,13 @@ n'est que le référent et se limite à dissocier ses références. Si vos conve
 signées sont soumises à une obligation d'archivage, extrayez-les avant de traiter
 une demande de suppression. Détail en §11 de `mod/stage/INSTALL.md`.
 
+**Journaux.** Chaque étape du circuit (enregistrement, auto-évaluation, évaluations de
+l'enseignant référent et du maître de stage, validation ou non-validation, réinitialisation,
+annulation, demande, validation, édition, signature ou refus de convention, dispense) déclenche
+un événement Moodle rattaché au module, à la saisie et à l'étudiant. Les journaux standard
+(*Rapports > Journaux*) permettent donc de répondre à « qui a validé ce stage, et quand » sans
+lire la base. L'évaluation du maître de stage, faite sans compte, est tracée avec l'utilisateur 0.
+
 **Rôles Moodle.** Le module s'appuie sur les archétypes standard : le personnel
 DEVE utilise le rôle « Enseignant » (`editingteacher`) et les enseignants
 référents le rôle « Enseignant non éditeur » (`teacher`). Aucun rôle Moodle
@@ -169,14 +183,36 @@ vendor/bin/phpunit --testsuite mod_stagesynthesis_testsuite
 
 `mod/stage/tests/generator/lib.php` fournit un générateur de données
 (`mod_stage_generator`) pour créer thématiques, saisies et attributions de
-référent dans les tests.
+référent dans les tests. Son pendant Behat (`behat_mod_stage_generator.php`)
+expose les mêmes entités aux scénarios (`the following "mod_stage > entries"
+exist`), et `tests/behat/behat_mod_stage.php` sait ouvrir les pages de gestion
+d'une activité (`I am on the "Stages" "mod_stage > Teacher validation" page`).
+
+Les scénarios Behat de `mod/stage/tests/behat/` parcourent le circuit du stage
+dans l'interface : auto-évaluation, évaluation et non-validation par
+l'enseignant référent, validation DEVE, tableau de pilotage, validation d'une
+demande de convention par l'enseignant référent. Ils n'exigent pas de navigateur :
+
+```bash
+php admin/tool/behat/cli/init.php            # $CFG->behat_wwwroot, behat_prefix, behat_dataroot requis
+php -S localhost:8000 &                       # depuis la racine Moodle, sur l'URL de behat_wwwroot
+php admin/tool/behat/cli/run.php --tags=@mod_stage
+```
+
+Les listes (filtres, tableau de pilotage, badges, boutons d'action) sont rendues par des gabarits
+Mustache de `mod/stage/templates/` et des classes de `mod_stage\output` ; les pages héritées
+rendent encore le reste en PHP avec `html_writer`, et migrent au fil des évolutions.
 
 La couverture porte sur la logique métier la plus sensible aux régressions
 silencieuses — dates dérivées des plages, bilans de validation, transfert
 inter-cours, accès aux conventions, règles RGPD — et n'est pas exhaustive.
 Étendre `tests/` au même format à mesure que de nouvelles règles sont ajoutées.
 
+L'historique des versions des deux modules est tenu dans [`CHANGELOG.md`](CHANGELOG.md) :
+y ajouter une entrée à chaque changement de `version.php`. Les conventions d'édition
+(indentation, fins de ligne) sont décrites dans `.editorconfig`.
+
 ## Licence
 
-GNU GPL v3 ou ultérieure, comme Moodle. FPDI est distribué sous licence MIT
-(voir `mod/stage/thirdpartylibs.xml`).
+GNU GPL v3 ou ultérieure, comme Moodle ; le texte complet est dans [`LICENSE`](LICENSE).
+FPDI est distribué sous licence MIT (voir `mod/stage/thirdpartylibs.xml`).

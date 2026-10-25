@@ -1126,6 +1126,8 @@ function stage_register_entry(
         ]);
     }
 
+    stage_trigger_entry_event(\mod_stage\event\entry_created::class, $entryid);
+
     return $entryid;
 }
 
@@ -1246,6 +1248,39 @@ function stage_update_entry_fields(stdClass $entry, array $fields) {
         }
     }
     $DB->update_record('stage_entry', $record);
+}
+
+/**
+ * Déclenche un événement du circuit (classe de mod_stage\event) pour une saisie, une fois la base
+ * mise à jour : les statuts du stage et de la convention sont relus pour refléter l'état réellement
+ * enregistré, et sont toujours présents dans « other » avec les données propres à l'événement.
+ *
+ * Sans module de cours (activité en cours de suppression), il n'y a plus de contexte où rattacher
+ * l'événement : rien n'est déclenché.
+ *
+ * @param string $eventclass Nom complet de la classe d'événement (sous-classe de entry_event_base).
+ * @param int $entryid
+ * @param array $other Données complémentaires propres à l'événement (scalaires).
+ * @return void
+ */
+function stage_trigger_entry_event($eventclass, $entryid, array $other = []) {
+    global $DB;
+
+    $entry = $DB->get_record('stage_entry', ['id' => $entryid], 'id, stageid, userid, status, conventionstatus', MUST_EXIST);
+    $cm = get_coursemodule_from_instance('stage', $entry->stageid, 0, false, IGNORE_MISSING);
+    if (!$cm) {
+        return;
+    }
+    $event = $eventclass::create([
+        'objectid' => $entry->id,
+        'context' => context_module::instance($cm->id),
+        'relateduserid' => $entry->userid,
+        'other' => $other + [
+            'status' => (int) $entry->status,
+            'conventionstatus' => (int) $entry->conventionstatus,
+        ],
+    ]);
+    $event->trigger();
 }
 
 /**
@@ -1742,6 +1777,7 @@ function stage_apply_student_eval(stdClass $entry, $selfeval = null) {
     }
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['studentselfeval', 'status', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\entry_student_evaluated::class, $entry->id);
 }
 
 /**
@@ -1766,6 +1802,7 @@ function stage_apply_teacher_eval(stdClass $entry, $teacherid, $comment = null) 
     }
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\entry_teacher_evaluated::class, $entry->id);
 }
 
 /**
@@ -1796,6 +1833,9 @@ function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retaineddura
     $entry->status = STAGE_STATUS_VALIDE_DEVE;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['deveuserid', 'devecomment', 'devetime', 'retainedduration', 'status', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\entry_validated::class, $entry->id, [
+        'retainedduration' => (int) $entry->retainedduration,
+    ]);
 }
 
 /**
@@ -1820,6 +1860,7 @@ function stage_reject_by_teacher(stdClass $entry, $teacherid, $comment) {
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\entry_rejected::class, $entry->id, ['role' => 'teacher']);
 }
 
 /**
@@ -1847,6 +1888,7 @@ function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['deveuserid', 'devecomment', 'devetime', 'status', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\entry_rejected::class, $entry->id, ['role' => 'deve']);
 }
 
 /**
@@ -1869,6 +1911,7 @@ function stage_reset_entry(stdClass $entry) {
     $entry->tutorbypassed = 0;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['tutortoken', 'tutorrequesttime', 'status', 'tutorbypassed', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\entry_reset::class, $entry->id);
 }
 
 /**
@@ -1894,6 +1937,7 @@ function stage_cancel_entry(stdClass $entry, $byuserid, $comment) {
     stage_update_entry_fields($entry, [
         'status', 'tutortoken', 'tutorrequesttime', 'cancelledby', 'canceltime', 'cancelcomment', 'timemodified',
     ]);
+    stage_trigger_entry_event(\mod_stage\event\entry_cancelled::class, $entry->id);
 }
 
 /**
@@ -2992,15 +3036,17 @@ function stage_render_detail_section($heading, array $rows) {
  * @return string HTML, ou $empty si aucune action n'est proposée.
  */
 function stage_render_actions(array $links, $class = 'btn btn-sm btn-secondary mr-1 mb-1', $empty = '-') {
-    $out = '';
+    global $OUTPUT;
+
+    $actions = [];
     foreach ($links as $label => $url) {
         if ($url === null) {
             continue;
         }
-        $out .= html_writer::link($url, $label, ['class' => $class]);
+        $actions[] = ['label' => $label, 'url' => $url instanceof moodle_url ? $url->out(false) : $url, 'class' => $class];
     }
 
-    return $out !== '' ? $out : $empty;
+    return $OUTPUT->render_from_template('mod_stage/actions', ['actions' => $actions, 'empty' => $empty]);
 }
 
 /**
@@ -3296,6 +3342,21 @@ function stage_sort_header($label, $key, moodle_url $baseurl, $currentsort, $cur
 }
 
 /**
+ * Lit un filtre de statut facultatif passé en paramètre de requête.
+ *
+ * La valeur vide signifie « tous les statuts » et doit le rester : lue en PARAM_INT, elle
+ * deviendrait 0, c'est-à-dire STAGE_STATUS_ENREGISTRE. Les codes de statut peuvent être
+ * négatifs (STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ANNULE). Toute autre valeur est ignorée.
+ *
+ * @param string $name Nom du paramètre.
+ * @return string Chaîne vide, ou le code de statut sous forme de chaîne d'entier.
+ */
+function stage_optional_status_param($name) {
+    $value = optional_param($name, '', PARAM_ALPHANUMEXT);
+    return preg_match('/^-?\d+$/', $value) ? (string) (int) $value : '';
+}
+
+/**
  * Rend le formulaire de recherche/filtre (nom étudiant, thématique, étape de validation)
  * au-dessus des listes de saisies de stage. Les autres paramètres présents dans $baseurl
  * (id, mode...) sont préservés en champs cachés.
@@ -3310,42 +3371,40 @@ function stage_sort_header($label, $key, moodle_url $baseurl, $currentsort, $cur
  * @return string
  */
 function stage_render_list_filters(moodle_url $baseurl, array $themes, $search, $themeid, $status, $showstatus = true) {
-    $formurl = new moodle_url($baseurl);
-    $formurl->remove_params('search', 'themeid', 'status', 'tsort', 'tdir');
-
-    $out = html_writer::start_tag('form', ['method' => 'get', 'action' => $formurl, 'class' => 'form-inline stage-filters mb-3']);
-    foreach ($formurl->params() as $key => $value) {
-        $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $key, 'value' => $value]);
-    }
-    $out .= html_writer::empty_tag('input', [
-        'type' => 'text', 'name' => 'search', 'value' => s($search),
-        'placeholder' => get_string('searchstudent', 'mod_stage'), 'class' => 'form-control mr-2',
-    ]);
+    global $OUTPUT;
 
     $themeoptions = [0 => get_string('allthemes', 'mod_stage')];
     foreach ($themes as $theme) {
         $themeoptions[$theme->id] = format_string($theme->name);
     }
-    $out .= html_writer::select($themeoptions, 'themeid', $themeid, false, ['class' => 'form-control mr-2']);
-
+    $selects = ['themeid' => ['options' => $themeoptions, 'selected' => $themeid]];
     if ($showstatus) {
-        $statusoptions = ['' => get_string('allstatuses', 'mod_stage')];
-        foreach (
-            [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
-                STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode
-        ) {
-            $statusoptions[$statuscode] = stage_status_label($statuscode);
-        }
-        $out .= html_writer::select($statusoptions, 'status', $status, false, ['class' => 'form-control mr-2']);
+        $selects['status'] = ['options' => stage_status_filter_options(), 'selected' => $status];
     }
 
-    $out .= html_writer::empty_tag('input', [
-        'type' => 'submit', 'value' => get_string('search'), 'class' => 'btn btn-secondary mr-2',
-    ]);
-    $out .= html_writer::link($formurl, get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
-    $out .= html_writer::end_tag('form');
+    return $OUTPUT->render(new \mod_stage\output\list_filters(
+        $baseurl,
+        ['search', 'themeid', 'status', 'tsort', 'tdir'],
+        $search,
+        $selects
+    ));
+}
 
-    return $out;
+/**
+ * Options du filtre de statut des listes de saisies : « tous les statuts » (valeur vide), puis les
+ * statuts du moins au plus avancé.
+ *
+ * @return array valeur => libellé
+ */
+function stage_status_filter_options() {
+    $options = ['' => get_string('allstatuses', 'mod_stage')];
+    foreach (
+        [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
+            STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode
+    ) {
+        $options[$statuscode] = stage_status_label($statuscode);
+    }
+    return $options;
 }
 
 /**
@@ -3619,9 +3678,12 @@ function stage_render_navlinks(stdClass $cm, context $context) {
  * @return string HTML
  */
 function stage_render_status_badge($done) {
-    return $done
-        ? html_writer::span(get_string('themedone', 'mod_stage'), 'badge badge-success')
-        : html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
+    global $OUTPUT;
+
+    return $OUTPUT->render_from_template('mod_stage/status_badge', [
+        'done' => (bool) $done,
+        'label' => get_string($done ? 'themedone' : 'themetodo', 'mod_stage'),
+    ]);
 }
 
 /**
@@ -5234,6 +5296,9 @@ function stage_set_entry_convention_exempt(stdClass $entry, $exempt) {
     $entry->conventionstatus = $newstatus;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['conventionstatus', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\convention_exemption_changed::class, $entry->id, [
+        'exempt' => $exempt ? 1 : 0,
+    ]);
 }
 
 /**
@@ -5256,6 +5321,9 @@ function stage_request_convention(stdClass $entry, $templateid, $requireteacherv
     $entry->conventionrequesttime = time();
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['conventiontemplateid', 'conventionstatus', 'conventionrequesttime', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\convention_requested::class, $entry->id, [
+        'teacherpending' => $requireteachervalidation ? 1 : 0,
+    ]);
 }
 
 /**
@@ -5276,6 +5344,7 @@ function stage_teacher_validate_convention(stdClass $entry, $byuserid) {
     stage_update_entry_fields($entry, [
         'conventionstatus', 'conventionteachervalidatedby', 'conventionteachervalidatetime', 'timemodified',
     ]);
+    stage_trigger_entry_event(\mod_stage\event\convention_teacher_validated::class, $entry->id);
 }
 
 /**
@@ -5319,6 +5388,7 @@ function stage_convention_mark_edited(stdClass $entry, $byuserid) {
     $entry->conventionedittime = time();
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['conventionstatus', 'conventioneditedby', 'conventionedittime', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\convention_edited::class, $entry->id);
 }
 
 /**
@@ -5371,6 +5441,7 @@ function stage_convention_mark_signed(stdClass $entry, $byuserid) {
     $entry->conventionsigntime = time();
     $entry->timemodified = time();
     stage_update_entry_fields($entry, ['conventionstatus', 'conventionsignedby', 'conventionsigntime', 'timemodified']);
+    stage_trigger_entry_event(\mod_stage\event\convention_signed::class, $entry->id);
 }
 
 /**
@@ -5394,6 +5465,7 @@ function stage_reject_convention(stdClass $entry, $byuserid, $comment) {
     stage_update_entry_fields($entry, [
         'conventionstatus', 'conventionrejectedby', 'conventionrejecttime', 'conventionrejectcomment', 'timemodified',
     ]);
+    stage_trigger_entry_event(\mod_stage\event\convention_rejected::class, $entry->id);
 }
 
 /**
@@ -5839,6 +5911,7 @@ function stage_apply_tutor_eval(stdClass $entry, $comment = null) {
         $update->tutoreval = $comment;
     }
     $DB->update_record('stage_entry', $update);
+    stage_trigger_entry_event(\mod_stage\event\entry_tutor_evaluated::class, $entry->id);
 }
 
 /**
@@ -7066,4 +7139,155 @@ function stage_delete_entries(array $entryids, ?context $context = null) {
         $DB->delete_records_select($table, "entryid $insql", $inparams);
     }
     $DB->delete_records_select('stage_entry', "id $insql", $inparams);
+}
+
+/**
+ * Formulaire de recherche par nom des tableaux de pilotage (mod_stage et mod_stagesynthesis).
+ *
+ * @param moodle_url $baseurl URL de la page sans filtre ; cible du formulaire et du lien « réinitialiser ».
+ * @param int $cmid Identifiant du module, conservé en champ caché.
+ * @param string $search Recherche courante.
+ * @return string HTML.
+ */
+function stage_render_pilotage_search_form(moodle_url $baseurl, $cmid, $search) {
+    global $OUTPUT;
+
+    $listurl = new moodle_url($baseurl, ['id' => $cmid]);
+    return $OUTPUT->render(new \mod_stage\output\list_filters($listurl, ['search', 'tsort', 'tdir', 'page'], $search));
+}
+
+/**
+ * Filtre par nom d'étudiant puis trie les lignes d'un tableau de pilotage.
+ *
+ * Les clés de tri communes sont student, progress, pending et retained ; l'appelant peut en
+ * ajouter (la synthèse trie aussi par cours). Une clé inconnue retombe sur student.
+ *
+ * @param stdClass[] $rows Lignes de stage_get_pilotage_overview() ou stagesynthesis_get_pilotage_rows().
+ * @param string $search Texte cherché dans le nom complet, sans tenir compte de la casse ; vide = tout.
+ * @param string $tsort Clé de tri demandée.
+ * @param string $tdir ASC ou DESC.
+ * @param callable[] $extrasortmap Clés de tri supplémentaires => fonction (ligne) => valeur de tri.
+ * @return array [lignes filtrées et triées, clé de tri effective]
+ */
+function stage_sort_pilotage_rows(array $rows, $search, $tsort, $tdir, array $extrasortmap = []) {
+    if ((string) $search !== '') {
+        $needle = core_text::strtolower($search);
+        $rows = array_filter($rows, function ($row) use ($needle) {
+            return core_text::strpos(core_text::strtolower(fullname($row->user)), $needle) !== false;
+        });
+    }
+
+    $sortmap = $extrasortmap + [
+        'student' => function ($row) {
+            return core_text::strtolower(fullname($row->user));
+        },
+        'progress' => function ($row) {
+            return $row->mandatorytotal > 0 ? ($row->mandatorydone / $row->mandatorytotal) : -1;
+        },
+        'pending' => function ($row) {
+            return $row->pendingcount;
+        },
+        'retained' => function ($row) {
+            return $row->progress->totalretained;
+        },
+    ];
+    $sortkey = array_key_exists($tsort, $sortmap) ? $tsort : 'student';
+    $sortfn = $sortmap[$sortkey];
+    usort($rows, function ($a, $b) use ($sortfn) {
+        return $sortfn($a) <=> $sortfn($b);
+    });
+    if (strtoupper((string) $tdir) === 'DESC') {
+        $rows = array_reverse($rows);
+    }
+    return [$rows, $sortkey];
+}
+
+/**
+ * Cellule « statut global » d'une ligne de pilotage.
+ *
+ * Plutôt qu'un simple « à compléter », indique quelles années sont déjà validées (voir
+ * stage_get_student_year_progress()), pour situer l'avancement en un coup d'œil. Le badge ne porte
+ * que le statut ; la liste des années le suit en clair, un badge devenant illisible dès qu'il
+ * contient une énumération.
+ *
+ * @param stdClass $row Ligne de pilotage (complete, yearprogress).
+ * @return string HTML.
+ */
+function stage_render_pilotage_status(stdClass $row) {
+    global $OUTPUT;
+
+    $done = !empty($row->complete);
+    $validatedyears = '';
+    if (!$done) {
+        $years = array_filter($row->yearprogress, function ($yearrow) {
+            return !empty($yearrow->done);
+        });
+        if (!empty($years)) {
+            $labels = array_map(function ($yearrow) {
+                return stage_studyyear_label($yearrow->studyyear);
+            }, $years);
+            $validatedyears = get_string('validatedyears', 'mod_stage', implode(', ', $labels));
+        }
+    }
+    return $OUTPUT->render_from_template('mod_stage/pilotage_status', [
+        'done' => $done,
+        'label' => get_string($done ? 'themedone' : 'themetodo', 'mod_stage'),
+        'validatedyears' => $validatedyears,
+    ]);
+}
+
+/**
+ * Colonnes communes des tableaux de pilotage : étudiant, thématiques obligatoires, saisies en
+ * attente, jours retenus, statut global et actions. La synthèse y intercale les siennes (cours,
+ * année d'étude) en réordonnant le tableau renvoyé.
+ *
+ * @param moodle_url $listurl URL de la liste avec ses filtres, pour les en-têtes de tri.
+ * @param string $sortkey Clé de tri effective.
+ * @param string $tdir Sens de tri courant.
+ * @param callable $detailurl Fonction (ligne) => moodle_url de la situation détaillée de l'étudiant.
+ * @return array clé => ['head' => en-tête (HTML), 'cell' => fonction (ligne) => cellule (HTML)]
+ */
+function stage_pilotage_columns(moodle_url $listurl, $sortkey, $tdir, callable $detailurl) {
+    return [
+        'student' => [
+            'head' => stage_sort_header(get_string('student', 'mod_stage'), 'student', $listurl, $sortkey, $tdir),
+            'cell' => function ($row) {
+                return fullname($row->user);
+            },
+        ],
+        'progress' => [
+            'head' => stage_sort_header(get_string('mandatorythemes', 'mod_stage'), 'progress', $listurl, $sortkey, $tdir),
+            'cell' => function ($row) {
+                return $row->mandatorytotal > 0
+                    ? "{$row->mandatorydone} / {$row->mandatorytotal}"
+                    : get_string('nomandatorythemes', 'mod_stage');
+            },
+        ],
+        'pending' => [
+            'head' => stage_sort_header(get_string('pendingstages', 'mod_stage'), 'pending', $listurl, $sortkey, $tdir),
+            'cell' => function ($row) {
+                // Une saisie en attente est ce sur quoi la DEVE a une action à faire : on la met en
+                // avant plutôt que de la noyer dans une colonne de zéros.
+                return $row->pendingcount > 0
+                    ? html_writer::span($row->pendingcount, 'badge badge-info')
+                    : html_writer::span('0', 'text-muted');
+            },
+        ],
+        'retained' => [
+            'head' => stage_sort_header(get_string('totalretainedshort', 'mod_stage'), 'retained', $listurl, $sortkey, $tdir),
+            'cell' => function ($row) {
+                return get_string('retaineddaysonly', 'mod_stage', $row->progress->totalretained);
+            },
+        ],
+        'status' => [
+            'head' => get_string('status', 'mod_stage'),
+            'cell' => 'stage_render_pilotage_status',
+        ],
+        'actions' => [
+            'head' => get_string('actions', 'mod_stage'),
+            'cell' => function ($row) use ($detailurl) {
+                return stage_render_actions([get_string('viewdetails', 'mod_stage') => $detailurl($row)]);
+            },
+        ],
+    ];
 }

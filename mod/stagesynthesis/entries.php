@@ -31,8 +31,8 @@ require_once($CFG->dirroot . '/mod/stagesynthesis/locallib.php');
 
 $id = required_param('id', PARAM_INT);
 $search = optional_param('search', '', PARAM_TEXT);
-$themekey = optional_param('themekey', '', PARAM_RAW);
-$filterstatus = optional_param('status', '', PARAM_RAW);
+$themekey = optional_param('themekey', '', PARAM_ALPHANUMEXT);
+$filterstatus = stage_optional_status_param('status');
 $tsort = optional_param('tsort', 'timecreated', PARAM_ALPHA);
 $tdir = optional_param('tdir', 'DESC', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);

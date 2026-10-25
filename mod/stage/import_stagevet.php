@@ -91,7 +91,7 @@ if (($resolvestudents || $resolveduplicates) && confirm_sesskey()) {
         $decisions = $pending['duplicatedecisions'] ?? [];
         $newchoices = 0;
         if ($resolvestudents) {
-            $labels = optional_param_array('resolvelabel', [], PARAM_RAW);
+            $labels = optional_param_array('resolvelabel', [], PARAM_TEXT);
             $userids = optional_param_array('resolveuser', [], PARAM_INT);
             foreach ($labels as $index => $label) {
                 $userid = (int) ($userids[$index] ?? 0);

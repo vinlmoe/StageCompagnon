@@ -202,24 +202,24 @@ function stagesynthesis_get_active_links($synthesisid, $userid) {
 /**
  * Thématiques proposées dans le filtre, toutes activités actives confondues : chaque thématique
  * est propre à une instance mod_stage, donc identifiée dans le filtre par la paire
- * "stagecmid:themeid" (deux instances peuvent avoir un même id de thématique sans rapport entre
+ * "stagecmid-themeid" (deux instances peuvent avoir un même id de thématique sans rapport entre
  * elles) et étiquetée avec son cours pour rester compréhensible dans une liste combinée.
  *
  * @param array $activelinks Voir stagesynthesis_get_active_links().
- * @return array "stagecmid:themeid" => libellé
+ * @return array "stagecmid-themeid" => libellé
  */
 function stagesynthesis_get_theme_options(array $activelinks) {
     $options = [];
     foreach ($activelinks as $stagecmid => $link) {
         foreach ($link->themes as $theme) {
-            $options[$stagecmid . ':' . $theme->id] = format_string($link->coursename) . ' – ' . format_string($theme->name);
+            $options[$stagecmid . '-' . $theme->id] = format_string($link->coursename) . ' – ' . format_string($theme->name);
         }
     }
     return $options;
 }
 
 /**
- * Décompose une valeur de filtre de thématique combiné ("stagecmid:themeid") si elle correspond
+ * Décompose une valeur de filtre de thématique combiné ("stagecmid-themeid") si elle correspond
  * bien à une des options proposées ; sinon, ignore silencieusement une valeur invalide ou forgée
  * plutôt que de la répercuter dans une requête SQL.
  *
@@ -231,14 +231,14 @@ function stagesynthesis_parse_theme_filter($value, array $themeoptions) {
     if ($value === '' || !isset($themeoptions[$value])) {
         return null;
     }
-    [$stagecmid, $themeid] = explode(':', $value, 2);
+    [$stagecmid, $themeid] = explode('-', $value, 2);
     return [(int) $stagecmid, (int) $themeid];
 }
 
 /**
  * Rend le formulaire de recherche/filtre au-dessus de la liste combinée : mêmes filtres que
  * stage_render_list_filters() (nom étudiant, thématique, statut), la thématique étant ici une
- * valeur combinée "stagecmid:themeid" (voir stagesynthesis_get_theme_options()).
+ * valeur combinée "stagecmid-themeid" (voir stagesynthesis_get_theme_options()).
  *
  * @param moodle_url $baseurl
  * @param array $themeoptions
@@ -248,45 +248,20 @@ function stagesynthesis_parse_theme_filter($value, array $themeoptions) {
  * @return string
  */
 function stagesynthesis_render_list_filters(moodle_url $baseurl, array $themeoptions, $search, $themekey, $status) {
-    $formurl = new moodle_url($baseurl);
-    $formurl->remove_params('search', 'themekey', 'status', 'tsort', 'tdir');
+    global $OUTPUT;
 
-    $out = html_writer::start_tag(
-        'form',
-        ['method' => 'get', 'action' => $formurl, 'class' => 'form-inline stage-filters mb-3']
-    );
-    foreach ($formurl->params() as $key => $value) {
-        $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $key, 'value' => $value]);
-    }
-    $out .= html_writer::empty_tag('input', [
-        'type' => 'text', 'name' => 'search', 'value' => s($search),
-        'placeholder' => get_string('searchstudent', 'mod_stage'), 'class' => 'form-control mr-2',
-    ]);
-
-    $out .= html_writer::select(
-        ['' => get_string('allthemes', 'mod_stage')] + $themeoptions,
-        'themekey',
-        $themekey,
-        false,
-        ['class' => 'form-control mr-2']
-    );
-
-    $statusoptions = ['' => get_string('allstatuses', 'mod_stage')];
-    foreach (
-        [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT,
-            STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $statuscode
-    ) {
-        $statusoptions[$statuscode] = stage_status_label($statuscode);
-    }
-    $out .= html_writer::select($statusoptions, 'status', $status, false, ['class' => 'form-control mr-2']);
-
-    $out .= html_writer::empty_tag('input', [
-        'type' => 'submit', 'value' => get_string('search'), 'class' => 'btn btn-secondary mr-2',
-    ]);
-    $out .= html_writer::link($formurl, get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
-    $out .= html_writer::end_tag('form');
-
-    return $out;
+    return $OUTPUT->render(new \mod_stage\output\list_filters(
+        $baseurl,
+        ['search', 'themekey', 'status', 'tsort', 'tdir'],
+        $search,
+        [
+            'themekey' => [
+                'options' => ['' => get_string('allthemes', 'mod_stage')] + $themeoptions,
+                'selected' => $themekey,
+            ],
+            'status' => ['options' => stage_status_filter_options(), 'selected' => $status],
+        ]
+    ));
 }
 
 /**

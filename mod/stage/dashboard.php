@@ -81,113 +81,18 @@ echo $OUTPUT->heading(get_string('pilotage', 'mod_stage'));
 echo stage_render_navlinks($cm, $context);
 
 $listurl = new moodle_url($baseurl, ['search' => $search, 'tsort' => $tsort, 'tdir' => $tdir]);
-
-$searchformurl = new moodle_url($baseurl);
-echo html_writer::start_tag('form', ['method' => 'get', 'action' => $searchformurl, 'class' => 'form-inline stage-filters mb-3']);
-echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'id', 'value' => $cm->id]);
-echo html_writer::empty_tag('input', [
-    'type' => 'text', 'name' => 'search', 'value' => s($search),
-    'placeholder' => get_string('searchstudent', 'mod_stage'), 'class' => 'form-control mr-2',
-]);
-echo html_writer::empty_tag('input', ['type' => 'submit', 'value' => get_string('search'), 'class' => 'btn btn-secondary mr-2']);
-echo html_writer::link($searchformurl, get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
-echo html_writer::end_tag('form');
+echo stage_render_pilotage_search_form($baseurl, $cm->id, $search);
 
 $rows = stage_get_pilotage_overview($stage->id, $context, $restrictuserids);
-
-if ($search !== '') {
-    $needle = core_text::strtolower($search);
-    $rows = array_filter($rows, function ($row) use ($needle) {
-        return core_text::strpos(core_text::strtolower(fullname($row->user)), $needle) !== false;
-    });
-}
-
-$sortmap = [
-    'student' => function ($row) {
-        return core_text::strtolower(fullname($row->user));
-    },
-    'progress' => function ($row) {
-        return $row->mandatorytotal > 0 ? ($row->mandatorydone / $row->mandatorytotal) : -1;
-    },
-    'pending' => function ($row) {
-        return $row->pendingcount;
-    },
-    'retained' => function ($row) {
-        return $row->progress->totalretained;
-    },
-];
-$sortkey = array_key_exists($tsort, $sortmap) ? $tsort : 'student';
-$sortfn = $sortmap[$sortkey];
-usort($rows, function ($a, $b) use ($sortfn) {
-    $va = $sortfn($a);
-    $vb = $sortfn($b);
-    return $va <=> $vb;
-});
-if (strtoupper($tdir) === 'DESC') {
-    $rows = array_reverse($rows);
-}
+[$rows, $sortkey] = stage_sort_pilotage_rows($rows, $search, $tsort, $tdir);
 
 if (empty($rows)) {
     echo $OUTPUT->notification(get_string('nostudents', 'mod_stage'), 'info');
 } else {
-    [$rows, $pagingbarhtml] = stage_paginate($rows, $page, $listurl);
-
-    $table = new html_table();
-    $table->head = [
-        stage_sort_header(get_string('student', 'mod_stage'), 'student', $listurl, $sortkey, $tdir),
-        stage_sort_header(get_string('mandatorythemes', 'mod_stage'), 'progress', $listurl, $sortkey, $tdir),
-        stage_sort_header(get_string('pendingstages', 'mod_stage'), 'pending', $listurl, $sortkey, $tdir),
-        stage_sort_header(get_string('totalretainedshort', 'mod_stage'), 'retained', $listurl, $sortkey, $tdir),
-        get_string('status', 'mod_stage'),
-        get_string('actions', 'mod_stage'),
-    ];
-    foreach ($rows as $row) {
-        $progresslabel = $row->mandatorytotal > 0
-            ? "{$row->mandatorydone} / {$row->mandatorytotal}"
-            : get_string('nomandatorythemes', 'mod_stage');
-        if ($row->complete) {
-            $globalstatus = html_writer::span(get_string('themedone', 'mod_stage'), 'badge badge-success');
-        } else {
-            // Plutôt qu'un simple "à compléter", indique quelles années sont déjà validées
-            // (voir stage_get_student_year_progress()), pour situer l'avancement en un coup d'œil.
-            // Le badge ne porte que le statut ; la liste des années le suit en clair, un badge
-            // devenant illisible dès qu'il contient une énumération.
-            $validatedyears = array_filter($row->yearprogress, function ($yearrow) {
-                return $yearrow->done;
-            });
-            if (!empty($validatedyears)) {
-                $labels = array_map(function ($yearrow) {
-                    return stage_studyyear_label($yearrow->studyyear);
-                }, $validatedyears);
-                $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning')
-                    . html_writer::div(
-                        get_string('validatedyears', 'mod_stage', implode(', ', $labels)),
-                        'text-muted small'
-                    );
-            } else {
-                $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
-            }
-        }
-        // Une saisie en attente est ce sur quoi la DEVE a une action à faire : on la met en avant
-        // plutôt que de la noyer dans une colonne de zéros.
-        $pendingcell = $row->pendingcount > 0
-            ? html_writer::span($row->pendingcount, 'badge badge-info')
-            : html_writer::span('0', 'text-muted');
-
-        $table->data[] = [
-            fullname($row->user),
-            $progresslabel,
-            $pendingcell,
-            get_string('retaineddaysonly', 'mod_stage', $row->progress->totalretained),
-            $globalstatus,
-            stage_render_actions([
-                get_string('viewdetails', 'mod_stage') =>
-                    new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id, 'studentid' => $row->user->id]),
-            ]),
-        ];
-    }
-    echo html_writer::table($table);
-    echo $pagingbarhtml;
+    $columns = stage_pilotage_columns($listurl, $sortkey, $tdir, function ($row) use ($cm) {
+        return new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id, 'studentid' => $row->user->id]);
+    });
+    echo $OUTPUT->render(new \mod_stage\output\pilotage_table($columns, $rows, $page, $listurl));
 }
 
 echo $OUTPUT->footer();

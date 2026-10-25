@@ -1040,3 +1040,19 @@ $string['historicalimportduplicateswarning'] = "{\$a} ligne(s) ressemblent à un
     . "ou même thématique sans dates). Elles ne seront importées que si vous cochez « Importer quand même ».";
 $string['historicalimportduplicatesskipped'] = '{$a} doublon(s) probable(s) non importé(s).';
 $string['exportratingoutoffive'] = 'Note (sur 5)';
+
+// Événements (journaux Moodle).
+$string['evententrycreated'] = 'Stage enregistré';
+$string['evententrystudentevaluated'] = 'Auto-évaluation soumise';
+$string['evententryteacherevaluated'] = "Stage évalué par l'enseignant référent";
+$string['evententrytutorevaluated'] = 'Stage évalué par le maître de stage';
+$string['evententryvalidated'] = 'Stage validé par la DEVE';
+$string['evententryrejected'] = 'Stage non validé';
+$string['evententryreset'] = 'Stage réinitialisé';
+$string['evententrycancelled'] = 'Stage annulé';
+$string['eventconventionrequested'] = 'Convention demandée';
+$string['eventconventionteachervalidated'] = "Demande de convention validée par l'enseignant référent";
+$string['eventconventionedited'] = 'Convention éditée';
+$string['eventconventionsigned'] = 'Convention signée';
+$string['eventconventionrejected'] = 'Demande de convention refusée';
+$string['eventconventionexemptionchanged'] = 'Dispense de convention modifiée';

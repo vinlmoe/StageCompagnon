@@ -31,7 +31,7 @@ $entryid = optional_param('entryid', 0, PARAM_INT);
 $returnurlparam = optional_param('returnurl', '', PARAM_LOCALURL);
 $search = optional_param('search', '', PARAM_TEXT);
 $filterthemeid = optional_param('themeid', 0, PARAM_INT);
-$filterstatus = optional_param('status', '', PARAM_RAW);
+$filterstatus = stage_optional_status_param('status');
 $tsort = optional_param('tsort', 'timecreated', PARAM_ALPHA);
 $tdir = optional_param('tdir', 'DESC', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);
@@ -83,8 +83,8 @@ if ($entryid) {
     }
 
     if ($editable && data_submitted() && confirm_sesskey()) {
-        if (optional_param('rejectstage', '', PARAM_RAW) !== '') {
-            $rejectcomment = optional_param('rejectcomment', '', PARAM_RAW);
+        if (optional_param('rejectstage', '', PARAM_TEXT) !== '') {
+            $rejectcomment = optional_param('rejectcomment', '', PARAM_TEXT);
             if (trim($rejectcomment) === '') {
                 redirect(
                     $entryurl,
@@ -98,7 +98,7 @@ if ($entryid) {
             stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions));
             stage_apply_teacher_eval($entry, $USER->id);
         } else {
-            $comment = optional_param('teachereval', '', PARAM_RAW);
+            $comment = optional_param('teachereval', '', PARAM_TEXT);
             stage_apply_teacher_eval($entry, $USER->id, $comment);
         }
         redirect($backurl, get_string('evalsaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);

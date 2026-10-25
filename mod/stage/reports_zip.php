@@ -32,7 +32,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
 $id = required_param('id', PARAM_INT);
 $themeid = required_param('themeid', PARAM_INT);
 $search = optional_param('search', '', PARAM_TEXT);
-$filterstatus = optional_param('status', '', PARAM_RAW);
+$filterstatus = stage_optional_status_param('status');
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);

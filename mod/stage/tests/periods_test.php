@@ -75,28 +75,39 @@ final class periods_test extends \advanced_testcase {
     }
 
     /**
-     * Deux plages qui partagent ne serait-ce qu'un jour sont refusées, y compris quand l'une est
-     * entièrement incluse dans l'autre, et quel que soit l'ordre de saisie.
+     * Listes de plages qui se chevauchent : jour partagé, inclusion, désordre de saisie.
+     *
+     * @return array[]
      */
-    public function test_validate_periods_rejects_any_overlap(): void {
-        $sharedday = [
-            ['datestart' => make_timestamp(2026, 3, 1), 'dateend' => make_timestamp(2026, 3, 15)],
-            ['datestart' => make_timestamp(2026, 3, 15), 'dateend' => make_timestamp(2026, 3, 20)],
+    public static function overlapping_periods_provider(): array {
+        $day = function (int $month, int $day): int {
+            return gmmktime(0, 0, 0, $month, $day, 2026);
+        };
+        return [
+            'un jour partagé' => [[
+                ['datestart' => $day(3, 1), 'dateend' => $day(3, 15)],
+                ['datestart' => $day(3, 15), 'dateend' => $day(3, 20)],
+            ]],
+            'plage incluse dans une autre' => [[
+                ['datestart' => $day(3, 1), 'dateend' => $day(3, 31)],
+                ['datestart' => $day(3, 10), 'dateend' => $day(3, 12)],
+            ]],
+            'chevauchement entre plages non triées' => [[
+                ['datestart' => $day(5, 1), 'dateend' => $day(5, 10)],
+                ['datestart' => $day(3, 1), 'dateend' => $day(3, 20)],
+                ['datestart' => $day(3, 15), 'dateend' => $day(3, 25)],
+            ]],
         ];
-        $this->assertNotNull(stage_validate_periods($sharedday));
+    }
 
-        $contained = [
-            ['datestart' => make_timestamp(2026, 3, 1), 'dateend' => make_timestamp(2026, 3, 31)],
-            ['datestart' => make_timestamp(2026, 3, 10), 'dateend' => make_timestamp(2026, 3, 12)],
-        ];
-        $this->assertNotNull(stage_validate_periods($contained));
-
-        $unsorted = [
-            ['datestart' => make_timestamp(2026, 5, 1), 'dateend' => make_timestamp(2026, 5, 10)],
-            ['datestart' => make_timestamp(2026, 3, 1), 'dateend' => make_timestamp(2026, 3, 20)],
-            ['datestart' => make_timestamp(2026, 3, 15), 'dateend' => make_timestamp(2026, 3, 25)],
-        ];
-        $this->assertNotNull(stage_validate_periods($unsorted));
+    /**
+     * Tout chevauchement est refusé, quel que soit l'ordre de saisie des plages.
+     *
+     * @dataProvider overlapping_periods_provider
+     * @param array $periods
+     */
+    public function test_validate_periods_rejects_any_overlap(array $periods): void {
+        $this->assertNotNull(stage_validate_periods($periods));
     }
 
     /**
