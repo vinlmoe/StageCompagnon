@@ -45,6 +45,12 @@ require_capability('mod/stage:view', $context);
 $completion = new completion_info($course);
 $completion->set_module_viewed($cm);
 
+// Même raison pour la trace de consultation dans les journaux Moodle.
+$event = \mod_stage\event\course_module_viewed::create(['objectid' => $stage->id, 'context' => $context]);
+$event->add_record_snapshot('course', $course);
+$event->add_record_snapshot('stage', $stage);
+$event->trigger();
+
 // La DEVE et les enseignants référents ont pour page d'atterrissage le tableau de pilotage,
 // plutôt que cette page (tableau de bord de l'étudiant, sans intérêt pour eux).
 if (has_capability('mod/stage:viewall', $context) || has_capability('mod/stage:evaluateteacher', $context)) {

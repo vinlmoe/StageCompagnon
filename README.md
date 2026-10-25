@@ -120,8 +120,10 @@ Chaque poussée déclenche `.github/workflows/ci.yml`, en deux temps :
   sauvegarde de la mise à jour, blocs de documentation (`phpdoc`), gabarits Mustache et tests
   PHPUnit. Tous ces contrôles sont bloquants. Le job tourne sur deux combinaisons : Moodle 4.0
   avec PHP 7.4, la borne basse annoncée par `version.php` et par ce README, et Moodle 4.5 avec
-  PHP 8.2. Le workflow peut aussi être lancé à la main depuis l'onglet *Actions*
-  (`workflow_dispatch`), par exemple pour vérifier une branche avant d'ouvrir une demande de fusion.
+  PHP 8.2. Sur cette dernière, la couverture de code est mesurée avec pcov : le résumé figure
+  dans le journal de l'étape PHPUnit et les rapports Clover sont publiés en artefact du job. Le
+  workflow peut aussi être lancé à la main depuis l'onglet *Actions* (`workflow_dispatch`), par
+  exemple pour vérifier une branche avant d'ouvrir une demande de fusion.
 
 Pour rejouer le contrôle de style en local :
 
@@ -154,6 +156,13 @@ d'un membre du personnel, elle, laisse intacts les stages des étudiants dont il
 n'est que le référent et se limite à dissocier ses références. Si vos conventions
 signées sont soumises à une obligation d'archivage, extrayez-les avant de traiter
 une demande de suppression. Détail en §11 de `mod/stage/INSTALL.md`.
+
+**Journaux.** Chaque étape du circuit (enregistrement, auto-évaluation, évaluations de
+l'enseignant référent et du maître de stage, validation ou non-validation, réinitialisation,
+annulation, demande, validation, édition, signature ou refus de convention, dispense) déclenche
+un événement Moodle rattaché au module, à la saisie et à l'étudiant. Les journaux standard
+(*Rapports > Journaux*) permettent donc de répondre à « qui a validé ce stage, et quand » sans
+lire la base. L'évaluation du maître de stage, faite sans compte, est tracée avec l'utilisateur 0.
 
 **Rôles Moodle.** Le module s'appuie sur les archétypes standard : le personnel
 DEVE utilise le rôle « Enseignant » (`editingteacher`) et les enseignants

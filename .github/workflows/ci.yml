@@ -43,15 +43,18 @@ jobs:
 
     # Les deux bornes de la plage annoncée par version.php (Moodle 4.0+) et par le README
     # (PHP 7.4+) : la plus basse garantit la compatibilité promise, la plus récente suit
-    # la version de Moodle déployée.
+    # la version de Moodle déployée. La couverture de code n'est mesurée que sur cette
+    # dernière : une seule mesure suffit, et pcov ralentit la suite.
     strategy:
       fail-fast: false
       matrix:
         include:
           - moodle: MOODLE_400_STABLE
             php: "7.4"
+            coverage: none
           - moodle: MOODLE_405_STABLE
             php: "8.2"
+            coverage: pcov
 
     services:
       postgres:
@@ -80,7 +83,7 @@ jobs:
           extensions: pgsql, pdo_pgsql, gd, intl, mbstring, soap, zip
           ini-values: max_input_vars=5000, opcache.enable_cli=1
           tools: composer
-          coverage: none
+          coverage: ${{ matrix.coverage }}
 
       - name: Install moodle-plugin-ci
         run: |
@@ -149,6 +152,23 @@ jobs:
         if: ${{ !cancelled() && steps.moodle_install.outcome == 'success' }}
         run: |
           check_status=0
-          moodle-plugin-ci phpunit mod/stage || check_status=1
-          moodle-plugin-ci phpunit mod/stagesynthesis || check_status=1
+          coverage=""
+          if [ "${{ matrix.coverage }}" = "pcov" ]; then
+            coverage="--coverage-text --coverage-clover --coverage-pcov"
+          fi
+          # moodle-plugin-ci écrit le rapport Clover dans ./coverage.xml : il est renommé après
+          # chaque module pour que le second ne recouvre pas le premier.
+          moodle-plugin-ci phpunit $coverage mod/stage || check_status=1
+          [ -f coverage.xml ] && mv coverage.xml coverage-mod_stage.xml
+          moodle-plugin-ci phpunit $coverage mod/stagesynthesis || check_status=1
+          [ -f coverage.xml ] && mv coverage.xml coverage-mod_stagesynthesis.xml
           exit "$check_status"
+
+      - name: Coverage report (Clover)
+        if: ${{ !cancelled() && matrix.coverage == 'pcov' && steps.moodle_install.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-clover
+          path: coverage-*.xml
+          if-no-files-found: warn
+          retention-days: 30

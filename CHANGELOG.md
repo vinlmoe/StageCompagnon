@@ -12,15 +12,26 @@ changements. À tenir à jour à chaque modification de `version.php`.
 - `.DS_Store` retiré du suivi Git.
 - CI : le job Moodle tourne désormais sur deux combinaisons, Moodle 4.0 avec PHP 7.4 et
   Moodle 4.5 avec PHP 8.2 ; le contrôle PHPDoc est bloquant ; le workflow peut être lancé à la
-  main (`workflow_dispatch`).
+  main (`workflow_dispatch`). La couverture de code est mesurée (pcov) sur la combinaison la plus
+  récente, résumée dans le journal du job et publiée en artefact Clover.
+- Tests : cas tabulaires portés en `dataProvider` (filtre de statut, chevauchements de plages).
 
 ### mod_stage
+- Événements Moodle : consultation de l'activité et chaque transition du circuit (stage
+  enregistré, auto-évaluation, évaluations de l'enseignant et du maître de stage, validation,
+  non-validation, réinitialisation, annulation ; convention demandée, validée par l'enseignant,
+  éditée, signée, refusée, dispense modifiée) laissent désormais une trace dans les journaux,
+  rattachée au module, à la saisie et à l'étudiant, avec les statuts résultants.
+- Tableaux de pilotage de `mod_stage` et `mod_stagesynthesis` rendus par des fonctions communes
+  (formulaire de recherche, tri, colonnes, tableau paginé) au lieu de deux copies du même code.
+  Au passage, la recherche courante n'est plus doublement échappée dans le champ de recherche.
 - Paramètres de requête lus avec leur type exact au lieu de `PARAM_RAW` : filtres de statut
   (nouvelle fonction `stage_optional_status_param`, qui conserve la distinction entre
   « tous les statuts » et le statut 0), boutons d'action et commentaires en texte brut.
 - `VERSION` de `db/install.xml` aligné sur le dernier point de sauvegarde.
 
 ### mod_stagesynthesis
+- Événement Moodle de consultation de l'activité.
 - La clé du filtre de thématique combiné s'écrit `stagecmid-themeid` (au lieu de `:`) et est
   lue en `PARAM_ALPHANUMEXT`. Seuls les liens de filtre mis en favori avant ce changement sont
   concernés : ils reviennent à « toutes les thématiques ».

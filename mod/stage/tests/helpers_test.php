@@ -37,6 +37,11 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_render_status_badge
  * @covers     ::stage_teacher_assignment_options
  * @covers     ::stage_optional_status_param
+ * @covers     ::stage_sort_pilotage_rows
+ * @covers     ::stage_render_pilotage_status
+ * @covers     ::stage_pilotage_columns
+ * @covers     ::stage_render_pilotage_table
+ * @covers     ::stage_render_pilotage_search_form
  */
 final class helpers_test extends \advanced_testcase {
     /**
@@ -154,24 +159,179 @@ final class helpers_test extends \advanced_testcase {
     }
 
     /**
+     * Valeurs reçues par le filtre de statut et valeur retenue.
+     *
+     * @return array[]
+     */
+    public static function status_param_provider(): array {
+        return [
+            'vide : tous les statuts' => ['', ''],
+            'statut 0 conservé, non confondu avec « tous »' => ['0', '0'],
+            'statut positif' => ['3', '3'],
+            'statut négatif' => ['-2', '-2'],
+            'zéros non significatifs normalisés' => ['007', '7'],
+            'lettres rejetées' => ['abc', ''],
+            'injection rejetée' => ['1;drop', ''],
+        ];
+    }
+
+    /**
      * Le filtre de statut distingue « tous les statuts » (chaîne vide) du statut 0, accepte les
      * codes négatifs et ignore ce qui n'est pas un code.
+     *
+     * @dataProvider status_param_provider
+     * @param string $given
+     * @param string $expected
      */
-    public function test_optional_status_param_keeps_empty_and_negative_codes(): void {
-        $cases = [
-            '' => '',
-            '0' => '0',
-            '3' => '3',
-            '-2' => '-2',
-            '007' => '7',
-            'abc' => '',
-            '1;drop' => '',
-        ];
-        foreach ($cases as $given => $expected) {
-            $_GET['status'] = (string) $given;
-            $this->assertSame($expected, stage_optional_status_param('status'), "Valeur reçue : '$given'");
+    public function test_optional_status_param(string $given, string $expected): void {
+        $_GET['status'] = $given;
+        try {
+            $this->assertSame($expected, stage_optional_status_param('status'));
+        } finally {
+            unset($_GET['status']);
         }
+    }
+
+    /**
+     * Sans paramètre, tous les statuts.
+     */
+    public function test_optional_status_param_absent_means_all(): void {
         unset($_GET['status']);
         $this->assertSame('', stage_optional_status_param('status'));
+    }
+
+    /**
+     * Ligne de pilotage minimale, comme stage_get_pilotage_overview() en produit.
+     *
+     * @param string $firstname
+     * @param string $lastname
+     * @param int $done Thématiques obligatoires validées.
+     * @param int $total Thématiques obligatoires.
+     * @param int $pending Saisies en attente.
+     * @param int $retained Jours retenus.
+     * @param array $yearprogress
+     * @return \stdClass
+     */
+    private function pilotage_row($firstname, $lastname, $done, $total, $pending, $retained, array $yearprogress = []) {
+        static $id = 100;
+        return (object) [
+            'user' => (object) [
+                'id' => ++$id, 'firstname' => $firstname, 'lastname' => $lastname,
+                'firstnamephonetic' => '', 'lastnamephonetic' => '', 'middlename' => '', 'alternatename' => '',
+            ],
+            'coursename' => 'Promotion ' . $lastname,
+            'currentstudyyear' => 2,
+            'cmid' => 7,
+            'mandatorydone' => $done,
+            'mandatorytotal' => $total,
+            'pendingcount' => $pending,
+            'progress' => (object) ['totalretained' => $retained],
+            'complete' => $total > 0 && $done >= $total,
+            'yearprogress' => $yearprogress,
+        ];
+    }
+
+    /**
+     * Le tri et la recherche du pilotage : clé inconnue ramenée à l'étudiant, sens décroissant,
+     * recherche insensible à la casse, clé de tri supplémentaire de la synthèse.
+     */
+    public function test_sort_pilotage_rows_filters_and_sorts(): void {
+        $rows = [
+            $this->pilotage_row('Zoé', 'Martin', 2, 4, 1, 30),
+            $this->pilotage_row('Anne', 'Durand', 4, 4, 0, 12),
+            $this->pilotage_row('Luc', 'Bernard', 0, 4, 3, 50),
+        ];
+        $names = function (array $rows) {
+            return array_values(array_map(function ($row) {
+                return $row->user->firstname;
+            }, $rows));
+        };
+
+        [$sorted, $key] = stage_sort_pilotage_rows($rows, '', 'student', 'ASC');
+        $this->assertSame('student', $key);
+        $this->assertSame(['Anne', 'Luc', 'Zoé'], $names($sorted));
+
+        [$sorted, $key] = stage_sort_pilotage_rows($rows, '', 'pending', 'DESC');
+        $this->assertSame('pending', $key);
+        $this->assertSame(['Luc', 'Zoé', 'Anne'], $names($sorted));
+
+        [$sorted, $key] = stage_sort_pilotage_rows($rows, '', 'progress', 'ASC');
+        $this->assertSame(['Luc', 'Zoé', 'Anne'], $names($sorted));
+
+        [$sorted, $key] = stage_sort_pilotage_rows($rows, '', 'retained', 'ASC');
+        $this->assertSame(['Anne', 'Zoé', 'Luc'], $names($sorted));
+
+        [$sorted, $key] = stage_sort_pilotage_rows($rows, '', 'inconnu', 'ASC');
+        $this->assertSame('student', $key);
+        $this->assertSame(['Anne', 'Luc', 'Zoé'], $names($sorted));
+
+        [$sorted] = stage_sort_pilotage_rows($rows, 'MART', 'student', 'ASC');
+        $this->assertSame(['Zoé'], $names($sorted));
+
+        [$sorted, $key] = stage_sort_pilotage_rows($rows, '', 'course', 'DESC', [
+            'course' => function ($row) {
+                return $row->coursename;
+            },
+        ]);
+        $this->assertSame('course', $key);
+        $this->assertSame(['Zoé', 'Anne', 'Luc'], $names($sorted));
+    }
+
+    /**
+     * Le statut global : validé, ou à compléter avec les années déjà validées quand il y en a.
+     */
+    public function test_render_pilotage_status_lists_validated_years(): void {
+        $done = stage_render_pilotage_status($this->pilotage_row('A', 'B', 4, 4, 0, 0));
+        $this->assertStringContainsString('badge-success', $done);
+
+        $partial = stage_render_pilotage_status($this->pilotage_row('A', 'B', 2, 4, 0, 0, [
+            (object) ['studyyear' => 1, 'done' => true],
+            (object) ['studyyear' => 2, 'done' => false],
+        ]));
+        $this->assertStringContainsString('badge-warning', $partial);
+        $this->assertStringContainsString(stage_studyyear_label(1), $partial);
+        $this->assertStringNotContainsString(stage_studyyear_label(2), $partial);
+
+        $none = stage_render_pilotage_status($this->pilotage_row('A', 'B', 0, 4, 0, 0, [
+            (object) ['studyyear' => 1, 'done' => false],
+        ]));
+        $this->assertStringContainsString('badge-warning', $none);
+        $this->assertStringNotContainsString('text-muted small', $none);
+    }
+
+    /**
+     * Le tableau suit l'ordre des colonnes fournies, la synthèse pouvant intercaler les siennes
+     * parmi les colonnes communes.
+     */
+    public function test_render_pilotage_table_follows_column_order(): void {
+        $rows = [$this->pilotage_row('Zoé', 'Martin', 2, 4, 1, 30)];
+        $listurl = new \moodle_url('/mod/stage/dashboard.php', ['id' => 7]);
+        $common = stage_pilotage_columns($listurl, 'student', 'ASC', function ($row) {
+            return new \moodle_url('/mod/stage/dashboard.php', ['id' => 7, 'studentid' => $row->user->id]);
+        });
+        $this->assertSame(['student', 'progress', 'pending', 'retained', 'status', 'actions'], array_keys($common));
+
+        $columns = [
+            'course' => [
+                'head' => get_string('course'),
+                'cell' => function ($row) {
+                    return $row->coursename;
+                },
+            ],
+            'student' => $common['student'],
+        ] + $common;
+        $this->assertSame(['course', 'student', 'progress', 'pending', 'retained', 'status', 'actions'], array_keys($columns));
+
+        $html = stage_render_pilotage_table($columns, $rows, 0, $listurl);
+        $this->assertStringContainsString('Promotion Martin', $html);
+        $this->assertStringContainsString('Zoé Martin', $html);
+        $this->assertStringContainsString('2 / 4', $html);
+        $this->assertStringContainsString('badge-info', $html);
+        $this->assertStringContainsString('studentid=' . $rows[0]->user->id, $html);
+        $this->assertLessThan(strpos($html, 'Zoé Martin'), strpos($html, 'Promotion Martin'));
+
+        $form = stage_render_pilotage_search_form($listurl, 7, 'O\'Neil');
+        $this->assertStringContainsString('value="O&#039;Neil"', $form);
+        $this->assertStringNotContainsString('&amp;#039;', $form);
     }
 }

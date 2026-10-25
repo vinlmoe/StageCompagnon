@@ -1018,3 +1018,19 @@ $string['historicalimportduplicateswarning'] = '{$a} line(s) look like an intern
     . 'or same theme without dates). They will only be imported if you tick "Import anyway".';
 $string['historicalimportduplicatesskipped'] = '{$a} probable duplicate(s) not imported.';
 $string['exportratingoutoffive'] = 'Rating (out of 5)';
+
+// Events (Moodle logs).
+$string['evententrycreated'] = 'Internship registered';
+$string['evententrystudentevaluated'] = 'Self-evaluation submitted';
+$string['evententryteacherevaluated'] = 'Internship evaluated by referent teacher';
+$string['evententrytutorevaluated'] = 'Internship evaluated by tutor';
+$string['evententryvalidated'] = 'Internship validated by academic office';
+$string['evententryrejected'] = 'Internship not validated';
+$string['evententryreset'] = 'Internship reset';
+$string['evententrycancelled'] = 'Internship cancelled';
+$string['eventconventionrequested'] = 'Agreement requested';
+$string['eventconventionteachervalidated'] = 'Agreement request validated by referent teacher';
+$string['eventconventionedited'] = 'Agreement edited';
+$string['eventconventionsigned'] = 'Agreement signed';
+$string['eventconventionrejected'] = 'Agreement request rejected';
+$string['eventconventionexemptionchanged'] = 'Agreement exemption changed';

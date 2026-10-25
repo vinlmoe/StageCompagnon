@@ -95,115 +95,42 @@ if (empty($activelinks)) {
 }
 
 $listurl = new moodle_url($baseurl, ['search' => $search, 'tsort' => $tsort, 'tdir' => $tdir]);
-
-$searchformurl = new moodle_url($baseurl);
-echo html_writer::start_tag('form', ['method' => 'get', 'action' => $searchformurl, 'class' => 'form-inline stage-filters mb-3']);
-echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'id', 'value' => $cm->id]);
-echo html_writer::empty_tag('input', [
-    'type' => 'text', 'name' => 'search', 'value' => s($search),
-    'placeholder' => get_string('searchstudent', 'mod_stage'), 'class' => 'form-control mr-2',
-]);
-echo html_writer::empty_tag('input', ['type' => 'submit', 'value' => get_string('search'), 'class' => 'btn btn-secondary mr-2']);
-echo html_writer::link($searchformurl, get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
-echo html_writer::end_tag('form');
+echo stage_render_pilotage_search_form($baseurl, $cm->id, $search);
 
 $rows = stagesynthesis_get_pilotage_rows($activelinks);
-
-if ($search !== '') {
-    $needle = core_text::strtolower($search);
-    $rows = array_filter($rows, function ($row) use ($needle) {
-        return core_text::strpos(core_text::strtolower(fullname($row->user)), $needle) !== false;
-    });
-}
-
-$sortmap = [
+[$rows, $sortkey] = stage_sort_pilotage_rows($rows, $search, $tsort, $tdir, [
     'course' => function ($row) {
         return core_text::strtolower($row->coursename);
     },
-    'student' => function ($row) {
-        return core_text::strtolower(fullname($row->user));
-    },
-    'progress' => function ($row) {
-        return $row->mandatorytotal > 0 ? ($row->mandatorydone / $row->mandatorytotal) : -1;
-    },
-    'pending' => function ($row) {
-        return $row->pendingcount;
-    },
-    'retained' => function ($row) {
-        return $row->progress->totalretained;
-    },
-];
-$sortkey = array_key_exists($tsort, $sortmap) ? $tsort : 'student';
-$sortfn = $sortmap[$sortkey];
-usort($rows, function ($a, $b) use ($sortfn) {
-    return $sortfn($a) <=> $sortfn($b);
-});
-if (strtoupper($tdir) === 'DESC') {
-    $rows = array_reverse($rows);
-}
+]);
 
 if (empty($rows)) {
     echo $OUTPUT->notification(get_string('nostudents', 'mod_stage'), 'info');
 } else {
-    [$rows, $pagingbarhtml] = stage_paginate($rows, $page, $listurl);
-
-    $table = new html_table();
-    $table->head = [
-        stage_sort_header(get_string('course'), 'course', $listurl, $sortkey, $tdir),
-        stage_sort_header(get_string('student', 'mod_stage'), 'student', $listurl, $sortkey, $tdir),
-        get_string('currentstudyyear', 'mod_stage'),
-        stage_sort_header(get_string('mandatorythemes', 'mod_stage'), 'progress', $listurl, $sortkey, $tdir),
-        stage_sort_header(get_string('pendingstages', 'mod_stage'), 'pending', $listurl, $sortkey, $tdir),
-        stage_sort_header(get_string('totalretainedshort', 'mod_stage'), 'retained', $listurl, $sortkey, $tdir),
-        get_string('status', 'mod_stage'),
-        get_string('actions', 'mod_stage'),
-    ];
-    foreach ($rows as $row) {
-        $progresslabel = $row->mandatorytotal > 0
-            ? "{$row->mandatorydone} / {$row->mandatorytotal}"
-            : get_string('nomandatorythemes', 'mod_stage');
-        if ($row->complete) {
-            $globalstatus = html_writer::span(get_string('themedone', 'mod_stage'), 'badge badge-success');
-        } else {
-            $validatedyears = array_filter($row->yearprogress, function ($yearrow) {
-                return $yearrow->done;
-            });
-            if (!empty($validatedyears)) {
-                $labels = array_map(function ($yearrow) {
-                    return stage_studyyear_label($yearrow->studyyear);
-                }, $validatedyears);
-                $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning')
-                    . html_writer::div(
-                        get_string('validatedyears', 'mod_stage', implode(', ', $labels)),
-                        'text-muted small'
-                    );
-            } else {
-                $globalstatus = html_writer::span(get_string('themetodo', 'mod_stage'), 'badge badge-warning');
-            }
-        }
-        $pendingcell = $row->pendingcount > 0
-            ? html_writer::span($row->pendingcount, 'badge badge-info')
-            : html_writer::span('0', 'text-muted');
-
-        $table->data[] = [
-            format_string($row->coursename),
-            fullname($row->user),
-            stage_studyyear_label($row->currentstudyyear),
-            $progresslabel,
-            $pendingcell,
-            get_string('retaineddaysonly', 'mod_stage', $row->progress->totalretained),
-            $globalstatus,
-            stage_render_actions([
-                get_string('viewdetails', 'mod_stage') =>
-                    new moodle_url(
-                        '/mod/stagesynthesis/dashboard.php',
-                        ['id' => $cm->id, 'studentid' => $row->user->id, 'cmid' => $row->cmid]
-                    ),
-            ]),
-        ];
-    }
-    echo html_writer::table($table);
-    echo $pagingbarhtml;
+    // Colonnes communes de mod_stage, avec le cours en tête et l'année d'étude après l'étudiant :
+    // ce sont les deux informations qui distinguent les lignes d'une vue multi-promotions.
+    $common = stage_pilotage_columns($listurl, $sortkey, $tdir, function ($row) use ($cm) {
+        return new moodle_url(
+            '/mod/stagesynthesis/dashboard.php',
+            ['id' => $cm->id, 'studentid' => $row->user->id, 'cmid' => $row->cmid]
+        );
+    });
+    $columns = [
+        'course' => [
+            'head' => stage_sort_header(get_string('course'), 'course', $listurl, $sortkey, $tdir),
+            'cell' => function ($row) {
+                return format_string($row->coursename);
+            },
+        ],
+        'student' => $common['student'],
+        'studyyear' => [
+            'head' => get_string('currentstudyyear', 'mod_stage'),
+            'cell' => function ($row) {
+                return stage_studyyear_label($row->currentstudyyear);
+            },
+        ],
+    ] + $common;
+    echo stage_render_pilotage_table($columns, $rows, $page, $listurl);
 }
 
 echo $OUTPUT->footer();
