@@ -124,7 +124,7 @@ function stage_supports($feature) {
         case FEATURE_COMPLETION_TRACKS_VIEWS:
             return true;
         case FEATURE_MOD_PURPOSE:
-            return defined('MOD_PURPOSE_ADMINISTRATION') ? MOD_PURPOSE_ADMINISTRATION : 'administration';
+            return MOD_PURPOSE_COMMUNICATION;
         default:
             return null;
     }

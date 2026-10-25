@@ -18,6 +18,12 @@ changements. À tenir à jour à chaque modification de `version.php`.
 - CI : scénarios Behat joués sans JavaScript (serveur web intégré de PHP, profil `default`) sur
   la combinaison Moodle 4.5 / PHP 8.2.
 
+### Les deux modules
+- Nouvelle icône : mallette dont l'empreinte de patte est évidée, donc visible quelle que soit la
+  couleur que Moodle applique au pictogramme ; l'ancienne, à pastille blanche, perdait l'empreinte.
+  Les activités passent de la finalité « administration » (rose dans Moodle 4.4 et 4.5) à
+  « communication » (orange, la couleur d'origine du module).
+
 ### mod_stage
 - Événements Moodle : consultation de l'activité et chaque transition du circuit (stage
   enregistré, auto-évaluation, évaluations de l'enseignant et du maître de stage, validation,
