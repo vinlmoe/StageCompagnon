@@ -1134,5 +1134,28 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026100200, 'stage');
     }
 
+    if ($oldversion < 2026102600) {
+        // Mobilité d'études validée par la DEVE : satisfait l'obligation de mobilité
+        // internationale sans stage à l'étranger.
+        $table = new xmldb_table('stage_study_mobility');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('stageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+        $table->add_field('location', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null);
+        $table->add_field('validatedby', XMLDB_TYPE_INTEGER, '10', null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('stageid', XMLDB_KEY_FOREIGN, ['stageid'], 'stage', ['id']);
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_key('validatedby', XMLDB_KEY_FOREIGN, ['validatedby'], 'user', ['id']);
+        $table->add_index('stageid-userid', XMLDB_INDEX_UNIQUE, ['stageid', 'userid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_mod_savepoint(true, 2026102600, 'stage');
+    }
+
     return true;
 }

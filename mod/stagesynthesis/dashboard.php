@@ -64,6 +64,9 @@ if ($studentid) {
         throw new moodle_exception('nopermissions', 'error', '', get_string('pilotage', 'mod_stage'));
     }
     $student = $DB->get_record('user', ['id' => $studentid], '*', MUST_EXIST);
+    // Les actions lancées depuis ce volet y reviennent : l'url de la page doit désigner
+    // l'étudiant, pas la liste.
+    $PAGE->set_url(new moodle_url($baseurl, ['studentid' => $student->id, 'cmid' => $studentcmid]));
 
     echo $OUTPUT->header();
     echo $OUTPUT->heading(get_string('pilotage', 'mod_stage') . ' - ' . fullname($student));

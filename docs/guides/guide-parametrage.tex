@@ -259,6 +259,33 @@ l'étranger, année avant laquelle ils sont dus et consigne affichée aux
 \capture{06_year_requirements}{60~jours en 5\textsuperscript{e}~année ; 20~jours
 à l'étranger avant la 5\textsuperscript{e}~année.}
 
+\paragraph{Mobilité d'études.} Un étudiant parti étudier à l'étranger
+(semestre ou année d'échange) remplit l'obligation sans stage à l'étranger.
+Dans son volet du tableau de pilotage, section \og Mobilité internationale\fg{},
+la DEVE coche \og L'étudiant a effectué une mobilité d'études\fg{}, indique le
+lieu (établissement, ville, pays) et enregistre. Le lieu est obligatoire.
+L'obligation est alors remplie quel que soit le nombre de jours de stage à
+l'étranger ; le bilan de l'étudiant et l'export Excel du bilan de promotion
+affichent \og Mobilité d'études validée\fg{} suivi du lieu. Décocher la case et
+enregistrer retire la validation.
+
+\paragraph{Import Excel des mobilités d'études.}
+\chemin{Administration > Import Excel des mobilités d'études} valide les
+mobilités de plusieurs étudiants en une fois. \bouton{Télécharger le modèle}
+fournit un classeur listant les étudiants inscrits et les mobilités déjà
+validées. Seule la première feuille est lue ; les colonnes sont reconnues par
+leur intitulé, dans n'importe quel ordre :
+\begin{itemize}
+  \item \textbf{Email} (obligatoire) : adresse de l'étudiant inscrit au cours ;
+  \item \textbf{Lieu} : obligatoire pour valider la mobilité ;
+  \item \textbf{Mobilité d'études} (facultative) : \og oui\fg{} valide,
+        \og non\fg{} retire la validation.
+\end{itemize}
+Une ligne sans lieu ni valeur dans \og Mobilité d'études\fg{} est ignorée ; une
+ligne avec un lieu mais sans valeur vaut \og oui\fg{}. Les lignes en erreur
+(adresse inconnue, lieu manquant, valeur illisible) sont listées avec leur
+numéro, sans bloquer les autres.
+
 \subsection{Listes d'évaluation}
 
 \chemin{Administration > Listes d'évaluation}. Le formulaire de destination
@@ -512,7 +539,9 @@ Une année d'étude est validée quand, sur les seuls stages \statut{Validé DEV
         requise. Une thématique répartie sur plusieurs années (par exemple de la
         4\textsuperscript{e} à la 5\textsuperscript{e}) n'est vérifiée qu'à sa
         dernière année, en cumulant toute sa plage ;
-  \item à l'année fixée, l'obligation de mobilité internationale est remplie.
+  \item à l'année fixée, l'obligation de mobilité internationale est remplie,
+        par des jours de stage à l'étranger ou par une mobilité d'études
+        validée par la DEVE.
 \end{itemize}
 Les stages complémentaires sont affichés mais ne comptent pas.
 
