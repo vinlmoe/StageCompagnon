@@ -170,7 +170,8 @@ $string['historicalimport_help'] = 'Imports validated internships only from the 
     . '2 of both sheets and fill it in for every student. Internships are created as validated by the academic '
     . 'office; the number of days becomes both the declared and retained duration. EP internships are stored as '
     . 'complementary internships under the theme selected below. The academic-credit “EP - saisie DEVE” sheet is '
-    . 'not imported. A preview is always shown before records are inserted.';
+    . 'not imported. A preview is always shown before records are inserted. Optionally, a “Stage à l’étranger” '
+    . '(Oui / Non) column and a “Pays” column in a block mark the internship as completed abroad.';
 $string['historicalimportfile'] = 'Legacy workbook (.xlsx)';
 $string['historicalimporteptheme'] = 'Moodle theme for EP internships';
 $string['historicalimportpreviewbutton'] = 'Analyse and preview';
@@ -1028,9 +1029,30 @@ $string['evententryvalidated'] = 'Internship validated by academic office';
 $string['evententryrejected'] = 'Internship not validated';
 $string['evententryreset'] = 'Internship reset';
 $string['evententrycancelled'] = 'Internship cancelled';
+$string['evententrydeleted'] = 'Internship deleted';
 $string['eventconventionrequested'] = 'Agreement requested';
 $string['eventconventionteachervalidated'] = 'Agreement request validated by referent teacher';
 $string['eventconventionedited'] = 'Agreement edited';
 $string['eventconventionsigned'] = 'Agreement signed';
 $string['eventconventionrejected'] = 'Agreement request rejected';
 $string['eventconventionexemptionchanged'] = 'Agreement exemption changed';
+
+// Bulk deletion of internships by the academic office (delete_entries.php).
+$string['deleteentries'] = 'Delete internships';
+$string['deleteentries_help'] = 'Permanently deletes internships, for example to undo a wrong import. Tick the internships to delete, or delete at once all those matching the filters; the “Registered on” filter finds the internships created on a given day, hence by the same import. A warning screen then summarises the internships concerned and asks for a double confirmation. To merely stop an internship, use “Cancel this internship” instead, which keeps it.';
+$string['deleteentriesalldays'] = 'All registration dates';
+$string['deleteentriesday'] = 'Registered on {$a->date} ({$a->count})';
+$string['deleteentriesselected'] = 'Delete ticked internships';
+$string['deleteentriesallfiltered'] = 'Delete the {$a} filtered internships';
+$string['deleteentriesnone'] = 'No internship of this activity was selected.';
+$string['deleteentrieswarning'] = 'Warning: {$a} internship(s) will be permanently deleted. This cannot be undone.';
+$string['deleteentrieswarning_details'] = 'Also deleted: their date ranges and working days, agreement data, evaluations and questionnaire answers, checklists, signed agreements and uploaded reports. The progress of the students concerned is recalculated without these internships.';
+$string['deleteentrieswarning_validated'] = 'Among them, {$a} internship(s) are validated by the academic office: their durations will no longer count towards the students\' progress.';
+$string['deleteentrieswarning_export'] = 'As a precaution, <a href="{$a->url}">export the internships to Excel first</a>: that file will allow restoring them if needed.';
+$string['deleteentriescount'] = 'Number of internships';
+$string['deleteentrieslist'] = 'Show the {$a} internships concerned';
+$string['deleteentriesunderstood'] = 'I understand that these internships will be permanently deleted.';
+$string['deleteentriestypecount'] = 'To confirm, type the number of internships to delete ({$a}):';
+$string['deleteentriesfinal'] = 'Permanently delete the {$a} internships';
+$string['deleteentriesconfirmmismatch'] = 'Nothing was deleted: tick the confirmation box and type exactly the number of internships to delete ({$a}).';
+$string['deleteentriesdone'] = '{$a} internship(s) deleted.';

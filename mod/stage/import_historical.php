@@ -191,7 +191,9 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
                 $candidate->dateend ?: null,
                 $candidate->duration,
                 $candidate->studyyear,
-                STAGE_CONVENTION_NONE
+                STAGE_CONVENTION_NONE,
+                $candidate->abroad ?? 0,
+                $candidate->country ?? ''
             );
             $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
             if (!empty($candidate->teacherid)) {

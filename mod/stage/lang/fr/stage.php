@@ -178,7 +178,8 @@ $string['historicalimport_help'] = 'Importe uniquement les stages validés des f
     . 'sont créés directement au statut validé DEVE ; le nombre de jours devient la durée déclarée et retenue. '
     . 'Les EP sont enregistrées comme stages complémentaires dans la thématique choisie ci-dessous. La feuille '
     . '« EP - saisie DEVE », constituée d’enseignements académiques en crédits, n’est pas importée. Une '
-    . 'prévisualisation est toujours affichée avant insertion.';
+    . 'prévisualisation est toujours affichée avant insertion. Facultatif : une colonne « Stage à l’étranger » '
+    . '(Oui / Non) et une colonne « Pays » dans un bloc marquent le stage comme effectué à l’étranger.';
 $string['historicalimportfile'] = 'Classeur historique (.xlsx)';
 $string['historicalimporteptheme'] = 'Thématique Moodle pour les stages EP';
 $string['historicalimportpreviewbutton'] = 'Analyser et prévisualiser';
@@ -1050,9 +1051,30 @@ $string['evententryvalidated'] = 'Stage validé par la DEVE';
 $string['evententryrejected'] = 'Stage non validé';
 $string['evententryreset'] = 'Stage réinitialisé';
 $string['evententrycancelled'] = 'Stage annulé';
+$string['evententrydeleted'] = 'Stage supprimé';
 $string['eventconventionrequested'] = 'Convention demandée';
 $string['eventconventionteachervalidated'] = "Demande de convention validée par l'enseignant référent";
 $string['eventconventionedited'] = 'Convention éditée';
 $string['eventconventionsigned'] = 'Convention signée';
 $string['eventconventionrejected'] = 'Demande de convention refusée';
 $string['eventconventionexemptionchanged'] = 'Dispense de convention modifiée';
+
+// Suppression en lot de stages par la DEVE (delete_entries.php).
+$string['deleteentries'] = 'Supprimer des stages';
+$string['deleteentries_help'] = "Supprime définitivement des stages, par exemple pour défaire un import erroné. Cochez les stages à supprimer, ou supprimez d’un coup tous ceux qui répondent aux filtres ; le filtre « Enregistrés le » retrouve les stages créés un jour donné, donc par un même import. Un écran d’avertissement récapitule ensuite les stages concernés et demande une double confirmation. Pour simplement arrêter un stage, utilisez plutôt « Annuler ce stage », qui le conserve.";
+$string['deleteentriesalldays'] = "Toutes les dates d'enregistrement";
+$string['deleteentriesday'] = 'Enregistrés le {$a->date} ({$a->count})';
+$string['deleteentriesselected'] = 'Supprimer les stages cochés';
+$string['deleteentriesallfiltered'] = 'Supprimer les {$a} stages filtrés';
+$string['deleteentriesnone'] = "Aucun stage de cette activité n'a été sélectionné.";
+$string['deleteentrieswarning'] = 'Attention : {$a} stage(s) vont être supprimés définitivement. Cette action ne peut pas être annulée.';
+$string['deleteentrieswarning_details'] = 'Sont supprimés avec eux : leurs plages de dates et jours effectifs, les données de convention, les évaluations et réponses aux questionnaires, les check-lists, les conventions signées et les rapports déposés. Les bilans des étudiants concernés sont recalculés sans ces stages.';
+$string['deleteentrieswarning_validated'] = 'Parmi eux, {$a} stage(s) sont validés par la DEVE : leurs durées ne compteront plus dans la progression des étudiants.';
+$string['deleteentrieswarning_export'] = 'Par précaution, <a href="{$a->url}">exportez d\'abord les stages en Excel</a> : ce fichier permettra de les restaurer en cas d\'erreur.';
+$string['deleteentriescount'] = 'Nombre de stages';
+$string['deleteentrieslist'] = 'Voir les {$a} stages concernés';
+$string['deleteentriesunderstood'] = 'Je comprends que ces stages seront supprimés définitivement.';
+$string['deleteentriestypecount'] = 'Pour confirmer, saisissez le nombre de stages à supprimer ({$a}) :';
+$string['deleteentriesfinal'] = 'Supprimer définitivement les {$a} stages';
+$string['deleteentriesconfirmmismatch'] = 'Suppression non effectuée : cochez la case de confirmation et saisissez exactement le nombre de stages à supprimer ({$a}).';
+$string['deleteentriesdone'] = '{$a} stage(s) supprimé(s).';

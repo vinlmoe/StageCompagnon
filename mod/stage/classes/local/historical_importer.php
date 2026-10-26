@@ -153,6 +153,8 @@ class historical_importer {
                 $rawlocation = trim((string) ($row[$columns['location']] ?? ''));
                 $duration = (int) round((float) str_replace(',', '.', (string) ($row[$columns['duration']] ?? 0)));
                 $studyyear = (int) ($row[$columns['year']] ?? 0);
+                $abroad = isset($columns['abroad']) && self::is_validated($row[$columns['abroad']] ?? '');
+                $country = isset($columns['country']) ? trim((string) ($row[$columns['country']] ?? '')) : '';
                 if (!$validated || ($rawlocation === '' && $duration === 0 && $studyyear === 0)) {
                     continue;
                 }
@@ -180,6 +182,8 @@ class historical_importer {
                     'duration' => max(0, $duration),
                     'studyyear' => ($studyyear >= 1 && $studyyear <= 6) ? $studyyear : 0,
                     'stagetype' => $complementary ? 'complementaire' : 'obligatoire',
+                    'abroad' => $abroad ? 1 : 0,
+                    'country' => $abroad ? \core_text::substr($country, 0, 255) : '',
                     'teachername' => $teachername,
                     'source' => $sheetname . ' — ligne ' . ($rowindex + 1),
                 ];
@@ -205,12 +209,13 @@ class historical_importer {
     }
 
     /**
-     * Repère, dans un bloc de stage, les colonnes lieu, validation, durée et année.
+     * Repère, dans un bloc de stage, les colonnes lieu, validation, durée et année, ainsi que les
+     * colonnes facultatives « Stage à l'étranger » et « Pays », absentes de l'ancien classeur.
      *
      * @param array $headers Ligne d'intitulés.
      * @param int $start Première colonne du bloc.
      * @param int $end Première colonne du bloc suivant.
-     * @return array Nom de champ => index de colonne.
+     * @return array Nom de champ => index de colonne ; abroad et country seulement si présentes.
      */
     private static function block_columns(array $headers, int $start, int $end): array {
         $found = ['location' => $start, 'validation' => $start + 1, 'duration' => $start + 2, 'year' => $end - 1];
@@ -222,6 +227,10 @@ class historical_importer {
                 $found['duration'] = $col;
             } else if (strpos($header, 'annee') !== false) {
                 $found['year'] = $col;
+            } else if (strpos($header, 'etranger') !== false) {
+                $found['abroad'] = $col;
+            } else if ($header === 'pays') {
+                $found['country'] = $col;
             }
         }
         return $found;

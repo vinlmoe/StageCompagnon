@@ -78,6 +78,34 @@ final class historical_importer_test extends \advanced_testcase {
     }
 
     /**
+     * Les colonnes facultatives « Stage à l'étranger » et « Pays » d'un bloc sont reprises ; un bloc
+     * qui ne les a pas reste un stage en France.
+     */
+    public function test_abroad_and_country_columns_are_read_per_block(): void {
+        $rows = [
+            0 => [5 => 'Diversité des métiers', 11 => 'Élevage laitier'],
+            1 => [0 => 'Email', 1 => 'NOM', 2 => 'Prénom',
+                5 => 'Lieu et date', 6 => 'Validé', 7 => 'Nombre de jours', 8 => 'Année',
+                9 => 'Stage à l’étranger', 10 => 'Pays',
+                11 => 'Lieu et date', 12 => 'Validé', 13 => 'Nombre de jours', 14 => 'Année'],
+            2 => [0 => 'zoe@example.test', 1 => 'DUPONT', 2 => 'Zoé',
+                5 => 'du 06/04/2026 au 17/04/2026 - Equateur', 6 => 1, 7 => 10, 8 => 4, 9 => 'Oui', 10 => 'EQUATEUR',
+                11 => 'Ferme B', 12 => 1, 13 => 10, 14 => 2],
+        ];
+
+        $result = historical_importer::parse_rows($rows, false, 'Stages validation ER');
+
+        $this->assertCount(2, $result['records']);
+        [$abroad, $local] = $result['records'];
+        $this->assertSame(1, $abroad->abroad);
+        $this->assertSame('EQUATEUR', $abroad->country);
+        $this->assertSame(4, $abroad->studyyear);
+        $this->assertSame(0, $local->abroad);
+        $this->assertSame('', $local->country);
+        $this->assertSame(2, $local->studyyear);
+    }
+
+    /**
      * Les stages EP validés deviennent complémentaires et les EP non validés restent ignorés.
      */
     public function test_ep_stage_is_imported_as_complementary(): void {
