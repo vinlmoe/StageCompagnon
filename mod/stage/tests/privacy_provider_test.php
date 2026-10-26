@@ -239,4 +239,40 @@ final class privacy_provider_test extends \advanced_testcase {
             array_values(array_unique(provider::get_contexts_for_userid($teacher->id)->get_contextids()))
         );
     }
+
+    /**
+     * La mobilité d'études validée par la DEVE est retrouvée pour l'étudiant même sans aucun
+     * stage, effacée avec ses données, et la DEVE qui l'a validée en est seulement dissociée.
+     */
+    public function test_study_mobility_is_found_and_removed(): void {
+        global $DB;
+
+        [$stage, $context, $student] = $this->prepare();
+        $other = $this->getDataGenerator()->create_user();
+        $deve = $this->getDataGenerator()->create_user();
+        stage_set_student_study_mobility($stage->id, $other->id, true, 'Université de Liège', $deve->id);
+        stage_set_student_study_mobility($stage->id, $student->id, true, 'Montréal', $deve->id);
+
+        foreach ([$other, $deve] as $user) {
+            $contextids = array_map('intval', provider::get_contexts_for_userid($user->id)->get_contextids());
+            $this->assertContains((int) $context->id, $contextids);
+        }
+        $userlist = new userlist($context, 'mod_stage');
+        provider::get_users_in_context($userlist);
+        $userids = array_map('intval', $userlist->get_userids());
+        $this->assertContains((int) $other->id, $userids);
+        $this->assertContains((int) $deve->id, $userids);
+
+        provider::delete_data_for_user(new approved_contextlist($deve, 'mod_stage', [$context->id]));
+        $mobility = $DB->get_record('stage_study_mobility', ['stageid' => $stage->id, 'userid' => $other->id]);
+        $this->assertNotFalse($mobility);
+        $this->assertNull($mobility->validatedby);
+
+        provider::delete_data_for_user(new approved_contextlist($other, 'mod_stage', [$context->id]));
+        $this->assertFalse($DB->record_exists('stage_study_mobility', ['userid' => $other->id]));
+        $this->assertTrue($DB->record_exists('stage_study_mobility', ['userid' => $student->id]));
+
+        provider::delete_data_for_all_users_in_context($context);
+        $this->assertFalse($DB->record_exists('stage_study_mobility', ['stageid' => $stage->id]));
+    }
 }

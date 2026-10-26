@@ -804,9 +804,13 @@ function stage_get_student_year_progress($stageid, $userid) {
  * l'obligation de mobilité internationale définie pour ce stage (stage->requiredabroaddays,
  * gérée depuis la page « Durées de stage par année », voir year_requirements.php).
  *
+ * Une mobilité d'études validée par la DEVE (voir stage_set_student_study_mobility()) satisfait à
+ * elle seule l'obligation, quel que soit le nombre de jours de stage à l'étranger.
+ *
  * @param int $stageid
  * @param int $userid
- * @return stdClass {required, retained, done, beforeyear}
+ * @return stdClass {required, retained, done, beforeyear, studymobility}
+ *               'studymobility' est la mobilité d'études validée (stage_study_mobility), ou null.
  */
 function stage_get_student_abroad_progress($stageid, $userid) {
     global $DB;
@@ -816,13 +820,131 @@ function stage_get_student_abroad_progress($stageid, $userid) {
         : $DB->get_record('stage', ['id' => $stageid], 'requiredabroaddays, abroadbeforeyear', MUST_EXIST);
     $required = (int) $stage->requiredabroaddays;
     $retained = stage_get_student_abroad_days($stageid, $userid);
+    $studymobility = stage_get_student_study_mobility($stageid, $userid);
 
     return (object) [
         'required' => $required,
         'retained' => $retained,
-        'done' => $required <= 0 || $retained >= $required,
+        'done' => $required <= 0 || $retained >= $required || $studymobility !== null,
         'beforeyear' => (int) $stage->abroadbeforeyear,
+        'studymobility' => $studymobility,
     ];
+}
+
+/**
+ * Mobilité d'études (semestre ou année d'études à l'étranger, hors stage) validée par la DEVE
+ * pour un étudiant, le cas échéant.
+ *
+ * @param int $stageid
+ * @param int $userid
+ * @return stdClass|null Enregistrement stage_study_mobility, ou null si aucune n'est validée.
+ */
+function stage_get_student_study_mobility($stageid, $userid) {
+    global $DB;
+
+    if (\mod_stage\local\progress_cache::covers($stageid, $userid)) {
+        return \mod_stage\local\progress_cache::study_mobility($userid);
+    }
+
+    $record = $DB->get_record('stage_study_mobility', ['stageid' => $stageid, 'userid' => $userid]);
+    return $record ?: null;
+}
+
+/**
+ * Valide (ou retire) la mobilité d'études d'un étudiant, à la main de la DEVE depuis son volet
+ * (voir study_mobility.php). Une mobilité validée satisfait l'obligation de mobilité
+ * internationale de l'activité (voir stage_get_student_abroad_progress()).
+ *
+ * @param int $stageid
+ * @param int $userid Étudiant concerné.
+ * @param bool $validated Vrai pour valider la mobilité, faux pour retirer la validation.
+ * @param string $location Lieu de la mobilité, exigé pour la valider.
+ * @param int $byuserid Membre de la DEVE à l'origine de la validation.
+ * @return void
+ */
+function stage_set_student_study_mobility($stageid, $userid, $validated, $location, $byuserid) {
+    global $DB;
+
+    $existing = $DB->get_record('stage_study_mobility', ['stageid' => $stageid, 'userid' => $userid]);
+    if (!$validated) {
+        if ($existing) {
+            $DB->delete_records('stage_study_mobility', ['id' => $existing->id]);
+        }
+        return;
+    }
+
+    $location = core_text::substr(trim($location), 0, 255);
+    if ($location === '') {
+        throw new coding_exception('Le lieu de la mobilité d\'études est obligatoire pour la valider.');
+    }
+    if ($existing) {
+        $existing->location = $location;
+        $existing->validatedby = $byuserid;
+        $existing->timemodified = time();
+        $DB->update_record('stage_study_mobility', $existing);
+    } else {
+        $DB->insert_record('stage_study_mobility', (object) [
+            'stageid' => $stageid,
+            'userid' => $userid,
+            'location' => $location,
+            'validatedby' => $byuserid,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ]);
+    }
+}
+
+/**
+ * Rend le formulaire de validation de la mobilité d'études d'un étudiant (case à cocher et lieu),
+ * proposé à la DEVE dans le volet de l'étudiant (voir stage_print_student_dashboard()).
+ *
+ * @param stdClass $cm Course module.
+ * @param int $userid Étudiant concerné.
+ * @param stdClass|null $studymobility Mobilité d'études déjà validée, le cas échéant.
+ * @return string HTML
+ */
+function stage_render_study_mobility_form($cm, $userid, $studymobility) {
+    global $PAGE;
+
+    $out = html_writer::start_tag('form', [
+        'method' => 'post',
+        'action' => new moodle_url('/mod/stage/study_mobility.php'),
+        'class' => 'mb-3',
+    ]);
+    foreach ([
+        'id' => $cm->id,
+        'studentid' => $userid,
+        'sesskey' => sesskey(),
+        'returnurl' => $PAGE->url->out_as_local_url(false),
+    ] as $name => $value) {
+        $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $name, 'value' => $value]);
+    }
+    $out .= html_writer::div(
+        html_writer::checkbox(
+            'studymobility',
+            1,
+            $studymobility !== null,
+            get_string('studymobilityvalidated', 'mod_stage'),
+            ['id' => 'studymobility-' . $userid, 'class' => 'mr-1']
+        ),
+        'form-check mb-2'
+    );
+    $out .= html_writer::tag(
+        'label',
+        get_string('studymobilitylocation', 'mod_stage'),
+        ['for' => 'studymobilitylocation-' . $userid]
+    );
+    $out .= html_writer::empty_tag('input', [
+        'type' => 'text', 'name' => 'location', 'id' => 'studymobilitylocation-' . $userid,
+        'value' => $studymobility !== null ? $studymobility->location : '',
+        'maxlength' => 255, 'class' => 'form-control mb-2',
+    ]);
+    $out .= html_writer::empty_tag('input', [
+        'type' => 'submit', 'value' => get_string('savechanges'), 'class' => 'btn btn-secondary',
+    ]);
+    $out .= html_writer::end_tag('form');
+
+    return $out;
 }
 
 /**
@@ -3933,15 +4055,19 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
                 . stage_render_status_badge($themesdonecount === count($mandatorythemes)),
         ];
     }
-    if ($abroadprogress->required > 0) {
-        $summarytable->data[] = [
-            get_string('summaryabroaddays', 'mod_stage'),
-            get_string(
+    if ($abroadprogress->required > 0 || $abroadprogress->studymobility !== null) {
+        // Une mobilité d'études validée par la DEVE satisfait l'obligation à elle seule : elle est
+        // citée avec son lieu à la place du décompte des jours de stage à l'étranger.
+        $abroadsummary = $abroadprogress->studymobility !== null
+            ? get_string('studymobilitysummary', 'mod_stage', s($abroadprogress->studymobility->location))
+            : get_string(
                 'progressofdays',
                 'mod_stage',
                 (object) ['retained' => $abroadprogress->retained, 'required' => $abroadprogress->required]
-            )
-                . ' ' . stage_render_status_badge($abroadprogress->done),
+            );
+        $summarytable->data[] = [
+            get_string('summaryabroaddays', 'mod_stage'),
+            $abroadsummary . ' ' . stage_render_status_badge($abroadprogress->done),
         ];
     }
     if ($complementary->total > 0) {
@@ -4039,21 +4165,35 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
     // 4. Obligation de mobilité internationale : rappelée à part, avec la consigne de la DEVE et
     // l'année avant laquelle elle doit être satisfaite (elle figure aussi dans le bilan de cette
     // année-là ci-dessus, comme condition de sa validation).
-    if ($abroadprogress->required > 0) {
+    // La DEVE peut y valider une mobilité d'études (case à cocher et lieu), qui satisfait
+    // l'obligation sans stage à l'étranger (voir stage_set_student_study_mobility()).
+    $candevestudymobility = $cm && $userid != $USER->id
+        && has_capability('mod/stage:validatedeve', context_module::instance($cm->id));
+    if ($abroadprogress->required > 0 || $abroadprogress->studymobility !== null || $candevestudymobility) {
         echo $OUTPUT->heading(get_string('abroadtotal', 'mod_stage'), 4);
         if (!empty($stage->abroadrule)) {
             echo html_writer::tag('p', format_text($stage->abroadrule, FORMAT_PLAIN), ['class' => 'text-muted']);
         }
-        $abroadtable = new html_table();
-        $abroadtable->head = array_merge(
-            [get_string('abroadbeforeyear', 'mod_stage')],
-            stage_progress_table_head()
-        );
-        $abroadtable->data[] = array_merge(
-            [$abroadprogress->beforeyear > 0 ? stage_studyyear_label($abroadprogress->beforeyear) : '-'],
-            stage_render_progress_cells($abroadprogress->retained, $abroadprogress->required, $abroadprogress->done)
-        );
-        echo html_writer::table($abroadtable);
+        if ($abroadprogress->required > 0) {
+            $abroadtable = new html_table();
+            $abroadtable->head = array_merge(
+                [get_string('abroadbeforeyear', 'mod_stage')],
+                stage_progress_table_head()
+            );
+            $abroadtable->data[] = array_merge(
+                [$abroadprogress->beforeyear > 0 ? stage_studyyear_label($abroadprogress->beforeyear) : '-'],
+                stage_render_progress_cells($abroadprogress->retained, $abroadprogress->required, $abroadprogress->done)
+            );
+            echo html_writer::table($abroadtable);
+        }
+        if ($candevestudymobility) {
+            echo stage_render_study_mobility_form($cm, $userid, $abroadprogress->studymobility);
+        } else if ($abroadprogress->studymobility !== null) {
+            echo $OUTPUT->notification(
+                get_string('studymobilitysummary', 'mod_stage', s($abroadprogress->studymobility->location)),
+                'success'
+            );
+        }
     }
 
     $themes = stage_get_themes($stage->id);

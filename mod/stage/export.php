@@ -101,8 +101,14 @@ foreach ($report->rows as $reportrow) {
     $sheet->write_number($row, $col++, (int) $reportrow->progress->totalretained);
     $sheet->write_string($row, $col++, $reportrow->mandatorytotal > 0
         ? "{$reportrow->mandatorydone} / {$reportrow->mandatorytotal}" : '-');
-    $sheet->write_string($row, $col++, $reportrow->abroadprogress->required > 0
-        ? "{$reportrow->abroadprogress->retained} / {$reportrow->abroadprogress->required}" : '-');
+    // Une mobilité d'études validée par la DEVE remplace le décompte des jours à l'étranger.
+    if ($reportrow->abroadprogress->studymobility !== null) {
+        $abroadcell = get_string('studymobilitysummary', 'mod_stage', $reportrow->abroadprogress->studymobility->location);
+    } else {
+        $abroadcell = $reportrow->abroadprogress->required > 0
+            ? "{$reportrow->abroadprogress->retained} / {$reportrow->abroadprogress->required}" : '-';
+    }
+    $sheet->write_string($row, $col++, $abroadcell);
     $sheet->write_number($row, $col++, (int) $reportrow->pendingcount);
     $sheet->write_string($row, $col++, $reportrow->uptodate
         ? get_string('promotionuptodate', 'mod_stage') : get_string('themetodo', 'mod_stage'));

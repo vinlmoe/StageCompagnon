@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/stage/db" VERSION="20261002" COMMENT="XMLDB file for module mod_stage"
+<XMLDB PATH="mod/stage/db" VERSION="20261026" COMMENT="XMLDB file for module mod_stage"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -322,6 +322,28 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="stageid-studentid-teacherid" UNIQUE="true" FIELDS="stageid, studentid, teacherid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="stage_study_mobility" COMMENT="Mobilité d'études (semestre ou année à l'étranger, hors stage) validée par la DEVE pour un étudiant : satisfait à elle seule l'obligation de mobilité internationale de l'activité">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="location" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"
+            COMMENT="Lieu de la mobilité d'études (établissement, ville, pays...)"/>
+        <FIELD NAME="validatedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Membre de la DEVE ayant validé la mobilité d'études"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="stageid" TYPE="foreign" FIELDS="stageid" REFTABLE="stage" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="validatedby" TYPE="foreign" FIELDS="validatedby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="stageid-userid" UNIQUE="true" FIELDS="stageid, userid"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="stage_question" COMMENT="Question d'évaluation (choix multiple ou commentaire libre) définie par la DEVE par thématique">
