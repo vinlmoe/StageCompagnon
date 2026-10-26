@@ -5,7 +5,7 @@ des stages, génération et suivi des conventions, auto-évaluation par
 l'étudiant, évaluation par l'enseignant référent et validation finale par la
 scolarité (DEVE).
 
-- **Prérequis** : Moodle 4.0 ou supérieur, PHP 7.4+.
+- **Prérequis** : Moodle 4.3 ou supérieur, PHP 8.0+.
 - **Dépendance incluse** : FPDI 2.6.8 (MIT), dans `thirdparty/vendor`, utilisée
   pour l'assemblage des conventions PDF.
 

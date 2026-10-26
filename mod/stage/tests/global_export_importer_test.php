@@ -20,6 +20,12 @@ use mod_stage\local\global_export_importer;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
+defined('MOODLE_INTERNAL') || die();
+
+global $CFG;
+// Charge PhpSpreadsheet : Moodle 4.3 ne l'inscrit pas encore dans son chargeur automatique.
+require_once($CFG->libdir . '/excellib.class.php');
+
 /**
  * Lecture de vrais classeurs d'export global.
  *

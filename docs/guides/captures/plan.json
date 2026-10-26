@@ -161,6 +161,51 @@
  },
  {
   "user": "cmartin",
+  "url": "/mod/stage/delete_entries.php?id=1",
+  "actions": [
+   [
+    "check",
+    "input[name=\"selected[]\"] >> nth=1"
+   ],
+   [
+    "check",
+    "input[name=\"selected[]\"] >> nth=2"
+   ]
+  ],
+  "file": "15b_delete_select"
+ },
+ {
+  "user": "cmartin",
+  "actions": [
+   [
+    "click",
+    "button[name=\"scope\"][value=\"selected\"]"
+   ],
+   [
+    "wait"
+   ],
+   [
+    "eval",
+    "document.querySelectorAll('details').forEach(d => d.open = true)"
+   ],
+   [
+    "check",
+    "#stage-delete-understood"
+   ],
+   [
+    "fill",
+    "#stage-delete-count",
+    "2"
+   ],
+   [
+    "eval",
+    "window.scrollTo(0, 0)"
+   ]
+  ],
+  "file": "15c_delete_confirm"
+ },
+ {
+  "user": "cmartin",
   "url": "/mod/stage/conventions.php?id=1",
   "file": "16_conventions"
  },

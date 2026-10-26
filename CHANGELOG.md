@@ -10,7 +10,13 @@ changements. À tenir à jour à chaque modification de `version.php`.
 ### Dépôt
 - Ajout du texte de la licence (`LICENSE`, GNU GPL v3), de cet historique et de `.editorconfig`.
 - `.DS_Store` retiré du suivi Git.
-- CI : le job Moodle tourne désormais sur deux combinaisons, Moodle 4.0 avec PHP 7.4 et
+- Moodle 4.3 minimum (`requires = 2023100900`) pour les deux modules, et donc PHP 8.0 : avant
+  Moodle 4.3, les noms de champs sont limités à 30 caractères, et
+  `establishmentrepresentativetitle` (32) et `conventionrequireteachervalidation` (34) les
+  dépassent ; le module ne s'installait pas sur Moodle 4.0 à 4.2.
+- CI : JIT désactivé (`opcache.jit=disable`) ; son avertissement au démarrage de PHP faisait
+  échouer l'installation de Moodle par `moodle-plugin-ci`.
+- CI : le job Moodle tourne désormais sur deux combinaisons, Moodle 4.3 avec PHP 8.0 et
   Moodle 4.5 avec PHP 8.2 ; le contrôle PHPDoc est bloquant ; le workflow peut être lancé à la
   main (`workflow_dispatch`). La couverture de code est mesurée (pcov) sur la combinaison la plus
   récente, résumée dans le journal du job et publiée en artefact Clover.

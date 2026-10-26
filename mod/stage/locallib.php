@@ -911,12 +911,14 @@ function stage_render_study_mobility_form($cm, $userid, $studymobility) {
         'action' => new moodle_url('/mod/stage/study_mobility.php'),
         'class' => 'mb-3',
     ]);
-    foreach ([
-        'id' => $cm->id,
-        'studentid' => $userid,
-        'sesskey' => sesskey(),
-        'returnurl' => $PAGE->url->out_as_local_url(false),
-    ] as $name => $value) {
+    foreach (
+        [
+            'id' => $cm->id,
+            'studentid' => $userid,
+            'sesskey' => sesskey(),
+            'returnurl' => $PAGE->url->out_as_local_url(false),
+        ] as $name => $value
+    ) {
         $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $name, 'value' => $value]);
     }
     $out .= html_writer::div(

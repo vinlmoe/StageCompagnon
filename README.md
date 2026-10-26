@@ -1,8 +1,8 @@
 # StageCompagnon
 
 [![CI](https://github.com/vinlmoe/StageCompagnon/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vinlmoe/StageCompagnon/actions/workflows/ci.yml)
-[![Moodle 4.0+](https://img.shields.io/badge/Moodle-4.0%2B-f98012?logo=moodle&logoColor=white)](https://moodle.org)
-[![PHP 7.4+](https://img.shields.io/badge/PHP-7.4%2B-777bb4?logo=php&logoColor=white)](https://www.php.net)
+[![Moodle 4.3+](https://img.shields.io/badge/Moodle-4.3%2B-f98012?logo=moodle&logoColor=white)](https://moodle.org)
+[![PHP 8.0+](https://img.shields.io/badge/PHP-8.0%2B-777bb4?logo=php&logoColor=white)](https://www.php.net)
 [![Licence GPL v3+](https://img.shields.io/badge/licence-GPL%20v3%2B-blue)](https://www.gnu.org/licenses/gpl-3.0)
 
 Deux modules d'activité Moodle pour la gestion des stages étudiants en école
@@ -88,7 +88,8 @@ cp -r mod/stagesynthesis  <moodle>/mod/stagesynthesis   # facultatif
 php admin/cli/upgrade.php
 ```
 
-- **Prérequis** : Moodle 4.0+ (`$plugin->requires = 2022041900`), PHP 7.4+.
+- **Prérequis** : Moodle 4.3+ (`$plugin->requires = 2023100900`), PHP 8.0+. Avant Moodle 4.3,
+  les noms de champs sont limités à 30 caractères, et deux champs de `mod_stage` les dépassent.
 - `mod_stagesynthesis` dépend de `mod_stage` : installer les deux, ou seulement
   `mod_stage`.
 - FPDI 2.6.8 (MIT) est inclus dans `mod/stage/thirdparty/vendor` pour l'assemblage
@@ -119,8 +120,8 @@ Chaque poussée déclenche `.github/workflows/ci.yml`, en deux temps :
 - **Moodle** — `moodle-plugin-ci` installe un Moodle avec PostgreSQL et les modules du
   dépôt, puis enchaîne analyse syntaxique, validation de la structure du module, points de
   sauvegarde de la mise à jour, blocs de documentation (`phpdoc`), gabarits Mustache et tests
-  PHPUnit. Tous ces contrôles sont bloquants. Le job tourne sur deux combinaisons : Moodle 4.0
-  avec PHP 7.4, la borne basse annoncée par `version.php` et par ce README, et Moodle 4.5 avec
+  PHPUnit. Tous ces contrôles sont bloquants. Le job tourne sur deux combinaisons : Moodle 4.3
+  avec PHP 8.0, la borne basse annoncée par `version.php` et par ce README, et Moodle 4.5 avec
   PHP 8.2. Sur cette dernière, la couverture de code est mesurée avec pcov (résumé dans le
   journal de l'étape PHPUnit, rapports Clover en artefact du job) et les scénarios Behat de
   `mod/stage/tests/behat/` sont joués sans JavaScript, sur le serveur web intégré de PHP. Le
