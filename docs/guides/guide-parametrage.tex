@@ -4,8 +4,8 @@
 
 % Version du guide : à mettre à jour à chaque modification, avec une ligne dans l'historique.
 \newcommand{\titreguide}{Guide de paramétrage et de gestion}
-\newcommand{\versionguide}{1.4}
-\newcommand{\dateguide}{25 octobre 2026}
+\newcommand{\versionguide}{1.5}
+\newcommand{\dateguide}{26 octobre 2026}
 \newcommand{\versionstage}{0.5.1}
 \newcommand{\versionsynthese}{0.2.1}
 
@@ -30,6 +30,7 @@
 1.2 & 16 octobre 2026 & Un cours par promotion ; explications regroupées par cas (mise en place, rentrée, redoublement) ; transfert d'un étudiant ; partie Courriels (textes standard, variables, exemples) ; moment réel de l'invitation du maître de stage. \\
 1.3 & 16 octobre 2026 & Cas \og gestion du circuit des stages\fg{} et \og fin d'année : bilan et diplomation\fg{} ; guides étudiant et enseignant référent séparés. \\
 1.4 & 25 octobre 2026 & Captures d'écran refaites sur un site de démonstration reconstitué, après le passage des listes, filtres et tableaux de pilotage aux gabarits Mustache. \\
+1.5 & 26 octobre 2026 & Suppression de stages en lot ; import d'un ancien suivi Excel et restauration d'un export global ; stages à l'étranger dans l'import historique. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -333,11 +334,27 @@ Un stage pour un étudiant & Non demandée \\
 Une thématique pour plusieurs étudiants & Signée (StageVet) \\
 Fichier CSV & Non demandée \\
 Export StageVet & Signée (StageVet) \\
+Ancien suivi Excel & Non demandée \\
+Export global du module & Celle de l'export \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
 \capture{14_register}{Stages enregistrés et voies d'enregistrement.}
+
+\paragraph{Ancien suivi Excel.} \bouton{Importer un ancien suivi Excel} reprend
+les stages validés des feuilles \og Stages validation ER\fg{} et \og Stage EP
+validation ER\fg{}, directement au statut \statut{Validé DEVE}. Chaque bloc de
+thématique peut porter deux colonnes facultatives, \bouton{Stage à l'étranger}
+(Oui ou Non) et \bouton{Pays} : le stage compte alors dans la mobilité
+internationale. Sans elles, il est importé comme un stage en France.
+
+\paragraph{Export global.} \bouton{Restaurer un export global} réimporte le
+fichier produit par \bouton{Exporter en Excel}, statuts, évaluations, données de
+convention et stages à l'étranger compris. Les stages déjà présents sont
+signalés et ne sont restaurés que sur demande.
+
+Un import erroné se défait par la suppression en lot (§\ref{sec:suppression}).
 
 Colonnes du CSV :
 \begin{center}
@@ -489,6 +506,38 @@ Seule la durée retenue d'un stage \statut{Validé DEVE} compte dans les bilans.
 \end{itemize}
 
 \capture{43_cancel}{Annulation d'un stage.}
+
+\subsection{Supprimer des stages en lot}
+\label{sec:suppression}
+
+\chemin{Enregistrer des stages > Supprimer des stages} efface définitivement des
+stages, par exemple ceux d'un import erroné. Pour simplement arrêter un stage,
+préférez \bouton{Annuler ce stage}, qui le conserve.
+
+\begin{enumerate}
+  \item \textbf{Choisir les stages.} Cochez-les, ou filtrez puis cliquez sur
+        \bouton{Supprimer les \emph{N} stages filtrés}. Le filtre
+        \bouton{Enregistrés le \ldots} regroupe les stages créés un même jour,
+        donc par un même import.
+  \item \textbf{Relire l'avertissement.} L'écran récapitule les stages par
+        statut, signale ceux qui sont \statut{Validé DEVE} et liste les stages
+        concernés.
+  \item \textbf{Confirmer deux fois.} Cochez \bouton{Je comprends que ces stages
+        seront supprimés définitivement} et saisissez le nombre exact de stages,
+        puis \bouton{Supprimer définitivement}. Sans ces deux confirmations, rien
+        n'est supprimé.
+\end{enumerate}
+
+\capture{15b_delete_select}{Choix des stages à supprimer.}
+\capture{15c_delete_confirm}{Avertissement et double confirmation.}
+
+\begin{attention}
+La suppression est irréversible : plages de dates, convention, évaluations,
+check-lists, conventions signées et rapports déposés partent avec le stage.
+Exportez d'abord les stages en Excel ; le fichier permet de les restaurer.
+\end{attention}
+
+Chaque stage supprimé laisse une trace dans les journaux Moodle de l'activité.
 
 \subsection{Enseignants responsables de thématique}
 
