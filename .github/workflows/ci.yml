@@ -41,8 +41,8 @@ jobs:
     name: Moodle ${{ matrix.moodle }} / PHP ${{ matrix.php }}
     runs-on: ubuntu-24.04
 
-    # Les deux bornes de la plage annoncée par version.php (Moodle 4.0+) et par le README
-    # (PHP 7.4+) : la plus basse garantit la compatibilité promise, la plus récente suit
+    # Les deux bornes de la plage annoncée par version.php (Moodle 4.3+) et par le README
+    # (PHP 8.0+) : la plus basse garantit la compatibilité promise, la plus récente suit
     # la version de Moodle déployée. La couverture de code n'est mesurée que sur cette
     # dernière : une seule mesure suffit, et pcov ralentit la suite. Les scénarios Behat ne
     # tournent que là aussi : la combinaison basse reste un contrôle de compatibilité rapide.
@@ -50,8 +50,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - moodle: MOODLE_400_STABLE
-            php: "7.4"
+          - moodle: MOODLE_403_STABLE
+            php: "8.0"
             coverage: none
             behat: "no"
           - moodle: MOODLE_405_STABLE
@@ -84,7 +84,9 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: pgsql, pdo_pgsql, gd, intl, mbstring, soap, zip
-          ini-values: max_input_vars=5000, opcache.enable_cli=1
+          # JIT désactivé : son avertissement au démarrage (« JIT is incompatible with third party
+          # extensions ») est sur la sortie d'erreur, que moodle-plugin-ci traite comme un échec.
+          ini-values: max_input_vars=5000, opcache.enable_cli=1, opcache.jit=disable
           tools: composer
           coverage: ${{ matrix.coverage }}
 
