@@ -148,9 +148,11 @@ if ($toconfirm !== null) {
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'entryids',
         'value' => implode(',', array_keys($toconfirm))]);
     echo html_writer::div(
-        html_writer::checkbox('understood', 1, false, ' ' . get_string('deleteentriesunderstood', 'mod_stage'),
-            ['id' => 'stage-delete-understood']),
-        'mb-2'
+        html_writer::empty_tag('input', ['type' => 'checkbox', 'name' => 'understood', 'value' => 1,
+            'id' => 'stage-delete-understood', 'class' => 'form-check-input'])
+            . html_writer::tag('label', get_string('deleteentriesunderstood', 'mod_stage'),
+                ['for' => 'stage-delete-understood', 'class' => 'form-check-label']),
+        'form-check mb-3'
     );
     echo html_writer::tag('label', get_string('deleteentriestypecount', 'mod_stage', $count),
         ['for' => 'stage-delete-count', 'class' => 'd-block']);
