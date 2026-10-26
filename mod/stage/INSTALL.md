@@ -566,6 +566,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 |---|---|
 | `periods_test.php` | Cohérence des plages de dates (`stage_validate_periods`) et leur statut de source unique des dates du stage (`stage_save_entry_periods`, `stage_register_entry`). |
 | `year_progress_test.php` | Bilan annuel d'un étudiant : thématique bornée à une plage d'années (vérifiée cumulativement à sa dernière année), mobilité internationale intégrée à l'année où elle est due (stage à l'étranger ou mobilité d'études validée par la DEVE), stages complémentaires exclus du décompte. |
+| `study_mobility_importer_test.php` | Import Excel des mobilités d'études : intitulés reconnus dans n'importe quel ordre (accents, alias), seule la première feuille lue, validation et retrait (oui/non), lignes vides du modèle ignorées, erreurs ligne par ligne (adresse inconnue ou non inscrite, lieu manquant, valeur illisible), classeur sans colonne Email ou fichier invalide refusés. |
 | `student_progress_test.php` | Bilan global d'un étudiant, en particulier la durée requise d'une thématique à durée globale unique plutôt que par année. |
 | `promotion_test.php` | Bilan de promotion : années échues uniquement, classement des étudiants en défaut par sévérité puis ancienneté du retard. |
 | `transfer_test.php` | Transfert d'un étudiant vers une autre instance : blocages (aucun stage, non-inscrit, thématique sans correspondance), rapprochement tolérant des noms, effets réels du transfert. |

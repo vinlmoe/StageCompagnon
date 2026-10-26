@@ -112,6 +112,11 @@ if ($canmanagethemes) {
 if (has_capability('mod/stage:registerstages', $context)) {
     if (has_capability('mod/stage:validatedeve', $context)) {
         $setuplinks[] = [
+            get_string('studymobilityimport', 'mod_stage'),
+            get_string('studymobilityimport_desc', 'mod_stage'),
+            new moodle_url('/mod/stage/study_mobility_import.php', ['id' => $cm->id]),
+        ];
+        $setuplinks[] = [
             get_string('historicalimport', 'mod_stage'),
             get_string('historicalimport_desc', 'mod_stage'),
             new moodle_url('/mod/stage/import_historical.php', ['id' => $cm->id]),

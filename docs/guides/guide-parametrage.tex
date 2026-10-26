@@ -269,6 +269,23 @@ l'étranger ; le bilan de l'étudiant et l'export Excel du bilan de promotion
 affichent \og Mobilité d'études validée\fg{} suivi du lieu. Décocher la case et
 enregistrer retire la validation.
 
+\paragraph{Import Excel des mobilités d'études.}
+\chemin{Administration > Import Excel des mobilités d'études} valide les
+mobilités de plusieurs étudiants en une fois. \bouton{Télécharger le modèle}
+fournit un classeur listant les étudiants inscrits et les mobilités déjà
+validées. Seule la première feuille est lue ; les colonnes sont reconnues par
+leur intitulé, dans n'importe quel ordre :
+\begin{itemize}
+  \item \textbf{Email} (obligatoire) : adresse de l'étudiant inscrit au cours ;
+  \item \textbf{Lieu} : obligatoire pour valider la mobilité ;
+  \item \textbf{Mobilité d'études} (facultative) : \og oui\fg{} valide,
+        \og non\fg{} retire la validation.
+\end{itemize}
+Une ligne sans lieu ni valeur dans \og Mobilité d'études\fg{} est ignorée ; une
+ligne avec un lieu mais sans valeur vaut \og oui\fg{}. Les lignes en erreur
+(adresse inconnue, lieu manquant, valeur illisible) sont listées avec leur
+numéro, sans bloquer les autres.
+
 \subsection{Listes d'évaluation}
 
 \chemin{Administration > Listes d'évaluation}. Le formulaire de destination
