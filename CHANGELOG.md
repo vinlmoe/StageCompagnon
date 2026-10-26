@@ -43,6 +43,12 @@ changements. À tenir à jour à chaque modification de `version.php`.
 - Paramètres de requête lus avec leur type exact au lieu de `PARAM_RAW` : filtres de statut
   (nouvelle fonction `stage_optional_status_param`, qui conserve la distinction entre
   « tous les statuts » et le statut 0), boutons d'action et commentaires en texte brut.
+- Suppression de stages en lot par la DEVE (`delete_entries.php`, bouton « Supprimer des
+  stages » de la liste des stages), pour défaire un import erroné : sélection par cases à cocher
+  ou par filtres, dont un filtre par jour d'enregistrement qui retrouve les stages d'un même
+  import ; écran d'avertissement récapitulatif, puis double confirmation (case à cocher et nombre
+  exact de stages à saisir). Chaque stage supprimé laisse un événement `entry_deleted` dans les
+  journaux.
 - Import historique : colonnes facultatives « Stage à l'étranger » et « Pays » dans chaque bloc,
   pour que les stages à l'étranger comptent dans l'obligation de mobilité internationale.
 - `VERSION` de `db/install.xml` aligné sur le dernier point de sauvegarde.

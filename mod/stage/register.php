@@ -124,7 +124,15 @@ if ($mode === 'list') {
             ? html_writer::link(
                 new moodle_url('/mod/stage/export.php', ['id' => $cm->id]),
                 get_string('exportexcel', 'mod_stage'),
-                ['class' => 'btn btn-secondary']
+                ['class' => 'btn btn-secondary mr-2']
+            )
+            : '')
+        // Destructrice : en rouge et en dernier, comme les actions de chaque ligne.
+        . (has_capability('mod/stage:validatedeve', $context)
+            ? html_writer::link(
+                new moodle_url('/mod/stage/delete_entries.php', ['id' => $cm->id]),
+                get_string('deleteentries', 'mod_stage'),
+                ['class' => 'btn btn-outline-danger']
             )
             : ''),
         'my-3'

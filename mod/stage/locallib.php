@@ -3242,7 +3242,8 @@ function stage_entry_sort_options() {
  * Recherche/tri des saisies de stage, pour les listes de la DEVE et des enseignants référents.
  *
  * @param int $stageid
- * @param array $filters ['search' => nom étudiant, 'themeid' => int, 'status' => int]
+ * @param array $filters ['search' => nom étudiant, 'themeid' => int, 'status' => int,
+ *        'createdfrom' => int, 'createdto' => int (bornes de timecreated, la seconde exclue)]
  * @param string $sort Une des clés de stage_entry_sort_options().
  * @param string $dir 'ASC' ou 'DESC'.
  * @param array|null $restrictuserids Si fourni, limite aux saisies de ces étudiants (enseignant référent).
@@ -3280,6 +3281,14 @@ function stage_get_filtered_entries(
     if (isset($filters['statuslt']) && $filters['statuslt'] !== '') {
         $where[] = 'e.status < :statuslt';
         $params['statuslt'] = (int) $filters['statuslt'];
+    }
+    if (!empty($filters['createdfrom'])) {
+        $where[] = 'e.timecreated >= :createdfrom';
+        $params['createdfrom'] = (int) $filters['createdfrom'];
+    }
+    if (!empty($filters['createdto'])) {
+        $where[] = 'e.timecreated < :createdto';
+        $params['createdto'] = (int) $filters['createdto'];
     }
     if ($restrictuserids !== null) {
         [$insql, $inparams] = $DB->get_in_or_equal($restrictuserids, SQL_PARAMS_NAMED, 'ru');
@@ -7139,6 +7148,136 @@ function stage_delete_entries(array $entryids, ?context $context = null) {
         $DB->delete_records_select($table, "entryid $insql", $inparams);
     }
     $DB->delete_records_select('stage_entry', "id $insql", $inparams);
+}
+
+/**
+ * Jours où des stages de l'activité ont été enregistrés, avec leur nombre : un import crée tous
+ * ses stages le même jour, ce filtre permet donc de retrouver les stages d'un import à défaire.
+ *
+ * @param int $stageid
+ * @return array Minuit du jour (heure de l'utilisateur) => nombre de stages, du plus récent au plus ancien.
+ */
+function stage_get_entry_creation_days($stageid) {
+    global $DB;
+
+    $days = [];
+    foreach ($DB->get_fieldset_select('stage_entry', 'timecreated', 'stageid = ?', [$stageid]) as $timecreated) {
+        $day = usergetmidnight((int) $timecreated);
+        $days[$day] = ($days[$day] ?? 0) + 1;
+    }
+    krsort($days);
+    return $days;
+}
+
+/**
+ * Supprime en lot des stages d'une activité, à l'initiative de la DEVE (delete_entries.php).
+ *
+ * Seules les saisies de l'activité sont supprimées : un identifiant d'une autre activité, glissé
+ * dans le formulaire, est ignoré. Chaque stage laisse un événement entry_deleted dans les
+ * journaux, déclenché avant la suppression pour que la saisie puisse encore être lue. Les
+ * données rattachées (plages, jours, convention, réponses, check-lists, fichiers) partent avec
+ * elle, par stage_delete_entries().
+ *
+ * @param int $stageid
+ * @param context_module $context Contexte du module, pour supprimer aussi les fichiers déposés.
+ * @param int[] $entryids
+ * @return int Nombre de stages supprimés.
+ */
+function stage_bulk_delete_entries($stageid, context_module $context, array $entryids) {
+    global $DB;
+
+    $entryids = array_values(array_filter(array_unique(array_map('intval', $entryids))));
+    if (!$entryids) {
+        return 0;
+    }
+    [$insql, $inparams] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED);
+    $entries = $DB->get_records_select(
+        'stage_entry',
+        "stageid = :stageid AND id $insql",
+        ['stageid' => $stageid] + $inparams,
+        'id',
+        'id, themeid, retainedduration'
+    );
+    if (!$entries) {
+        return 0;
+    }
+
+    $transaction = $DB->start_delegated_transaction();
+    foreach ($entries as $entry) {
+        stage_trigger_entry_event(\mod_stage\event\entry_deleted::class, $entry->id, [
+            'themeid' => (int) $entry->themeid,
+            'retainedduration' => (int) $entry->retainedduration,
+        ]);
+    }
+    stage_delete_entries(array_keys($entries), $context);
+    $transaction->allow_commit();
+    return count($entries);
+}
+
+/**
+ * Stages de l'activité parmi des identifiants transmis par un formulaire : ceux d'une autre
+ * activité sont écartés.
+ *
+ * @param int $stageid
+ * @param int[] $entryids
+ * @return array id => stage_entry, dans l'ordre des étudiants puis des thématiques.
+ */
+function stage_load_entries_by_id($stageid, array $entryids) {
+    global $DB;
+
+    $entryids = array_values(array_filter(array_unique(array_map('intval', $entryids))));
+    if (!$entryids) {
+        return [];
+    }
+    [$insql, $inparams] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED);
+    return $DB->get_records_sql(
+        "SELECT e.*
+           FROM {stage_entry} e
+           JOIN {user} u ON u.id = e.userid
+          WHERE e.stageid = :stageid AND e.id $insql
+       ORDER BY u.lastname, u.firstname, e.themeid, e.id",
+        ['stageid' => $stageid] + $inparams
+    );
+}
+
+/**
+ * Tableau des stages de la suppression en lot (delete_entries.php) : étudiant, thématique,
+ * dates, année, statut et date d'enregistrement, avec une case à cocher par ligne si demandé.
+ *
+ * @param array $entries
+ * @param array $themes
+ * @param bool $checkboxes
+ * @return string HTML
+ */
+function stage_render_deletion_table(array $entries, array $themes, $checkboxes) {
+    $users = stage_get_entry_users($entries);
+    $dateformat = get_string('strftimedateshort', 'langconfig');
+    $table = new html_table();
+    $table->head = array_merge(
+        $checkboxes ? [get_string('select')] : [],
+        [get_string('student', 'mod_stage'), get_string('theme', 'mod_stage'), get_string('dates', 'mod_stage'),
+            get_string('studyyear', 'mod_stage'), get_string('status', 'mod_stage'),
+            get_string('registeredon', 'mod_stage')]
+    );
+    foreach ($entries as $entry) {
+        $user = $users[$entry->userid] ?? null;
+        $dates = (!empty($entry->datestart) && !empty($entry->dateend))
+            ? userdate($entry->datestart, $dateformat) . ' - ' . userdate($entry->dateend, $dateformat) : '-';
+        $table->data[] = array_merge(
+            $checkboxes ? [html_writer::checkbox('selected[]', $entry->id, false, '', [
+                'aria-label' => get_string('select') . ' ' . ($user ? fullname($user) : $entry->id),
+            ])] : [],
+            [
+                $user ? fullname($user) : '-',
+                isset($themes[$entry->themeid]) ? format_string($themes[$entry->themeid]->name) : '-',
+                $dates,
+                $entry->studyyear ? stage_studyyear_label($entry->studyyear) : '-',
+                html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status)),
+                userdate($entry->timecreated, $dateformat),
+            ]
+        );
+    }
+    return html_writer::table($table);
 }
 
 /**
