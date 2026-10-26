@@ -170,7 +170,8 @@ $string['historicalimport_help'] = 'Imports validated internships only from the 
     . '2 of both sheets and fill it in for every student. Internships are created as validated by the academic '
     . 'office; the number of days becomes both the declared and retained duration. EP internships are stored as '
     . 'complementary internships under the theme selected below. The academic-credit “EP - saisie DEVE” sheet is '
-    . 'not imported. A preview is always shown before records are inserted.';
+    . 'not imported. A preview is always shown before records are inserted. Optionally, a “Stage à l’étranger” '
+    . '(Oui / Non) column and a “Pays” column in a block mark the internship as completed abroad.';
 $string['historicalimportfile'] = 'Legacy workbook (.xlsx)';
 $string['historicalimporteptheme'] = 'Moodle theme for EP internships';
 $string['historicalimportpreviewbutton'] = 'Analyse and preview';

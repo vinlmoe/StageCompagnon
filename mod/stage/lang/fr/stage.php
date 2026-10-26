@@ -178,7 +178,8 @@ $string['historicalimport_help'] = 'Importe uniquement les stages validés des f
     . 'sont créés directement au statut validé DEVE ; le nombre de jours devient la durée déclarée et retenue. '
     . 'Les EP sont enregistrées comme stages complémentaires dans la thématique choisie ci-dessous. La feuille '
     . '« EP - saisie DEVE », constituée d’enseignements académiques en crédits, n’est pas importée. Une '
-    . 'prévisualisation est toujours affichée avant insertion.';
+    . 'prévisualisation est toujours affichée avant insertion. Facultatif : une colonne « Stage à l’étranger » '
+    . '(Oui / Non) et une colonne « Pays » dans un bloc marquent le stage comme effectué à l’étranger.';
 $string['historicalimportfile'] = 'Classeur historique (.xlsx)';
 $string['historicalimporteptheme'] = 'Thématique Moodle pour les stages EP';
 $string['historicalimportpreviewbutton'] = 'Analyser et prévisualiser';
