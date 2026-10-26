@@ -80,7 +80,10 @@ final class bulk_delete_test extends \advanced_testcase {
         $this->assertSame((int) $student->id, (int) $event->relateduserid);
         $this->assertSame((int) $theme->id, $event->other['themeid']);
         $this->assertStringContainsString('supprimé', $event->get_description());
-        $this->assertSame('/mod/stage/register.php', $event->get_url()->get_path(false));
+        $this->assertSame(
+            (new \moodle_url('/mod/stage/register.php', ['id' => $cm->id]))->out(false),
+            $event->get_url()->out(false)
+        );
 
         $this->assertSame(0, stage_bulk_delete_entries($stage->id, $context, []));
         $this->assertSame(0, stage_bulk_delete_entries($stage->id, $context, [$foreign->id]));
