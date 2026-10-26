@@ -62,6 +62,9 @@ if ($studentid) {
     if (!is_enrolled($context, $student) || ($restrictuserids !== null && !in_array($studentid, $restrictuserids))) {
         throw new moodle_exception('nopermissions', 'error', '', get_string('pilotage', 'mod_stage'));
     }
+    // Les actions lancées depuis ce volet (validation de la mobilité d'études, gestion d'un
+    // stage...) y reviennent : l'url de la page doit désigner l'étudiant, pas la liste.
+    $PAGE->set_url(new moodle_url($baseurl, ['studentid' => $student->id]));
 
     echo $OUTPUT->header();
     echo $OUTPUT->heading(get_string('pilotage', 'mod_stage') . ' - ' . fullname($student));

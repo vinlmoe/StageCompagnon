@@ -253,12 +253,15 @@ final class privacy_provider_test extends \advanced_testcase {
         stage_set_student_study_mobility($stage->id, $other->id, true, 'Université de Liège', $deve->id);
         stage_set_student_study_mobility($stage->id, $student->id, true, 'Montréal', $deve->id);
 
-        $this->assertContains((int) $context->id, provider::get_contexts_for_userid($other->id)->get_contextids());
-        $this->assertContains((int) $context->id, provider::get_contexts_for_userid($deve->id)->get_contextids());
+        foreach ([$other, $deve] as $user) {
+            $contextids = array_map('intval', provider::get_contexts_for_userid($user->id)->get_contextids());
+            $this->assertContains((int) $context->id, $contextids);
+        }
         $userlist = new userlist($context, 'mod_stage');
         provider::get_users_in_context($userlist);
-        $this->assertContains((int) $other->id, $userlist->get_userids());
-        $this->assertContains((int) $deve->id, $userlist->get_userids());
+        $userids = array_map('intval', $userlist->get_userids());
+        $this->assertContains((int) $other->id, $userids);
+        $this->assertContains((int) $deve->id, $userids);
 
         provider::delete_data_for_user(new approved_contextlist($deve, 'mod_stage', [$context->id]));
         $mobility = $DB->get_record('stage_study_mobility', ['stageid' => $stage->id, 'userid' => $other->id]);
