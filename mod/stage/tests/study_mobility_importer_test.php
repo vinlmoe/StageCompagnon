@@ -24,6 +24,8 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
+// Charge PhpSpreadsheet : Moodle 4.3 ne l'inscrit pas encore dans son chargeur automatique.
+require_once($CFG->libdir . '/excellib.class.php');
 
 /**
  * Import Excel des mobilités d'études : lecture du classeur, validation et retrait, erreurs ligne

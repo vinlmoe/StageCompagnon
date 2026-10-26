@@ -26,7 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_stagesynthesis';
 $plugin->version   = 2026100200;
-$plugin->requires  = 2022041900; // Moodle 4.0+.
+$plugin->requires  = 2023100900; // Moodle 4.3+.
 $plugin->maturity  = MATURITY_BETA;
 $plugin->release   = '0.2.1';
 $plugin->dependencies = [
