@@ -136,7 +136,8 @@ if ($toconfirm !== null) {
         $summary->data[] = [s($label), $number];
     }
     echo html_writer::table($summary);
-    echo html_writer::tag('details',
+    echo html_writer::tag(
+        'details',
         html_writer::tag('summary', get_string('deleteentrieslist', 'mod_stage', $count))
             . stage_render_deletion_table($toconfirm, $allthemes, false),
         ['class' => 'mb-3']
@@ -150,17 +151,26 @@ if ($toconfirm !== null) {
     echo html_writer::div(
         html_writer::empty_tag('input', ['type' => 'checkbox', 'name' => 'understood', 'value' => 1,
             'id' => 'stage-delete-understood', 'class' => 'form-check-input'])
-            . html_writer::tag('label', get_string('deleteentriesunderstood', 'mod_stage'),
-                ['for' => 'stage-delete-understood', 'class' => 'form-check-label']),
+            . html_writer::tag(
+                'label',
+                get_string('deleteentriesunderstood', 'mod_stage'),
+                ['for' => 'stage-delete-understood', 'class' => 'form-check-label']
+            ),
         'form-check mb-3'
     );
-    echo html_writer::tag('label', get_string('deleteentriestypecount', 'mod_stage', $count),
-        ['for' => 'stage-delete-count', 'class' => 'd-block']);
+    echo html_writer::tag(
+        'label',
+        get_string('deleteentriestypecount', 'mod_stage', $count),
+        ['for' => 'stage-delete-count', 'class' => 'd-block']
+    );
     echo html_writer::empty_tag('input', ['type' => 'text', 'name' => 'confirmcount', 'id' => 'stage-delete-count',
         'inputmode' => 'numeric', 'autocomplete' => 'off', 'required' => 'required',
         'class' => 'form-control mb-3', 'style' => 'width:8em']);
-    echo html_writer::tag('button', get_string('deleteentriesfinal', 'mod_stage', $count),
-        ['type' => 'submit', 'class' => 'btn btn-danger mr-2']);
+    echo html_writer::tag(
+        'button',
+        get_string('deleteentriesfinal', 'mod_stage', $count),
+        ['type' => 'submit', 'class' => 'btn btn-danger mr-2']
+    );
     echo html_writer::link($url, get_string('cancel'), ['class' => 'btn btn-secondary']);
     echo html_writer::end_tag('form');
     echo $OUTPUT->footer();
@@ -201,10 +211,16 @@ echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'v
 echo stage_render_deletion_table($entries, $allthemes, true);
 echo $pagingbarhtml;
 echo html_writer::div(
-    html_writer::tag('button', get_string('deleteentriesselected', 'mod_stage'),
-        ['type' => 'submit', 'name' => 'scope', 'value' => 'selected', 'class' => 'btn btn-outline-danger mr-2'])
-    . html_writer::tag('button', get_string('deleteentriesallfiltered', 'mod_stage', count($allentries)),
-        ['type' => 'submit', 'name' => 'scope', 'value' => 'all', 'class' => 'btn btn-outline-danger']),
+    html_writer::tag(
+        'button',
+        get_string('deleteentriesselected', 'mod_stage'),
+        ['type' => 'submit', 'name' => 'scope', 'value' => 'selected', 'class' => 'btn btn-outline-danger mr-2']
+    )
+    . html_writer::tag(
+        'button',
+        get_string('deleteentriesallfiltered', 'mod_stage', count($allentries)),
+        ['type' => 'submit', 'name' => 'scope', 'value' => 'all', 'class' => 'btn btn-outline-danger']
+    ),
     'my-3'
 );
 echo html_writer::end_tag('form');
