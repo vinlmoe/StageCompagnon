@@ -182,6 +182,7 @@ function stage_delete_instance($id) {
     // zones de fichiers juste après.
     stage_delete_entries($DB->get_fieldset_select('stage_entry', 'id', 'stageid = ?', [$id]));
     $DB->delete_records('stage_entry_teacher', ['stageid' => $id]);
+    $DB->delete_records('stage_study_mobility', ['stageid' => $id]);
     $listids = $DB->get_fieldset_select('stage_evallist', 'id', 'stageid = ?', [$id]);
     if ($listids) {
         [$insql, $inparams] = $DB->get_in_or_equal($listids);
@@ -260,6 +261,7 @@ function stage_reset_userdata($data) {
             $cm = get_coursemodule_from_instance('stage', $stage->id, $data->courseid, false, IGNORE_MISSING);
             $context = $cm ? context_module::instance($cm->id) : null;
             stage_delete_entries($DB->get_fieldset_select('stage_entry', 'id', 'stageid = ?', [$stage->id]), $context);
+            $DB->delete_records('stage_study_mobility', ['stageid' => $stage->id]);
         }
         $status[] = ['component' => $componentstr, 'item' => get_string('resetstageentries', 'mod_stage'), 'error' => false];
     }

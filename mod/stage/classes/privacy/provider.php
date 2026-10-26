@@ -124,6 +124,13 @@ class provider implements
             'teacherid' => 'privacy:metadata:stage_entry_teacher:teacherid',
         ], 'privacy:metadata:stage_entry_teacher');
 
+        $collection->add_database_table('stage_study_mobility', [
+            'userid' => 'privacy:metadata:stage_study_mobility:userid',
+            'location' => 'privacy:metadata:stage_study_mobility:location',
+            'validatedby' => 'privacy:metadata:stage_study_mobility:validatedby',
+            'timemodified' => 'privacy:metadata:stage_study_mobility:timemodified',
+        ], 'privacy:metadata:stage_study_mobility');
+
         $collection->add_database_table('stage_theme_teacher', [
             'themeid' => 'privacy:metadata:stage_theme_teacher:themeid',
             'teacherid' => 'privacy:metadata:stage_theme_teacher:teacherid',
@@ -186,6 +193,21 @@ class provider implements
             'contextlevel' => CONTEXT_MODULE,
             'studentid' => $userid,
             'teacherid' => $userid,
+        ]);
+
+        // Mobilité d'études validée par la DEVE, qui peut exister sans aucune saisie de stage.
+        $sql = "SELECT ctx.id
+                  FROM {context} ctx
+                  JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
+                  JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                  JOIN {stage} s ON s.id = cm.instance
+                  JOIN {stage_study_mobility} sm ON sm.stageid = s.id
+                 WHERE sm.userid = :studentid OR sm.validatedby = :validatedby";
+        $contextlist->add_from_sql($sql, [
+            'modname' => 'stage',
+            'contextlevel' => CONTEXT_MODULE,
+            'studentid' => $userid,
+            'validatedby' => $userid,
         ]);
 
         // Enseignant nommé référent sur une convention : il peut n'avoir ni attribution ni
@@ -253,6 +275,15 @@ class provider implements
                                                JOIN {modules} m ON m.id = cm.module AND m.name = :modname
                                                JOIN {stage} s ON s.id = cm.instance
                                                JOIN {stage_entry_teacher} et ON et.stageid = s.id
+                                              WHERE cm.id = :instanceid", $params);
+        }
+
+        foreach (['userid', 'validatedby'] as $field) {
+            $userlist->add_from_sql($field, "SELECT sm.$field
+                                               FROM {course_modules} cm
+                                               JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                                               JOIN {stage} s ON s.id = cm.instance
+                                               JOIN {stage_study_mobility} sm ON sm.stageid = s.id
                                               WHERE cm.id = :instanceid", $params);
         }
 
@@ -382,6 +413,14 @@ class provider implements
                 }
             }
 
+            $studymobility = $DB->get_record('stage_study_mobility', ['stageid' => $cm->instance, 'userid' => $user->id]);
+            if ($studymobility) {
+                writer::with_context($context)->export_data([get_string('studymobility', 'mod_stage')], (object) [
+                    'location' => $studymobility->location,
+                    'timemodified' => transform::datetime($studymobility->timemodified),
+                ]);
+            }
+
             // Stages d'autres étudiants dans lesquels l'utilisateur intervient comme personnel :
             // les données exportées sont les siennes (ce qu'il a rédigé, ce qu'il a validé), pas
             // le dossier de l'étudiant, qui relève de l'export de ce dernier.
@@ -481,6 +520,7 @@ class provider implements
 
         stage_delete_entries($DB->get_fieldset_select('stage_entry', 'id', 'stageid = ?', [$cm->instance]), $context);
         $DB->delete_records('stage_entry_teacher', ['stageid' => $cm->instance]);
+        $DB->delete_records('stage_study_mobility', ['stageid' => $cm->instance]);
 
         $themeids = $DB->get_fieldset_select('stage_theme', 'id', 'stageid = ?', [$cm->instance]);
         if ($themeids) {
@@ -564,6 +604,10 @@ class provider implements
             "stageid = :stageid AND (studentid $usersql OR teacherid $usersql2)",
             array_merge(['stageid' => $cm->instance], $userparams, $userparams2)
         );
+
+        // Mobilité d'études de l'étudiant ; la DEVE qui l'a validée en est seulement dissociée.
+        $DB->delete_records_select('stage_study_mobility', "stageid = :stageid AND userid $usersql", $params);
+        $DB->set_field_select('stage_study_mobility', 'validatedby', null, "stageid = :stageid AND validatedby $usersql", $params);
 
         // 2. En tant que personnel cité dans le stage d'un autre étudiant : le stage appartient à
         // cet étudiant et doit survivre, seules les références à l'utilisateur supprimé sautent.

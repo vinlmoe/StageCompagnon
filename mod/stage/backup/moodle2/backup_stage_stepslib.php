@@ -108,6 +108,11 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $entryteachers = new backup_nested_element('entryteachers');
         $entryteacher = new backup_nested_element('entryteacher', ['id'], ['studentid', 'teacherid']);
 
+        $studymobilities = new backup_nested_element('studymobilities');
+        $studymobility = new backup_nested_element('studymobility', ['id'], [
+            'userid', 'location', 'validatedby', 'timecreated', 'timemodified',
+        ]);
+
         $entries = new backup_nested_element('entries');
         // « tutortoken » n'est volontairement pas sauvegardé : c'est un secret d'accès sans compte
         // (tutor_eval.php) soumis à un index unique, qu'une restauration sur le même site
@@ -190,6 +195,9 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $stage->add_child($entryteachers);
         $entryteachers->add_child($entryteacher);
 
+        $stage->add_child($studymobilities);
+        $studymobilities->add_child($studymobility);
+
         $stage->add_child($entries);
         $entries->add_child($entry);
         $entry->add_child($periods);
@@ -227,6 +235,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
 
         if ($userinfo) {
             $entryteacher->set_source_table('stage_entry_teacher', ['stageid' => backup::VAR_PARENTID], 'id');
+            $studymobility->set_source_table('stage_study_mobility', ['stageid' => backup::VAR_PARENTID], 'id');
             $entry->set_source_table('stage_entry', ['stageid' => backup::VAR_PARENTID], 'id');
             $period->set_source_table('stage_entry_period', ['entryid' => backup::VAR_PARENTID], 'datestart, id');
             $workday->set_source_table('stage_entry_workday', ['entryid' => backup::VAR_PARENTID], 'workdate');
@@ -239,6 +248,8 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $themeteacher->annotate_ids('user', 'teacherid');
         $entryteacher->annotate_ids('user', 'studentid');
         $entryteacher->annotate_ids('user', 'teacherid');
+        $studymobility->annotate_ids('user', 'userid');
+        $studymobility->annotate_ids('user', 'validatedby');
         $entry->annotate_ids('user', 'userid');
         $entry->annotate_ids('user', 'teacherid');
         $entry->annotate_ids('user', 'deveuserid');

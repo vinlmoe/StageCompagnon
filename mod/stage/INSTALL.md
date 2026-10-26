@@ -565,7 +565,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | Fichier | Couvre |
 |---|---|
 | `periods_test.php` | Cohérence des plages de dates (`stage_validate_periods`) et leur statut de source unique des dates du stage (`stage_save_entry_periods`, `stage_register_entry`). |
-| `year_progress_test.php` | Bilan annuel d'un étudiant : thématique bornée à une plage d'années (vérifiée cumulativement à sa dernière année), mobilité internationale intégrée à l'année où elle est due, stages complémentaires exclus du décompte. |
+| `year_progress_test.php` | Bilan annuel d'un étudiant : thématique bornée à une plage d'années (vérifiée cumulativement à sa dernière année), mobilité internationale intégrée à l'année où elle est due (stage à l'étranger ou mobilité d'études validée par la DEVE), stages complémentaires exclus du décompte. |
 | `student_progress_test.php` | Bilan global d'un étudiant, en particulier la durée requise d'une thématique à durée globale unique plutôt que par année. |
 | `promotion_test.php` | Bilan de promotion : années échues uniquement, classement des étudiants en défaut par sévérité puis ancienneté du retard. |
 | `transfer_test.php` | Transfert d'un étudiant vers une autre instance : blocages (aucun stage, non-inscrit, thématique sans correspondance), rapprochement tolérant des noms, effets réels du transfert. |
@@ -575,7 +575,7 @@ vendor/bin/phpunit mod/stage/tests/periods_test.php
 | `deve_entry_form_test.php` | Régression : la DEVE doit pouvoir modifier une saisie sans changer ses dates, sans être rejetée comme doublon d'elle-même. |
 | `entry_actions_returnurl_test.php` | Les liens d'action transmettent la page appelante en `returnurl`, pour revenir là d'où l'on vient. |
 | `historical_importer_test.php` | Transformation du suivi Excel historique en une ligne par stage. |
-| `privacy_provider_test.php` | Règles de suppression RGPD (voir §11) : effacement intégral pour l'étudiant, dissociation seule pour le personnel. |
+| `privacy_provider_test.php` | Règles de suppression RGPD (voir §11) : effacement intégral pour l'étudiant (mobilité d'études comprise), dissociation seule pour le personnel. |
 | `helpers_test.php` | Petites fonctions utilitaires pures (libellés, normalisation de nom, rendu d'actions/badges). |
 | `backup_restore_test.php` | Aller-retour sauvegarde/restauration de cours : le paramétrage, les stages et les fichiers suivent, et la copie désigne ses propres thématiques, questions et gabarits. |
 | `theme_objectives_test.php` | Objectifs de stage : ordre et portée de la check-list, justification exigée pour un objectif décoché, purge des réponses devenues sans objet, droits de correction, copie des objectifs à l'import. |

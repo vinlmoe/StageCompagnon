@@ -52,6 +52,12 @@ changements. À tenir à jour à chaque modification de `version.php`.
 - Import historique : colonnes facultatives « Stage à l'étranger » et « Pays » dans chaque bloc,
   pour que les stages à l'étranger comptent dans l'obligation de mobilité internationale.
 - `VERSION` de `db/install.xml` aligné sur le dernier point de sauvegarde.
+- Mobilité d'études : dans le volet d'un étudiant (tableau de pilotage), la DEVE peut cocher
+  « L'étudiant a effectué une mobilité d'études » et en indiquer le lieu (obligatoire). Une
+  mobilité d'études validée remplit l'obligation de mobilité internationale sans jour de stage
+  à l'étranger ; elle est affichée avec son lieu dans le bilan de l'étudiant et dans l'export
+  Excel du bilan de promotion. Nouvelle table `stage_study_mobility` (version 2026102600),
+  sauvegardée avec les données utilisateur et prise en charge par le fournisseur RGPD.
 
 ### mod_stagesynthesis
 - Événement Moodle de consultation de l'activité.

@@ -24,13 +24,15 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
 /**
  * Tests du bilan annuel d'un étudiant (stage_get_student_year_progress()) : validation d'une
  * thématique bornée à une plage d'années, mobilité internationale intégrée à l'année où elle est
- * due, et stages complémentaires exclus du décompte.
+ * due (stage à l'étranger ou mobilité d'études validée par la DEVE), et stages complémentaires
+ * exclus du décompte.
  *
  * @package    mod_stage
  * @copyright  2026 Sébastien Lefebvre
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     ::stage_get_student_year_progress
  * @covers     ::stage_get_student_abroad_progress
+ * @covers     ::stage_set_student_study_mobility
  */
 final class year_progress_test extends \advanced_testcase {
     /**
@@ -150,5 +152,61 @@ final class year_progress_test extends \advanced_testcase {
         $this->assertSame(30, $progress[4]->themes[0]->retained);
         $this->assertTrue($progress[4]->done);
         $this->assertSame(5, $progress[4]->complementary);
+    }
+
+    /**
+     * Une mobilité d'études validée par la DEVE (case cochée et lieu) satisfait l'obligation de
+     * mobilité internationale sans aucun jour de stage à l'étranger ; retirer la validation
+     * rétablit l'obligation.
+     */
+    public function test_study_mobility_satisfies_abroad_requirement(): void {
+        global $DB;
+        [$stage, $theme, $student] = $this->prepare();
+        /** @var \mod_stage_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $deve = $this->getDataGenerator()->create_user();
+
+        $DB->update_record('stage', (object) [
+            'id' => $stage->id, 'requiredabroaddays' => 20, 'abroadbeforeyear' => 4,
+        ]);
+        $entry = $generator->create_entry($stage, $student->id, $theme, ['studyyear' => 4, 'declaredduration' => 30]);
+        stage_apply_deve_validation($entry, 2, 30);
+        $this->assertFalse(stage_get_student_year_progress($stage->id, $student->id)[4]->done);
+
+        stage_set_student_study_mobility($stage->id, $student->id, true, '  Université de Liège  ', $deve->id);
+
+        $abroad = stage_get_student_abroad_progress($stage->id, $student->id);
+        $this->assertTrue($abroad->done);
+        $this->assertSame(0, $abroad->retained);
+        $this->assertSame('Université de Liège', $abroad->studymobility->location);
+        $this->assertEquals($deve->id, $abroad->studymobility->validatedby);
+        $this->assertTrue(stage_get_student_year_progress($stage->id, $student->id)[4]->done);
+
+        // Le bilan calculé par le cache de lecture du pilotage voit la même mobilité.
+        \mod_stage\local\progress_cache::prime($stage->id, [$student->id]);
+        try {
+            $this->assertTrue(stage_get_student_abroad_progress($stage->id, $student->id)->done);
+        } finally {
+            \mod_stage\local\progress_cache::clear();
+        }
+
+        // Modifier le lieu met à jour la même mobilité, sans en créer une seconde.
+        stage_set_student_study_mobility($stage->id, $student->id, true, 'Montréal', $deve->id);
+        $this->assertSame(1, $DB->count_records('stage_study_mobility', ['stageid' => $stage->id]));
+        $this->assertSame('Montréal', stage_get_student_study_mobility($stage->id, $student->id)->location);
+
+        stage_set_student_study_mobility($stage->id, $student->id, false, '', $deve->id);
+        $this->assertNull(stage_get_student_study_mobility($stage->id, $student->id));
+        $this->assertFalse(stage_get_student_year_progress($stage->id, $student->id)[4]->done);
+    }
+
+    /**
+     * Valider une mobilité d'études sans en préciser le lieu est refusé.
+     */
+    public function test_study_mobility_requires_location(): void {
+        [$stage, , $student] = $this->prepare();
+
+        $this->expectException(\coding_exception::class);
+        stage_set_student_study_mobility($stage->id, $student->id, true, '   ', 2);
     }
 }

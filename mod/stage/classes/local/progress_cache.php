@@ -56,6 +56,9 @@ class progress_cache {
     /** @var array entryid => 'obligatoire'|'complementaire'. */
     private static $stagetypes = [];
 
+    /** @var array userid => mobilité d'études validée (stage_study_mobility). */
+    private static $studymobilities = [];
+
     /**
      * Charge les données de bilan d'une activité pour les étudiants donnés.
      *
@@ -102,6 +105,14 @@ class progress_cache {
                 self::$entries[(int) $entry->userid][$entry->id] = $entry;
                 self::$stagetypes[(int) $entry->id] = 'obligatoire';
             }
+            $mobilities = $DB->get_records_select(
+                'stage_study_mobility',
+                "stageid = :stageid AND userid $insql",
+                ['stageid' => $stageid] + $inparams
+            );
+            foreach ($mobilities as $mobility) {
+                self::$studymobilities[(int) $mobility->userid] = $mobility;
+            }
         }
         foreach (array_chunk(array_keys(self::$stagetypes), 500) as $chunk) {
             [$insql, $inparams] = $DB->get_in_or_equal($chunk);
@@ -126,6 +137,7 @@ class progress_cache {
         self::$yearrequirements = [];
         self::$entries = [];
         self::$stagetypes = [];
+        self::$studymobilities = [];
     }
 
     /**
@@ -215,6 +227,16 @@ class progress_cache {
      */
     public static function entries($userid): array {
         return self::$entries[(int) $userid] ?? [];
+    }
+
+    /**
+     * Mobilité d'études validée d'un étudiant couvert, comme stage_get_student_study_mobility().
+     *
+     * @param int $userid
+     * @return \stdClass|null
+     */
+    public static function study_mobility($userid): ?\stdClass {
+        return self::$studymobilities[(int) $userid] ?? null;
     }
 
     /**

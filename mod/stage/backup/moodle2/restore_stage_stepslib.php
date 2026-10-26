@@ -88,6 +88,10 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
                 'stage_entry_teacher',
                 '/activity/stage/entryteachers/entryteacher'
             );
+            $paths[] = new restore_path_element(
+                'stage_study_mobility',
+                '/activity/stage/studymobilities/studymobility'
+            );
             $paths[] = new restore_path_element('stage_entry', '/activity/stage/entries/entry');
             $paths[] = new restore_path_element(
                 'stage_entry_period',
@@ -378,6 +382,33 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         }
 
         $DB->insert_record('stage_entry_teacher', $data);
+    }
+
+    /**
+     * Restaure la mobilité d'études validée d'un étudiant.
+     *
+     * @param array $data
+     */
+    protected function process_stage_study_mobility($data) {
+        global $DB;
+
+        $data = (object) $data;
+        unset($data->id);
+
+        $userid = $this->get_mappingid('user', $data->userid);
+        if (!$userid) {
+            return;
+        }
+
+        $data->stageid = $this->get_new_parentid('stage');
+        $data->userid = $userid;
+        $data->validatedby = $data->validatedby ? ($this->get_mappingid('user', $data->validatedby) ?: null) : null;
+
+        if ($DB->record_exists('stage_study_mobility', ['stageid' => $data->stageid, 'userid' => $data->userid])) {
+            return;
+        }
+
+        $DB->insert_record('stage_study_mobility', $data);
     }
 
     /**
