@@ -149,8 +149,10 @@ jobs:
         if: ${{ !cancelled() && steps.moodle_install.outcome == 'success' }}
         run: |
           check_status=0
-          moodle-plugin-ci mustache mod/stage || check_status=1
-          moodle-plugin-ci mustache mod/stagesynthesis || check_status=1
+          # Le vérificateur de gabarits de Moodle refuse les fichiers hors de son dossier : il
+          # reçoit donc les copies installées dans moodle/, pas les originaux du dépôt.
+          moodle-plugin-ci mustache moodle/mod/stage || check_status=1
+          moodle-plugin-ci mustache moodle/mod/stagesynthesis || check_status=1
           exit "$check_status"
 
       - name: PHPUnit

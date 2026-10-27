@@ -16,6 +16,8 @@ changements. À tenir à jour à chaque modification de `version.php`.
   dépassent ; le module ne s'installait pas sur Moodle 4.0 à 4.2.
 - CI : JIT désactivé (`opcache.jit=disable`) ; son avertissement au démarrage de PHP faisait
   échouer l'installation de Moodle par `moodle-plugin-ci`.
+- CI : les gabarits Mustache sont vérifiés sur leurs copies installées dans `moodle/` ; le
+  vérificateur de Moodle refuse les fichiers situés hors de son dossier.
 - CI : le job Moodle tourne désormais sur deux combinaisons, Moodle 4.3 avec PHP 8.0 et
   Moodle 4.5 avec PHP 8.2 ; le contrôle PHPDoc est bloquant ; le workflow peut être lancé à la
   main (`workflow_dispatch`). La couverture de code est mesurée (pcov) sur la combinaison la plus
