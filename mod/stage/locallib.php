@@ -7056,6 +7056,28 @@ function stage_render_download_and_return(moodle_url $downloadurl, moodle_url $r
 }
 
 /**
+ * Date écrite dans une langue donnée, au format date longue de cette langue (« 16 novembre
+ * 2026 », « 16 November 2026 »), quelle que soit la langue de la session.
+ *
+ * userdate() prend les noms des mois dans la langue courante : celle-ci est basculée le temps de
+ * l'appel, puis rétablie même en cas d'erreur. La convention est ainsi datée dans la langue de son
+ * gabarit, et non dans celle de la DEVE qui la génère.
+ *
+ * @param int $time Horodatage.
+ * @param string $lang Code de langue (fr, en).
+ * @return string
+ */
+function stage_convention_date($time, $lang) {
+    $format = get_string_manager()->get_string('strftimedate', 'langconfig', null, $lang);
+    $previouslang = force_current_language($lang);
+    try {
+        return userdate($time, $format);
+    } finally {
+        force_current_language($previouslang);
+    }
+}
+
+/**
  * Construit le PDF complet de la convention d'une saisie : une page 1 générée à partir des
  * données de la base (logos et informations d'établissement configurés par la DEVE), suivie des
  * pages du gabarit choisi par l'étudiant, réimportées via FPDI.
@@ -7117,19 +7139,10 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
         $referentteacher = $studentteachers ? reset($studentteachers) : null;
     }
 
-    // Les libellés (statut, année d'étude...) sont dans la langue du gabarit choisi par
-    // l'étudiant, pas dans celle de la session de qui génère le PDF (généralement la DEVE) : voir
-    // convention_pdf.php::str(). Les dates aussi : userdate() prend les noms des mois dans la
-    // langue courante, qui est donc basculée le temps de les écrire.
-    $dateformat = get_string_manager()->get_string('strftimedate', 'langconfig', null, $conventionlang);
-    $formatdate = function ($time) use ($dateformat, $conventionlang) {
-        $previouslang = force_current_language($conventionlang);
-        try {
-            return userdate($time, $dateformat);
-        } finally {
-            force_current_language($previouslang);
-        }
-    };
+    // Les libellés (statut, année d'étude...) et les dates sont dans la langue du gabarit choisi
+    // par l'étudiant, pas dans celle de la session de qui génère le PDF (généralement la DEVE) :
+    // voir convention_pdf.php::str() et stage_convention_date().
+    $formatdate = fn($time) => stage_convention_date($time, $conventionlang);
     $establishmentinfo = stage_get_establishment_info($stage);
     $stagedata = [
         'establishment' => [
