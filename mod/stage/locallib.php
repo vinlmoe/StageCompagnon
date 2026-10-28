@@ -5406,6 +5406,7 @@ function stage_get_student_complementary_days($stageid, $userid) {
 function stage_save_convention_detail($entryid, stdClass $data) {
     global $DB;
 
+    \mod_stage\local\convention_detail::fit($data);
     $data->entryid = $entryid;
     $data->timemodified = time();
 
@@ -7055,6 +7056,28 @@ function stage_render_download_and_return(moodle_url $downloadurl, moodle_url $r
 }
 
 /**
+ * Date écrite dans une langue donnée, au format date longue de cette langue (« 16 novembre
+ * 2026 », « 16 November 2026 »), quelle que soit la langue de la session.
+ *
+ * userdate() prend les noms des mois dans la langue courante : celle-ci est basculée le temps de
+ * l'appel, puis rétablie même en cas d'erreur. La convention est ainsi datée dans la langue de son
+ * gabarit, et non dans celle de la DEVE qui la génère.
+ *
+ * @param int $time Horodatage.
+ * @param string $lang Code de langue (fr, en).
+ * @return string
+ */
+function stage_convention_date($time, $lang) {
+    $format = get_string_manager()->get_string('strftimedate', 'langconfig', null, $lang);
+    $previouslang = force_current_language($lang);
+    try {
+        return userdate($time, $format);
+    } finally {
+        force_current_language($previouslang);
+    }
+}
+
+/**
  * Construit le PDF complet de la convention d'une saisie : une page 1 générée à partir des
  * données de la base (logos et informations d'établissement configurés par la DEVE), suivie des
  * pages du gabarit choisi par l'étudiant, réimportées via FPDI.
@@ -7116,10 +7139,10 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
         $referentteacher = $studentteachers ? reset($studentteachers) : null;
     }
 
-    // Les libellés (statut, année d'étude...) sont dans la langue du gabarit choisi par
-    // l'étudiant, pas dans celle de la session de qui génère le PDF (généralement la DEVE) : voir
-    // convention_pdf.php::str().
-    $dateformat = get_string('strftimedate', 'langconfig', null, $conventionlang);
+    // Les libellés (statut, année d'étude...) et les dates sont dans la langue du gabarit choisi
+    // par l'étudiant, pas dans celle de la session de qui génère le PDF (généralement la DEVE) :
+    // voir convention_pdf.php::str() et stage_convention_date().
+    $formatdate = fn($time) => stage_convention_date($time, $conventionlang);
     $establishmentinfo = stage_get_establishment_info($stage);
     $stagedata = [
         'establishment' => [
@@ -7147,7 +7170,7 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
         'student' => [
             'fullname' => fullname($student),
             'email' => $student->email,
-            'birthdate' => $detail->studentbirthdate ? userdate($detail->studentbirthdate, $dateformat) : '-',
+            'birthdate' => $detail->studentbirthdate ? $formatdate($detail->studentbirthdate) : '-',
             'address' => (string) $detail->studentaddress,
             'phone' => (string) $detail->studentphone,
         ],
@@ -7155,11 +7178,11 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
             'name' => $theme ? format_string($theme->name) : '-',
         ],
         'dates' => [
-            'start' => $entry->datestart ? userdate($entry->datestart, $dateformat) : '-',
-            'end' => $entry->dateend ? userdate($entry->dateend, $dateformat) : '-',
+            'start' => $entry->datestart ? $formatdate($entry->datestart) : '-',
+            'end' => $entry->dateend ? $formatdate($entry->dateend) : '-',
         ],
-        'periods' => array_map(function ($period) use ($dateformat) {
-            return userdate($period->datestart, $dateformat) . ' - ' . userdate($period->dateend, $dateformat);
+        'periods' => array_map(function ($period) use ($formatdate) {
+            return $formatdate($period->datestart) . ' - ' . $formatdate($period->dateend);
         }, stage_get_or_seed_entry_periods($entry)),
         // Ni la durée retenue ni le statut de la saisie ne figurent sur la convention : elle se
         // signe avant toute évaluation, l'une est donc encore à zéro et l'autre à son état

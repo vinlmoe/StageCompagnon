@@ -263,6 +263,10 @@ class student_register_form extends \moodleform {
 
         $submitlabel = !empty($this->_customdata['editing'])
             ? get_string('requestconvention', 'mod_stage') : get_string('registerstageandconvention', 'mod_stage');
+        // Longueurs de la table : une valeur trop longue est signalée ici plutôt que de faire
+        // échouer l'enregistrement de la demande (voir \mod_stage\local\convention_detail).
+        \mod_stage\local\convention_detail::add_maxlength_rules($mform);
+
         $this->add_action_buttons(true, $submitlabel);
     }
 

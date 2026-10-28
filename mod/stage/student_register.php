@@ -175,6 +175,10 @@ if ($mform->is_cancelled()) {
     // des plages qui se recoupent.
     $periods = stage_extract_submitted_periods($data);
 
+    // Stage, demande de convention, informations complémentaires, plages et check-list sont
+    // enregistrés ensemble : un échec en cours de route ne doit pas laisser un stage dont la
+    // demande de convention n'a pas de contenu.
+    $transaction = $DB->start_delegated_transaction();
     if ($existingentry) {
         // Mode édition : on complète/corrige la saisie existante plutôt que d'en créer une autre.
         $DB->update_record('stage_entry', (object) [
@@ -247,6 +251,7 @@ if ($mform->is_cancelled()) {
         $checklistitems,
         stage_extract_submitted_checklist($data, $checklistitems)
     );
+    $transaction->allow_commit();
 
     if ($requireteachervalidation) {
         stage_notify_teacher_convention_pending($stage, $cm, $entry);

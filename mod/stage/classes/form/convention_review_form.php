@@ -195,6 +195,10 @@ class convention_review_form extends \moodleform {
         );
         $mform->setType('rejectcomment', PARAM_TEXT);
 
+        // Longueurs de la table : une valeur trop longue est signalée ici plutôt que de faire
+        // échouer l'enregistrement de la demande (voir \mod_stage\local\convention_detail).
+        \mod_stage\local\convention_detail::add_maxlength_rules($mform);
+
         $buttonarray = [];
         $buttonarray[] = $mform->createElement('submit', 'validateconvention', get_string('validateconvention', 'mod_stage'));
         $buttonarray[] = $mform->createElement('submit', 'rejectconvention', get_string('rejectconvention', 'mod_stage'));

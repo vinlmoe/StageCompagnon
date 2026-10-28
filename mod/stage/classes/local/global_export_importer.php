@@ -47,7 +47,7 @@ class global_export_importer {
                 $detail->entryid = $entryid;
                 $detail->timecreated = $entry->timecreated;
                 $detail->timemodified = $entry->timemodified;
-                $DB->insert_record('stage_convention_detail', $detail);
+                $DB->insert_record('stage_convention_detail', convention_detail::fit($detail));
             }
             // Les plages exportées sont restaurées telles quelles : un stage en plusieurs plages
             // ne doit pas devenir une plage continue, qui compterait les jours entre deux.

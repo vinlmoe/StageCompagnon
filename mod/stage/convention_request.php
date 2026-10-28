@@ -140,6 +140,9 @@ if ($mform->is_cancelled()) {
     // Une demande déposée par la DEVE est directement transmise à son propre circuit de
     // traitement, même si les demandes étudiantes exigent normalement l'accord du référent.
     $requireteachervalidation = !$canregister && stage_convention_requires_teacher_validation($stage);
+    // Demande, informations complémentaires, plages et check-list sont enregistrées ensemble :
+    // une demande ne doit pas rester sans contenu après un échec en cours de route.
+    $transaction = $DB->start_delegated_transaction();
     stage_request_convention($entry, $data->conventiontemplateid, $requireteachervalidation);
 
     $detail = new stdClass();
@@ -179,6 +182,7 @@ if ($mform->is_cancelled()) {
         $checklistitems,
         stage_extract_submitted_checklist($data, $checklistitems)
     );
+    $transaction->allow_commit();
 
     if ($requireteachervalidation) {
         stage_notify_teacher_convention_pending($stage, $cm, $entry);
