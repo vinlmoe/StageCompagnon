@@ -740,7 +740,7 @@ class csv_importer {
                     $detailbyrowkey[$rowkey]->entryid = $entryid;
                     $detailbyrowkey[$rowkey]->timecreated = time();
                     $detailbyrowkey[$rowkey]->timemodified = time();
-                    $DB->insert_record('stage_convention_detail', $detailbyrowkey[$rowkey]);
+                    $DB->insert_record('stage_convention_detail', convention_detail::fit($detailbyrowkey[$rowkey]));
                     if (!empty($record->studentselfeval) && !empty($record->tutoreval)) {
                         $torequest[$entryid] = $studentbyrowkey[$rowkey];
                     }

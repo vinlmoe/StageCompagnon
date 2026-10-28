@@ -5406,6 +5406,7 @@ function stage_get_student_complementary_days($stageid, $userid) {
 function stage_save_convention_detail($entryid, stdClass $data) {
     global $DB;
 
+    \mod_stage\local\convention_detail::fit($data);
     $data->entryid = $entryid;
     $data->timemodified = time();
 

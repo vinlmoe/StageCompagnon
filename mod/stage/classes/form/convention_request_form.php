@@ -216,6 +216,10 @@ class convention_request_form extends \moodleform {
         // consultable et corrigeable ensuite par la DEVE et l'enseignant référent.
         stage_add_checklist_fields($mform, [$this->_customdata['themeid'] => $this->_customdata['checklistitems']]);
 
+        // Longueurs de la table : une valeur trop longue est signalée ici plutôt que de faire
+        // échouer l'enregistrement de la demande (voir \mod_stage\local\convention_detail).
+        \mod_stage\local\convention_detail::add_maxlength_rules($mform);
+
         $this->add_action_buttons(true, get_string('requestconvention', 'mod_stage'));
     }
 
