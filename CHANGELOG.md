@@ -35,6 +35,8 @@ changements. À tenir à jour à chaque modification de `version.php`.
   « communication » (orange, la couleur d'origine du module).
 
 ### mod_stage
+- Listes d'évaluation : nouveau type de question « Note (de 1 à 5) », saisie par boutons radio,
+  affichée en étoiles et reprise dans la colonne numérique de l'export Excel des évaluations.
 - Demande de convention : les formulaires signalent une valeur trop longue pour la base
   (gratification : 20 caractères, téléphones : 30, autres champs : 255) au lieu de faire échouer
   l'enregistrement ; le stage, sa demande, ses informations de convention, ses plages et sa

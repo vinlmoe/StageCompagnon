@@ -355,7 +355,7 @@
         <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="evaltype" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="student ou teacher"/>
-        <FIELD NAME="qtype" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="choice ou text"/>
+        <FIELD NAME="qtype" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="choice, rating ou text"/>
         <FIELD NAME="name" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Intitulé de la question"/>
         <FIELD NAME="nameen" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Intitulé de la question en anglais (maître de stage, si convention en anglais)"/>
         <FIELD NAME="options" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Options du QCM, une par ligne"/>

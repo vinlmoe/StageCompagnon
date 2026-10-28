@@ -403,6 +403,8 @@ $string['evaltype_student'] = "Auto-évaluation de l'étudiant";
 $string['evaltype_teacher'] = "Évaluation de l'enseignant";
 $string['qtype'] = 'Type de question';
 $string['qtype_choice'] = 'Choix multiples';
+$string['qtype_rating'] = 'Note (de 1 à 5)';
+$string['qtype_rating_scale'] = '1 = très insuffisant, 5 = excellent';
 $string['qtype_text'] = 'Commentaire libre';
 $string['questionlabel'] = 'Intitulé de la question';
 $string['questionlabelen'] = 'Intitulé de la question (anglais, maître de stage)';

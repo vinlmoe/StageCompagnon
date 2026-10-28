@@ -3157,6 +3157,29 @@ function stage_get_reusable_evallist_questions(stdClass $list) {
 }
 
 /**
+ * Types de question des listes d'évaluation, avec leur libellé : choix multiples, note de 1 à 5
+ * (affichée en étoiles, voir stage_render_stars()) et commentaire libre.
+ *
+ * @return string[] Type => libellé.
+ */
+function stage_question_types() {
+    return [
+        'choice' => get_string('qtype_choice', 'mod_stage'),
+        'rating' => get_string('qtype_rating', 'mod_stage'),
+        'text' => get_string('qtype_text', 'mod_stage'),
+    ];
+}
+
+/**
+ * Notes proposées par une question de type « rating ».
+ *
+ * @return string[]
+ */
+function stage_question_rating_values() {
+    return ['1', '2', '3', '4', '5'];
+}
+
+/**
  * Découpe le champ "options" (une option par ligne) d'une question à choix multiples.
  *
  * @param stdClass $question
@@ -3288,6 +3311,9 @@ function stage_validate_answers(array $questions, array $submitted, $lang = 'fr'
         if ($question->qtype === 'choice' && $value !== '' && !in_array($value, stage_question_options($question, $lang), true)) {
             throw new moodle_exception('errorinvalidanswer', 'mod_stage', '', stage_question_name($question, $lang));
         }
+        if ($question->qtype === 'rating' && $value !== '' && !in_array($value, stage_question_rating_values(), true)) {
+            throw new moodle_exception('errorinvalidanswer', 'mod_stage', '', stage_question_name($question, $lang));
+        }
     }
 }
 
@@ -3317,7 +3343,27 @@ function stage_render_question_fields(array $questions, array $answers, $lang = 
             ['for' => $fieldname]
         );
 
-        if ($question->qtype === 'choice') {
+        if ($question->qtype === 'rating') {
+            // Note de 1 à 5 : boutons radio sur une ligne, sans valeur par défaut.
+            foreach (stage_question_rating_values() as $value) {
+                $optionid = $fieldname . '_' . $value;
+                $out .= html_writer::start_tag('div', ['class' => 'form-check form-check-inline']);
+                $out .= html_writer::empty_tag('input', array_merge([
+                    'type' => 'radio',
+                    'name' => $fieldname,
+                    'value' => $value,
+                    'id' => $optionid,
+                    'class' => 'form-check-input',
+                    'checked' => ($current === $value) ? 'checked' : null,
+                ], $required));
+                $out .= html_writer::tag('label', $value, ['for' => $optionid, 'class' => 'form-check-label']);
+                $out .= html_writer::end_tag('div');
+            }
+            $out .= html_writer::span(
+                get_string_manager()->get_string('qtype_rating_scale', 'mod_stage', null, $lang),
+                'form-text text-muted d-block'
+            );
+        } else if ($question->qtype === 'choice') {
             foreach (stage_question_options($question, $lang) as $index => $option) {
                 $optionid = $fieldname . '_' . $index;
                 $out .= html_writer::start_tag('div', ['class' => 'form-check']);
@@ -3543,9 +3589,14 @@ function stage_render_answers_readonly(array $questions, array $answers, $lang =
     foreach ($questions as $question) {
         $current = isset($answers[$question->id]) ? trim((string) $answers[$question->id]->answertext) : '';
         $out .= html_writer::tag('dt', format_string(stage_question_name($question, $lang)));
-        $out .= html_writer::tag('dd', $current !== ''
-            ? nl2br(s($current))
-            : html_writer::tag('em', get_string('noanswer', 'mod_stage')));
+        if ($current === '') {
+            $value = html_writer::tag('em', get_string('noanswer', 'mod_stage'));
+        } else if ($question->qtype === 'rating' && in_array($current, stage_question_rating_values(), true)) {
+            $value = stage_render_stars((int) $current);
+        } else {
+            $value = nl2br(s($current));
+        }
+        $out .= html_writer::tag('dd', $value);
     }
     $out .= html_writer::end_tag('dl');
 
