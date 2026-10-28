@@ -37,6 +37,9 @@ changements. À tenir à jour à chaque modification de `version.php`.
 ### mod_stage
 - Listes d'évaluation : nouveau type de question « Note (de 1 à 5) », saisie par boutons radio,
   affichée en étoiles et reprise dans la colonne numérique de l'export Excel des évaluations.
+- Réinitialisation d'un stage : la décision de la DEVE (validation ou non-validation, auteur,
+  date, commentaire, durée retenue) est annulée avec elle ; la fiche et les exports ne la
+  présentent plus comme acquise.
 - Demande de convention : les formulaires signalent une valeur trop longue pour la base
   (gratification : 20 caractères, téléphones : 30, autres champs : 255) au lieu de faire échouer
   l'enregistrement ; le stage, sa demande, ses informations de convention, ses plages et sa

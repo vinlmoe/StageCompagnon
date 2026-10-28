@@ -2228,6 +2228,10 @@ function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
  * l'auto-évaluation et l'évaluation enseignant ne sont pas modifiables une fois soumises, sauf
  * après ce type de réinitialisation.
  *
+ * La décision de la DEVE (validation ou non-validation, son auteur, sa date, son commentaire et
+ * la durée retenue) est annulée avec elle : la saisie ne doit plus apparaître comme validée, ni
+ * dans la fiche du stage ni dans les exports.
+ *
  * @param stdClass $entry
  * @return void
  */
@@ -2243,11 +2247,15 @@ function stage_reset_entry(stdClass $entry) {
     }
     $entry->status = STAGE_STATUS_ENREGISTRE;
     $entry->tutorbypassed = 0;
+    $entry->deveuserid = null;
+    $entry->devecomment = null;
+    $entry->devetime = null;
+    $entry->retainedduration = 0;
     $entry->timemodified = time();
-    stage_update_entry_fields(
-        $entry,
-        ['tutortoken', 'tutorrequesttime', 'tutorrequestfailtime', 'status', 'tutorbypassed', 'timemodified']
-    );
+    stage_update_entry_fields($entry, [
+        'tutortoken', 'tutorrequesttime', 'tutorrequestfailtime', 'status', 'tutorbypassed',
+        'deveuserid', 'devecomment', 'devetime', 'retainedduration', 'timemodified',
+    ]);
     stage_trigger_entry_event(\mod_stage\event\entry_reset::class, $entry->id);
 }
 

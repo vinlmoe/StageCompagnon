@@ -36,6 +36,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_can_access_reports
  * @covers     ::stage_get_entry_by_tutor_token
  * @covers     ::stage_cancel_entry
+ * @covers     ::stage_reset_entry
  * @covers     ::stage_status_label
  * @covers     \mod_stage\local\global_export_importer
  */
@@ -283,5 +284,36 @@ final class audit_regression_test extends \advanced_testcase {
         $cancelled = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
         stage_reset_entry($cancelled);
         $this->assertFalse(stage_get_entry_by_tutor_token($token));
+    }
+
+    /**
+     * Régression : réinitialiser un stage validé par la DEVE laissait sa validation (auteur, date,
+     * commentaire, durée retenue) en base, et l'export la présentait comme acquise.
+     */
+    public function test_reset_cancels_deve_decision(): void {
+        global $DB, $USER;
+        [, $stage, $student, , , $entry] = $this->fixture();
+
+        stage_apply_deve_validation($entry, $USER->id, 12, 'Stage validé');
+        $entry = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
+        $this->assertEquals(12, $entry->retainedduration);
+        $this->assertEquals(12, stage_get_student_progress($stage->id, $student->id)->totalretained);
+
+        stage_reset_entry($entry);
+
+        $entry = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
+        $this->assertEquals(STAGE_STATUS_ENREGISTRE, $entry->status);
+        $this->assertNull($entry->deveuserid);
+        $this->assertNull($entry->devetime);
+        $this->assertNull($entry->devecomment);
+        $this->assertEquals(0, $entry->retainedduration);
+        $this->assertEquals(0, stage_get_student_progress($stage->id, $student->id)->totalretained);
+
+        // Non-validation : la décision et son motif disparaissent de même.
+        stage_reject_by_deve($entry, $USER->id, 'Durée insuffisante');
+        stage_reset_entry($DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST));
+        $entry = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
+        $this->assertNull($entry->deveuserid);
+        $this->assertNull($entry->devecomment);
     }
 }

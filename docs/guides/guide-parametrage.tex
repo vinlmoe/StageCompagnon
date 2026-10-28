@@ -4,7 +4,7 @@
 
 % Version du guide : à mettre à jour à chaque modification, avec une ligne dans l'historique.
 \newcommand{\titreguide}{Guide de paramétrage et de gestion}
-\newcommand{\versionguide}{1.6}
+\newcommand{\versionguide}{1.7}
 \newcommand{\dateguide}{31 octobre 2026}
 \newcommand{\versionstage}{0.5.1}
 \newcommand{\versionsynthese}{0.2.1}
@@ -32,6 +32,7 @@
 1.4 & 25 octobre 2026 & Captures d'écran refaites sur un site de démonstration reconstitué, après le passage des listes, filtres et tableaux de pilotage aux gabarits Mustache. \\
 1.5 & 26 octobre 2026 & Prérequis : Moodle~4.3 ; mobilité d'études et son import Excel ; suppression de stages en lot ; import d'un ancien suivi Excel et restauration d'un export global ; stages à l'étranger dans l'import historique. \\
 1.6 & 31 octobre 2026 & Export StageVet : référent de la convention repris du tuteur de l'export ou, à défaut, de l'enseignant référent de l'étudiant ; correspondance des tuteurs non reconnus. \\
+1.7 & 31 octobre 2026 & Questions notées de 1 à 5 dans les listes d'évaluation ; la réinitialisation d'un stage annule la décision de la DEVE. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -292,8 +293,9 @@ numéro, sans bloquer les autres.
 
 \chemin{Administration > Listes d'évaluation}. Le formulaire de destination
 d'une liste est fixé à sa création. Questions à choix multiples (une option par
-ligne) ou en texte libre ; une ligne vide ajoute une question. Les questions du
-maître de stage ont une version anglaise.
+ligne), notées de 1 à 5 (affichées en étoiles, la note figurant aussi dans
+l'export Excel) ou en texte libre ; une ligne vide ajoute une question. Les
+questions du maître de stage ont une version anglaise.
 
 \capture{07_evallists}{Listes d'évaluation.}
 \capture{08_evallist_edit}{Liste destinée au maître de stage.}
@@ -538,8 +540,9 @@ Seule la durée retenue d'un stage \statut{Validé DEVE} compte dans les bilans.
 
 \begin{itemize}
   \item \bouton{Réinitialiser (autoriser une nouvelle saisie)} rouvre un stage
-        déjà évalué ou non validé : l'étudiant et le référent peuvent de nouveau
-        le modifier.
+        déjà évalué, validé ou non : l'étudiant et le référent peuvent de nouveau
+        le modifier. La décision de la DEVE (validation, commentaire, durée
+        retenue) est annulée ; le stage devra être validé de nouveau.
   \item \bouton{Annuler ce stage}, avec un motif obligatoire, le passe en
         \statut{Annulé}. La saisie est conservée et le lien du maître de stage
         révoqué. Un stage annulé doit être réinitialisé avant toute validation.
