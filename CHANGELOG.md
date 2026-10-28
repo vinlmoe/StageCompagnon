@@ -33,6 +33,15 @@ changements. À tenir à jour à chaque modification de `version.php`.
   « communication » (orange, la couleur d'origine du module).
 
 ### mod_stage
+- Demande de convention : les formulaires signalent une valeur trop longue pour la base
+  (gratification : 20 caractères, téléphones : 30, autres champs : 255) au lieu de faire échouer
+  l'enregistrement ; le stage, sa demande, ses informations de convention, ses plages et sa
+  check-list sont enregistrés ensemble, un échec ne laissant plus de stage à la demande vide ;
+  les imports StageVet et la restauration tronquent ces valeurs.
+- Convention en PDF : les dates (naissance, début et fin, plages) sont écrites dans la langue du
+  gabarit, et non plus dans celle de la DEVE qui génère la convention ; le format de date était
+  demandé par un appel à get_string() invalide, dont l'avertissement empêchait la génération en
+  mode débogage.
 - Événements Moodle : consultation de l'activité et chaque transition du circuit (stage
   enregistré, auto-évaluation, évaluations de l'enseignant et du maître de stage, validation,
   non-validation, réinitialisation, annulation ; convention demandée, validée par l'enseignant,

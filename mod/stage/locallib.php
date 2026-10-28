@@ -7119,8 +7119,17 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
 
     // Les libellés (statut, année d'étude...) sont dans la langue du gabarit choisi par
     // l'étudiant, pas dans celle de la session de qui génère le PDF (généralement la DEVE) : voir
-    // convention_pdf.php::str().
-    $dateformat = get_string('strftimedate', 'langconfig', null, $conventionlang);
+    // convention_pdf.php::str(). Les dates aussi : userdate() prend les noms des mois dans la
+    // langue courante, qui est donc basculée le temps de les écrire.
+    $dateformat = get_string_manager()->get_string('strftimedate', 'langconfig', null, $conventionlang);
+    $formatdate = function ($time) use ($dateformat, $conventionlang) {
+        $previouslang = force_current_language($conventionlang);
+        try {
+            return userdate($time, $dateformat);
+        } finally {
+            force_current_language($previouslang);
+        }
+    };
     $establishmentinfo = stage_get_establishment_info($stage);
     $stagedata = [
         'establishment' => [
@@ -7148,7 +7157,7 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
         'student' => [
             'fullname' => fullname($student),
             'email' => $student->email,
-            'birthdate' => $detail->studentbirthdate ? userdate($detail->studentbirthdate, $dateformat) : '-',
+            'birthdate' => $detail->studentbirthdate ? $formatdate($detail->studentbirthdate) : '-',
             'address' => (string) $detail->studentaddress,
             'phone' => (string) $detail->studentphone,
         ],
@@ -7156,11 +7165,11 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
             'name' => $theme ? format_string($theme->name) : '-',
         ],
         'dates' => [
-            'start' => $entry->datestart ? userdate($entry->datestart, $dateformat) : '-',
-            'end' => $entry->dateend ? userdate($entry->dateend, $dateformat) : '-',
+            'start' => $entry->datestart ? $formatdate($entry->datestart) : '-',
+            'end' => $entry->dateend ? $formatdate($entry->dateend) : '-',
         ],
-        'periods' => array_map(function ($period) use ($dateformat) {
-            return userdate($period->datestart, $dateformat) . ' - ' . userdate($period->dateend, $dateformat);
+        'periods' => array_map(function ($period) use ($formatdate) {
+            return $formatdate($period->datestart) . ' - ' . $formatdate($period->dateend);
         }, stage_get_or_seed_entry_periods($entry)),
         // Ni la durée retenue ni le statut de la saisie ne figurent sur la convention : elle se
         // signe avant toute évaluation, l'une est donc encore à zéro et l'autre à son état
