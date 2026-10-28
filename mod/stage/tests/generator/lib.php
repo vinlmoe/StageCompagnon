@@ -171,4 +171,28 @@ class mod_stage_generator extends testing_module_generator {
         }
         return $list;
     }
+
+    /**
+     * Crée un gabarit de convention, sans fichier d'articles : de quoi demander une convention,
+     * pas la générer.
+     *
+     * @param stdClass|int $stage
+     * @param array $record Champs à surcharger : name, lang.
+     * @return stdClass Le gabarit créé.
+     */
+    public function create_convention_template($stage, array $record = []) {
+        global $DB;
+
+        $stageid = is_object($stage) ? $stage->id : $stage;
+        $record = array_merge([
+            'stageid' => $stageid,
+            'name' => 'Gabarit ' . ($DB->count_records('stage_convention_template', ['stageid' => $stageid]) + 1),
+            'lang' => 'fr',
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ], $record);
+
+        $id = $DB->insert_record('stage_convention_template', (object) $record);
+        return $DB->get_record('stage_convention_template', ['id' => $id], '*', MUST_EXIST);
+    }
 }

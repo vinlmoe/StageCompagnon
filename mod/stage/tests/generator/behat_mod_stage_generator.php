@@ -65,6 +65,12 @@ class behat_mod_stage_generator extends behat_generator_base {
                 'required' => ['stage', 'student', 'teacher'],
                 'switchids' => ['stage' => 'stageid', 'student' => 'studentid', 'teacher' => 'teacherid'],
             ],
+            'convention templates' => [
+                'singular' => 'convention template',
+                'datagenerator' => 'convention_template',
+                'required' => ['stage', 'name'],
+                'switchids' => ['stage' => 'stageid'],
+            ],
         ];
     }
 
@@ -202,5 +208,15 @@ class behat_mod_stage_generator extends behat_generator_base {
      */
     protected function process_teacher_assignment(array $data): void {
         $this->componentdatagenerator->assign_teacher($data['stageid'], $data['studentid'], $data['teacherid']);
+    }
+
+    /**
+     * Crée un gabarit de convention (colonne facultative : lang, fr par défaut).
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function process_convention_template(array $data): void {
+        $this->componentdatagenerator->create_convention_template($data['stageid'], $data);
     }
 }

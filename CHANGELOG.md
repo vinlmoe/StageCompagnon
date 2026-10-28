@@ -37,7 +37,10 @@ changements. À tenir à jour à chaque modification de `version.php`.
   (gratification : 20 caractères, téléphones : 30, autres champs : 255) au lieu de faire échouer
   l'enregistrement ; le stage, sa demande, ses informations de convention, ses plages et sa
   check-list sont enregistrés ensemble, un échec ne laissant plus de stage à la demande vide ;
-  les imports StageVet et la restauration tronquent ces valeurs.
+  les imports StageVet et la restauration tronquent ces valeurs. Scénario Behat
+  (`tests/behat/student_register.feature`) : enregistrement d'un stage avec demande de convention
+  par l'étudiant, gratification trop longue refusée sans rien enregistrer, puis corrigée ;
+  générateur Behat de gabarits de convention.
 - Convention en PDF : les dates (naissance, début et fin, plages) sont écrites dans la langue du
   gabarit, et non plus dans celle de la DEVE qui génère la convention ; le format de date était
   demandé par un appel à get_string() invalide, dont l'avertissement empêchait la génération en
