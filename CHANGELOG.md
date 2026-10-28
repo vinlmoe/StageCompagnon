@@ -37,6 +37,9 @@ changements. À tenir à jour à chaque modification de `version.php`.
 ### mod_stage
 - Listes d'évaluation : nouveau type de question « Note (de 1 à 5) », saisie par boutons radio,
   affichée en étoiles et reprise dans la colonne numérique de l'export Excel des évaluations.
+  Scénarios Behat (`tests/behat/evaluation_rating.feature`) : création d'une question notée,
+  notation par l'étudiant lue par l'enseignant référent, réinitialisation d'un stage validé.
+  Générateur Behat de questions d'évaluation et page « Evaluation lists ».
 - Réinitialisation d'un stage : la décision de la DEVE (validation ou non-validation, auteur,
   date, commentaire, durée retenue) est annulée avec elle ; la fiche et les exports ne la
   présentent plus comme acquise.

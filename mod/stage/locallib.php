@@ -3352,7 +3352,8 @@ function stage_render_question_fields(array $questions, array $answers, $lang = 
         );
 
         if ($question->qtype === 'rating') {
-            // Note de 1 à 5 : boutons radio sur une ligne, sans valeur par défaut.
+            // Note de 1 à 5 : boutons radio sur une ligne, sous l'intitulé, sans valeur par défaut.
+            $out .= html_writer::start_div('stage-rating');
             foreach (stage_question_rating_values() as $value) {
                 $optionid = $fieldname . '_' . $value;
                 $out .= html_writer::start_tag('div', ['class' => 'form-check form-check-inline']);
@@ -3367,6 +3368,7 @@ function stage_render_question_fields(array $questions, array $answers, $lang = 
                 $out .= html_writer::tag('label', $value, ['for' => $optionid, 'class' => 'form-check-label']);
                 $out .= html_writer::end_tag('div');
             }
+            $out .= html_writer::end_div();
             $out .= html_writer::span(
                 get_string_manager()->get_string('qtype_rating_scale', 'mod_stage', null, $lang),
                 'form-text text-muted d-block'
