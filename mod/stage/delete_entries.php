@@ -196,14 +196,20 @@ echo $OUTPUT->render(new \mod_stage\output\list_filters($url, ['search', 'themei
     'createdon' => ['options' => $dayoptions, 'selected' => $createdon],
 ]));
 
-$allentries = stage_get_filtered_entries($stage->id, $filters, 'student', 'ASC');
-if (!$allentries) {
+[$entries, $pagingbarhtml, $entrytotal] = stage_get_filtered_entries_page(
+    $stage->id,
+    $filters,
+    'student',
+    'ASC',
+    null,
+    $page,
+    $url
+);
+if ($entrytotal === 0) {
     echo $OUTPUT->notification(get_string('nostages', 'mod_stage'), 'info');
     echo $OUTPUT->footer();
     exit;
 }
-[$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $url);
-$entries = array_column($entries, null, 'id');
 
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => $url]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
@@ -218,7 +224,7 @@ echo html_writer::div(
     )
     . html_writer::tag(
         'button',
-        get_string('deleteentriesallfiltered', 'mod_stage', count($allentries)),
+        get_string('deleteentriesallfiltered', 'mod_stage', $entrytotal),
         ['type' => 'submit', 'name' => 'scope', 'value' => 'all', 'class' => 'btn btn-outline-danger']
     ),
     'my-3'

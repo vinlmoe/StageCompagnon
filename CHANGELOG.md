@@ -84,6 +84,30 @@ changements. À tenir à jour à chaque modification de `version.php`.
   erreurs signalées ligne par ligne sans bloquer les autres.
 - Pilotage : après une action lancée depuis le volet d'un étudiant, retour sur ce volet et non
   plus sur la liste.
+- Test de charge (`docs/audit/`) et corrections qui en découlent :
+  - Export Excel : la colonne « Évalué par » était toujours vide (variable non définie) ; plages
+    de dates, référents et enseignants responsables lus en une requête chacun au lieu d'une par
+    stage, étudiant ou thématique ; limites de temps et de mémoire relevées.
+  - Invitations des maîtres de stage : plus d'invitation au-delà de 60 jours après la fin du
+    stage (activer l'évaluation sur une promotion qui a un historique invitait d'un coup tous
+    les anciens stages ; un envoi en échec était retenté indéfiniment) ; 200 invitations au plus
+    par passage de la tâche planifiée.
+  - Listes (enregistrement, validation DEVE, enseignant référent, thématique, conventions,
+    suppression) paginées en SQL au lieu de charger toute la promotion.
+  - Volet de suivi de l'étudiant : données chargées une fois (cache du bilan de promotion) au
+    lieu de plusieurs centaines de requêtes ; documents d'objectifs repérés en une requête.
+  - Suppression des stages (réinitialisation, suppression de l'activité, RGPD), téléchargement
+    groupé des rapports et lectures par identifiants faits par paquets : plus de liste `IN`
+    dépassant les limites de MSSQL et d'Oracle, une requête de fichiers par paquet au lieu
+    d'une par stage.
+  - Enregistrement d'un stage (DEVE, étudiant, en masse, service web) sous verrou : un double
+    envoi ne crée plus deux fois le même stage. Attribution des référents et des enseignants
+    responsables par différences, en une transaction pour les actions en masse. Le jeton du
+    maître de stage n'est plus remplacé quand l'affichage et la tâche planifiée le créent en
+    même temps.
+  - Plages de dates limitées à 366 jours. Import StageVet : stages créés en une transaction,
+    doublons probables cherchés sans relire la base à chaque ligne. Événements : module de cours
+    lu une fois par activité. Index sur la date de début des stages (tâches planifiées).
 
 ### mod_stagesynthesis
 - Événement Moodle de consultation de l'activité.

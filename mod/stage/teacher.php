@@ -270,14 +270,15 @@ if (empty($assignedids)) {
     // faire. Le filtre de statut reste disponible pour retrouver explicitement un stage par son
     // statut, y compris déjà évalué.
     $liststatus = $filterstatus !== '' ? $filterstatus : STAGE_STATUS_EVAL_ETUDIANT;
-    $allentries = stage_get_filtered_entries(
+    [$entries, $pagingbarhtml, $entrytotal] = stage_get_filtered_entries_page(
         $stage->id,
         ['search' => $search, 'themeid' => $filterthemeid, 'status' => $liststatus],
         $tsort,
         $tdir,
-        $assignedids
+        $assignedids,
+        $page,
+        $listurl
     );
-    [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
 
     $table = new html_table();
     $table->head = [
@@ -318,7 +319,7 @@ if (empty($assignedids)) {
         ];
     }
 
-    if (empty($allentries)) {
+    if ($entrytotal === 0) {
         echo $OUTPUT->notification(get_string('nostages', 'mod_stage'), 'info');
     } else {
         echo html_writer::table($table);

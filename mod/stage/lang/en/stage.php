@@ -211,6 +211,7 @@ $string['importteacherscsv_help'] = 'Import a CSV file (saved from Excel via "Sa
     . 'a line with an unrecognised teacher is skipped and the existing assignment kept.';
 $string['importteachersresult'] = '{$a} student(s) updated successfully.';
 $string['importerrorunknownteacher'] = 'Line {$a->line}: no potential referent teacher with email "{$a->email}".';
+$string['errorregistrationbusy'] = 'Another internship registration is in progress for this activity. Please try again in a few seconds.';
 $string['errorduplicateentry'] = 'This student already has an internship registered on this theme with these same dates.';
 $string['registerstage'] = 'Register an internship';
 $string['editstage'] = 'Edit an internship';
@@ -336,6 +337,7 @@ $string['addperiod'] = 'Add a period';
 $string['removeperiod'] = 'Remove';
 $string['periods_help'] = 'An internship can have several non-contiguous date ranges (e.g. two separate stays). The student will pick their actual working days among these ranges during their self-evaluation.';
 $string['periodsrequired'] = 'Enter at least one date period: the internship dates are derived from them.';
+$string['periodtoolong'] = 'A period cannot last more than {$a} days: check the year of its dates.';
 $string['periodendbeforestart'] = 'The end date of a period cannot come before its start date.';
 $string['periodstartinpast'] = 'An agreement cannot be requested for an internship that has already started: the '
     . 'start date must be today or later. If the internship has already started, contact the administration office.';

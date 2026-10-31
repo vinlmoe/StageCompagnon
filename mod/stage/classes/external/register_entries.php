@@ -84,59 +84,66 @@ class register_entries extends \external_api {
         $stage = $DB->get_record('stage', ['id' => $cm->instance], '*', MUST_EXIST);
         $enrolled = array_flip(array_keys(stage_get_enrolled_students($context)));
         $validthemeids = array_flip(array_keys(stage_get_themes($stage->id)));
-        // Un même étudiant a déjà un stage sur cette thématique : on l'écarte plutôt que
-        // de créer un doublon silencieux via l'API.
-        $existingpairs = stage_get_existing_theme_pairs($stage->id);
+        // Contrôle des doublons et création sous le verrou d'enregistrement de l'activité : deux
+        // appels simultanés avec le même lot ne doivent pas créer deux fois les mêmes stages.
+        $lock = stage_get_registration_lock($stage->id);
+        try {
+            // Un même étudiant a déjà un stage sur cette thématique : on l'écarte plutôt que
+            // de créer un doublon silencieux via l'API.
+            $existingpairs = stage_get_existing_theme_pairs($stage->id);
 
-        // Valider tout le lot avant de créer la première saisie pour éviter un import partiel.
-        $studyyears = stage_studyyear_options();
-        foreach ($params['entries'] as $entrydata) {
-            if (
-                $entrydata['declaredduration'] < 0 || !isset($studyyears[$entrydata['studyyear']])
-                || !in_array($entrydata['abroad'], [0, 1], true)
-                || $entrydata['datestart'] < 0 || $entrydata['dateend'] < 0
-                || (($entrydata['datestart'] === 0) !== ($entrydata['dateend'] === 0))
-                || $entrydata['dateend'] < $entrydata['datestart']
-            ) {
-                throw new \invalid_parameter_exception('Invalid duration, study year, abroad flag or date range.');
+            // Valider tout le lot avant de créer la première saisie pour éviter un import partiel.
+            $studyyears = stage_studyyear_options();
+            foreach ($params['entries'] as $entrydata) {
+                if (
+                    $entrydata['declaredduration'] < 0 || !isset($studyyears[$entrydata['studyyear']])
+                    || !in_array($entrydata['abroad'], [0, 1], true)
+                    || $entrydata['datestart'] < 0 || $entrydata['dateend'] < 0
+                    || (($entrydata['datestart'] === 0) !== ($entrydata['dateend'] === 0))
+                    || $entrydata['dateend'] < $entrydata['datestart']
+                ) {
+                    throw new \invalid_parameter_exception('Invalid duration, study year, abroad flag or date range.');
+                }
             }
+
+            $transaction = $DB->start_delegated_transaction();
+            $created = [];
+            $duplicates = [];
+            foreach ($params['entries'] as $entrydata) {
+                if (!isset($enrolled[$entrydata['userid']]) || !isset($validthemeids[$entrydata['themeid']])) {
+                    continue;
+                }
+                $pairkey = stage_duplicate_key(
+                    $entrydata['userid'],
+                    $entrydata['themeid'],
+                    $entrydata['datestart'] ?: null,
+                    $entrydata['dateend'] ?: null
+                );
+                if (isset($existingpairs[$pairkey])) {
+                    $duplicates[] = $entrydata['userid'];
+                    continue;
+                }
+                $existingpairs[$pairkey] = true;
+
+                $id = stage_register_entry(
+                    $stage->id,
+                    $entrydata['userid'],
+                    $entrydata['themeid'],
+                    $entrydata['structure'],
+                    $entrydata['datestart'] ?: null,
+                    $entrydata['dateend'] ?: null,
+                    $entrydata['declaredduration'],
+                    $entrydata['studyyear'],
+                    \STAGE_CONVENTION_NONE,
+                    $entrydata['abroad'],
+                    $entrydata['country']
+                );
+                $created[] = $id;
+            }
+            $transaction->allow_commit();
+        } finally {
+            $lock->release();
         }
-
-        $transaction = $DB->start_delegated_transaction();
-        $created = [];
-        $duplicates = [];
-        foreach ($params['entries'] as $entrydata) {
-            if (!isset($enrolled[$entrydata['userid']]) || !isset($validthemeids[$entrydata['themeid']])) {
-                continue;
-            }
-            $pairkey = stage_duplicate_key(
-                $entrydata['userid'],
-                $entrydata['themeid'],
-                $entrydata['datestart'] ?: null,
-                $entrydata['dateend'] ?: null
-            );
-            if (isset($existingpairs[$pairkey])) {
-                $duplicates[] = $entrydata['userid'];
-                continue;
-            }
-            $existingpairs[$pairkey] = true;
-
-            $id = stage_register_entry(
-                $stage->id,
-                $entrydata['userid'],
-                $entrydata['themeid'],
-                $entrydata['structure'],
-                $entrydata['datestart'] ?: null,
-                $entrydata['dateend'] ?: null,
-                $entrydata['declaredduration'],
-                $entrydata['studyyear'],
-                \STAGE_CONVENTION_NONE,
-                $entrydata['abroad'],
-                $entrydata['country']
-            );
-            $created[] = $id;
-        }
-        $transaction->allow_commit();
 
         return [
             'createdentryids' => $created,

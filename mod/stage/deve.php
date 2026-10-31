@@ -276,15 +276,17 @@ $listurl = new moodle_url($baseurl, [
 ]);
 echo stage_render_list_filters($listurl, $themes, $search, $filterthemeid, $filterstatus);
 
-$allentries = stage_get_filtered_entries(
+[$entries, $pagingbarhtml, $entrytotal] = stage_get_filtered_entries_page(
     $stage->id,
     ['search' => $search, 'themeid' => $filterthemeid, 'status' => $filterstatus, 'statuslt' => STAGE_STATUS_VALIDE_DEVE],
     $tsort,
-    $tdir
+    $tdir,
+    null,
+    $page,
+    $listurl
 );
-[$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
 
-if (empty($allentries)) {
+if ($entrytotal === 0) {
     echo $OUTPUT->notification(get_string('nopendingstages', 'mod_stage'), 'info');
 } else {
     echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl]);

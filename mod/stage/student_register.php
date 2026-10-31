@@ -178,80 +178,112 @@ if ($mform->is_cancelled()) {
     // Stage, demande de convention, informations complémentaires, plages et check-list sont
     // enregistrés ensemble : un échec en cours de route ne doit pas laisser un stage dont la
     // demande de convention n'a pas de contenu.
-    $transaction = $DB->start_delegated_transaction();
-    if ($existingentry) {
-        // Mode édition : on complète/corrige la saisie existante plutôt que d'en créer une autre.
-        $DB->update_record('stage_entry', (object) [
-            'id' => $existingentry->id,
-            'themeid' => $data->themeid,
-            'studyyear' => $data->studyyear,
-            'structure' => $data->structure,
-            'abroad' => !empty($data->abroad) ? 1 : 0,
-            'country' => !empty($data->abroad) ? $data->country : '',
-            'declaredduration' => $data->declaredduration,
-            'timemodified' => time(),
-        ]);
-        $entry = $DB->get_record('stage_entry', ['id' => $existingentry->id], '*', MUST_EXIST);
-    } else {
-        $newentryid = stage_register_entry(
-            $stage->id,
-            $USER->id,
-            $data->themeid,
-            $data->structure,
-            min(array_column($periods, 'datestart')),
-            max(array_column($periods, 'dateend')),
-            $data->declaredduration,
-            $data->studyyear,
-            STAGE_CONVENTION_NONE,
-            $data->abroad,
-            $data->country ?? ''
-        );
-        $entry = $DB->get_record('stage_entry', ['id' => $newentryid], '*', MUST_EXIST);
+    // Un double envoi du formulaire passe deux fois les contrôles avant que le premier n'ait rien
+    // enregistré : ils sont refaits sous le verrou d'enregistrement de l'activité, sur une saisie
+    // relue en base.
+    $lock = stage_get_registration_lock($stage->id);
+    $refused = null;
+    try {
+        if ($existingentry) {
+            $existingentry = $DB->get_record('stage_entry', ['id' => $existingentry->id], '*', MUST_EXIST);
+            if (!stage_convention_request_allowed($existingentry)) {
+                $refused = 'conventionalreadyrequested';
+            }
+        } else if (
+            stage_entry_is_duplicate(
+                $stage->id,
+                $USER->id,
+                $data->themeid,
+                min(array_column($periods, 'datestart')),
+                max(array_column($periods, 'dateend')),
+                0,
+                true
+            )
+        ) {
+            $refused = 'errorduplicateentry';
+        }
+        if ($refused === null) {
+            $transaction = $DB->start_delegated_transaction();
+            if ($existingentry) {
+                // Mode édition : on complète/corrige la saisie existante plutôt que d'en créer une autre.
+                $DB->update_record('stage_entry', (object) [
+                    'id' => $existingentry->id,
+                    'themeid' => $data->themeid,
+                    'studyyear' => $data->studyyear,
+                    'structure' => $data->structure,
+                    'abroad' => !empty($data->abroad) ? 1 : 0,
+                    'country' => !empty($data->abroad) ? $data->country : '',
+                    'declaredduration' => $data->declaredduration,
+                    'timemodified' => time(),
+                ]);
+                $entry = $DB->get_record('stage_entry', ['id' => $existingentry->id], '*', MUST_EXIST);
+            } else {
+                $newentryid = stage_register_entry(
+                    $stage->id,
+                    $USER->id,
+                    $data->themeid,
+                    $data->structure,
+                    min(array_column($periods, 'datestart')),
+                    max(array_column($periods, 'dateend')),
+                    $data->declaredduration,
+                    $data->studyyear,
+                    STAGE_CONVENTION_NONE,
+                    $data->abroad,
+                    $data->country ?? ''
+                );
+                $entry = $DB->get_record('stage_entry', ['id' => $newentryid], '*', MUST_EXIST);
+            }
+
+            $requireteachervalidation = stage_convention_requires_teacher_validation($stage);
+            stage_request_convention($entry, $data->conventiontemplateid, $requireteachervalidation);
+
+            $detail = new stdClass();
+            $detail->referentteacherid = $data->referentteacherid;
+            $detail->yearsituation = $data->yearsituation;
+            $detail->stagetype = $data->stagetype;
+            $detail->studentbirthdate = $data->studentbirthdate ?: null;
+            $detail->studentaddress = $data->studentaddress;
+            $detail->studentphone = $data->studentphone;
+            $detail->hostaddress = $data->hostaddress;
+            $detail->hostrepresentative = $data->hostrepresentative;
+            $detail->hostrepresentativetitle = $data->hostrepresentativetitle;
+            $detail->hostservice = $data->hostservice;
+            $detail->hostphone = $data->hostphone;
+            $detail->hostemail = $data->hostemail;
+            $detail->hostlocation = $data->hostlocation;
+            $detail->tutorname = $data->tutorname;
+            $detail->tutorfunction = $data->tutorfunction;
+            $detail->tutorphone = $data->tutorphone;
+            $detail->tutoremail = $data->tutoremail;
+            $detail->nightpresence = !empty($data->nightpresence) ? 1 : 0;
+            $detail->sundaypresence = !empty($data->sundaypresence) ? 1 : 0;
+            $detail->holidaypresence = !empty($data->holidaypresence) ? 1 : 0;
+            $detail->homebased = !empty($data->homebased) ? 1 : 0;
+            $detail->othermodality = $data->othermodality;
+            $detail->hasleave = !empty($data->hasleave) ? 1 : 0;
+            $detail->leavedays = $detail->hasleave ? $data->leavedays : null;
+            $detail->leavemodalities = $detail->hasleave ? $data->leavemodalities : '';
+            $detail->gratificationamount = $data->gratificationamount;
+            $detail->paperrequestedbystudent = !empty($data->paperrequestedbystudent) ? 1 : 0;
+            stage_save_convention_detail($entry->id, $detail);
+            stage_save_entry_periods($entry->id, $periods);
+
+            // Check-list d'objectifs de la thématique retenue : elle accompagne la demande sans figurer
+            // dans la convention, et reste corrigeable ensuite par la DEVE et l'enseignant référent.
+            $checklistitems = $checklistsbytheme[(int) $data->themeid] ?? [];
+            stage_save_entry_checklist(
+                $entry->id,
+                $checklistitems,
+                stage_extract_submitted_checklist($data, $checklistitems)
+            );
+            $transaction->allow_commit();
+        }
+    } finally {
+        $lock->release();
     }
-
-    $requireteachervalidation = stage_convention_requires_teacher_validation($stage);
-    stage_request_convention($entry, $data->conventiontemplateid, $requireteachervalidation);
-
-    $detail = new stdClass();
-    $detail->referentteacherid = $data->referentteacherid;
-    $detail->yearsituation = $data->yearsituation;
-    $detail->stagetype = $data->stagetype;
-    $detail->studentbirthdate = $data->studentbirthdate ?: null;
-    $detail->studentaddress = $data->studentaddress;
-    $detail->studentphone = $data->studentphone;
-    $detail->hostaddress = $data->hostaddress;
-    $detail->hostrepresentative = $data->hostrepresentative;
-    $detail->hostrepresentativetitle = $data->hostrepresentativetitle;
-    $detail->hostservice = $data->hostservice;
-    $detail->hostphone = $data->hostphone;
-    $detail->hostemail = $data->hostemail;
-    $detail->hostlocation = $data->hostlocation;
-    $detail->tutorname = $data->tutorname;
-    $detail->tutorfunction = $data->tutorfunction;
-    $detail->tutorphone = $data->tutorphone;
-    $detail->tutoremail = $data->tutoremail;
-    $detail->nightpresence = !empty($data->nightpresence) ? 1 : 0;
-    $detail->sundaypresence = !empty($data->sundaypresence) ? 1 : 0;
-    $detail->holidaypresence = !empty($data->holidaypresence) ? 1 : 0;
-    $detail->homebased = !empty($data->homebased) ? 1 : 0;
-    $detail->othermodality = $data->othermodality;
-    $detail->hasleave = !empty($data->hasleave) ? 1 : 0;
-    $detail->leavedays = $detail->hasleave ? $data->leavedays : null;
-    $detail->leavemodalities = $detail->hasleave ? $data->leavemodalities : '';
-    $detail->gratificationamount = $data->gratificationamount;
-    $detail->paperrequestedbystudent = !empty($data->paperrequestedbystudent) ? 1 : 0;
-    stage_save_convention_detail($entry->id, $detail);
-    stage_save_entry_periods($entry->id, $periods);
-
-    // Check-list d'objectifs de la thématique retenue : elle accompagne la demande sans figurer
-    // dans la convention, et reste corrigeable ensuite par la DEVE et l'enseignant référent.
-    $checklistitems = $checklistsbytheme[(int) $data->themeid] ?? [];
-    stage_save_entry_checklist(
-        $entry->id,
-        $checklistitems,
-        stage_extract_submitted_checklist($data, $checklistitems)
-    );
-    $transaction->allow_commit();
+    if ($refused !== null) {
+        redirect($viewurl, get_string($refused, 'mod_stage'), null, \core\output\notification::NOTIFY_ERROR);
+    }
 
     if ($requireteachervalidation) {
         stage_notify_teacher_convention_pending($stage, $cm, $entry);

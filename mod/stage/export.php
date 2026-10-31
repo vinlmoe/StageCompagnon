@@ -52,6 +52,11 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/stage:viewall', $context);
 
+// Une promotion entière (plusieurs milliers de saisies, leurs réponses et leurs évaluations) dépasse
+// largement les limites d'une page ordinaire.
+core_php_time_limit::raise();
+raise_memory_limit(MEMORY_HUGE);
+
 $filename = clean_filename(format_string($course->shortname) . '_' . format_string($stage->name) . '_stages.xlsx');
 
 $workbook = new MoodleExcelWorkbook('-');
@@ -130,8 +135,11 @@ $entryids = array_keys($entries);
 $conventiondetails = [];
 $workdaycounts = [];
 $reportfilenames = [];
+$periodsbyentry = [];
 if (!empty($entryids)) {
-    [$insql, $inparams] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED);
+    // Sous-requête plutôt que liste IN des identifiants : une promotion entière dépasse la limite
+    // de paramètres de MSSQL (2 100) ou de liste d'Oracle (1 000), voire de PostgreSQL (65 535).
+    [$insql, $inparams] = stage_entry_ids_subquery($stage->id, 'export');
 
     $conventiondetails = $DB->get_records_select(
         'stage_convention_detail',
@@ -165,16 +173,19 @@ if (!empty($entryids)) {
     foreach ($filerecords as $filerecord) {
         $reportfilenames[$filerecord->itemid][] = $filerecord->filename;
     }
+
+    $periodrecords = $DB->get_recordset_select('stage_entry_period', "entryid $insql", $inparams, 'entryid ASC, datestart ASC');
+    foreach ($periodrecords as $period) {
+        $periodsbyentry[(int) $period->entryid][] = $period;
+    }
+    $periodrecords->close();
 }
 
 // Les enseignants responsables sont attribués par thématique : une seule résolution par
 // thématique, même si elle porte des dizaines de saisies.
 $themeteachers = [];
-foreach ($themes as $exportedtheme) {
-    $themeteachers[$exportedtheme->id] = implode(
-        ', ',
-        array_map('fullname', stage_get_theme_teachers($exportedtheme->id))
-    );
+foreach (stage_get_stage_theme_teachers($stage->id) as $exportedthemeid => $exportedteachers) {
+    $themeteachers[$exportedthemeid] = implode(', ', array_map('fullname', $exportedteachers));
 }
 
 // L'évaluateur (stage_entry.teacherid) et les enseignants référents attribués à l'étudiant sont
@@ -201,7 +212,11 @@ $actors = $actorids ? $DB->get_records_list('user', 'id', $actorids, '', 'id, ' 
     ', ',
     \core_user\fields::get_name_fields()
 )) : [];
+// Les référents sont attribués par étudiant : résolus pour toute la promotion en une requête.
 $referentsbyuser = [];
+foreach (stage_get_stage_student_teachers($stage->id) as $referentstudentid => $referents) {
+    $referentsbyuser[$referentstudentid] = implode(', ', array_map('fullname', $referents));
+}
 
 // Nom d'un intervenant à partir de son id, vide s'il n'y en a pas (colonne laissée vide plutôt
 // qu'un identifiant numérique, illisible dans un tableur).
@@ -326,18 +341,8 @@ $row = 1;
 foreach ($entries as $entry) {
     $student = $students[$entry->userid] ?? null;
     $theme = $themes[$entry->themeid] ?? null;
-    $evaluator = $entry->teacherid && isset($evaluators[$entry->teacherid]) ? $evaluators[$entry->teacherid] : null;
 
-    // Les référents sont attribués par étudiant : une seule résolution par étudiant, même s'il a
-    // plusieurs saisies.
-    if (!array_key_exists($entry->userid, $referentsbyuser)) {
-        $referentsbyuser[$entry->userid] = implode(', ', array_map(
-            'fullname',
-            stage_get_student_teachers($stage->id, $entry->userid)
-        ));
-    }
-
-    $periods = stage_get_or_seed_entry_periods($entry);
+    $periods = stage_get_or_seed_entry_periods($entry, $periodsbyentry[(int) $entry->id] ?? []);
     $periodlabels = array_map(function ($period) use ($exportdateformat) {
         return userdate($period->datestart, $exportdateformat) . ' - ' . userdate($period->dateend, $exportdateformat);
     }, $periods);
@@ -426,8 +431,9 @@ foreach ($entries as $entry) {
     // la ligne ; seul un texte saisi dans l'éditeur est converti depuis le HTML.
     $selfeval = (string) $entry->studentselfeval;
     $sheet->write_string($row, $col++, $selfeval !== strip_tags($selfeval) ? html_to_text($selfeval, 0, false) : $selfeval);
-    $sheet->write_string($row, $col++, $referentsbyuser[$entry->userid]);
-    $sheet->write_string($row, $col++, $evaluator ? fullname($evaluator) : '');
+    $sheet->write_string($row, $col++, $referentsbyuser[$entry->userid] ?? '');
+    // L'évaluateur figure parmi les intervenants résolus plus haut (stage_entry.teacherid).
+    $sheet->write_string($row, $col++, $actorname($entry->teacherid));
     $writedate($sheet, $row, $col++, $entry->teachertime);
     $sheet->write_string($row, $col++, (string) $entry->teachereval);
     $sheet->write_string($row, $col++, (string) $entry->tutoreval);
@@ -476,7 +482,7 @@ foreach ($headers as $col => $header) {
 
 $row = 1;
 if (!empty($entryids)) {
-    [$insql, $inparams] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED);
+    [$insql, $inparams] = stage_entry_ids_subquery($stage->id, 'export');
     $answerrecords = $DB->get_records_sql(
         "SELECT a.id, a.entryid, a.answertext, q.name AS questionname, q.evaltype, q.sortorder
            FROM {stage_answer} a

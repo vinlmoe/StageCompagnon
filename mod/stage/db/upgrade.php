@@ -1157,5 +1157,17 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026102600, 'stage');
     }
 
+    if ($oldversion < 2026103100) {
+        // Index sur la date de début : les deux tâches planifiées quotidiennes (relance des
+        // conventions, invitation des maîtres de stage) filtrent toutes les activités sur elle.
+        $table = new xmldb_table('stage_entry');
+        $index = new xmldb_index('datestart', XMLDB_INDEX_NOTUNIQUE, ['datestart']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        upgrade_mod_savepoint(true, 2026103100, 'stage');
+    }
+
     return true;
 }

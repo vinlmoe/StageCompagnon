@@ -50,7 +50,9 @@ class send_tutor_evaluation_requests extends \core\task\scheduled_task {
         require_once($CFG->dirroot . '/mod/stage/lib.php');
         require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
-        $entries = stage_get_entries_needing_tutor_request();
+        // Par lots : le reliquat part aux passages suivants plutôt que d'envoyer des milliers de
+        // courriels en un seul passage.
+        $entries = stage_get_entries_needing_tutor_request(STAGE_TUTOR_REQUEST_BATCH);
         if (empty($entries)) {
             return;
         }

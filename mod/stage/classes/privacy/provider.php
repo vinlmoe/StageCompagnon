@@ -576,6 +576,15 @@ class provider implements
         if (empty($userids)) {
             return;
         }
+        // Par paquets : une suppression approuvée pour tout un cours passe toute la promotion, et
+        // la même liste figure deux fois dans une requête (voir plus bas), au-delà de la limite de
+        // paramètres de MSSQL et d'Oracle.
+        if (count($userids) > STAGE_SQL_CHUNK / 2) {
+            foreach (array_chunk($userids, STAGE_SQL_CHUNK / 2) as $chunk) {
+                self::delete_data_for_users_in_context($context, $chunk);
+            }
+            return;
+        }
         $cm = get_coursemodule_from_id('stage', $context->instanceid, 0, false, IGNORE_MISSING);
         if (!$cm) {
             return;

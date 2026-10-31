@@ -219,6 +219,7 @@ $string['importteacherscsv_help'] = "Importez un fichier CSV (enregistré depuis
     . "l'étudiant ; une ligne dont un référent n'est pas reconnu est ignorée et l'attribution existante conservée.";
 $string['importteachersresult'] = '{$a} étudiant(s) mis à jour avec succès.';
 $string['importerrorunknownteacher'] = 'Ligne {$a->line} : aucun enseignant référent potentiel avec l\'adresse "{$a->email}".';
+$string['errorregistrationbusy'] = 'Un autre enregistrement de stage est en cours dans cette activité. Réessayez dans quelques secondes.';
 $string['errorduplicateentry'] = 'Cet étudiant a déjà un stage enregistré sur cette thématique avec ces mêmes dates.';
 $string['registerstage'] = 'Enregistrer un stage';
 $string['editstage'] = 'Modifier un stage';
@@ -345,6 +346,7 @@ $string['addperiod'] = 'Ajouter une plage';
 $string['removeperiod'] = 'Retirer';
 $string['periods_help'] = "Un stage peut comporter plusieurs plages de dates non contiguës (ex : deux séjours séparés). L'étudiant choisira ses jours de stage effectifs parmi ces plages lors de son auto-évaluation.";
 $string['periodsrequired'] = "Renseignez au moins une plage de dates : les dates du stage en sont déduites.";
+$string['periodtoolong'] = 'Une plage ne peut pas dépasser {$a} jours : vérifiez l\'année de ses dates.';
 $string['periodendbeforestart'] = "La date de fin d'une plage ne peut pas précéder sa date de début.";
 $string['periodstartinpast'] = "Une convention ne peut pas être demandée pour un stage déjà commencé : la date "
     . "de début doit être aujourd'hui ou plus tard. Si le stage a déjà commencé, adressez-vous à la DEVE.";

@@ -438,10 +438,14 @@ class csv_importer {
                 // Stages déjà enregistrés, par étudiant et thématique : une ligne qui correspond à
                 // l'un d'eux le met à jour (évaluations) au lieu d'en créer un second.
                 $existingbykey = [];
-                $existingfields = 'id, userid, themeid, datestart, dateend, status, conventionstatus, '
+                // Les mêmes stages, par étudiant seulement : recherche des doublons probables
+                // (stage_find_probable_duplicate_entries()) sans relire la base à chaque ligne.
+                $existingbyuser = [];
+                $existingfields = 'id, userid, themeid, studyyear, structure, datestart, dateend, status, conventionstatus, '
                     . 'studentselfeval, tutoreval, tutortime';
                 foreach ($DB->get_records('stage_entry', ['stageid' => $stage->id], 'id ASC', $existingfields) as $existing) {
                     $existingbykey[$existing->userid . '-' . $existing->themeid][$existing->id] = $existing;
+                    $existingbyuser[$existing->userid][$existing->id] = $existing;
                 }
                 // Doublons à l'intérieur du fichier lui-même : même stage répété à l'identique, ou
                 // plages qui se recoupent pour le même étudiant et la même thématique (dates de la
@@ -584,7 +588,8 @@ class csv_importer {
                             $theme->id,
                             $start,
                             $end,
-                            self::parse_studyyear($getcol($row, 'studentyear', 'studyyear'))
+                            self::parse_studyyear($getcol($row, 'studentyear', 'studyyear')),
+                            $existingbyuser[$student->id] ?? []
                         );
                         $decision = $duplicateresolutions[$linenum] ?? null;
                         if ($probables && $decision === null) {
@@ -726,6 +731,9 @@ class csv_importer {
                 }
                 $cir->cleanup(true);
 
+                // Les stages sont créés ensemble : un échec en cours de route ne doit pas laisser un
+                // import à moitié appliqué, que la DEVE ne saurait pas reprendre.
+                $transaction = $DB->start_delegated_transaction();
                 foreach ($entryrecords as $rowkey => $record) {
                     $entryid = $DB->insert_record('stage_entry', $record);
                     // Comme toute saisie créée par stage_register_entry(), celle-ci reçoit sa
@@ -745,12 +753,16 @@ class csv_importer {
                         $torequest[$entryid] = $studentbyrowkey[$rowkey];
                     }
                 }
+                $transaction->allow_commit();
                 $results->created = count($entryrecords);
 
                 // Les deux évaluations amont sont disponibles : l'enseignant référent est invité
                 // à évaluer à son tour. Un étudiant sans référent est signalé à la DEVE, qui
                 // devra en désigner un pour que l'évaluation puisse avoir lieu.
                 if ($torequest) {
+                    // Un courriel par stage, envoyé pendant la requête : un gros import dépasse le
+                    // temps d'exécution ordinaire d'une page.
+                    \core_php_time_limit::raise();
                     $cm = get_coursemodule_from_id('stage', $context->instanceid, 0, false, MUST_EXIST);
                     foreach ($torequest as $entryid => $student) {
                         $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);

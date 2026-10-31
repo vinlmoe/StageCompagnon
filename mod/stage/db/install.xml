@@ -222,6 +222,7 @@
         <INDEX NAME="stageid-userid" UNIQUE="false" FIELDS="stageid, userid"/>
         <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
         <INDEX NAME="tutortoken" UNIQUE="true" FIELDS="tutortoken"/>
+        <INDEX NAME="datestart" UNIQUE="false" FIELDS="datestart"/>
       </INDEXES>
     </TABLE>
 

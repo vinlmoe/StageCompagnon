@@ -118,32 +118,28 @@ echo html_writer::link(
 );
 echo html_writer::end_tag('form');
 
-$allentries = stage_get_filtered_entries(
+$filters = ['search' => $search, 'themeid' => $themeid, 'status' => $filterstatus];
+[$entries, $pagingbarhtml, $entrytotal] = stage_get_filtered_entries_page(
     $stage->id,
-    ['search' => $search, 'themeid' => $themeid, 'status' => $filterstatus],
+    $filters,
     $tsort,
-    $tdir
+    $tdir,
+    null,
+    $page,
+    $listurl
 );
-[$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
 
-if (empty($allentries)) {
+if ($entrytotal === 0) {
     echo $OUTPUT->notification(get_string('nostagesfortheme', 'mod_stage'), 'info');
     echo $OUTPUT->footer();
     exit;
 }
 
-$students = stage_get_entry_users($allentries);
+$students = stage_get_entry_users($entries);
 
 // Téléchargement groupé : proposé seulement si au moins un rapport a été déposé, un ZIP vide
 // n'ayant aucun intérêt (et stage_send_reports_zip() refusant de le construire).
-$hasreports = false;
-foreach ($allentries as $entry) {
-    if (stage_get_report_files($context, $entry->id)) {
-        $hasreports = true;
-        break;
-    }
-}
-if ($hasreports) {
+if (stage_filtered_entries_have_reports($context, $stage->id, $filters)) {
     $zipurl = new moodle_url('/mod/stage/reports_zip.php', [
         'id' => $cm->id, 'themeid' => $themeid, 'search' => $search, 'status' => $filterstatus,
         'sesskey' => sesskey(),
