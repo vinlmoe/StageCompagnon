@@ -50,11 +50,20 @@ class send_tutor_evaluation_requests extends \core\task\scheduled_task {
         require_once($CFG->dirroot . '/mod/stage/lib.php');
         require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
-        // Par lots : le reliquat part aux passages suivants plutôt que d'envoyer des milliers de
-        // courriels en un seul passage.
-        $entries = stage_get_entries_needing_tutor_request(STAGE_TUTOR_REQUEST_BATCH);
+        // Le plafond d'âge (voir stage_get_entries_needing_tutor_request()) borne déjà la liste.
+        // Le nombre d'envois par passage est plafonné ici, et non dans la requête : sinon des
+        // adresses invalides en tête de liste occuperaient le lot à chaque passage, et les
+        // invitations suivantes ne partiraient jamais.
+        $entries = stage_get_entries_needing_tutor_request();
         if (empty($entries)) {
             return;
+        }
+
+        // Adresses des maîtres de stage, en une requête par paquet : une adresse invalide est
+        // écartée sans tentative d'envoi.
+        $emails = [];
+        foreach (array_chunk(array_keys($entries), STAGE_SQL_CHUNK) as $chunk) {
+            $emails += $DB->get_records_list('stage_convention_detail', 'entryid', $chunk, '', 'entryid, tutoremail');
         }
 
         // Les instances et modules sont résolus au fil de l'eau et mémorisés : une même promotion
@@ -62,8 +71,20 @@ class send_tutor_evaluation_requests extends \core\task\scheduled_task {
         $stages = [];
         $cms = [];
         $sent = 0;
+        $attempts = 0;
+        $invalid = 0;
+        $remaining = 0;
 
         foreach ($entries as $entry) {
+            $email = trim((string) ($emails[$entry->id]->tutoremail ?? ''));
+            if (!validate_email($email)) {
+                $invalid++;
+                continue;
+            }
+            if ($attempts >= STAGE_TUTOR_REQUEST_BATCH) {
+                $remaining++;
+                continue;
+            }
             if (!array_key_exists($entry->stageid, $stages)) {
                 $stages[$entry->stageid] = $DB->get_record('stage', ['id' => $entry->stageid]);
                 $cms[$entry->stageid] = $stages[$entry->stageid]
@@ -77,11 +98,22 @@ class send_tutor_evaluation_requests extends \core\task\scheduled_task {
 
             // stage_maybe_request_tutor_evaluation() revérifie elle-même l'éligibilité (activation,
             // coordonnées, invitation déjà envoyée) : la requête SQL n'est qu'un premier filtre.
+            $attempts++;
             if (stage_maybe_request_tutor_evaluation($stage, $cm, $entry)) {
                 $sent++;
             }
         }
 
+        if ($attempts > $sent) {
+            mtrace('mod_stage : ' . ($attempts - $sent) . ' invitation(s) de maîtres de stage non envoyée(s), '
+                . 'nouvelle tentative au prochain passage.');
+        }
+        if ($invalid > 0) {
+            mtrace("mod_stage : $invalid invitation(s) de maîtres de stage en attente d'une adresse valide.");
+        }
+        if ($remaining > 0) {
+            mtrace("mod_stage : $remaining invitation(s) de maîtres de stage reportée(s) au prochain passage.");
+        }
         if ($sent > 0) {
             mtrace("mod_stage : $sent invitation(s) à évaluer le stage envoyée(s) aux maîtres de stage.");
         }

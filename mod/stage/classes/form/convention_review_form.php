@@ -134,6 +134,9 @@ class convention_review_form extends \moodleform {
         $mform->setType('tutorphone', PARAM_TEXT);
         $mform->addElement('text', 'tutoremail', get_string('conventiontutoremail', 'mod_stage'), ['size' => '64']);
         $mform->setType('tutoremail', PARAM_TEXT);
+        // L'invitation à évaluer le stage part à cette adresse : une adresse invalide ne serait
+        // découverte qu'à l'envoi, sans que personne n'en soit averti.
+        $mform->addRule('tutoremail', get_string('invalidemail'), 'email', null, 'client');
 
         $mform->addElement('header', 'modalitiesheader', get_string('conventionmodalities', 'mod_stage'));
         $mform->setExpanded('modalitiesheader');

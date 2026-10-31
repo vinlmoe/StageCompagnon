@@ -175,7 +175,17 @@ Tous les points relevés à la section~3 ont été corrigés, dans la version te
     (\code{stage_entry_ids_subquery()}). Les limites de temps et de mémoire sont relevées.
   \item \textbf{Invitations des maîtres de stage.} Plus aucune invitation au-delà de 60 jours
     après la fin du stage (\code{STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END}). La tâche planifiée
-    envoie 200 invitations au plus par passage (\code{STAGE_TUTOR_REQUEST_BATCH}).
+    tente 200 envois au plus par passage (\code{STAGE_TUTOR_REQUEST_BATCH}).
+    \begin{itemize}
+      \item Le plafond s'applique aux tentatives d'envoi, et non à la requête de sélection. Sur
+        un jeu de 298 invitations dues, dont 250 à adresse invalide en tête de file, un plafond
+        posé dans la requête aurait consacré 196 des 200 places du lot à ces adresses, et
+        retardé les autres.
+      \item Les adresses invalides sont désormais écartées sans tentative, et comptées dans le
+        journal de la tâche.
+      \item Les formulaires de convention refusent une adresse invalide.
+      \item Le détail du stage avertit la DEVE quand l'adresse déjà enregistrée est invalide.
+    \end{itemize}
   \item \textbf{Listes.} Les pages \code{register}, \code{deve}, \code{teacher},
     \code{theme_stages}, \code{conventions} et \code{delete_entries} sont paginées en SQL
     (\code{stage_get_filtered_entries_page()}, \code{stage_count_convention_entries()}). La

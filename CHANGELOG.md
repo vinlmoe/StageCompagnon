@@ -90,8 +90,12 @@ changements. À tenir à jour à chaque modification de `version.php`.
     stage, étudiant ou thématique ; limites de temps et de mémoire relevées.
   - Invitations des maîtres de stage : plus d'invitation au-delà de 60 jours après la fin du
     stage (activer l'évaluation sur une promotion qui a un historique invitait d'un coup tous
-    les anciens stages ; un envoi en échec était retenté indéfiniment) ; 200 invitations au plus
-    par passage de la tâche planifiée.
+    les anciens stages ; un envoi en échec était retenté indéfiniment) ; 200 tentatives d'envoi
+    au plus par passage de la tâche planifiée. Une adresse invalide est écartée avant l'envoi,
+    sans occuper le lot ni bloquer les invitations suivantes ; le journal de la tâche compte les
+    échecs, les adresses invalides et les invitations reportées. L'adresse du maître de stage
+    est contrôlée dans les formulaires de convention (étudiant, DEVE, enseignant référent), et
+    la DEVE est avertie sur le détail du stage quand l'adresse enregistrée est invalide.
   - Listes (enregistrement, validation DEVE, enseignant référent, thématique, conventions,
     suppression) paginées en SQL au lieu de charger toute la promotion.
   - Volet de suivi de l'étudiant : données chargées une fois (cache du bilan de promotion) au

@@ -283,6 +283,11 @@ if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tuto
                 'p',
                 html_writer::tag('strong', get_string('conventiontutoremail', 'mod_stage') . ' : ') . s($detail->tutoremail)
             );
+            // Sans adresse valide, la tâche planifiée n'envoie pas l'invitation : la DEVE doit le
+            // savoir pour corriger l'adresse dans la convention.
+            if (!validate_email(trim($detail->tutoremail))) {
+                echo $OUTPUT->notification(get_string('tutoremailinvalid', 'mod_stage'), 'warning');
+            }
             $resendurl = new moodle_url($baseurl, ['resendtutor' => 1, 'sesskey' => sesskey()]);
             echo html_writer::link(
                 $resendurl,

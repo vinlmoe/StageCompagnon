@@ -754,6 +754,7 @@ $string['conventionremindernotifbody'] = "Bonjour {\$a->student},\n\nVotre stage
     . "convention signée, le stage ne peut pas débuter.\n\nMerci de régulariser votre demande de convention au "
     . "plus vite :\n{\$a->url}";
 $string['taskconventionreminders'] = 'Relance des conventions de stage non signées';
+$string['tutoremailinvalid'] = "Cette adresse du maître de stage n'est pas valide : l'invitation à évaluer le stage ne peut pas partir. Corrigez-la dans les informations de la convention.";
 $string['tasktutorevaluationrequests'] = 'Envoi des invitations à évaluer le stage aux maîtres de stage';
 $string['reportmode'] = 'Rapport de stage';
 $string['reportmode_help'] = "Dépôt de documents demandé à l'étudiant lors de son auto-évaluation, sur le "

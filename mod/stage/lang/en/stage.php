@@ -739,6 +739,7 @@ $string['conventionremindernotifbody'] = "Hello {\$a->student},\n\nYour internsh
     . "agreement, the internship cannot start.\n\nPlease sort out your agreement request as soon as "
     . "possible:\n{\$a->url}";
 $string['taskconventionreminders'] = 'Send unsigned internship agreement reminders';
+$string['tutoremailinvalid'] = 'This tutor email address is invalid: the evaluation invitation cannot be sent. Correct it in the agreement details.';
 $string['tasktutorevaluationrequests'] = 'Send workplace tutor evaluation invitations';
 $string['reportmode'] = 'Internship report';
 $string['reportmode_help'] = 'Document submission requested from the student during their self-assessment, '
