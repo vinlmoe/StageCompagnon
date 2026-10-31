@@ -243,6 +243,17 @@ défauts, corrigés depuis ; ils sont signalés ci-dessous.
       \item La restauration d'export (\code{import_global}) et l'import historique ne sont pas
         concernés : ils reprennent des données existantes.
     \end{itemize}
+  \item \textbf{Imports.}
+    \begin{itemize}
+      \item La prévisualisation de l'import historique est conservée dans un fichier temporaire
+        propre à l'utilisateur et à l'activité (\code{import_preview}), valable un jour, au lieu
+        de la session.
+      \item Les invitations des enseignants référents après un import StageVet partent par une
+        tâche ad hoc (\code{send_teacher_eval_requests}). L'import décide toujours qui inviter,
+        et son compte rendu le dit à la DEVE.
+      \item L'import CSV des référents s'exécute sous le verrou de l'activité, en une
+        transaction.
+    \end{itemize}
   \item \textbf{Divers.}
     \begin{itemize}
       \item L'import StageVet applique ses mises à jour et ses créations dans une seule
@@ -315,18 +326,13 @@ retient 4.
   \item Le test ne passe pas par un Moodle complet. Les bouchons ne reproduisent ni les droits,
     ni le rendu, ni les caches de Moodle. Les tests PHPUnit et Behat du dépôt restent à jouer
     par la CI.
-  \item L'aperçu de l'import historique reste conservé dans la session.
-  \item Les courriels de l'import StageVet partent encore pendant la requête, désormais sans
-    limite de temps.
   \item Une invitation de maître de stage coûte encore quelques requêtes, mais au plus 200 par
     passage.
   \item Le volet de suivi d'un étudiant n'a été mesuré que pour ses fonctions de bilan, et non
     pour la page entière (droits, rendu, fichiers).
-  \item L'équivalence est établie contre un \code{$DB} simulé, sur PostgreSQL seulement :
-    MySQL, MSSQL et Oracle n'ont pas été essayés.
-  \item L'import CSV des référents ne prend pas le verrou de l'activité. N'étant pas
-    transactionnel, il constate sans erreur une attribution insérée entre-temps ; mais deux
-    imports simultanés peuvent s'entrelacer ligne à ligne.
+  \item L'équivalence est établie contre un \code{$DB} simulé, sur PostgreSQL seulement. La CI
+    joue désormais la suite PHPUnit sur MariaDB aussi ; MSSQL et Oracle, que
+    \code{moodle-plugin-ci} ne propose pas, n'ont été examinés qu'à la lecture du SQL.
   \item La tâche d'invitation n'a été exercée dans le banc que jusqu'au choix des envois : avec
     240 adresses invalides sur 304 invitations dues, les 240 sont marquées en échec au premier
     passage et ne sont plus sélectionnées au suivant.

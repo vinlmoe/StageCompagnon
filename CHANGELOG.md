@@ -23,6 +23,8 @@ changements. À tenir à jour à chaque modification de `version.php`.
   main (`workflow_dispatch`). La couverture de code est mesurée (pcov) sur la combinaison la plus
   récente, résumée dans le journal du job et publiée en artefact Clover.
 - Tests : cas tabulaires portés en `dataProvider` (filtre de statut, chevauchements de plages).
+- CI : la suite PHPUnit tourne aussi sur MariaDB (Moodle 4.5, PHP 8.2), pour le SQL écrit par le
+  module lui-même.
 - CI : scénarios Behat joués sans JavaScript (serveur web intégré de PHP, profil `default`) sur
   la combinaison Moodle 4.5 / PHP 8.2.
 
@@ -119,6 +121,13 @@ changements. À tenir à jour à chaque modification de `version.php`.
     cours lus en une requête. Index sur la date de début des stages.
   - Listes : le tri à rebours par étudiant s'applique au nom comme au prénom (seul le prénom
     était trié à rebours). Message de doublon propre à l'étudiant.
+  - Import historique : la prévisualisation est conservée dans un fichier temporaire propre à
+    l'utilisateur et à l'activité (valable un jour) au lieu de la session, qu'un gros classeur
+    alourdissait.
+  - Import StageVet : les invitations des enseignants référents partent par une tâche ad hoc
+    (`send_teacher_eval_requests`) au lieu de la requête web ; le compte rendu de l'import dit
+    toujours qui sera invité et qui n'a pas de référent.
+  - Import CSV des référents sous le verrou de l'activité, en une transaction.
 
 ### mod_stagesynthesis
 - Événement Moodle de consultation de l'activité.
