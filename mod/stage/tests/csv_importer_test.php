@@ -73,6 +73,25 @@ final class csv_importer_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : une structure de plus de 255 caractères faisait échouer l'écriture, et avec elle
+     * l'import de tout le fichier. Elle est tronquée, et les autres lignes sont importées.
+     */
+    public function test_entries_truncate_too_long_structure(): void {
+        global $DB;
+        [$stage, $context] = $this->fixture();
+        $csv = "email;theme;structure;datestart;dateend;duration\n"
+            . 'student@example.com;Clinique;' . str_repeat('Clinique vétérinaire ', 15) . ";2026-03-02;2026-03-06;5\n"
+            . "student@example.com;Clinique;Clinique B;2026-04-06;2026-04-10;5\n";
+
+        $result = csv_importer::entries($stage, $context, $csv);
+
+        $this->assertSame(2, $result['results']->created);
+        $structures = $DB->get_fieldset_select('stage_entry', 'structure', 'stageid = ? ORDER BY datestart', [$stage->id]);
+        $this->assertSame(255, \core_text::strlen($structures[0]));
+        $this->assertSame('Clinique B', $structures[1]);
+    }
+
+    /**
      * Doublons dans le fichier et en base, avec poursuite après erreur.
      */
     public function test_entries_report_unknown_values_and_duplicates(): void {

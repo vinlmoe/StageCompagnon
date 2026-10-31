@@ -125,6 +125,26 @@ final class stagevet_evaluations_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : un organisme de plus de 255 caractères faisait échouer l'import de tout le
+     * fichier. Il est tronqué, et un second import du même fichier reconnaît le stage.
+     */
+    public function test_import_truncates_too_long_structure(): void {
+        global $DB;
+        [$stage, $context] = $this->fixture();
+        $csv = $this->csv([$this->row(['Organisme' => str_repeat('Clinique vétérinaire ', 15)])]);
+
+        $first = csv_importer::stagevet($stage, $context, $csv);
+        $second = csv_importer::stagevet($stage, $context, $csv);
+
+        $this->assertSame(1, $first['results']->created);
+        $this->assertEmpty($first['results']->errors);
+        $this->assertSame(0, $second['results']->created);
+        $structures = $DB->get_fieldset_select('stage_entry', 'structure', 'stageid = ?', [$stage->id]);
+        $this->assertCount(1, $structures);
+        $this->assertSame(255, \core_text::strlen($structures[0]));
+    }
+
+    /**
      * L'export actuel crée le stage avec ses deux évaluations et sollicite l'enseignant référent.
      */
     public function test_import_creates_entry_with_both_evaluations_and_requests_teacher(): void {

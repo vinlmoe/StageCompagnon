@@ -103,8 +103,9 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                 $students[$normal($student->email)] = $student;
             }
             $allthemes = stage_get_themes($stage->id);
+            // Toutes les thématiques, masquées comprises : l'export contient aussi leurs stages.
             $themes = [];
-            foreach (stage_get_themes($stage->id, true) as $theme) {
+            foreach ($allthemes as $theme) {
                 $themes[$normal($theme->name)] = $theme;
             }
             $people = [];

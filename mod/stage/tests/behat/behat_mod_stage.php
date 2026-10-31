@@ -32,7 +32,7 @@ class behat_mod_stage extends behat_base {
      * Pages d'une activité, désignée par son nom ou son idnumber.
      *
      * Types reconnus : Activity (page d'accueil), Register (enregistrement des stages par la DEVE),
-     * Conventions, Teacher validation, Academic office validation, Pilotage.
+     * Conventions, Teacher validation, Academic office validation, Pilotage, Evaluation lists.
      *
      * @param string $type
      * @param string $identifier
@@ -46,6 +46,7 @@ class behat_mod_stage extends behat_base {
             'teacher validation' => 'teacher.php',
             'academic office validation' => 'deve.php',
             'pilotage' => 'dashboard.php',
+            'evaluation lists' => 'evallists.php',
         ];
         $key = strtolower($type);
         if (!isset($pages[$key])) {

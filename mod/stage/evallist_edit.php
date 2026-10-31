@@ -84,8 +84,7 @@ foreach ($questions as $i => $question) {
 $reusable = [];
 if ($list) {
     foreach (stage_get_reusable_evallist_questions($list) as $question) {
-        $typelabel = $question->qtype === 'choice'
-            ? get_string('qtype_choice', 'mod_stage') : get_string('qtype_text', 'mod_stage');
+        $typelabel = stage_question_types()[$question->qtype] ?? stage_question_types()['text'];
         $reusable[$question->id] = format_string($question->name) . ' (' . $typelabel . ')';
     }
 }
@@ -168,7 +167,8 @@ if ($data && !$blockeddeletions) {
         $questionid = (int) $questionid;
         $name = trim((string) ($data->questionname[$i] ?? ''));
         $delete = !empty($data->questiondelete[$i]);
-        $qtype = ($data->questionqtype[$i] ?? 'text') === 'choice' ? 'choice' : 'text';
+        $qtype = $data->questionqtype[$i] ?? 'text';
+        $qtype = array_key_exists($qtype, stage_question_types()) ? $qtype : 'text';
         $question = (object) [
             'stageid' => $stage->id,
             'evaltype' => $list->evaltype,

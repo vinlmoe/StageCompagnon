@@ -394,6 +394,8 @@ $string['evaltype_student'] = 'Student self-assessment';
 $string['evaltype_teacher'] = 'Teacher evaluation';
 $string['qtype'] = 'Question type';
 $string['qtype_choice'] = 'Multiple choice';
+$string['qtype_rating'] = 'Rating (1 to 5)';
+$string['qtype_rating_scale'] = '1 = very poor, 5 = excellent';
 $string['qtype_text'] = 'Free comment';
 $string['questionlabel'] = 'Question label';
 $string['questionlabelen'] = 'Question label (English, workplace tutor)';

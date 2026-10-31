@@ -90,6 +90,51 @@ final class global_export_importer_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : le téléphone de l'étudiant et celui du maître de stage portent le même intitulé
+     * (« Téléphone », « Phone ») ; le maître de stage reprenait à la restauration le numéro de
+     * l'étudiant.
+     */
+    public function test_columns_with_the_same_header_are_read_in_order(): void {
+        $phone = get_string('conventionstudentphone', 'mod_stage');
+        $this->assertSame($phone, get_string('conventiontutorphone', 'mod_stage'));
+        $path = $this->workbook([
+            ['Internship ID', 'Email address', 'Theme', $phone, 'Workplace tutor', $phone],
+            [7, 'student@example.com', 'Clinic', '0600000001', 'Dr X', '0400000003'],
+        ]);
+        $record = global_export_importer::read($path)['records'][0];
+        $this->assertSame('0600000001', $record->studentphone);
+        $this->assertSame('0400000003', $record->tutorphone);
+    }
+
+    /**
+     * Régression : un nom contenant « & » est écrit « &amp; » par format_string() dans l'export ;
+     * la thématique n'était plus retrouvée à la restauration.
+     */
+    public function test_normalize_decodes_html_entities(): void {
+        $this->assertSame(
+            global_export_importer::normalize('Santé publique & hygiène'),
+            global_export_importer::normalize('Santé publique &amp; hygiène')
+        );
+        $this->assertSame('l animal', global_export_importer::normalize('L&#039;animal'));
+    }
+
+    /**
+     * Régression : l'export précède d'une apostrophe les textes commençant par = + - ou @ (pour
+     * qu'Excel ne les prenne pas pour des formules) ; elle était restaurée avec eux.
+     */
+    public function test_formula_escape_apostrophe_is_removed(): void {
+        $path = $this->workbook([
+            ['Internship ID', 'Email address', 'Theme', 'Student phone', 'Administration office comment'],
+            [7, 'student@example.com', 'Clinic', "'+33 6 12 34 56 78", "'- report checked"],
+            [8, 'other@example.com', 'Clinic', "0600000001", "It's fine"],
+        ]);
+        $records = global_export_importer::read($path)['records'];
+        $this->assertSame('+33 6 12 34 56 78', $records[0]->studentphone);
+        $this->assertSame('- report checked', $records[0]->devecomment);
+        $this->assertSame("It's fine", $records[1]->devecomment);
+    }
+
+    /**
      * Régression : l'export global écrivait une colonne de courriel vide, ce qui rendait sa
      * restauration impossible (les étudiants y sont retrouvés par leur courriel).
      *

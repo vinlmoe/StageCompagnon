@@ -208,7 +208,11 @@ if ($resolvereferents && confirm_sesskey()) {
         $import = \mod_stage\local\csv_importer::stagevet($stage, $context, $content);
         $results = $import['results'];
         $uploaderror = $import['error'];
-        $pending = ['content' => $content];
+        // Le contenu est conservé en UTF-8 : un export enregistré par Excel (Windows-1252) ne
+        // survivrait pas, accents compris, à son stockage en JSON entre deux passes.
+        $pending = [
+            'content' => \core_text::convert($content, \mod_stage\local\csv_importer::detect_encoding($content), 'UTF-8'),
+        ];
     }
 }
 

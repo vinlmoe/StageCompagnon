@@ -113,10 +113,7 @@ class evallist_edit_form extends \moodleform {
             $mform->addHelpButton('attachquestionids', 'attachquestions', 'mod_stage');
         }
 
-        $qtypeoptions = [
-            'choice' => get_string('qtype_choice', 'mod_stage'),
-            'text' => get_string('qtype_text', 'mod_stage'),
-        ];
+        $qtypeoptions = stage_question_types();
         $row = [
             $mform->createElement('static', 'questionrowhdr', '', \html_writer::tag('hr', '')),
             $mform->createElement('static', 'questioninfo', '', ''),
@@ -144,9 +141,9 @@ class evallist_edit_form extends \moodleform {
             'questionid' => ['type' => PARAM_INT],
             'questionqtype' => ['default' => 'text'],
             'questionname' => ['type' => PARAM_TEXT],
-            'questionoptions' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'eq', 'text']],
+            'questionoptions' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'neq', 'choice']],
             'questionnameen' => ['type' => PARAM_TEXT],
-            'questionoptionsen' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'eq', 'text']],
+            'questionoptionsen' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'neq', 'choice']],
             'questionrequired' => ['default' => 1],
             'questionsortorder' => ['type' => PARAM_INT, 'default' => 0],
             'questiondelete' => ['helpbutton' => ['removequestionrow', 'mod_stage']],

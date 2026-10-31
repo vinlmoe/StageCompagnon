@@ -484,7 +484,7 @@ $row = 1;
 if (!empty($entryids)) {
     [$insql, $inparams] = stage_entry_ids_subquery($stage->id, 'export');
     $answerrecords = $DB->get_records_sql(
-        "SELECT a.id, a.entryid, a.answertext, q.name AS questionname, q.evaltype, q.sortorder
+        "SELECT a.id, a.entryid, a.answertext, q.name AS questionname, q.evaltype, q.qtype, q.sortorder
            FROM {stage_answer} a
            JOIN {stage_question} q ON q.id = a.questionid
           WHERE a.entryid $insql
@@ -498,11 +498,14 @@ if (!empty($entryids)) {
     // même endroit. La colonne numérique reste vide pour une réponse sans note.
     $lines = [];
     foreach ($answerrecords as $answer) {
+        // Question notée de 1 à 5 : la note va aussi dans la colonne numérique.
+        $answertext = trim((string) $answer->answertext);
+        $israting = $answer->qtype === 'rating' && in_array($answertext, stage_question_rating_values(), true);
         $lines[$answer->entryid][] = [
             'evaltype' => $answer->evaltype,
             'label' => format_string($answer->questionname),
-            'answer' => (string) $answer->answertext,
-            'score' => null,
+            'answer' => $israting ? $answertext . '/5' : (string) $answer->answertext,
+            'score' => $israting ? (float) $answertext : null,
         ];
     }
     foreach ($entryids as $entryid) {

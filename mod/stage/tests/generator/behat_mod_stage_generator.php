@@ -65,6 +65,12 @@ class behat_mod_stage_generator extends behat_generator_base {
                 'required' => ['stage', 'student', 'teacher'],
                 'switchids' => ['stage' => 'stageid', 'student' => 'studentid', 'teacher' => 'teacherid'],
             ],
+            'evaluation questions' => [
+                'singular' => 'evaluation question',
+                'datagenerator' => 'evaluation_question',
+                'required' => ['stage', 'list', 'evaltype', 'name'],
+                'switchids' => ['stage' => 'stageid'],
+            ],
             'convention templates' => [
                 'singular' => 'convention template',
                 'datagenerator' => 'convention_template',
@@ -218,5 +224,46 @@ class behat_mod_stage_generator extends behat_generator_base {
      */
     protected function process_convention_template(array $data): void {
         $this->componentdatagenerator->create_convention_template($data['stageid'], $data);
+    }
+
+    /**
+     * Crée une question d'évaluation et la range dans une liste, créée à la première question
+     * sous ce nom. Colonnes facultatives : qtype (text par défaut), options (une par ligne, « | »
+     * pouvant les séparer), required (0 par défaut), theme (thématique qui choisit la liste).
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function process_evaluation_question(array $data): void {
+        global $DB;
+
+        $list = $DB->get_record('stage_evallist', ['stageid' => $data['stageid'], 'name' => $data['list']]);
+        if (!$list) {
+            $themes = [];
+            if (!empty($data['theme'])) {
+                $themes[] = $DB->get_record(
+                    'stage_theme',
+                    ['stageid' => $data['stageid'], 'name' => $data['theme']],
+                    '*',
+                    MUST_EXIST
+                );
+            }
+            $list = $this->componentdatagenerator->create_evallist(
+                $data['stageid'],
+                $data['evaltype'],
+                [],
+                $themes,
+                $data['list']
+            );
+        }
+        $questionid = $DB->insert_record('stage_question', (object) [
+            'stageid' => $data['stageid'], 'themeid' => 0, 'evaltype' => $data['evaltype'],
+            'qtype' => $data['qtype'] ?? 'text', 'name' => $data['name'],
+            'options' => isset($data['options']) ? str_replace('|', "\n", $data['options']) : null,
+            'required' => (int) ($data['required'] ?? 0),
+            'sortorder' => $DB->count_records('stage_evallist_question', ['listid' => $list->id]) + 1,
+            'timecreated' => time(), 'timemodified' => time(),
+        ]);
+        stage_add_evallist_question($list->id, $questionid);
     }
 }
