@@ -307,6 +307,12 @@ class csv_importer {
      * @param array|null $onlylines Numéros des seules lignes à traiter (celles restées en attente
      *        d'un arbitrage aux passes précédentes), ou null pour tout le fichier. Les deux
      *        arbitrages sont repris ensemble : trancher l'un ne fait jamais perdre l'autre.
+     * @param array $referentresolutions Libellé de « tuteur » (enseignant référent de l'école dans
+     *        l'export) non rapproché d'un compte => identifiant du compte enseignant désigné par la
+     *        DEVE. Un libellé non résolu ne bloque pas la ligne : la convention reprend alors
+     *        l'enseignant référent attribué à l'étudiant (le premier par ordre alphabétique s'il en
+     *        a plusieurs), et le libellé est remonté dans $results->unknownreferents, avec les
+     *        stages créés, pour que la DEVE puisse désigner le bon compte ensuite.
      * @return array Résultats par ligne et erreur de lecture éventuelle.
      */
     public static function stagevet(
@@ -315,7 +321,8 @@ class csv_importer {
         string $content,
         array $studentresolutions = [],
         array $duplicateresolutions = [],
-        ?array $onlylines = null
+        ?array $onlylines = null,
+        array $referentresolutions = []
     ): array {
         global $CFG, $DB;
         require_once($CFG->libdir . '/csvlib.class.php');
@@ -399,9 +406,18 @@ class csv_importer {
         // les champs tutor* de la convention.
         $teachersbyemail = [];
         $teachersbyname = [];
+        $teachersbyid = [];
         foreach (stage_get_potential_teachers($context) as $teacher) {
             $teachersbyemail[core_text::strtolower($teacher->email)][$teacher->id] = $teacher;
             $teachersbyname[stage_normalize_name($teacher->firstname . ' ' . $teacher->lastname)][$teacher->id] = $teacher;
+            $teachersbyid[(int) $teacher->id] = $teacher;
+        }
+        // À défaut d'un tuteur reconnu dans l'export, la convention reprend l'enseignant référent
+        // attribué à l'étudiant dans l'activité : le premier par ordre alphabétique (voir
+        // stage_get_stage_student_teachers()) s'il en a plusieurs.
+        $studentreferents = [];
+        foreach (stage_get_stage_student_teachers($stage->id) as $referentstudentid => $referents) {
+            $studentreferents[(int) $referentstudentid] = reset($referents);
         }
 
         $results = null;
@@ -452,6 +468,8 @@ class csv_importer {
                     'notified' => 0,
                     'notifyskipped' => 0,
                     'noreferent' => [],
+                    'referentfallback' => 0,
+                    'unknownreferents' => [],
                     'probableduplicates' => [],
                     'unknownstudents' => [],
                     'unknownthemes' => [],
@@ -462,6 +480,10 @@ class csv_importer {
                 $entryrecords = [];
                 $detailbyrowkey = [];
                 $studentbyrowkey = [];
+                // Ligne du fichier et libellé de tuteur non reconnu de chaque stage à créer, pour
+                // le rapport des tuteurs à rapprocher d'un compte (voir $results->unknownreferents).
+                $linebyrowkey = [];
+                $unknownreferentbyrowkey = [];
                 // Mises à jour des stages existants et créations sont faites ensemble, sous le
                 // verrou de l'activité : un échec en cours de route ne laisse pas un import à moitié
                 // appliqué, que la DEVE ne saurait pas reprendre, et un enregistrement simultané ne
@@ -758,6 +780,7 @@ class csv_importer {
                             'gratificationamount' => $getcol($row, 'gratificationamount'),
                         ];
 
+                        $linebyrowkey[$rowkey] = $linenum;
                         $referentteacher = null;
                         $referentemail = $getcol($row, 'referentteacheremail');
                         if ($referentemail !== '') {
@@ -766,6 +789,22 @@ class csv_importer {
                         $referentname = $getcol($row, 'referentteachername');
                         if (!$referentteacher && $referentname !== '') {
                             $referentteacher = self::unique_match($teachersbyname[stage_normalize_name($referentname)] ?? []);
+                        }
+                        // Tuteur nommé mais sans compte reconnu : le compte désigné par la DEVE à
+                        // une passe précédente, sinon un libellé à lui soumettre.
+                        $referentlabel = $referentname !== '' ? $referentname : $referentemail;
+                        if (!$referentteacher && $referentlabel !== '') {
+                            $chosen = (int) ($referentresolutions[$referentlabel] ?? 0);
+                            if ($chosen && isset($teachersbyid[$chosen])) {
+                                $referentteacher = $teachersbyid[$chosen];
+                            } else {
+                                $unknownreferentbyrowkey[$rowkey] = $referentlabel;
+                            }
+                        }
+                        // À défaut, l'enseignant référent attribué à l'étudiant.
+                        if (!$referentteacher && !empty($studentreferents[$student->id])) {
+                            $referentteacher = $studentreferents[$student->id];
+                            $results->referentfallback++;
                         }
                         if ($referentteacher) {
                             $detailbyrowkey[$rowkey]->referentteacherid = $referentteacher->id;
@@ -790,6 +829,15 @@ class csv_importer {
                         $DB->insert_record('stage_convention_detail', convention_detail::fit($detailbyrowkey[$rowkey]));
                         if (!empty($record->studentselfeval) && !empty($record->tutoreval)) {
                             $torequest[$entryid] = $studentbyrowkey[$rowkey];
+                        }
+                        if (isset($unknownreferentbyrowkey[$rowkey])) {
+                            $label = $unknownreferentbyrowkey[$rowkey];
+                            $retained = $detailbyrowkey[$rowkey]->referentteacherid;
+                            $results->unknownreferents[$label]['lines'][] = $linebyrowkey[$rowkey];
+                            $results->unknownreferents[$label]['entryids'][] = (int) $entryid;
+                            $results->unknownreferents[$label]['retained'][] = $retained
+                                ? fullname($teachersbyid[(int) $retained] ?? $studentreferents[$studentbyrowkey[$rowkey]->id])
+                                : '';
                         }
                     }
                     $transaction->allow_commit();

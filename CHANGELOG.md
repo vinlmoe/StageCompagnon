@@ -128,6 +128,12 @@ changements. À tenir à jour à chaque modification de `version.php`.
     (`send_teacher_eval_requests`) au lieu de la requête web ; le compte rendu de l'import dit
     toujours qui sera invité et qui n'a pas de référent.
   - Import CSV des référents sous le verrou de l'activité, en une transaction.
+- Import StageVet : le référent de la convention est le tuteur de l'export (enseignant référent
+  de l'école) reconnu par son adresse ou son nom ; à défaut, l'enseignant référent attribué à
+  l'étudiant. Les tuteurs sans compte reconnu ne bloquent plus rien et ne sont plus ignorés en
+  silence : le compte rendu les liste avec le référent retenu et propose de choisir le bon
+  compte enseignant, appliqué aux stages créés et aux lignes encore à arbitrer. Les étapes de
+  l'import sont conservées dans un fichier temporaire au lieu de la session.
 
 ### mod_stagesynthesis
 - Événement Moodle de consultation de l'activité.

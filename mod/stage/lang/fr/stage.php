@@ -757,7 +757,7 @@ $string['conventionremindernotifbody'] = "Bonjour {\$a->student},\n\nVotre stage
     . "plus vite :\n{\$a->url}";
 $string['taskconventionreminders'] = 'Relance des conventions de stage non signées';
 $string['tutoremailinvalid'] = "Cette adresse du maître de stage n'est pas valide : l'invitation à évaluer le stage ne peut pas partir. Corrigez-la dans les informations de la convention, puis relancez l'invitation.";
-$string['tutorrequestfailed'] = "L'invitation automatique à évaluer le stage n'a pas pu partir le {$a}. Elle ne sera pas retentée automatiquement : relancez-la à la main.";
+$string['tutorrequestfailed'] = "L'invitation automatique à évaluer le stage n'a pas pu partir le {\$a}. Elle ne sera pas retentée automatiquement : relancez-la à la main.";
 $string['tasktutorevaluationrequests'] = 'Envoi des invitations à évaluer le stage aux maîtres de stage';
 $string['reportmode'] = 'Rapport de stage';
 $string['reportmode_help'] = "Dépôt de documents demandé à l'étudiant lors de son auto-évaluation, sur le "
@@ -978,6 +978,16 @@ $string['importstagevetunchanged'] = '{$a} stage(s) déjà présent(s), sans nou
 $string['importstagevetevaluations'] = '{$a} évaluation(s) importée(s).';
 $string['importstagevetnotified'] = "{\$a} stage(s) dont les deux évaluations sont désormais disponibles : "
     . "l'enseignant référent va être invité par courriel à évaluer (envoi au prochain passage du cron).";
+$string['importstagevetreferentfallback'] = "{\$a} stage(s) sans tuteur reconnu dans l'export : la convention reprend l'enseignant référent attribué à l'étudiant.";
+$string['importstagevetunknownreferentsreport'] = '{$a} tuteur(s) de l\'export sans compte enseignant reconnu';
+$string['importstagevetreferents_help'] = "Dans l'export StageVet, le « tuteur » est l'enseignant référent de l'école. Ces noms ne correspondent à aucun compte enseignant du cours, ni par l'adresse ni par le nom. Les stages ont été créés avec l'enseignant référent attribué à l'étudiant ; choisissez un compte pour le remplacer dans la convention de ces stages. Le choix vaut aussi pour les lignes encore à arbitrer.";
+$string['importstagevetreferentlabel'] = "Tuteur dans l'export";
+$string['importstagevetreferentretained'] = 'Référent retenu';
+$string['importstagevetreferentaccount'] = 'Compte enseignant';
+$string['importstagevetreferentdefault'] = "Garder l'enseignant référent de l'étudiant";
+$string['importstagevetreferentnone'] = 'Aucun (pas de référent attribué)';
+$string['importstagevetreferentapply'] = 'Appliquer ces comptes';
+$string['importstagevetreferentsapplied'] = '{$a} convention(s) mise(s) à jour avec le compte enseignant choisi.';
 $string['importstagevetnoreferent'] = "Évaluations complètes, mais aucun enseignant référent n'est attribué à : {\$a}. "
     . "Attribuez-en un pour qu'il puisse évaluer le stage.";
 $string['importstageveterrorambiguous'] = 'Ligne {$a->line} ({$a->student}, {$a->theme}) : plusieurs stages déjà '

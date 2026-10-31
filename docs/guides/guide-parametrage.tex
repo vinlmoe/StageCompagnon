@@ -4,8 +4,8 @@
 
 % Version du guide : à mettre à jour à chaque modification, avec une ligne dans l'historique.
 \newcommand{\titreguide}{Guide de paramétrage et de gestion}
-\newcommand{\versionguide}{1.5}
-\newcommand{\dateguide}{26 octobre 2026}
+\newcommand{\versionguide}{1.6}
+\newcommand{\dateguide}{31 octobre 2026}
 \newcommand{\versionstage}{0.5.1}
 \newcommand{\versionsynthese}{0.2.1}
 
@@ -31,6 +31,7 @@
 1.3 & 16 octobre 2026 & Cas \og gestion du circuit des stages\fg{} et \og fin d'année : bilan et diplomation\fg{} ; guides étudiant et enseignant référent séparés. \\
 1.4 & 25 octobre 2026 & Captures d'écran refaites sur un site de démonstration reconstitué, après le passage des listes, filtres et tableaux de pilotage aux gabarits Mustache. \\
 1.5 & 26 octobre 2026 & Prérequis : Moodle~4.3 ; mobilité d'études et son import Excel ; suppression de stages en lot ; import d'un ancien suivi Excel et restauration d'un export global ; stages à l'étranger dans l'import historique. \\
+1.6 & 31 octobre 2026 & Export StageVet : référent de la convention repris du tuteur de l'export ou, à défaut, de l'enseignant référent de l'étudiant ; correspondance des tuteurs non reconnus. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -368,6 +369,19 @@ Export global du module & Celle de l'export \\
 \end{center}
 
 \capture{14_register}{Stages enregistrés et voies d'enregistrement.}
+
+\paragraph{Export StageVet.} Le \og tuteur\fg{} de l'export est l'enseignant
+référent de l'école. Il est reconnu par son adresse, puis par son nom, parmi les
+enseignants du cours, et devient le référent de la convention. À défaut, la
+convention reprend l'enseignant référent attribué à l'étudiant. Un tuteur sans
+compte reconnu ne bloque pas l'import :
+\begin{itemize}
+  \item le compte rendu le liste, avec ses lignes et le référent retenu ;
+  \item choisissez le bon compte dans \bouton{Compte enseignant}, puis
+    \bouton{Appliquer ces comptes} ;
+  \item le choix s'applique aux stages déjà créés et aux lignes encore à
+    arbitrer.
+\end{itemize}
 
 \paragraph{Ancien suivi Excel.} \bouton{Importer un ancien suivi Excel} reprend
 les stages validés des feuilles \og Stages validation ER\fg{} et \og Stage EP

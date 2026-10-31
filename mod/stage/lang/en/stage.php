@@ -961,6 +961,16 @@ $string['importstagevetunchanged'] = '{$a} existing internship(s) with no new in
 $string['importstagevetevaluations'] = '{$a} evaluation(s) imported.';
 $string['importstagevetnotified'] = '{$a} internship(s) now have both evaluations: the referent teacher will be '
     . 'asked by email to evaluate (sent at the next cron run).';
+$string['importstagevetreferentfallback'] = '{$a} internship(s) without a recognised tutor in the export: the agreement uses the referent teacher assigned to the student.';
+$string['importstagevetunknownreferentsreport'] = '{$a} tutor(s) in the export without a recognised teacher account';
+$string['importstagevetreferents_help'] = 'In the StageVet export, the "tutor" is the school\'s referent teacher. These names match no teacher account in the course, by email or by name. The internships were created with the referent teacher assigned to the student; choose an account to replace it in these internships\' agreements. The choice also applies to lines still awaiting a decision.';
+$string['importstagevetreferentlabel'] = 'Tutor in the export';
+$string['importstagevetreferentretained'] = 'Referent used';
+$string['importstagevetreferentaccount'] = 'Teacher account';
+$string['importstagevetreferentdefault'] = 'Keep the student\'s referent teacher';
+$string['importstagevetreferentnone'] = 'None (no referent assigned)';
+$string['importstagevetreferentapply'] = 'Apply these accounts';
+$string['importstagevetreferentsapplied'] = '{$a} agreement(s) updated with the chosen teacher account.';
 $string['importstagevetnoreferent'] = 'Evaluations complete, but no referent teacher is assigned to: {$a}. '
     . 'Assign one so the internship can be evaluated.';
 $string['importstageveterrorambiguous'] = 'Line {$a->line} ({$a->student}, {$a->theme}): several recorded '
