@@ -50,4 +50,4 @@ foreach (['avant' => 'old_stage_delete_entries', 'après' => 'stage_delete_entri
 }
 echo "--- Tâche d'invitation des maîtres de stage (sélection)\n";
 bench('avant : toutes les saisies éligibles', fn() => count(old_stage_get_entries_needing_tutor_request()));
-bench('après : 60 jours après la fin, lot de 200', fn() => count(stage_get_entries_needing_tutor_request(STAGE_TUTOR_REQUEST_BATCH)));
+bench('après : plafond de 60 jours après la fin', fn() => count(stage_get_entries_needing_tutor_request()));

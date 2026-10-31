@@ -16,6 +16,14 @@ foreach ([[], ['search' => 'nom48'], ['themeid' => 1150], ['status' => 3], ['sta
                 $all = old_stage_get_filtered_entries(20, $filters, $sort, $dir, $r);
                 check("count " . json_encode($filters), stage_count_filtered_entries(20, $filters, $r) === count($all));
                 foreach ([0, 3, 1000] as $page) {
+                    if ($sort === 'student' && $dir === 'DESC') {
+                        // Correction volontaire : le nom est maintenant trié à rebours, lui aussi.
+                        $new = array_values(stage_get_filtered_entries(20, $filters, $sort, $dir, $r, $page * 40, 40));
+                        $names = array_map(fn($e) => $DB->get_field('user', 'lastname', ['id' => $e->userid]), $new);
+                        $sorted = $names; usort($sorted, fn($a, $b) => strcmp($b, $a));
+                        check("tri étudiant DESC page $page", $names === $sorted && count($new) === count(array_slice($all, $page * 40, 40)));
+                        continue;
+                    }
                     $old = array_slice(array_values($all), $page * 40, 40);
                     $new = stage_get_filtered_entries(20, $filters, $sort, $dir, $r, $page * 40, 40);
                     // Tri sur des colonnes à égalités (thématique, statut) : départagé par e.id, comme avant.
@@ -29,6 +37,9 @@ foreach (['', 'nom1'] as $search) {
     foreach (['student', 'theme', 'status', 'requested'] as $sort) {
         $all = old_stage_get_convention_entries(20, $search, $sort, 'DESC');
         check('count conventions', stage_count_convention_entries(20, $search) === count($all));
+        if ($sort === 'student') {
+            continue; // Tri à rebours corrigé, voir plus haut.
+        }
         $old = array_slice(array_values($all), 80, 40);
         check("conventions $search $sort", array_map(fn($e) => (int) $e->id, $old) === $ids(stage_get_convention_entries(20, $search, $sort, 'DESC', 80, 40)));
     }
@@ -54,7 +65,7 @@ foreach (range(4751, 4850) as $u) {
     foreach ([[$e->datestart, $e->dateend], [null, null]] as [$s, $en]) {
         $old = old_stage_find_probable_duplicate_entries(20, $u, $e->themeid, $s, $en, 2);
         $new = stage_find_probable_duplicate_entries(20, $u, $e->themeid, $s, $en, 2, $byuser[$u]);
-        check("doublons $u", $ids($old) == $ids($new) || (sort($a = $ids($old)) && false));
+        check("doublons $u", $ids($old) === $ids($new));
     }
 }
 // 6. Référents et responsables en une requête = une requête par étudiant / thématique.
@@ -71,12 +82,11 @@ foreach ($someentries as $e) { check("plages $e->id", array_values(stage_get_or_
 $allids = $DB->get_fieldset_sql('SELECT id FROM mdl_stage_entry WHERE stageid IN (19, 20)');
 check('stagetypes', stage_get_entry_stagetypes($allids) == old_stage_get_entry_stagetypes($allids));
 // 9. Invitations : sous-ensemble de l'ancienne liste, plafonné.
-$old = old_stage_get_entries_needing_tutor_request(); $new = stage_get_entries_needing_tutor_request(); $batch = stage_get_entries_needing_tutor_request(STAGE_TUTOR_REQUEST_BATCH);
+$old = old_stage_get_entries_needing_tutor_request(); $new = stage_get_entries_needing_tutor_request();
 check('invitations sous-ensemble', !array_diff($ids($new), $ids($old)));
 $floor = time() - STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END * DAYSECS;
 check('invitations exclues = stages terminés depuis plus de 60 jours', !array_filter(array_diff_key($old, $new), fn($e) => $e->dateend >= $floor));
-check('invitations lot', count($batch) === min(STAGE_TUTOR_REQUEST_BATCH, count($new)) && $ids($batch) === array_slice($ids($new), 0, count($batch)));
-printf("Anciennes invitations : %d, nouvelles : %d, premier lot : %d\n", count($old), count($new), count($batch));
+printf("Anciennes invitations : %d, nouvelles : %d\n", count($old), count($new));
 // 10. Plage trop longue refusée, plage d'un an acceptée.
 check('plage 366 j refusée', stage_validate_periods([['datestart' => 1767225600, 'dateend' => 1767225600 + 366 * DAYSECS]]) === 'periodtoolong');
 check('plage 365 j acceptée', stage_validate_periods([['datestart' => 1767225600, 'dateend' => 1767225600 + 365 * DAYSECS]]) === null);

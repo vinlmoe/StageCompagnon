@@ -25,7 +25,12 @@ namespace core_user {
 class fields { static function get_name_fields() { return ['firstname', 'lastname']; } }
 }
 namespace mod_stage\event {
-class entry_created {}
+// Événements : comptés, sans journalisation.
+class stub_event { public static $triggered = 0; static function create(array $d) { return new static(); } function trigger() { self::$triggered++; } }
+class entry_created extends stub_event {}
+class entry_validated extends stub_event {}
+class entry_rejected extends stub_event {}
+class entry_deleted extends stub_event {}
 }
 namespace core\lock {
 class lock_config { static function get_lock_factory($t) { return new class { function get_lock($r, $t) { return new class { function release() {} }; } }; } }
@@ -68,12 +73,24 @@ class fake_db {
     function delete_records_select($t, $where, array $params = []) { $this->run("DELETE FROM {{$t}} WHERE $where", $params); return true; }
     function delete_records($t, array $cond = []) { [$w, $p] = $this->where($cond); return $this->delete_records_select($t, $w, $p); }
     function get_field_select($t, $f, $where, array $params = []) { return $this->run("SELECT $f FROM {{$t}} WHERE $where", $params)->fetchColumn(); }
+    function get_record_sql($sql, array $params = [], $strict = 0) { $r = $this->get_records_sql($sql, $params); return $r ? reset($r) : false; }
+    function get_records_list($t, $f, array $v, $sort = '', $fields = '*') { [$in, $p] = $this->get_in_or_equal($v); return $this->get_records_select($t, "$f $in", $p, $sort, $fields); }
+    function set_field($t, $f, $v, array $cond) { [$w, $p] = $this->where($cond); $p['setval'] = $v; $this->run("UPDATE {{$t}} SET $f = :setval WHERE $w", $p); return true; }
+    // Transactions déléguées : imbriquées, validées par la plus externe, comme dans Moodle.
+    public $depth = 0;
+    function is_transaction_started() { return $this->depth > 0; }
+    function start_delegated_transaction() { if ($this->depth++ === 0 && !$this->pdo->inTransaction()) { $this->pdo->beginTransaction(); $this->owner = true; } return new fake_transaction($this); }
     function execute($sql, array $params = []) { $this->run($sql, $params); return true; }
     function update_record($t, $o) { $o = (array) $o; $id = $o['id']; unset($o['id']); $sets = []; $p = ['id' => $id]; foreach ($o as $k => $v) { $sets[] = "$k = :u_$k"; $p["u_$k"] = $v; } $this->run("UPDATE {{$t}} SET " . implode(', ', $sets) . " WHERE id = :id", $p); return true; }
     function sql_concat(...$a) { return implode(' || ', $a); }
     function sql_like($f, $p, $cs = true, $as = true) { return "$f " . ($cs ? 'LIKE' : 'ILIKE') . " $p"; }
     function sql_like_escape($s) { return addcslashes($s, '%_\\'); }
     function sql_compare_text($f) { return $f; }
+}
+class fake_transaction {
+    function __construct(private $db) {}
+    function allow_commit() { if (--$this->db->depth === 0 && !empty($this->db->owner)) { $this->db->pdo->commit(); $this->db->owner = false; } }
+    function rollback($e) { $this->db->depth = 0; if (!empty($this->db->owner)) { $this->db->pdo->rollBack(); $this->db->owner = false; } throw $e; }
 }
 class fake_rs implements IteratorAggregate { function __construct(private array $r) {} function getIterator(): Iterator { return new ArrayIterator($this->r); } function close() {} }
 $DB = new fake_db();
@@ -89,7 +106,10 @@ class fake_fs {
 }
 class moodle_exception extends Exception { function __construct($k, $c = '') { parent::__construct($k); } }
 function get_coursemodule_from_instance(...$a) { return false; }
+function validate_email($a) { return filter_var($a, FILTER_VALIDATE_EMAIL) !== false; }
+function mtrace($s) { echo $s, "\n"; }
 function get_file_storage() { return new fake_fs(); }
 class context {}
+class context_module extends context { static function instance($id) { return new static(); } }
 class fake_context extends context { function __construct(public $id) {} }
 }
