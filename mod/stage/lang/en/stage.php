@@ -959,8 +959,8 @@ $string['importstagevetevalhelp'] = 'Evaluations: the "Évaluation par le maîtr
 $string['importstagevetupdated'] = '{$a} existing internship(s) updated.';
 $string['importstagevetunchanged'] = '{$a} existing internship(s) with no new information: unchanged.';
 $string['importstagevetevaluations'] = '{$a} evaluation(s) imported.';
-$string['importstagevetnotified'] = '{$a} internship(s) now have both evaluations: the referent teacher has been '
-    . 'asked by email to evaluate.';
+$string['importstagevetnotified'] = '{$a} internship(s) now have both evaluations: the referent teacher will be '
+    . 'asked by email to evaluate (sent at the next cron run).';
 $string['importstagevetnoreferent'] = 'Evaluations complete, but no referent teacher is assigned to: {$a}. '
     . 'Assign one so the internship can be evaluated.';
 $string['importstageveterrorambiguous'] = 'Line {$a->line} ({$a->student}, {$a->theme}): several recorded '

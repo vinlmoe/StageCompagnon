@@ -151,6 +151,9 @@ final class stagevet_evaluations_test extends \advanced_testcase {
         $this->assertNotEmpty($entry->tutortime);
         $this->assertEquals(STAGE_STATUS_EVAL_ETUDIANT, $entry->status);
 
+        // Les invitations partent par une tâche ad hoc, pas pendant l'import.
+        $this->assertCount(0, $sink->get_messages());
+        $this->run_teacher_eval_tasks();
         $messages = $sink->get_messages();
         $this->assertCount(1, $messages);
         $this->assertSame($teacher->email, $messages[0]->to);
@@ -203,6 +206,7 @@ final class stagevet_evaluations_test extends \advanced_testcase {
         $this->assertSame(1, $fourth['results']->unchanged);
         $this->assertSame(0, $fourth['results']->notified);
         $this->assertEquals(1, $DB->count_records('stage_entry'));
+        $this->run_teacher_eval_tasks();
         $this->assertCount(1, $sink->get_messages());
     }
 
@@ -250,6 +254,7 @@ final class stagevet_evaluations_test extends \advanced_testcase {
         $this->assertSame(1, $result['results']->created);
         $this->assertSame(0, $result['results']->notified);
         $this->assertSame([$student->id => fullname($student)], $result['results']->noreferent);
+        $this->run_teacher_eval_tasks();
         $this->assertCount(0, $sink->get_messages());
         $entry = $DB->get_record('stage_entry', [], '*', MUST_EXIST);
         $this->assertSame('Avis global : 5/5', $entry->tutoreval);
@@ -307,5 +312,15 @@ final class stagevet_evaluations_test extends \advanced_testcase {
         $plain = stage_render_evaluation_text('<p>Très bon stage</p>', FORMAT_HTML);
         $this->assertStringNotContainsString('stage-evaluation-table', $plain);
         $this->assertStringContainsString('Très bon stage', $plain);
+    }
+
+    /**
+     * Exécute les tâches ad hoc d'invitation des enseignants référents, sans laisser leur sortie
+     * (mtrace) dans celle du test.
+     */
+    private function run_teacher_eval_tasks(): void {
+        ob_start();
+        $this->runAdhocTasks(\mod_stage\task\send_teacher_eval_requests::class);
+        ob_end_clean();
     }
 }

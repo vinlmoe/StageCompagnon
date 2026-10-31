@@ -224,50 +224,60 @@ class csv_importer {
             $cir->init();
             $linenum = 1;
 
-            while ($row = $cir->next()) {
-                $linenum++;
-                $studentemail = isset($row[0]) ? trim($row[0]) : '';
-                $teacher1email = isset($row[1]) ? trim($row[1]) : '';
-                $teacher2email = isset($row[2]) ? trim($row[2]) : '';
+            // Sous le verrou de l'activité et en une transaction : deux imports simultanés ne
+            // s'entrelacent pas ligne à ligne, et un échec en cours de route n'en laisse pas une
+            // partie appliquée.
+            $lock = stage_get_activity_lock($stage->id);
+            try {
+                $transaction = $DB->start_delegated_transaction();
+                while ($row = $cir->next()) {
+                    $linenum++;
+                    $studentemail = isset($row[0]) ? trim($row[0]) : '';
+                    $teacher1email = isset($row[1]) ? trim($row[1]) : '';
+                    $teacher2email = isset($row[2]) ? trim($row[2]) : '';
 
-                // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête.
-                if ($studentemail === '' || core_text::strtolower($studentemail) === 'studentemail') {
-                    continue;
-                }
-
-                $student = $studentsbyemail[core_text::strtolower($studentemail)] ?? null;
-                if (!$student) {
-                    $results->errors[] = get_string('importerrorunknownemail', 'mod_stage', (object) [
-                        'line' => $linenum, 'email' => $studentemail,
-                    ]);
-                    continue;
-                }
-
-                $teacherids = [];
-                $invalid = false;
-                foreach ([$teacher1email, $teacher2email] as $teacheremail) {
-                    if ($teacheremail === '') {
+                    // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête.
+                    if ($studentemail === '' || core_text::strtolower($studentemail) === 'studentemail') {
                         continue;
                     }
-                    $teacher = $teachersbyemail[core_text::strtolower($teacheremail)] ?? null;
-                    if (!$teacher) {
-                        $results->errors[] = get_string('importerrorunknownteacher', 'mod_stage', (object) [
-                            'line' => $linenum, 'email' => $teacheremail,
+
+                    $student = $studentsbyemail[core_text::strtolower($studentemail)] ?? null;
+                    if (!$student) {
+                        $results->errors[] = get_string('importerrorunknownemail', 'mod_stage', (object) [
+                            'line' => $linenum, 'email' => $studentemail,
                         ]);
-                        $invalid = true;
                         continue;
                     }
-                    $teacherids[] = $teacher->id;
-                }
-                // Une ligne dont un référent n'est pas reconnu (faute de frappe, enseignant non
-                // inscrit) n'est pas appliquée : l'appliquer à moitié retirerait à l'étudiant le
-                // référent qu'il a déjà, alors que le fichier voulait en désigner un.
-                if ($invalid) {
-                    continue;
-                }
 
-                stage_set_student_teachers($stage->id, $student->id, $teacherids);
-                $results->assigned++;
+                    $teacherids = [];
+                    $invalid = false;
+                    foreach ([$teacher1email, $teacher2email] as $teacheremail) {
+                        if ($teacheremail === '') {
+                            continue;
+                        }
+                        $teacher = $teachersbyemail[core_text::strtolower($teacheremail)] ?? null;
+                        if (!$teacher) {
+                            $results->errors[] = get_string('importerrorunknownteacher', 'mod_stage', (object) [
+                                'line' => $linenum, 'email' => $teacheremail,
+                            ]);
+                            $invalid = true;
+                            continue;
+                        }
+                        $teacherids[] = $teacher->id;
+                    }
+                    // Une ligne dont un référent n'est pas reconnu (faute de frappe, enseignant non
+                    // inscrit) n'est pas appliquée : l'appliquer à moitié retirerait à l'étudiant le
+                    // référent qu'il a déjà, alors que le fichier voulait en désigner un.
+                    if ($invalid) {
+                        continue;
+                    }
+
+                    stage_set_student_teachers($stage->id, $student->id, $teacherids);
+                    $results->assigned++;
+                }
+                $transaction->allow_commit();
+            } finally {
+                $lock->release();
             }
             $cir->cleanup(true);
         }
@@ -791,11 +801,12 @@ class csv_importer {
                 // Les deux évaluations amont sont disponibles : l'enseignant référent est invité
                 // à évaluer à son tour. Un étudiant sans référent est signalé à la DEVE, qui
                 // devra en désigner un pour que l'évaluation puisse avoir lieu.
+                // Les courriels eux-mêmes partent par une tâche ad hoc
+                // (\mod_stage\task\send_teacher_eval_requests) : envoyés pendant la requête, ils
+                // faisaient dépasser à un gros import le temps d'exécution d'une page. Qui inviter
+                // est décidé ici, pour que le compte rendu de l'import le dise à la DEVE.
                 if ($torequest) {
-                    // Un courriel par stage, envoyé pendant la requête : un gros import dépasse le
-                    // temps d'exécution ordinaire d'une page.
-                    \core_php_time_limit::raise();
-                    $cm = get_coursemodule_from_id('stage', $context->instanceid, 0, false, MUST_EXIST);
+                    $toqueue = [];
                     foreach ($torequest as $entryid => $student) {
                         $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
                         // Le même stage est déjà validé sous une autre forme (suivi historique,
@@ -804,11 +815,17 @@ class csv_importer {
                             $results->notifyskipped++;
                             continue;
                         }
-                        if (stage_notify_teachers_eval_request($stage, $cm, $entry, $student)) {
-                            $results->notified++;
-                        } else {
+                        if (!stage_get_student_teachers($stage->id, $entry->userid)) {
                             $results->noreferent[$student->id] = fullname($student);
+                            continue;
                         }
+                        $toqueue[] = (int) $entryid;
+                        $results->notified++;
+                    }
+                    foreach (array_chunk($toqueue, STAGE_SQL_CHUNK) as $chunk) {
+                        $task = new \mod_stage\task\send_teacher_eval_requests();
+                        $task->set_custom_data(['stageid' => (int) $stage->id, 'entryids' => $chunk]);
+                        \core\task\manager::queue_adhoc_task($task);
                     }
                 }
             }

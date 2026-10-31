@@ -977,7 +977,7 @@ $string['importstagevetupdated'] = '{$a} stage(s) déjà présent(s) mis à jour
 $string['importstagevetunchanged'] = '{$a} stage(s) déjà présent(s), sans nouvelle information : inchangé(s).';
 $string['importstagevetevaluations'] = '{$a} évaluation(s) importée(s).';
 $string['importstagevetnotified'] = "{\$a} stage(s) dont les deux évaluations sont désormais disponibles : "
-    . "l'enseignant référent a été invité par courriel à évaluer.";
+    . "l'enseignant référent va être invité par courriel à évaluer (envoi au prochain passage du cron).";
 $string['importstagevetnoreferent'] = "Évaluations complètes, mais aucun enseignant référent n'est attribué à : {\$a}. "
     . "Attribuez-en un pour qu'il puisse évaluer le stage.";
 $string['importstageveterrorambiguous'] = 'Ligne {$a->line} ({$a->student}, {$a->theme}) : plusieurs stages déjà '
