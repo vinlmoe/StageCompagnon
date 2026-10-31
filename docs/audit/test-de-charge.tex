@@ -1,0 +1,179 @@
+% Test de charge de mod_stage : volumétrie, plans d'exécution et audit des boucles de requêtes.
+% Compilation : latexmk -pdf test-de-charge.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref}
+\usepackage[margin=2.2cm]{geometry}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\grav}[1]{\textbf{\textcolor{#1}{\textbullet}}}
+\title{Test de charge de \code{mod_stage} (version 0.5.1)}
+\author{Sébastien Lefebvre}
+\date{31 octobre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Méthode}
+
+Le test combine trois approches :
+\begin{enumerate}
+  \item \textbf{Base de données.} Le schéma est tiré de \code{db/install.xml}, avec les index
+    que Moodle crée pour chaque clé étrangère. La base PostgreSQL~16 est chargée avec un volume
+    plusieurs fois supérieur à celui d'une école :
+    \begin{itemize}
+      \item 20 promotions et 5\,000 étudiants ;
+      \item 60 thématiques par promotion ;
+      \item 40 stages par étudiant, soit 200\,000 stages ;
+      \item 2\,000\,000 de réponses aux évaluations ;
+      \item 50\,000 modules de cours.
+    \end{itemize}
+    Les requêtes du module passent ensuite par \code{EXPLAIN ANALYZE}.
+  \item \textbf{Calcul en PHP.} Les fonctions de calcul pur de \code{locallib.php} sont
+    exécutées seules, sur des entrées volumineuses ou pathologiques : analyse du texte
+    d'évaluation, plages de dates, jours de repos, chevauchements.
+  \item \textbf{Audit des boucles.} La lecture du code recense les requêtes exécutées dans des
+    boucles, les chargements sans limite et les accès concurrents.
+\end{enumerate}
+
+Les pages n'ont pas pu être chronométrées dans un Moodle complet : l'environnement de test n'a
+pas permis d'exécuter un Moodle installé depuis GitHub. Les nombres de requêtes par page sont
+donc tirés du code et non mesurés. Les scripts sont dans \code{docs/audit/banc/}.
+
+\section{Résultats mesurés}
+
+\subsection{Requêtes SQL}
+
+Les index déclarés couvrent les accès courants. Aucune requête n'est lente, même à 200\,000
+stages.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X r@{}}
+\toprule
+\textbf{Requête} & \textbf{Durée} \\
+\midrule
+Jeton du maître de stage, réponses d'une saisie, stages d'un étudiant & $< 0{,}2$~ms \\
+Bilan de promotion (\code{progress_cache::prime}), paquet de 250 étudiants & 12~ms \\
+Liste des stages d'une promotion (10\,000 saisies), avec ou sans recherche & 4--13~ms \\
+File des conventions DEVE & 11~ms \\
+Relance des conventions (cron, parcours séquentiel de toute la table) & 22~ms \\
+Invitation des maîtres de stage (cron, 9\,782 saisies éligibles) & 207~ms \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Fonctions de calcul}
+
+Les fonctions de calcul tiennent la charge. L'analyse d'un texte d'évaluation importé de
+40\,000 lignes prend 118~ms, sans retour arrière catastrophique des expressions régulières.
+Vérifier 100\,000 plages de dates prend 314~ms. Le passage à l'heure d'hiver ne compte pas deux
+fois le même jour. Il manque seulement un plafond à la longueur des plages de dates : une plage
+de 24 ans, par exemple après une faute de frappe sur l'année, affiche environ 8\,700 cases dans le
+sélecteur de jours.
+
+\subsection{Mémoire des listes}
+
+Une liste de stages charge toute la promotion, colonnes de texte comprises, puis n'en affiche
+que 40. Pour 10\,000 saisies, la page lit pendant 690~ms et consomme 78~Mo de mémoire PHP.
+
+\section{Problèmes relevés}
+
+\grav{red}~bloquant ou bogue \quad \grav{orange}~performance forte \quad \grav{teal}~à surveiller
+
+\subsection{Bogues}
+
+\begin{description}
+\item[\grav{red} Export : variable non définie.] À \code{export.php:329}, \code{$evaluators}
+  n'est jamais défini. La colonne «~Évalué par~» est toujours vide, et chaque ligne exportée
+  produit un avertissement PHP.
+\item[\grav{red} Invitations en masse aux maîtres de stage.] La requête
+  \code{stage_get_entries_needing_tutor_request()} n'a ni date plancher ni limite.
+  \begin{itemize}
+    \item Si l'on active l'évaluation par le maître de stage sur une promotion qui a un
+      historique, tous les anciens stages éligibles reçoivent une invitation au même passage du
+      cron. Sur le jeu de test, cela fait 9\,782 courriels, y compris pour des stages vieux de
+      plusieurs années.
+    \item Un envoi qui échoue, par exemple sur une adresse invalide, est retenté chaque jour sans
+      fin, faute de compteur d'essais.
+  \end{itemize}
+\item[\grav{red} Listes \code{IN} sur toute une promotion.] \code{stage_delete_entries()}
+  (réinitialisation du cours, suppression de l'activité, RGPD) et \code{export.php} (lignes 124,
+  134 et 479) construisent une liste \code{IN} avec tous les identifiants de la promotion.
+  \begin{itemize}
+    \item MSSQL limite une requête à 2\,100 paramètres et Oracle une liste à 1\,000 éléments.
+    \item PostgreSQL échoue au-delà de 65\,535 paramètres.
+  \end{itemize}
+  La suppression lance en plus deux \code{delete_area_files} par stage.
+\item[\grav{orange} Concurrence.]
+  \begin{itemize}
+    \item Rien n'empêche les doublons : aucune clé unique, et aucun verrou autour du contrôle
+      fait en PHP. Un double clic ou deux appels simultanés au service web créent deux stages.
+    \item L'attribution des référents supprime puis réinsère sans transaction. Deux
+      enregistrements simultanés se heurtent à l'index unique.
+    \item Le jeton du maître de stage peut être créé en même temps par l'affichage de
+      \code{deve.php} et par le cron. Un lien déjà envoyé peut alors cesser de fonctionner.
+  \end{itemize}
+\end{description}
+
+\subsection{Performance}
+
+\begin{description}
+\item[\grav{orange} Tableau de bord étudiant sans cache.] \code{stage_print_student_dashboard()}
+  (pages \code{view.php} et \code{dashboard.php?studentid=}) n'amorce pas \code{progress_cache}.
+  \begin{itemize}
+    \item \code{stage_get_theme_duration()} peut lancer trois requêtes par appel, et elle est
+      appelée pour chaque couple (année, thématique obligatoire).
+    \item On peut compter plusieurs centaines de requêtes par affichage. C'est la page la plus
+      consultée, en particulier pendant les campagnes d'inscription.
+    \item Le correctif tient en une ligne : appeler \code{progress_cache::prime($stageid, [$userid])}.
+  \end{itemize}
+\item[\grav{orange} Pagination en PHP.] \code{stage_get_filtered_entries()} et
+  \code{stage_get_convention_entries()} lisent \code{e.*} sans limite (pages \code{register},
+  \code{deve}, \code{teacher}, \code{theme_stages}, \code{conventions}, \code{delete_entries}).
+  Il faudrait un \code{COUNT} plus une lecture limitée à la page, sur les seules colonnes
+  affichées.
+\item[\grav{orange} \code{export.php}.]
+  \begin{itemize}
+    \item Il lance une requête de plages de dates par stage et une requête de référents par
+      étudiant, soit environ 25\,000 requêtes pour une promotion de 10\,000 stages.
+    \item Le classeur est construit entièrement en mémoire.
+    \item Aucun \code{raise_memory_limit} ni \code{core_php_time_limit::raise} n'existe dans le
+      module.
+  \end{itemize}
+\item[\grav{orange} \code{theme_stages.php}.] Un \code{get_area_files} par stage, seulement
+  pour décider d'afficher le bouton ZIP, y compris quand la thématique n'a pas de rapport.
+  \code{reports_zip.php} fait de même.
+\item[\grav{teal} Événements et imports.] Chaque événement relit le stage et le module de cours.
+  Un import ou un enregistrement groupé multiplie donc ces lectures. L'import StageVet n'est
+  pas transactionnel, et il envoie les courriels pendant la requête web.
+\item[\grav{teal} Tâches planifiées.] Les colonnes \code{datestart}, \code{tutorrequesttime} et
+  \code{conventionremindertime} n'ont pas d'index. L'effet reste faible : 22 et 207~ms pour
+  200\,000 stages.
+\end{description}
+
+\section{Ce qui tient la charge}
+
+\begin{itemize}
+  \item Le bilan de promotion amorce \code{progress_cache} par paquets de 500 et le vide dans
+    un \code{finally}. Aucune incohérence d'invalidation n'a été trouvée.
+  \item La relance des conventions est bornée par sa fenêtre de 8 jours, et elle peut être
+    relancée sans effet de bord.
+  \item Les index couvrent les recherches par jeton, par étudiant, par enseignant et par
+    question.
+\end{itemize}
+
+\section{Priorités proposées}
+
+\begin{enumerate}
+  \item Corriger \code{$evaluators} dans \code{export.php}.
+  \item Ajouter une date plancher, une limite par passage et un compteur d'essais aux
+    invitations des maîtres de stage.
+  \item Amorcer \code{progress_cache} dans \code{stage_print_student_dashboard()}.
+  \item Remplacer les listes \code{IN} de promotion par des sous-requêtes sur \code{stageid}.
+  \item Paginer en SQL et charger les plages de dates et les référents de l'export en une
+    requête chacun.
+  \item Ajouter un verrou (\code{\textbackslash core\textbackslash lock}) à l'enregistrement d'un
+    stage, et des transactions à l'attribution des référents.
+\end{enumerate}
+
+\end{document}
