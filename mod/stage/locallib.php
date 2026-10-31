@@ -1167,19 +1167,112 @@ function stage_set_student_teachers($stageid, $studentid, array $teacherids) {
         return;
     }
 
-    $DB->delete_records('stage_entry_teacher', ['stageid' => $stageid, 'studentid' => $studentid]);
-
-    $records = [];
-    foreach ($teacherids as $teacherid) {
-        $records[] = (object) [
+    // Seules les différences sont écrites : tout supprimer puis tout réinsérer faisait échouer sur
+    // l'index unique (stageid, studentid, teacherid) deux enregistrements simultanés, le second
+    // réinsérant les attributions que le premier venait de recréer. Les pages qui attribuent en lot
+    // prennent en plus le verrou de l'activité (stage_get_activity_lock()) ; hors transaction, une
+    // attribution insérée entre-temps par un autre enregistrement est simplement constatée.
+    $removed = array_diff($existing, $wanted);
+    if ($removed) {
+        [$insql, $inparams] = $DB->get_in_or_equal($removed, SQL_PARAMS_NAMED, 'rt');
+        $DB->delete_records_select(
+            'stage_entry_teacher',
+            "stageid = :stageid AND studentid = :studentid AND teacherid $insql",
+            ['stageid' => $stageid, 'studentid' => $studentid] + $inparams
+        );
+    }
+    foreach (array_diff($wanted, $existing) as $teacherid) {
+        stage_insert_assignment('stage_entry_teacher', [
             'stageid' => $stageid,
             'studentid' => $studentid,
             'teacherid' => $teacherid,
-        ];
+        ]);
     }
-    if ($records) {
-        $DB->insert_records('stage_entry_teacher', $records);
+}
+
+/**
+ * Insère une attribution d'enseignant (référent ou responsable de thématique), sauf si un
+ * enregistrement concurrent vient de l'insérer : l'index unique refuse alors le doublon, ce qui
+ * est le résultat voulu. Dans une transaction, l'erreur est remontée, la base ne permettant pas de
+ * poursuivre une transaction après un échec : l'appelant doit prendre le verrou de l'activité.
+ *
+ * @param string $table stage_entry_teacher ou stage_theme_teacher.
+ * @param array $record Champs de l'attribution (clé unique complète).
+ * @return void
+ */
+function stage_insert_assignment($table, array $record) {
+    global $DB;
+
+    try {
+        $DB->insert_record($table, (object) $record);
+    } catch (dml_write_exception $e) {
+        $unique = $record;
+        unset($unique['timecreated']);
+        if ($DB->is_transaction_started() || !$DB->record_exists($table, $unique)) {
+            throw $e;
+        }
     }
+}
+
+/**
+ * Verrou des écritures en lot d'une activité : enregistrement de stages (formulaires, en masse,
+ * imports, service web) et attribution des enseignants référents ou responsables.
+ *
+ * Le contrôle de doublon se fait en PHP avant l'insertion, et l'attribution des enseignants lit
+ * les attributions existantes avant d'écrire la différence : sans verrou, deux enregistrements
+ * simultanés (deux membres de la DEVE, deux appels du service web) passent tous deux le contrôle
+ * et créent deux fois le même stage, ou insèrent deux fois la même attribution, ce que l'index
+ * unique refuse. Le verrou est à prendre avant le contrôle et à libérer après la validation de la
+ * transaction qui écrit ; il ne s'imbrique pas.
+ *
+ * @param int $stageid
+ * @return \core\lock\lock
+ * @throws moodle_exception Si le verrou n'est pas obtenu dans le délai.
+ */
+function stage_get_activity_lock($stageid) {
+    global $PAGE;
+
+    $factory = \core\lock\lock_config::get_lock_factory('mod_stage_activity');
+    $lock = $factory->get_lock('stage-' . (int) $stageid, 30);
+    if (!$lock) {
+        // La page d'erreur propose de revenir à la page en cours, pour réessayer.
+        throw new moodle_exception('erroractivitybusy', 'mod_stage', $PAGE->has_set_url() ? $PAGE->url : '');
+    }
+    return $lock;
+}
+
+/**
+ * Écrit des champs d'une saisie, statut compris, sauf si elle a été annulée entre-temps. La lecture
+ * du statut puis l'écriture laissaient une annulation simultanée être écrasée par une validation :
+ * la condition est désormais portée par la requête de mise à jour elle-même.
+ *
+ * À appeler dans une transaction (voir stage_apply_deve_validation()) : la ligne mise à jour reste
+ * alors verrouillée jusqu'à sa validation, une annulation concurrente attend, et la relecture
+ * ci-dessous voit donc soit l'écriture, soit l'annulation qui l'a précédée. Les champs texte sont
+ * à écrire ensuite, dans la même transaction, par stage_update_entry_fields() : certaines bases ne
+ * les acceptent pas dans une requête SQL écrite à la main.
+ *
+ * @param stdClass $entry Saisie, avec les nouvelles valeurs des champs à écrire (dont status).
+ * @param string[] $fields Champs numériques à écrire.
+ * @return bool False si la saisie était annulée : rien n'a été écrit.
+ */
+function stage_update_entry_unless_cancelled(stdClass $entry, array $fields) {
+    global $DB;
+
+    $sets = [];
+    $params = ['id' => $entry->id, 'cancelled' => STAGE_STATUS_ANNULE];
+    foreach ($fields as $field) {
+        $sets[] = "$field = :new$field";
+        $params['new' . $field] = $entry->$field;
+    }
+    $DB->execute(
+        "UPDATE {stage_entry} SET " . implode(', ', $sets) . " WHERE id = :id AND status <> :cancelled",
+        $params
+    );
+
+    // Le statut relu est celui qui vient d'être écrit, sauf si une annulation enregistrée avant
+    // cette écriture l'a empêchée.
+    return (int) $DB->get_field('stage_entry', 'status', ['id' => $entry->id], MUST_EXIST) === (int) $entry->status;
 }
 
 /**
@@ -1297,6 +1390,40 @@ function stage_bulk_register_entries(stdClass $stage, context $context, array $s
     }
 
     $enrolled = stage_get_enrolled_students($context);
+    // Les doublons sont relus sous le verrou : un second envoi du même lot (double clic) les voit.
+    $lock = stage_get_activity_lock($stage->id);
+    try {
+        $results = stage_bulk_register_entries_locked($stage, $studentids, $fields, $enrolled, $start, $end, $results);
+    } finally {
+        $lock->release();
+    }
+    return $results;
+}
+
+/**
+ * Création des stages d'un enregistrement en masse, sous le verrou d'enregistrement de l'activité
+ * (voir stage_bulk_register_entries()).
+ *
+ * @param stdClass $stage
+ * @param int[] $studentids
+ * @param stdClass $fields
+ * @param array $enrolled Étudiants inscrits, indexés par identifiant.
+ * @param int|null $start
+ * @param int|null $end
+ * @param stdClass $results
+ * @return stdClass $results complété.
+ */
+function stage_bulk_register_entries_locked(
+    stdClass $stage,
+    array $studentids,
+    stdClass $fields,
+    array $enrolled,
+    $start,
+    $end,
+    stdClass $results
+) {
+    global $DB;
+
     $existing = stage_get_existing_theme_pairs($stage->id);
     $transaction = $DB->start_delegated_transaction();
     foreach (array_unique(array_map('intval', $studentids)) as $studentid) {
@@ -1390,14 +1517,23 @@ function stage_update_entry_fields(stdClass $entry, array $fields) {
 function stage_trigger_entry_event($eventclass, $entryid, array $other = []) {
     global $DB;
 
-    $entry = $DB->get_record('stage_entry', ['id' => $entryid], 'id, stageid, userid, status, conventionstatus', MUST_EXIST);
-    $cm = get_coursemodule_from_instance('stage', $entry->stageid, 0, false, IGNORE_MISSING);
-    if (!$cm) {
+    // Saisie et module de cours en une requête : un import ou un enregistrement en masse déclenche
+    // un événement par saisie, et relisait chaque fois le module de cours à part.
+    $entry = $DB->get_record_sql(
+        "SELECT e.id, e.stageid, e.userid, e.status, e.conventionstatus, cm.id AS cmid
+           FROM {stage_entry} e
+           JOIN {modules} m ON m.name = 'stage'
+      LEFT JOIN {course_modules} cm ON cm.instance = e.stageid AND cm.module = m.id
+          WHERE e.id = :entryid",
+        ['entryid' => $entryid],
+        MUST_EXIST
+    );
+    if (empty($entry->cmid)) {
         return;
     }
     $event = $eventclass::create([
         'objectid' => $entry->id,
-        'context' => context_module::instance($cm->id),
+        'context' => context_module::instance($entry->cmid),
         'relateduserid' => $entry->userid,
         'other' => $other + [
             'status' => (int) $entry->status,
@@ -1482,10 +1618,14 @@ function stage_get_entry_periods($entryid) {
  * plages multiples) si aucune plage n'a encore été définie explicitement.
  *
  * @param stdClass $entry
+ * @param array|null $periods Plages déjà chargées pour cette saisie (traitement par lot, voir
+ *                            export.php), ou null pour les lire en base.
  * @return array
  */
-function stage_get_or_seed_entry_periods(stdClass $entry) {
-    $periods = stage_get_entry_periods($entry->id);
+function stage_get_or_seed_entry_periods(stdClass $entry, ?array $periods = null) {
+    if ($periods === null) {
+        $periods = stage_get_entry_periods($entry->id);
+    }
     if (!empty($periods)) {
         return $periods;
     }
@@ -1596,9 +1736,13 @@ function stage_save_entry_periods($entryid, array $periods) {
  *                     ne peut pas couvrir un stage déjà commencé, alors que la DEVE enregistre au
  *                     contraire couramment des stages passés (reprise d'historique, saisie a
  *                     posteriori) et n'est donc pas soumise à cette règle.
+ * @param array $existing Plages déjà enregistrées (objets ou tableaux datestart/dateend) : une
+ *                        plage soumise identique à l'une d'elles, au jour près, échappe au contrôle
+ *                        de durée maximale, pour qu'un stage antérieur à ce contrôle reste
+ *                        modifiable sans devoir corriger d'abord ses dates.
  * @return string|null Message d'erreur à afficher, ou null si les plages sont cohérentes.
  */
-function stage_validate_periods(array $periods, $nopast = false) {
+function stage_validate_periods(array $periods, $nopast = false, array $existing = []) {
     if (empty($periods)) {
         return get_string('periodsrequired', 'mod_stage');
     }
@@ -1606,6 +1750,11 @@ function stage_validate_periods(array $periods, $nopast = false) {
     foreach ($periods as $period) {
         if ($period['dateend'] < $period['datestart']) {
             return get_string('periodendbeforestart', 'mod_stage');
+        }
+        // Une plage de plus d'un an est une erreur de saisie (année mal tapée) : elle ferait
+        // proposer des milliers de jours au choix des jours de stage effectifs.
+        if (stage_period_too_long($period['datestart'], $period['dateend']) && !stage_period_in($period, $existing)) {
+            return get_string('periodtoolong', 'mod_stage', STAGE_PERIOD_MAX_DAYS);
         }
     }
 
@@ -1639,6 +1788,41 @@ function stage_validate_periods(array $periods, $nopast = false) {
     }
 
     return null;
+}
+
+/**
+ * Indique si une plage figure, au jour près, parmi des plages données.
+ *
+ * @param array $period ['datestart' => int, 'dateend' => int]
+ * @param array $periods Objets ou tableaux datestart/dateend.
+ * @return bool
+ */
+function stage_period_in(array $period, array $periods) {
+    foreach ($periods as $candidate) {
+        $candidate = (array) $candidate;
+        if (
+            usergetmidnight((int) $candidate['datestart']) === usergetmidnight((int) $period['datestart'])
+            && usergetmidnight((int) $candidate['dateend']) === usergetmidnight((int) $period['dateend'])
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Indique si une plage de dates dépasse la durée maximale d'une plage de stage
+ * (STAGE_PERIOD_MAX_DAYS) : contrôle commun aux formulaires, au service web et aux imports.
+ *
+ * @param int|null $datestart
+ * @param int|null $dateend
+ * @return bool False si l'une des dates manque.
+ */
+function stage_period_too_long($datestart, $dateend) {
+    if (empty($datestart) || empty($dateend)) {
+        return false;
+    }
+    return intdiv((int) $dateend - (int) $datestart, DAYSECS) >= STAGE_PERIOD_MAX_DAYS;
 }
 
 /**
@@ -1956,10 +2140,22 @@ function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retaineddura
     $entry->retainedduration = $retainedduration > 0 ? $retainedduration : $entry->declaredduration;
     $entry->status = STAGE_STATUS_VALIDE_DEVE;
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['deveuserid', 'devecomment', 'devetime', 'retainedduration', 'status', 'timemodified']);
-    stage_trigger_entry_event(\mod_stage\event\entry_validated::class, $entry->id, [
-        'retainedduration' => (int) $entry->retainedduration,
-    ]);
+    // Écriture conditionnelle, commentaire et événement ensemble : voir
+    // stage_update_entry_unless_cancelled().
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        $fields = ['deveuserid', 'devetime', 'retainedduration', 'status', 'timemodified'];
+        if (!stage_update_entry_unless_cancelled($entry, $fields)) {
+            throw new moodle_exception('errorvalidatecancelled', 'mod_stage');
+        }
+        stage_update_entry_fields($entry, ['devecomment']);
+        stage_trigger_entry_event(\mod_stage\event\entry_validated::class, $entry->id, [
+            'retainedduration' => (int) $entry->retainedduration,
+        ]);
+        $transaction->allow_commit();
+    } catch (Throwable $e) {
+        $transaction->rollback($e);
+    }
 }
 
 /**
@@ -2011,8 +2207,19 @@ function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
     $entry->devetime = time();
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['deveuserid', 'devecomment', 'devetime', 'status', 'timemodified']);
-    stage_trigger_entry_event(\mod_stage\event\entry_rejected::class, $entry->id, ['role' => 'deve']);
+    // Écriture conditionnelle, commentaire et événement ensemble : voir
+    // stage_update_entry_unless_cancelled().
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        if (!stage_update_entry_unless_cancelled($entry, ['deveuserid', 'devetime', 'status', 'timemodified'])) {
+            throw new moodle_exception('errorvalidatecancelled', 'mod_stage');
+        }
+        stage_update_entry_fields($entry, ['devecomment']);
+        stage_trigger_entry_event(\mod_stage\event\entry_rejected::class, $entry->id, ['role' => 'deve']);
+        $transaction->allow_commit();
+    } catch (Throwable $e) {
+        $transaction->rollback($e);
+    }
 }
 
 /**
@@ -2028,13 +2235,19 @@ function stage_reset_entry(stdClass $entry) {
     global $DB;
 
     if ((int) $entry->status === STAGE_STATUS_ANNULE) {
+        // Un stage annulé puis rouvert repart d'un nouveau circuit : sa première invitation n'est
+        // pas une relance, la tâche planifiée peut de nouveau la tenter une fois.
         $entry->tutortoken = null;
         $entry->tutorrequesttime = 0;
+        $entry->tutorrequestfailtime = 0;
     }
     $entry->status = STAGE_STATUS_ENREGISTRE;
     $entry->tutorbypassed = 0;
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['tutortoken', 'tutorrequesttime', 'status', 'tutorbypassed', 'timemodified']);
+    stage_update_entry_fields(
+        $entry,
+        ['tutortoken', 'tutorrequesttime', 'tutorrequestfailtime', 'status', 'tutorbypassed', 'timemodified']
+    );
     stage_trigger_entry_event(\mod_stage\event\entry_reset::class, $entry->id);
 }
 
@@ -2054,12 +2267,14 @@ function stage_cancel_entry(stdClass $entry, $byuserid, $comment) {
     $entry->status = STAGE_STATUS_ANNULE;
     $entry->tutortoken = null;
     $entry->tutorrequesttime = 0;
+    $entry->tutorrequestfailtime = 0;
     $entry->cancelledby = $byuserid;
     $entry->canceltime = time();
     $entry->cancelcomment = $comment;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, [
-        'status', 'tutortoken', 'tutorrequesttime', 'cancelledby', 'canceltime', 'cancelcomment', 'timemodified',
+        'status', 'tutortoken', 'tutorrequesttime', 'tutorrequestfailtime', 'cancelledby', 'canceltime', 'cancelcomment',
+        'timemodified',
     ]);
     stage_trigger_entry_event(\mod_stage\event\entry_cancelled::class, $entry->id);
 }
@@ -2079,6 +2294,51 @@ function stage_get_student_teachers($stageid, $studentid) {
               JOIN {user} u ON u.id = et.teacherid
              WHERE et.stageid = :stageid AND et.studentid = :studentid";
     return $DB->get_records_sql($sql, ['stageid' => $stageid, 'studentid' => $studentid]);
+}
+
+/**
+ * Enseignants référents de tous les étudiants d'une activité, en une requête : pour les
+ * traitements de toute une promotion (export), où stage_get_student_teachers() coûterait une
+ * requête par étudiant.
+ *
+ * @param int $stageid
+ * @return array studentid => [teacherid => user (champs de nom)]
+ */
+function stage_get_stage_student_teachers($stageid) {
+    global $DB;
+
+    $userfields = 'u.' . implode(', u.', \core_user\fields::get_name_fields());
+    $records = $DB->get_recordset_sql(
+        "SELECT et.id AS assignmentid, et.studentid, u.id, $userfields
+           FROM {stage_entry_teacher} et
+           JOIN {user} u ON u.id = et.teacherid
+          WHERE et.stageid = :stageid
+       ORDER BY et.studentid ASC, u.lastname ASC, u.firstname ASC",
+        ['stageid' => $stageid]
+    );
+    $teachers = [];
+    foreach ($records as $record) {
+        $studentid = (int) $record->studentid;
+        unset($record->assignmentid, $record->studentid);
+        $teachers[$studentid][(int) $record->id] = $record;
+    }
+    $records->close();
+
+    return $teachers;
+}
+
+/**
+ * Fragment SQL « IN (sous-requête) » désignant toutes les saisies d'une activité, à utiliser à la
+ * place d'une liste IN de leurs identifiants : une promotion entière dépasse la limite de
+ * paramètres de MSSQL (2 100) et de liste d'Oracle (1 000), voire celle de PostgreSQL (65 535).
+ *
+ * @param int $stageid
+ * @param string $prefix Préfixe du paramètre nommé, unique dans la requête.
+ * @return array [string $insql, array $params], comme $DB->get_in_or_equal() en SQL_PARAMS_NAMED.
+ */
+function stage_entry_ids_subquery($stageid, $prefix = 'sub') {
+    $param = $prefix . 'stageid';
+    return ["IN (SELECT id FROM {stage_entry} WHERE stageid = :$param)", [$param => (int) $stageid]];
 }
 
 /**
@@ -2419,13 +2679,22 @@ function stage_parse_evaluation_text($text) {
  * @param int|null $start
  * @param int|null $end
  * @param int $studyyear 0 si inconnue.
+ * @param array|null $entries Stages de l'étudiant dans l'activité, déjà chargés (import : un
+ *                            seul chargement pour tout le fichier), ou null pour les lire en base.
+ *                            Champs utiles : id, themeid, studyyear, datestart, dateend, status.
  * @return array id => stage_entry
  */
-function stage_find_probable_duplicate_entries($stageid, $userid, $themeid, $start, $end, $studyyear = 0) {
+function stage_find_probable_duplicate_entries($stageid, $userid, $themeid, $start, $end, $studyyear = 0, ?array $entries = null) {
     global $DB;
 
     $found = [];
-    $entries = $DB->get_records('stage_entry', ['stageid' => $stageid, 'userid' => $userid], 'datestart, id');
+    if ($entries === null) {
+        $entries = $DB->get_records('stage_entry', ['stageid' => $stageid, 'userid' => $userid], 'datestart, id');
+    } else {
+        // Même ordre que la lecture en base (datestart, id), les stages sans date en dernier.
+        uasort($entries, fn($a, $b) => [empty($a->datestart), (int) $a->datestart, (int) $a->id]
+            <=> [empty($b->datestart), (int) $b->datestart, (int) $b->id]);
+    }
     foreach ($entries as $entry) {
         if ((int) $entry->status === STAGE_STATUS_ANNULE) {
             continue;
@@ -3325,9 +3594,18 @@ function stage_get_existing_theme_pairs($stageid) {
  * @param int|null $datestart
  * @param int|null $dateend
  * @param int $excludeentryid Saisie à ignorer (cas d'une édition sur elle-même).
+ * @param bool $ignorecancelled Ne pas compter les stages annulés.
  * @return bool
  */
-function stage_entry_is_duplicate($stageid, $userid, $themeid, $datestart, $dateend, $excludeentryid = 0) {
+function stage_entry_is_duplicate(
+    $stageid,
+    $userid,
+    $themeid,
+    $datestart,
+    $dateend,
+    $excludeentryid = 0,
+    $ignorecancelled = false
+) {
     global $DB;
 
     $params = [
@@ -3342,6 +3620,10 @@ function stage_entry_is_duplicate($stageid, $userid, $themeid, $datestart, $date
     if ($excludeentryid) {
         $sql .= ' AND id <> :excludeentryid';
         $params['excludeentryid'] = $excludeentryid;
+    }
+    if ($ignorecancelled) {
+        $sql .= ' AND status <> :cancelled';
+        $params['cancelled'] = STAGE_STATUS_ANNULE;
     }
 
     return $DB->record_exists_select('stage_entry', $sql, $params);
@@ -3371,6 +3653,8 @@ function stage_entry_sort_options() {
  * @param string $sort Une des clés de stage_entry_sort_options().
  * @param string $dir 'ASC' ou 'DESC'.
  * @param array|null $restrictuserids Si fourni, limite aux saisies de ces étudiants (enseignant référent).
+ * @param int $limitfrom Première ligne renvoyée (pagination en SQL).
+ * @param int $limitnum Nombre de lignes renvoyées (0 : toutes).
  * @return array
  */
 function stage_get_filtered_entries(
@@ -3378,13 +3662,147 @@ function stage_get_filtered_entries(
     array $filters = [],
     $sort = 'timecreated',
     $dir = 'DESC',
-    ?array $restrictuserids = null
+    ?array $restrictuserids = null,
+    $limitfrom = 0,
+    $limitnum = 0
 ) {
     global $DB;
 
     if ($restrictuserids !== null && empty($restrictuserids)) {
         return [];
     }
+    [$wheresql, $params] = stage_filtered_entries_where($stageid, $filters, $restrictuserids);
+
+    $sortmap = [
+        'student' => 'u.lastname, u.firstname',
+        'theme' => 't.name',
+        'status' => 'e.status',
+        'duration' => 'e.declaredduration',
+        'timecreated' => 'e.timecreated',
+    ];
+    $dir = strtoupper($dir) === 'ASC' ? 'ASC' : 'DESC';
+    // Chaque colonne du tri reçoit le sens demandé : « nom, prénom DESC » ne triait à rebours que
+    // les prénoms.
+    $orderby = stage_sql_order($sortmap[$sort] ?? $sortmap['timecreated'], $dir);
+
+    $sql = "SELECT e.*
+              FROM {stage_entry} e
+              JOIN {user} u ON u.id = e.userid
+         LEFT JOIN {stage_theme} t ON t.id = e.themeid
+             WHERE $wheresql
+          ORDER BY $orderby, e.id $dir";
+
+    return $DB->get_records_sql($sql, $params, (int) $limitfrom, (int) $limitnum);
+}
+
+/**
+ * Clause ORDER BY appliquant un même sens à chacune des colonnes d'une liste.
+ *
+ * @param string $columns Colonnes séparées par des virgules (« u.lastname, u.firstname »).
+ * @param string $dir 'ASC' ou 'DESC'.
+ * @return string
+ */
+function stage_sql_order($columns, $dir) {
+    $dir = $dir === 'ASC' ? 'ASC' : 'DESC';
+    return implode(', ', array_map(fn($column) => trim($column) . ' ' . $dir, explode(',', $columns)));
+}
+
+/**
+ * Nombre de saisies répondant aux filtres de stage_get_filtered_entries().
+ *
+ * @param int $stageid
+ * @param array $filters Voir stage_get_filtered_entries().
+ * @param array|null $restrictuserids Voir stage_get_filtered_entries().
+ * @return int
+ */
+function stage_count_filtered_entries($stageid, array $filters = [], ?array $restrictuserids = null) {
+    global $DB;
+
+    if ($restrictuserids !== null && empty($restrictuserids)) {
+        return 0;
+    }
+    [$wheresql, $params] = stage_filtered_entries_where($stageid, $filters, $restrictuserids);
+
+    return (int) $DB->count_records_sql(
+        "SELECT COUNT(e.id)
+           FROM {stage_entry} e
+           JOIN {user} u ON u.id = e.userid
+          WHERE $wheresql",
+        $params
+    );
+}
+
+/**
+ * Une page de stage_get_filtered_entries(), lue en SQL, avec la barre de pagination : une liste
+ * ne charge plus toute la promotion (plusieurs milliers de saisies, évaluations comprises) pour en
+ * afficher quarante.
+ *
+ * @param int $stageid
+ * @param array $filters Voir stage_get_filtered_entries().
+ * @param string $sort
+ * @param string $dir
+ * @param array|null $restrictuserids
+ * @param int $page Page courante (0-indexée).
+ * @param moodle_url $baseurl URL de la liste, filtres compris.
+ * @param int $perpage
+ * @return array [saisies de la page, html de la barre de pagination, nombre total de saisies]
+ */
+function stage_get_filtered_entries_page(
+    $stageid,
+    array $filters,
+    $sort,
+    $dir,
+    ?array $restrictuserids,
+    $page,
+    moodle_url $baseurl,
+    $perpage = STAGE_LIST_PERPAGE
+) {
+    $total = stage_count_filtered_entries($stageid, $filters, $restrictuserids);
+    $page = max(0, (int) $page);
+    $entries = $total > 0
+        ? stage_get_filtered_entries($stageid, $filters, $sort, $dir, $restrictuserids, $page * $perpage, $perpage)
+        : [];
+
+    return [$entries, stage_paging_bar($total, $page, $baseurl, $perpage), $total];
+}
+
+/**
+ * Indique si au moins une des saisies répondant aux filtres de stage_get_filtered_entries() a un
+ * rapport de stage déposé, en une requête plutôt qu'une lecture de zone de fichiers par saisie.
+ *
+ * @param context $context Contexte du module.
+ * @param int $stageid
+ * @param array $filters Voir stage_get_filtered_entries().
+ * @return bool
+ */
+function stage_filtered_entries_have_reports(context $context, $stageid, array $filters = []) {
+    global $DB;
+
+    [$wheresql, $params] = stage_filtered_entries_where($stageid, $filters, null);
+    $params += ['contextid' => $context->id, 'filearea' => STAGE_REPORT_FILEAREA];
+
+    return $DB->record_exists_sql(
+        "SELECT 1
+           FROM {files} f
+           JOIN {stage_entry} e ON e.id = f.itemid
+           JOIN {user} u ON u.id = e.userid
+          WHERE f.contextid = :contextid AND f.component = 'mod_stage' AND f.filearea = :filearea
+                AND f.filename <> '.' AND $wheresql",
+        $params
+    );
+}
+
+/**
+ * Clause WHERE et paramètres des filtres de stage_get_filtered_entries() (alias e : stage_entry,
+ * u : user).
+ *
+ * @param int $stageid
+ * @param array $filters
+ * @param array|null $restrictuserids Non vide s'il est fourni.
+ * @return array [string $wheresql, array $params]
+ */
+function stage_filtered_entries_where($stageid, array $filters, ?array $restrictuserids) {
+    global $DB;
 
     $params = ['stageid' => $stageid];
     $where = ['e.stageid = :stageid'];
@@ -3420,24 +3838,7 @@ function stage_get_filtered_entries(
         $params += $inparams;
     }
 
-    $sortmap = [
-        'student' => 'u.lastname, u.firstname',
-        'theme' => 't.name',
-        'status' => 'e.status',
-        'duration' => 'e.declaredduration',
-        'timecreated' => 'e.timecreated',
-    ];
-    $sortcolumn = $sortmap[$sort] ?? $sortmap['timecreated'];
-    $dir = strtoupper($dir) === 'ASC' ? 'ASC' : 'DESC';
-
-    $sql = "SELECT e.*
-              FROM {stage_entry} e
-              JOIN {user} u ON u.id = e.userid
-         LEFT JOIN {stage_theme} t ON t.id = e.themeid
-             WHERE " . implode(' AND ', $where) . "
-          ORDER BY $sortcolumn $dir, e.id $dir";
-
-    return $DB->get_records_sql($sql, $params);
+    return [implode(' AND ', $where), $params];
 }
 
 /**
@@ -3552,14 +3953,25 @@ function stage_status_filter_options() {
  * @return array [page d'éléments à afficher, html de la barre de pagination]
  */
 function stage_paginate(array $items, $page, moodle_url $baseurl, $perpage = STAGE_LIST_PERPAGE) {
+    $items = array_values($items);
+    $pageitems = array_slice($items, $page * $perpage, $perpage);
+
+    return [$pageitems, stage_paging_bar(count($items), $page, $baseurl, $perpage)];
+}
+
+/**
+ * Barre de pagination d'une liste de $total éléments, vide s'ils tiennent sur une page.
+ *
+ * @param int $total
+ * @param int $page Page courante (0-indexée).
+ * @param moodle_url $baseurl
+ * @param int $perpage
+ * @return string HTML
+ */
+function stage_paging_bar($total, $page, moodle_url $baseurl, $perpage = STAGE_LIST_PERPAGE) {
     global $OUTPUT;
 
-    $items = array_values($items);
-    $total = count($items);
-    $pageitems = array_slice($items, $page * $perpage, $perpage);
-    $pagingbar = $total > $perpage ? $OUTPUT->render(new paging_bar($total, $page, $perpage, $baseurl)) : '';
-
-    return [$pageitems, $pagingbar];
+    return $total > $perpage ? $OUTPUT->render(new paging_bar($total, $page, $perpage, $baseurl)) : '';
 }
 
 /**
@@ -4001,6 +4413,44 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
  * @return void
  */
 function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $selfevallink = false, $detaillink = false) {
+    // Les bilans de la page (par thématique, par année, mobilité, stages complémentaires) relisent
+    // chacun les stages, thématiques et durées requises de l'étudiant : sans cache, plusieurs
+    // centaines de requêtes par affichage. Les données sont chargées une fois, comme pour le bilan
+    // de promotion (voir \mod_stage\local\progress_cache), sauf si l'appelant l'a déjà fait. Un
+    // cache armé par l'appelant pour d'autres étudiants n'est pas remplacé : les bilans de cet
+    // étudiant interrogent alors la base, plus lentement mais sans priver l'appelant du sien.
+    if (
+        \mod_stage\local\progress_cache::covers($stage->id, $userid)
+        || \mod_stage\local\progress_cache::active()
+    ) {
+        stage_print_student_dashboard_content($stage, $userid, $cm, $selfevallink, $detaillink);
+        return;
+    }
+    \mod_stage\local\progress_cache::prime($stage->id, [$userid]);
+    try {
+        stage_print_student_dashboard_content($stage, $userid, $cm, $selfevallink, $detaillink);
+    } finally {
+        \mod_stage\local\progress_cache::clear();
+    }
+}
+
+/**
+ * Contenu du volet de suivi d'un étudiant (voir stage_print_student_dashboard()).
+ *
+ * @param stdClass $stage
+ * @param int $userid
+ * @param stdClass|null $cm Course module, pour afficher les liens d'action.
+ * @param bool $selfevallink Affiche les actions de l'étudiant sur ses propres stages.
+ * @param bool $detaillink Voir stage_print_student_dashboard().
+ * @return void
+ */
+function stage_print_student_dashboard_content(
+    stdClass $stage,
+    $userid,
+    $cm = null,
+    $selfevallink = false,
+    $detaillink = false
+) {
     global $OUTPUT, $PAGE, $USER;
 
     $progress = stage_get_student_progress($stage->id, $userid);
@@ -5145,9 +5595,69 @@ function stage_import_from_stage(
  * @param string $search Nom d'étudiant recherché.
  * @param string $sort Une des clés : 'student', 'theme', 'status', 'requested'.
  * @param string $dir 'ASC' ou 'DESC'.
+ * @param int $limitfrom Première ligne renvoyée (pagination en SQL).
+ * @param int $limitnum Nombre de lignes renvoyées (0 : toutes).
  * @return array
  */
-function stage_get_convention_entries($stageid, $search = '', $sort = 'requested', $dir = 'DESC') {
+function stage_get_convention_entries(
+    $stageid,
+    $search = '',
+    $sort = 'requested',
+    $dir = 'DESC',
+    $limitfrom = 0,
+    $limitnum = 0
+) {
+    global $DB;
+
+    [$wheresql, $params] = stage_convention_entries_where($stageid, $search);
+
+    $sortmap = [
+        'student' => 'u.lastname, u.firstname',
+        'theme' => 't.name',
+        'status' => 'e.conventionstatus',
+        'requested' => 'e.conventionrequesttime',
+    ];
+    $dir = strtoupper($dir) === 'ASC' ? 'ASC' : 'DESC';
+    $orderby = stage_sql_order($sortmap[$sort] ?? $sortmap['requested'], $dir);
+
+    $sql = "SELECT e.*
+              FROM {stage_entry} e
+              JOIN {user} u ON u.id = e.userid
+         LEFT JOIN {stage_theme} t ON t.id = e.themeid
+             WHERE $wheresql
+          ORDER BY $orderby, e.id DESC";
+
+    return $DB->get_records_sql($sql, $params, (int) $limitfrom, (int) $limitnum);
+}
+
+/**
+ * Nombre de saisies listées par stage_get_convention_entries().
+ *
+ * @param int $stageid
+ * @param string $search
+ * @return int
+ */
+function stage_count_convention_entries($stageid, $search = '') {
+    global $DB;
+
+    [$wheresql, $params] = stage_convention_entries_where($stageid, $search);
+    return (int) $DB->count_records_sql(
+        "SELECT COUNT(e.id)
+           FROM {stage_entry} e
+           JOIN {user} u ON u.id = e.userid
+          WHERE $wheresql",
+        $params
+    );
+}
+
+/**
+ * Clause WHERE et paramètres de stage_get_convention_entries() (alias e : stage_entry, u : user).
+ *
+ * @param int $stageid
+ * @param string $search
+ * @return array [string $wheresql, array $params]
+ */
+function stage_convention_entries_where($stageid, $search) {
     global $DB;
 
     $params = [
@@ -5168,23 +5678,7 @@ function stage_get_convention_entries($stageid, $search = '', $sort = 'requested
         $params['search'] = '%' . $DB->sql_like_escape($search) . '%';
     }
 
-    $sortmap = [
-        'student' => 'u.lastname, u.firstname',
-        'theme' => 't.name',
-        'status' => 'e.conventionstatus',
-        'requested' => 'e.conventionrequesttime',
-    ];
-    $sortcolumn = $sortmap[$sort] ?? $sortmap['requested'];
-    $dir = strtoupper($dir) === 'ASC' ? 'ASC' : 'DESC';
-
-    $sql = "SELECT e.*
-              FROM {stage_entry} e
-              JOIN {user} u ON u.id = e.userid
-         LEFT JOIN {stage_theme} t ON t.id = e.themeid
-             WHERE " . implode(' AND ', $where) . "
-          ORDER BY $sortcolumn $dir, e.id DESC";
-
-    return $DB->get_records_sql($sql, $params);
+    return [implode(' AND ', $where), $params];
 }
 
 /**
@@ -5356,10 +5850,13 @@ function stage_get_entry_stagetypes(array $entryids) {
     if (empty($entryids)) {
         return $stagetypes;
     }
-    [$insql, $inparams] = $DB->get_in_or_equal($entryids);
-    $details = $DB->get_records_select('stage_convention_detail', "entryid $insql", $inparams, '', 'entryid, stagetype');
-    foreach ($details as $detail) {
-        $stagetypes[$detail->entryid] = $detail->stagetype;
+    // Par paquets, pour rester sous la limite de paramètres des bases de données.
+    foreach (array_chunk(array_values($entryids), STAGE_SQL_CHUNK) as $chunk) {
+        [$insql, $inparams] = $DB->get_in_or_equal($chunk);
+        $details = $DB->get_records_select('stage_convention_detail', "entryid $insql", $inparams, '', 'entryid, stagetype');
+        foreach ($details as $detail) {
+            $stagetypes[$detail->entryid] = $detail->stagetype;
+        }
     }
     return $stagetypes;
 }
@@ -5806,7 +6303,9 @@ function stage_notify_tutor_evaluation_request(
     $names = explode(' ', trim($tutorname), 2);
     $tutoruser = (object) [
         'id' => -1,
-        'email' => $tutoremail,
+        // Même adresse que celle contrôlée par stage_tutor_email_valid() : sans les espaces
+        // saisis par mégarde autour, qu'email_to_user() refuserait.
+        'email' => trim((string) $tutoremail),
         'firstname' => $names[0] !== '' ? $names[0] : $tutorname,
         'lastname' => $names[1] ?? '',
         'firstnamephonetic' => '',
@@ -5826,8 +6325,12 @@ function stage_notify_tutor_evaluation_request(
     if (!email_to_user($tutoruser, core_user::get_noreply_user(), $text->subject, $text->body)) {
         return false;
     }
+    // Un envoi réussi, automatique ou manuel, efface un échec antérieur.
     $entry->tutorrequesttime = time();
-    $DB->set_field('stage_entry', 'tutorrequesttime', $entry->tutorrequesttime, ['id' => $entry->id]);
+    $entry->tutorrequestfailtime = 0;
+    $DB->update_record('stage_entry', (object) [
+        'id' => $entry->id, 'tutorrequesttime' => $entry->tutorrequesttime, 'tutorrequestfailtime' => 0,
+    ]);
     return true;
 }
 
@@ -5851,6 +6354,12 @@ function stage_tutor_evaluation_enabled(stdClass $stage, ?stdClass $theme) {
  * stage_maybe_request_tutor_evaluation() (évaluation activée, coordonnées connues) pour ne pas
  * représenter indéfiniment, à chaque passage du cron, les saisies qui n'y sont pas éligibles.
  *
+ * Les stages terminés depuis plus de STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END jours (à défaut de
+ * date de fin : commencés depuis plus longtemps) sont écartés : activer l'évaluation par le maître
+ * de stage sur une promotion qui a un historique ne doit pas inviter d'un coup les maîtres de
+ * stage de stages anciens. Une invitation automatique qui a échoué (tutorrequestfailtime) n'est
+ * pas retentée : seule la DEVE peut relancer, à la main.
+ *
  * @return array stdClass[] Saisies (stage_entry), triées par date de début.
  */
 function stage_get_entries_needing_tutor_request() {
@@ -5870,17 +6379,54 @@ function stage_get_entries_needing_tutor_request() {
               JOIN {stage_theme} t ON t.id = e.themeid
               JOIN {stage_convention_detail} d ON d.entryid = e.id
              WHERE e.datestart > 0 AND e.datestart <= :now
+               AND ((e.dateend > 0 AND e.dateend >= :endfloor)
+                    OR ((e.dateend IS NULL OR e.dateend = 0) AND e.datestart >= :startfloor))
                AND e.status $statussql
                AND e.conventionstatus $conventionsql
                AND e.tutorbypassed = 0
                AND e.tutorrequesttime = 0
+               AND e.tutorrequestfailtime = 0
                AND (e.tutortime IS NULL OR e.tutortime = 0)
                AND s.tutorevaluationenabled = 1
                AND t.tutorevaluationenabled = 1
                AND d.tutoremail IS NOT NULL AND " . $DB->sql_compare_text('d.tutoremail') . " <> ''
-          ORDER BY e.datestart ASC";
+          ORDER BY e.datestart ASC, e.id ASC";
 
-    return $DB->get_records_sql($sql, array_merge(['now' => time()], $statusparams, $conventionparams));
+    $now = time();
+    $floor = $now - STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END * DAYSECS;
+    $params = array_merge(
+        ['now' => $now, 'endfloor' => $floor, 'startfloor' => $floor],
+        $statusparams,
+        $conventionparams
+    );
+    return $DB->get_records_sql($sql, $params);
+}
+
+/**
+ * Indique si une adresse de maître de stage permet l'envoi de l'invitation : même contrôle que
+ * celui d'email_to_user(), sur l'adresse débarrassée des espaces saisis par mégarde autour,
+ * telle que stage_notify_tutor_evaluation_request() l'utilise.
+ *
+ * @param string|null $email
+ * @return bool
+ */
+function stage_tutor_email_valid($email) {
+    $email = trim((string) $email);
+    return $email !== '' && validate_email($email);
+}
+
+/**
+ * Marque l'échec de l'invitation automatique d'un maître de stage : la tâche planifiée ne la
+ * retente pas, la DEVE en est avertie sur le détail du stage et peut relancer à la main.
+ *
+ * @param stdClass $entry
+ * @return void
+ */
+function stage_mark_tutor_request_failed(stdClass $entry) {
+    global $DB;
+
+    $entry->tutorrequestfailtime = time();
+    $DB->set_field('stage_entry', 'tutorrequestfailtime', $entry->tutorrequestfailtime, ['id' => $entry->id]);
 }
 
 /**
@@ -5992,9 +6538,17 @@ function stage_get_tutor_eval_url(stdClass $stage, stdClass $entry) {
         if (!$detail || empty($detail->tutoremail)) {
             return null;
         }
-        $token = bin2hex(random_bytes(32));
-        $DB->set_field('stage_entry', 'tutortoken', $token, ['id' => $entry->id]);
-        $entry->tutortoken = $token;
+        // Écriture conditionnelle : l'affichage de deve.php et la tâche planifiée peuvent créer le
+        // jeton au même moment, à partir d'une saisie lue avant l'autre. Le second ne doit pas
+        // remplacer un jeton déjà créé, dont le lien a peut-être déjà été envoyé ou copié.
+        $DB->execute(
+            "UPDATE {stage_entry} SET tutortoken = :token WHERE id = :id AND tutortoken IS NULL",
+            ['token' => bin2hex(random_bytes(32)), 'id' => $entry->id]
+        );
+        $entry->tutortoken = $DB->get_field('stage_entry', 'tutortoken', ['id' => $entry->id], MUST_EXIST);
+        if (empty($entry->tutortoken)) {
+            return null;
+        }
     }
 
     return new moodle_url('/mod/stage/tutor_eval.php', ['token' => $entry->tutortoken]);
@@ -6293,11 +6847,23 @@ function stage_render_theme_objectives_content(context $context, stdClass $cm, s
  * @return string HTML, chaîne vide si aucune thématique n'a de document.
  */
 function stage_render_theme_objectives_section(context $context, stdClass $cm, array $themes) {
-    global $OUTPUT;
+    global $DB, $OUTPUT;
 
     $table = new html_table();
     $table->head = [get_string('theme', 'mod_stage'), get_string('themeobjectivefiles', 'mod_stage')];
+    // Une seule requête pour savoir quelles thématiques ont des documents, plutôt qu'une lecture
+    // de zone de fichiers par thématique : la plupart n'en ont aucun.
+    $withfiles = $DB->get_fieldset_sql(
+        "SELECT DISTINCT itemid
+           FROM {files}
+          WHERE contextid = :contextid AND component = 'mod_stage' AND filearea = :filearea AND filename <> '.'",
+        ['contextid' => $context->id, 'filearea' => STAGE_THEME_OBJECTIVE_FILEAREA]
+    );
+    $withfiles = array_flip(array_map('intval', $withfiles));
     foreach ($themes as $theme) {
+        if (!isset($withfiles[(int) $theme->id])) {
+            continue;
+        }
         $links = stage_render_theme_objective_links($context, $theme->id, ['id' => $cm->id]);
         if ($links === '') {
             // Une thématique sans document n'a rien à montrer ici : la lister vide ne ferait
@@ -6767,6 +7333,37 @@ function stage_get_theme_teachers($themeid) {
 }
 
 /**
+ * Enseignants responsables de toutes les thématiques d'une activité, en une requête (voir
+ * stage_get_theme_teachers()).
+ *
+ * @param int $stageid
+ * @return array themeid => [teacherid => user (champs de nom)], triés par nom.
+ */
+function stage_get_stage_theme_teachers($stageid) {
+    global $DB;
+
+    $userfields = 'u.' . implode(', u.', \core_user\fields::get_name_fields());
+    $records = $DB->get_recordset_sql(
+        "SELECT tt.id AS assignmentid, tt.themeid, u.id, $userfields
+           FROM {stage_theme_teacher} tt
+           JOIN {stage_theme} t ON t.id = tt.themeid
+           JOIN {user} u ON u.id = tt.teacherid
+          WHERE t.stageid = :stageid
+       ORDER BY tt.themeid ASC, u.lastname ASC, u.firstname ASC",
+        ['stageid' => $stageid]
+    );
+    $teachers = [];
+    foreach ($records as $record) {
+        $themeid = (int) $record->themeid;
+        unset($record->assignmentid, $record->themeid);
+        $teachers[$themeid][(int) $record->id] = $record;
+    }
+    $records->close();
+
+    return $teachers;
+}
+
+/**
  * Enregistre la liste des enseignants responsables d'une thématique, en remplacement de la
  * précédente. Comme stage_set_student_teachers(), ne réécrit rien si la liste est inchangée.
  *
@@ -6790,9 +7387,18 @@ function stage_set_theme_teachers($themeid, array $teacherids) {
         return;
     }
 
-    $DB->delete_records('stage_theme_teacher', ['themeid' => $themeid]);
-    foreach ($teacherids as $teacherid) {
-        $DB->insert_record('stage_theme_teacher', (object) [
+    // Seules les différences sont écrites (voir stage_set_student_teachers()).
+    $removed = array_diff($existing, $wanted);
+    if ($removed) {
+        [$insql, $inparams] = $DB->get_in_or_equal($removed, SQL_PARAMS_NAMED, 'rt');
+        $DB->delete_records_select(
+            'stage_theme_teacher',
+            "themeid = :themeid AND teacherid $insql",
+            ['themeid' => $themeid] + $inparams
+        );
+    }
+    foreach (array_diff($wanted, $existing) as $teacherid) {
+        stage_insert_assignment('stage_theme_teacher', [
             'themeid' => $themeid,
             'teacherid' => $teacherid,
             'timecreated' => time(),
@@ -6939,12 +7545,36 @@ function stage_render_report_section(stdClass $cm, context $context, stdClass $e
  * @return void
  */
 function stage_send_reports_zip(context $context, array $entries, array $students, $zipname) {
+    global $DB;
+
+    // Une thématique entière peut compter des centaines de rapports.
+    core_php_time_limit::raise();
+    raise_memory_limit(MEMORY_EXTRA);
+
+    // Les fichiers sont lus par paquets de saisies dans la table des fichiers, plutôt qu'une zone
+    // de fichiers (une requête) par saisie.
+    $fs = get_file_storage();
+    $filesbyentry = [];
+    foreach (array_chunk(array_keys($entries), STAGE_SQL_CHUNK) as $chunk) {
+        [$insql, $inparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'entry');
+        $records = $DB->get_records_select(
+            'files',
+            "contextid = :contextid AND component = 'mod_stage' AND filearea = :filearea
+                AND filename <> '.' AND itemid $insql",
+            ['contextid' => $context->id, 'filearea' => STAGE_REPORT_FILEAREA] + $inparams,
+            'itemid ASC, filename ASC'
+        );
+        foreach ($records as $record) {
+            $filesbyentry[(int) $record->itemid][] = $fs->get_file_instance($record);
+        }
+    }
+
     $filesforzipping = [];
     foreach ($entries as $entry) {
         $student = $students[$entry->userid] ?? null;
         $foldername = clean_filename(($student ? fullname($student) : 'etudiant-' . $entry->userid)
             . '-' . $entry->id);
-        foreach (stage_get_report_files($context, $entry->id) as $file) {
+        foreach ($filesbyentry[(int) $entry->id] ?? [] as $file) {
             $filesforzipping[$foldername . '/' . clean_filename($file->get_filename())] = $file;
         }
     }
@@ -7296,23 +7926,37 @@ function stage_delete_entries(array $entryids, ?context $context = null) {
         return;
     }
 
-    if ($context) {
-        $fs = get_file_storage();
-        foreach ($entryids as $entryid) {
-            foreach (['signedconvention', STAGE_REPORT_FILEAREA] as $filearea) {
-                $fs->delete_area_files($context->id, 'mod_stage', $filearea, $entryid);
+    // Par paquets : une réinitialisation de cours ou une suppression d'activité passe toutes les
+    // saisies de la promotion, au-delà de la limite de paramètres de MSSQL et d'Oracle.
+    $fs = $context ? get_file_storage() : null;
+    foreach (array_chunk($entryids, STAGE_SQL_CHUNK) as $chunk) {
+        [$insql, $inparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'entry');
+        if ($fs) {
+            // Les fichiers des saisies sont lus en une requête par paquet plutôt que par zone de
+            // fichiers (deux requêtes par saisie, au moins).
+            [$areasql, $areaparams] = $DB->get_in_or_equal(
+                ['signedconvention', STAGE_REPORT_FILEAREA],
+                SQL_PARAMS_NAMED,
+                'area'
+            );
+            $files = $DB->get_recordset_select(
+                'files',
+                "contextid = :contextid AND component = 'mod_stage' AND filearea $areasql AND itemid $insql",
+                ['contextid' => $context->id] + $areaparams + $inparams
+            );
+            foreach ($files as $filerecord) {
+                $fs->get_file_instance($filerecord)->delete();
             }
+            $files->close();
         }
+        foreach (
+            ['stage_answer', 'stage_convention_detail', 'stage_entry_period', 'stage_entry_workday',
+                'stage_entry_checklist'] as $table
+        ) {
+            $DB->delete_records_select($table, "entryid $insql", $inparams);
+        }
+        $DB->delete_records_select('stage_entry', "id $insql", $inparams);
     }
-
-    [$insql, $inparams] = $DB->get_in_or_equal($entryids);
-    foreach (
-        ['stage_answer', 'stage_convention_detail', 'stage_entry_period', 'stage_entry_workday',
-            'stage_entry_checklist'] as $table
-    ) {
-        $DB->delete_records_select($table, "entryid $insql", $inparams);
-    }
-    $DB->delete_records_select('stage_entry', "id $insql", $inparams);
 }
 
 /**
@@ -7325,10 +7969,16 @@ function stage_delete_entries(array $entryids, ?context $context = null) {
 function stage_get_entry_creation_days($stageid) {
     global $DB;
 
+    // Regroupés d'abord par horodatage en SQL (un import crée ses stages à la même seconde, ou
+    // presque), puis par jour dans le fuseau de l'utilisateur, que la base ne connaît pas.
+    $counts = $DB->get_records_sql_menu(
+        "SELECT timecreated, COUNT(1) FROM {stage_entry} WHERE stageid = ? GROUP BY timecreated",
+        [$stageid]
+    );
     $days = [];
-    foreach ($DB->get_fieldset_select('stage_entry', 'timecreated', 'stageid = ?', [$stageid]) as $timecreated) {
+    foreach ($counts as $timecreated => $count) {
         $day = usergetmidnight((int) $timecreated);
-        $days[$day] = ($days[$day] ?? 0) + 1;
+        $days[$day] = ($days[$day] ?? 0) + (int) $count;
     }
     krsort($days);
     return $days;
@@ -7355,14 +8005,17 @@ function stage_bulk_delete_entries($stageid, context_module $context, array $ent
     if (!$entryids) {
         return 0;
     }
-    [$insql, $inparams] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED);
-    $entries = $DB->get_records_select(
-        'stage_entry',
-        "stageid = :stageid AND id $insql",
-        ['stageid' => $stageid] + $inparams,
-        'id',
-        'id, themeid, retainedduration'
-    );
+    $entries = [];
+    foreach (array_chunk($entryids, STAGE_SQL_CHUNK) as $chunk) {
+        [$insql, $inparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED);
+        $entries += $DB->get_records_select(
+            'stage_entry',
+            "stageid = :stageid AND id $insql",
+            ['stageid' => $stageid] + $inparams,
+            'id',
+            'id, themeid, retainedduration'
+        );
+    }
     if (!$entries) {
         return 0;
     }
@@ -7394,15 +8047,32 @@ function stage_load_entries_by_id($stageid, array $entryids) {
     if (!$entryids) {
         return [];
     }
-    [$insql, $inparams] = $DB->get_in_or_equal($entryids, SQL_PARAMS_NAMED);
-    return $DB->get_records_sql(
-        "SELECT e.*
+    // Par paquets (« tous les stages filtrés » peut désigner toute la promotion). L'ordre est
+    // ensuite celui que donne la base pour toute l'activité, avec sa collation (noms accentués,
+    // particules) : seuls des identifiants sont relus pour cela.
+    $loaded = [];
+    foreach (array_chunk($entryids, STAGE_SQL_CHUNK) as $chunk) {
+        [$insql, $inparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED);
+        $loaded += $DB->get_records_select('stage_entry', "stageid = :stageid AND id $insql", ['stageid' => $stageid] + $inparams);
+    }
+    if (!$loaded) {
+        return [];
+    }
+    $order = $DB->get_fieldset_sql(
+        "SELECT e.id
            FROM {stage_entry} e
            JOIN {user} u ON u.id = e.userid
-          WHERE e.stageid = :stageid AND e.id $insql
+          WHERE e.stageid = :stageid
        ORDER BY u.lastname, u.firstname, e.themeid, e.id",
-        ['stageid' => $stageid] + $inparams
+        ['stageid' => $stageid]
     );
+    $entries = [];
+    foreach ($order as $id) {
+        if (isset($loaded[$id])) {
+            $entries[$id] = $loaded[$id];
+        }
+    }
+    return $entries;
 }
 
 /**

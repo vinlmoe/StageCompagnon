@@ -119,6 +119,7 @@ $string['importerrorduplicate'] = 'Line {$a->line}: "{$a->email}" already has an
     . 'with these same dates, line skipped.';
 $string['importerrordate'] = 'Line {$a->line}: unreadable date "{$a->value}" (accepted formats: YYYY-MM-DD or DD/MM/YYYY), '
     . 'line skipped.';
+$string['importerrorperiodtoolong'] = 'Line {$a->line}: the date range exceeds {$a->max} days, line ignored. Check the year of its dates.';
 $string['importerrordaterange'] = 'Line {$a}: the end date is before the start date, line skipped.';
 $string['importstagevetcsv'] = 'Import a StageVet export (CSV)';
 $string['importstagevetcsv_help'] = 'Import the CSV file exported directly from StageVet (StageVet\'s export '
@@ -211,6 +212,8 @@ $string['importteacherscsv_help'] = 'Import a CSV file (saved from Excel via "Sa
     . 'a line with an unrecognised teacher is skipped and the existing assignment kept.';
 $string['importteachersresult'] = '{$a} student(s) updated successfully.';
 $string['importerrorunknownteacher'] = 'Line {$a->line}: no potential referent teacher with email "{$a->email}".';
+$string['erroractivitybusy'] = 'Another registration of internships or teachers is in progress for this activity. Please try again in a few seconds.';
+$string['errorduplicateentryown'] = 'You already have an internship registered on this theme with these same dates.';
 $string['errorduplicateentry'] = 'This student already has an internship registered on this theme with these same dates.';
 $string['registerstage'] = 'Register an internship';
 $string['editstage'] = 'Edit an internship';
@@ -336,6 +339,7 @@ $string['addperiod'] = 'Add a period';
 $string['removeperiod'] = 'Remove';
 $string['periods_help'] = 'An internship can have several non-contiguous date ranges (e.g. two separate stays). The student will pick their actual working days among these ranges during their self-evaluation.';
 $string['periodsrequired'] = 'Enter at least one date period: the internship dates are derived from them.';
+$string['periodtoolong'] = 'A period cannot last more than {$a} days: check the year of its dates.';
 $string['periodendbeforestart'] = 'The end date of a period cannot come before its start date.';
 $string['periodstartinpast'] = 'An agreement cannot be requested for an internship that has already started: the '
     . 'start date must be today or later. If the internship has already started, contact the administration office.';
@@ -737,6 +741,8 @@ $string['conventionremindernotifbody'] = "Hello {\$a->student},\n\nYour internsh
     . "agreement, the internship cannot start.\n\nPlease sort out your agreement request as soon as "
     . "possible:\n{\$a->url}";
 $string['taskconventionreminders'] = 'Send unsigned internship agreement reminders';
+$string['tutoremailinvalid'] = 'This tutor email address is invalid: the evaluation invitation cannot be sent. Correct it in the agreement details, then resend the invitation.';
+$string['tutorrequestfailed'] = 'The automatic evaluation invitation could not be sent on {$a}. It will not be retried automatically: resend it manually.';
 $string['tasktutorevaluationrequests'] = 'Send workplace tutor evaluation invitations';
 $string['reportmode'] = 'Internship report';
 $string['reportmode_help'] = 'Document submission requested from the student during their self-assessment, '
@@ -901,6 +907,7 @@ $string['errorvalidatecancelled'] = 'Reset the cancelled internship before valid
 $string['errornegativeduration'] = 'The duration cannot be negative.';
 $string['errorrequiredanswer'] = 'An answer is required for this question: {$a}';
 $string['errorinvalidanswer'] = 'Select one of the available answers for this question: {$a}';
+$string['privacy:metadata:stage_entry:tutorrequestfailtime'] = 'The date the automatic tutor evaluation invitation failed.';
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = 'The date the tutor evaluation invitation was last sent.';
 $string['viewthemeobjectives'] = 'Objectives';
 $string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be transferred: add matching objectives with unique names to the target theme.';
@@ -952,8 +959,18 @@ $string['importstagevetevalhelp'] = 'Evaluations: the "Évaluation par le maîtr
 $string['importstagevetupdated'] = '{$a} existing internship(s) updated.';
 $string['importstagevetunchanged'] = '{$a} existing internship(s) with no new information: unchanged.';
 $string['importstagevetevaluations'] = '{$a} evaluation(s) imported.';
-$string['importstagevetnotified'] = '{$a} internship(s) now have both evaluations: the referent teacher has been '
-    . 'asked by email to evaluate.';
+$string['importstagevetnotified'] = '{$a} internship(s) now have both evaluations: the referent teacher will be '
+    . 'asked by email to evaluate (sent at the next cron run).';
+$string['importstagevetreferentfallback'] = '{$a} internship(s) without a recognised tutor in the export: the agreement uses the referent teacher assigned to the student.';
+$string['importstagevetunknownreferentsreport'] = '{$a} tutor(s) in the export without a recognised teacher account';
+$string['importstagevetreferents_help'] = 'In the StageVet export, the "tutor" is the school\'s referent teacher. These names match no teacher account in the course, by email or by name. The internships were created with the referent teacher assigned to the student; choose an account to replace it in these internships\' agreements. The choice also applies to lines still awaiting a decision.';
+$string['importstagevetreferentlabel'] = 'Tutor in the export';
+$string['importstagevetreferentretained'] = 'Referent used';
+$string['importstagevetreferentaccount'] = 'Teacher account';
+$string['importstagevetreferentdefault'] = 'Keep the student\'s referent teacher';
+$string['importstagevetreferentnone'] = 'None (no referent assigned)';
+$string['importstagevetreferentapply'] = 'Apply these accounts';
+$string['importstagevetreferentsapplied'] = '{$a} agreement(s) updated with the chosen teacher account.';
 $string['importstagevetnoreferent'] = 'Evaluations complete, but no referent teacher is assigned to: {$a}. '
     . 'Assign one so the internship can be evaluated.';
 $string['importstageveterrorambiguous'] = 'Line {$a->line} ({$a->student}, {$a->theme}): several recorded '

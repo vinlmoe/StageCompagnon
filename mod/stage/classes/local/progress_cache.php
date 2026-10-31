@@ -27,8 +27,10 @@ namespace mod_stage\local;
  * et types de stage des étudiants concernés), et ces fonctions le consultent tant qu'il couvre
  * l'activité et l'étudiant demandés. Sinon, elles interrogent la base comme avant.
  *
- * Il n'est actif que pendant un calcul en lecture seule (voir stage_get_pilotage_overview(), qui
- * l'arme puis le vide dans un bloc finally) : aucune écriture ne peut le rendre périmé.
+ * Il n'est actif que pendant un calcul en lecture seule, qui l'arme puis le vide dans un bloc
+ * finally : aucune écriture ne peut le rendre périmé. Deux calculs l'arment : le bilan de
+ * promotion (stage_get_pilotage_overview(), pour tous les étudiants) et le volet de suivi d'un
+ * étudiant (stage_print_student_dashboard(), pour lui seul, sauf si le cache est déjà armé).
  *
  * @package mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -122,6 +124,15 @@ class progress_cache {
             }
         }
         self::$stageid = $stageid;
+    }
+
+    /**
+     * Indique si le cache est armé, pour quelque activité ou étudiant que ce soit.
+     *
+     * @return bool
+     */
+    public static function active(): bool {
+        return self::$stageid !== null;
     }
 
     /**

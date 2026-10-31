@@ -139,7 +139,9 @@ class deve_entry_form extends \moodleform {
         // Les dates du stage étant déduites des plages, leur cohérence conditionne le contrôle de
         // doublon ci-dessous, qui s'appuie sur elles.
         $periods = stage_extract_submitted_periods((object) $data);
-        $perioderror = stage_validate_periods($periods);
+        // Une plage déjà enregistrée, inchangée, n'est pas refusée pour sa durée (voir
+        // stage_validate_periods()).
+        $perioderror = stage_validate_periods($periods, false, $this->_customdata['periods'] ?? []);
         if ($perioderror !== null) {
             $errors[stage_period_error_field($data)] = $perioderror;
             return $errors;

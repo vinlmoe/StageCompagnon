@@ -1,0 +1,341 @@
+% Test de charge de mod_stage : volumétrie, plans d'exécution et audit des boucles de requêtes.
+% Compilation : latexmk -pdf test-de-charge.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref}
+\usepackage[margin=2.2cm]{geometry}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\grav}[1]{\textbf{\textcolor{#1}{\textbullet}}}
+\title{Test de charge de \code{mod_stage}}
+\author{Sébastien Lefebvre}
+\date{31 octobre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Méthode}
+
+Le test combine trois approches :
+\begin{enumerate}
+  \item \textbf{Base de données.} Le schéma est tiré de \code{db/install.xml}, avec les index
+    que Moodle crée pour chaque clé étrangère. La base PostgreSQL~16 est chargée avec un volume
+    plusieurs fois supérieur à celui d'une école :
+    \begin{itemize}
+      \item 20 promotions et 5\,000 étudiants ;
+      \item 60 thématiques par promotion ;
+      \item 40 stages par étudiant, soit 200\,000 stages ;
+      \item 2\,000\,000 de réponses aux évaluations ;
+      \item 50\,000 modules de cours.
+    \end{itemize}
+    Les requêtes du module passent ensuite par \code{EXPLAIN ANALYZE}.
+  \item \textbf{Calcul en PHP.} Les fonctions de calcul pur de \code{locallib.php} sont
+    exécutées seules, sur des entrées volumineuses ou pathologiques : analyse du texte
+    d'évaluation, plages de dates, jours de repos, chevauchements.
+  \item \textbf{Audit des boucles.} La lecture du code recense les requêtes exécutées dans des
+    boucles, les chargements sans limite et les accès concurrents.
+\end{enumerate}
+
+Les pages n'ont pas pu être chronométrées dans un Moodle complet : l'environnement de test n'a
+pas permis d'exécuter un Moodle installé depuis GitHub. Les nombres de requêtes par page sont
+donc tirés du code et non mesurés. Les scripts sont dans \code{docs/audit/banc/}. Les sections~2 et~3 décrivent la version
+\code{2026102600}, avant correction.
+
+\section{Résultats mesurés}
+
+\subsection{Requêtes SQL}
+
+Les index déclarés couvrent les accès courants. Aucune requête n'est lente, même à 200\,000
+stages.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X r@{}}
+\toprule
+\textbf{Requête} & \textbf{Durée} \\
+\midrule
+Jeton du maître de stage, réponses d'une saisie, stages d'un étudiant & $< 0{,}2$~ms \\
+Bilan de promotion (\code{progress_cache::prime}), paquet de 250 étudiants & 12~ms \\
+Liste des stages d'une promotion (10\,000 saisies), avec ou sans recherche & 4--13~ms \\
+File des conventions DEVE & 11~ms \\
+Relance des conventions (cron, parcours séquentiel de toute la table) & 22~ms \\
+Invitation des maîtres de stage (cron, 9\,782 saisies éligibles) & 207~ms \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Fonctions de calcul}
+
+Les fonctions de calcul tiennent la charge. L'analyse d'un texte d'évaluation importé de
+40\,000 lignes prend 118~ms, sans retour arrière catastrophique des expressions régulières.
+Vérifier 100\,000 plages de dates prend 314~ms. Le passage à l'heure d'hiver ne compte pas deux
+fois le même jour. Il manque seulement un plafond à la longueur des plages de dates : une plage
+de 24 ans, par exemple après une faute de frappe sur l'année, affiche environ 8\,700 cases dans le
+sélecteur de jours.
+
+\subsection{Mémoire des listes}
+
+Une liste de stages charge toute la promotion, colonnes de texte comprises, puis n'en affiche
+que 40. Pour 10\,000 saisies, la page lit pendant 690~ms et consomme 78~Mo de mémoire PHP.
+
+\section{Problèmes relevés}
+
+\grav{red}~bloquant ou bogue \quad \grav{orange}~performance forte \quad \grav{teal}~à surveiller
+
+\subsection{Bogues}
+
+\begin{description}
+\item[\grav{red} Export : variable non définie.] À \code{export.php:329}, \code{$evaluators}
+  n'est jamais défini. La colonne «~Évalué par~» est toujours vide, et chaque ligne exportée
+  produit un avertissement PHP.
+\item[\grav{red} Invitations en masse aux maîtres de stage.] La requête
+  \code{stage_get_entries_needing_tutor_request()} n'a ni date plancher ni limite.
+  \begin{itemize}
+    \item Si l'on active l'évaluation par le maître de stage sur une promotion qui a un
+      historique, tous les anciens stages éligibles reçoivent une invitation au même passage du
+      cron. Sur le jeu de test, cela fait 9\,782 courriels, y compris pour des stages vieux de
+      plusieurs années.
+    \item Un envoi qui échoue, par exemple sur une adresse invalide, est retenté chaque jour sans
+      fin, faute de compteur d'essais.
+  \end{itemize}
+\item[\grav{red} Listes \code{IN} sur toute une promotion.] \code{stage_delete_entries()}
+  (réinitialisation du cours, suppression de l'activité, RGPD) et \code{export.php} (lignes 124,
+  134 et 479) construisent une liste \code{IN} avec tous les identifiants de la promotion.
+  \begin{itemize}
+    \item MSSQL limite une requête à 2\,100 paramètres et Oracle une liste à 1\,000 éléments.
+    \item PostgreSQL échoue au-delà de 65\,535 paramètres.
+  \end{itemize}
+  La suppression lance en plus deux \code{delete_area_files} par stage.
+\item[\grav{orange} Concurrence.]
+  \begin{itemize}
+    \item Rien n'empêche les doublons : aucune clé unique, et aucun verrou autour du contrôle
+      fait en PHP. Un double clic ou deux appels simultanés au service web créent deux stages.
+    \item L'attribution des référents supprime puis réinsère sans transaction. Deux
+      enregistrements simultanés se heurtent à l'index unique.
+    \item Le jeton du maître de stage peut être créé en même temps par l'affichage de
+      \code{deve.php} et par le cron. Un lien déjà envoyé peut alors cesser de fonctionner.
+  \end{itemize}
+\end{description}
+
+\subsection{Performance}
+
+\begin{description}
+\item[\grav{orange} Tableau de bord étudiant sans cache.] \code{stage_print_student_dashboard()}
+  (pages \code{view.php} et \code{dashboard.php?studentid=}) n'amorce pas \code{progress_cache}.
+  \begin{itemize}
+    \item \code{stage_get_theme_duration()} peut lancer trois requêtes par appel, et elle est
+      appelée pour chaque couple (année, thématique obligatoire).
+    \item On peut compter plusieurs centaines de requêtes par affichage. C'est la page la plus
+      consultée, en particulier pendant les campagnes d'inscription.
+    \item Le correctif tient en une ligne : appeler \code{progress_cache::prime($stageid, [$userid])}.
+  \end{itemize}
+\item[\grav{orange} Pagination en PHP.] \code{stage_get_filtered_entries()} et
+  \code{stage_get_convention_entries()} lisent \code{e.*} sans limite (pages \code{register},
+  \code{deve}, \code{teacher}, \code{theme_stages}, \code{conventions}, \code{delete_entries}).
+  Il faudrait un \code{COUNT} plus une lecture limitée à la page, sur les seules colonnes
+  affichées.
+\item[\grav{orange} \code{export.php}.]
+  \begin{itemize}
+    \item Il lance une requête de plages de dates par stage et une requête de référents par
+      étudiant, soit environ 25\,000 requêtes pour une promotion de 10\,000 stages.
+    \item Le classeur est construit entièrement en mémoire.
+    \item Aucun \code{raise_memory_limit} ni \code{core_php_time_limit::raise} n'existe dans le
+      module.
+  \end{itemize}
+\item[\grav{orange} \code{theme_stages.php}.] Un \code{get_area_files} par stage, seulement
+  pour décider d'afficher le bouton ZIP, y compris quand la thématique n'a pas de rapport.
+  \code{reports_zip.php} fait de même.
+\item[\grav{teal} Événements et imports.] Chaque événement relit le stage et le module de cours.
+  Un import ou un enregistrement groupé multiplie donc ces lectures. L'import StageVet n'est
+  pas transactionnel, et il envoie les courriels pendant la requête web.
+\item[\grav{teal} Tâches planifiées.] Les colonnes \code{datestart}, \code{tutorrequesttime} et
+  \code{conventionremindertime} n'ont pas d'index. L'effet reste faible : 22 et 207~ms pour
+  200\,000 stages.
+\end{description}
+
+\section{Ce qui tient la charge}
+
+\begin{itemize}
+  \item Le bilan de promotion amorce \code{progress_cache} par paquets de 500 et le vide dans
+    un \code{finally}. Aucune incohérence d'invalidation n'a été trouvée.
+  \item La relance des conventions est bornée par sa fenêtre de 8 jours, et elle peut être
+    relancée sans effet de bord.
+  \item Les index couvrent les recherches par jeton, par étudiant, par enseignant et par
+    question.
+\end{itemize}
+
+\section{Corrections}
+
+Les points relevés à la section~3 ont été corrigés dans les versions techniques
+\code{2026103100} et \code{2026103101}, à l'exception de ceux que liste la
+section~\ref{sec:limites}. Une relecture critique des premières corrections a révélé plusieurs
+défauts, corrigés depuis ; ils sont signalés ci-dessous.
+\begin{itemize}
+  \item \textbf{Export.} La colonne «~Évalué par~» est corrigée. Les plages de dates, les
+    référents et les enseignants responsables sont lus en une requête chacun
+    (\code{stage_get_stage_student_teachers()}, \code{stage_get_stage_theme_teachers()}). Les
+    listes \code{IN} sont remplacées par une sous-requête sur \code{stageid}
+    (\code{stage_entry_ids_subquery()}). Les limites de temps et de mémoire sont relevées.
+  \item \textbf{Invitations des maîtres de stage.} Chaque invitation automatique n'est tentée
+    qu'\emph{une} fois.
+    \begin{itemize}
+      \item Plus aucune invitation au-delà de 60 jours après la fin du stage, ou après son début
+        s'il n'a pas de date de fin (\code{STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END}).
+      \item Un échec (adresse invalide, envoi refusé) est enregistré dans
+        \code{stage_entry.tutorrequestfailtime}. Il n'est jamais retenté par la tâche
+        planifiée.
+      \item Le détail du stage avertit la DEVE de l'échec, avec sa date. Elle corrige l'adresse
+        puis relance à la main ; un envoi réussi efface l'échec.
+      \item Le champ est sauvegardé avec le cours, pour que ses copies ne retentent pas l'envoi
+        non plus, et figure dans l'export RGPD.
+      \item Une réinitialisation après annulation repart d'un nouveau circuit : l'échec est
+        effacé, comme l'invitation.
+      \item La tâche planifiée tente 200 envois au plus par passage
+        (\code{STAGE_TUTOR_REQUEST_BATCH}). Le plafond porte sur les tentatives, et non sur la
+        requête de sélection.
+      \item Les formulaires de convention refusent une adresse invalide.
+      \item L'adresse est contrôlée et envoyée sans les espaces qui l'entourent
+        (\code{stage_tutor_email_valid()}). Une première version contrôlait l'adresse nettoyée
+        mais envoyait l'adresse brute, refusée par \code{email_to_user()}.
+    \end{itemize}
+  \item \textbf{Listes.} Les pages \code{register}, \code{deve}, \code{teacher},
+    \code{theme_stages}, \code{conventions} et \code{delete_entries} sont paginées en SQL
+    (\code{stage_get_filtered_entries_page()}, \code{stage_count_convention_entries()}). La
+    présence de rapports est testée en une requête.
+    \begin{itemize}
+      \item Le tri à rebours par étudiant ne s'appliquait qu'au prénom ; il s'applique
+        désormais aussi au nom.
+      \item Ce défaut existait déjà avant ces corrections.
+    \end{itemize}
+  \item \textbf{Volet de suivi de l'étudiant.} Le cache \code{progress_cache} est amorcé pour
+    l'étudiant affiché, sauf si l'appelant l'a déjà armé, auquel cas il est laissé intact. Les
+    documents d'objectifs sont repérés en une requête.
+  \item \textbf{Traitements par paquets de 500.} Sont concernés la suppression des stages, la
+    suppression RGPD, la lecture par identifiants, les types de stage et le téléchargement
+    groupé des rapports. Les fichiers sont lus par paquet et non plus par stage.
+    \begin{itemize}
+      \item La lecture par identifiants (confirmation de suppression) reprend l'ordre de la
+        base, avec sa collation.
+      \item Une première version triait en PHP, ce qui changeait l'ordre des noms accentués.
+    \end{itemize}
+  \item \textbf{Concurrence.} Un verrou par activité (\code{stage_get_activity_lock()}) couvre
+    toutes les écritures en lot.
+    \begin{itemize}
+      \item Il couvre la création de stages (formulaires DEVE et étudiant, création en masse,
+        service web, imports CSV, StageVet et historique) et l'attribution des enseignants
+        (\code{teachers.php}, \code{theme_edit.php}, import historique).
+      \item Les doublons sont contrôlés de nouveau sous ce verrou.
+      \item Les attributions sont écrites par différences. Hors transaction, une attribution
+        insérée entre-temps par un autre enregistrement est constatée sans erreur.
+      \item S'il est indisponible au bout de 30 secondes, l'utilisateur voit un message avec un
+        lien de retour vers sa page.
+      \item Le jeton du maître de stage est créé par une écriture conditionnelle.
+      \item La validation et le rejet DEVE posent leur condition «~non annulé~» dans la requête
+        de mise à jour (\code{stage_update_entry_unless_cancelled()}). Ils s'exécutent en une
+        transaction avec le commentaire et l'événement, et la relecture vérifie le statut écrit.
+      \item Une première version, sans transaction, pouvait laisser une validation à moitié
+        écrite sur un stage annulé.
+    \end{itemize}
+  \item \textbf{Plages de dates.} Elles sont limitées à 366 jours dans les formulaires, le
+    service web et les imports CSV et StageVet (\code{stage_period_too_long()}).
+    \begin{itemize}
+      \item Une plage déjà enregistrée et inchangée échappe à ce contrôle dans les formulaires
+        de la DEVE et de l'enseignant : un stage plus ancien que la règle reste modifiable.
+      \item La restauration d'export (\code{import_global}) et l'import historique ne sont pas
+        concernés : ils reprennent des données existantes.
+    \end{itemize}
+  \item \textbf{Imports.}
+    \begin{itemize}
+      \item La prévisualisation de l'import historique est conservée dans un fichier temporaire
+        propre à l'utilisateur et à l'activité (\code{import_preview}), valable un jour, au lieu
+        de la session.
+      \item Les invitations des enseignants référents après un import StageVet partent par une
+        tâche ad hoc (\code{send_teacher_eval_requests}). L'import décide toujours qui inviter,
+        et son compte rendu le dit à la DEVE.
+      \item L'import CSV des référents s'exécute sous le verrou de l'activité, en une
+        transaction.
+    \end{itemize}
+  \item \textbf{Divers.}
+    \begin{itemize}
+      \item L'import StageVet applique ses mises à jour et ses créations dans une seule
+        transaction. Une première version n'y plaçait que les créations.
+      \item L'étudiant reçoit un message de doublon rédigé pour lui.
+      \item Les événements lisent la saisie et son module de cours en une requête, sans cache
+        propre aux tests.
+      \item Un index est ajouté sur \code{stage_entry.datestart}. Il sert la relance des
+        conventions ; la requête d'invitation, dont la plupart des stages satisfont le critère
+        de date, ne l'utilise guère.
+    \end{itemize}
+\end{itemize}
+
+\section{Seconde campagne}
+
+Le code corrigé a été exécuté directement contre la base de stress. Un \code{$DB} minimal
+compte les requêtes, et les quelques API Moodle appelées sont remplacées par des bouchons
+(\code{docs/audit/banc/boot.php}). La base a été complétée :
+\begin{itemize}
+  \item un rapport pour un stage sur cinq, et une convention signée pour un sur trois ;
+  \item deux plages de dates pour la moitié des stages ;
+  \item trois enseignants responsables par thématique ;
+  \item des durées requises par année.
+\end{itemize}
+
+\subsection{Équivalence}
+
+\code{equiv.php} confronte chaque fonction corrigée à sa version d'origine sur la même base :
+listes et comptes pour cinq filtres, cinq tris, deux sens, avec et sans restriction,
+pages~0,~3 et~1\,000 ; conventions ; présence de rapports ; jours de création ; chargement par
+identifiants (ordre et contenu) ; doublons probables ; référents ; responsables ; plages ; types
+de stage. Les 2\,369 vérifications réussissent toutes. Les invitations nouvellement
+sélectionnées forment un sous-ensemble des anciennes, et toute invitation écartée concerne un
+stage terminé depuis plus de 60 jours.
+
+\code{race.php} simule une annulation enregistrée après que la DEVE a ouvert le stage. La
+validation et le rejet sont alors refusés, et le stage reste annulé.
+
+\subsection{Mesures}
+
+Toutes les mesures portent sur une promotion de 10\,000 stages.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}X r r r r@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Avant}} & \multicolumn{2}{c}{\textbf{Après}} \\
+\textbf{Traitement} & req. & durée & req. & durée \\
+\midrule
+Liste des stages en attente, page 1 (mémoire : 43~Mo $\to$ 0,3~Mo) & 1 & 101~ms & 2 & 17~ms \\
+Bouton ZIP, thématique sans rapport & 167 & 47~ms & 1 & 2~ms \\
+Export : plages, référents, responsables & 10\,311 & 2\,291~ms & 3 & 55~ms \\
+Volet de suivi d'un étudiant (fonctions de bilan seules) & 167 & 47~ms & 7 & 5~ms \\
+Suppression de la promotion et de ses fichiers & 25\,339 & 6\,020~ms & 7\,473 & 998~ms \\
+Suppression de 80\,000 identifiants & \multicolumn{2}{r}{échec PostgreSQL} & 966 & 1\,476~ms \\
+Sélection des invitations (mémoire : 32~Mo $\to$ 0) & 1 & 403~ms & 1 & 75~ms \\
+Relance des conventions (\code{EXPLAIN}) & 1 & 22~ms & 1 & 2~ms \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Pour la suppression, la quasi-totalité des requêtes restantes est la suppression unitaire des
+quelque 7\,000 fichiers. L'API fichiers de Moodle procède ainsi, et ce coût est inévitable. Pour
+les invitations, l'ancienne requête retenait 11\,140 saisies sur le jeu de test ; la nouvelle en
+retient 4.
+
+\subsection{Limites}\label{sec:limites}
+
+\begin{itemize}
+  \item Le test ne passe pas par un Moodle complet. Les bouchons ne reproduisent ni les droits,
+    ni le rendu, ni les caches de Moodle. Les tests PHPUnit et Behat du dépôt restent à jouer
+    par la CI.
+  \item Une invitation de maître de stage coûte encore quelques requêtes, mais au plus 200 par
+    passage.
+  \item Le volet de suivi d'un étudiant n'a été mesuré que pour ses fonctions de bilan, et non
+    pour la page entière (droits, rendu, fichiers).
+  \item L'équivalence est établie contre un \code{$DB} simulé, sur PostgreSQL seulement. La CI
+    joue désormais la suite PHPUnit sur MariaDB aussi ; MSSQL et Oracle, que
+    \code{moodle-plugin-ci} ne propose pas, n'ont été examinés qu'à la lecture du SQL.
+  \item La tâche d'invitation n'a été exercée dans le banc que jusqu'au choix des envois : avec
+    240 adresses invalides sur 304 invitations dues, les 240 sont marquées en échec au premier
+    passage et ne sont plus sélectionnées au suivant.
+\end{itemize}
+
+\end{document}

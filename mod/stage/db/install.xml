@@ -166,6 +166,8 @@
             COMMENT="Jeton d'accès sans compte Moodle à l'évaluation du maître de stage (tutor_eval.php)"/>
         <FIELD NAME="tutorrequesttime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
             COMMENT="Dernier envoi réussi de l'invitation au maître de stage, 0 si aucun"/>
+        <FIELD NAME="tutorrequestfailtime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Échec de l'invitation automatique du maître de stage (adresse invalide ou envoi refusé), 0 si aucun : la tâche planifiée ne la retente pas, seule la DEVE peut relancer"/>
         <FIELD NAME="tutoreval" TYPE="text" NOTNULL="false" SEQUENCE="false"
             COMMENT="Réponse libre du maître de stage, si aucune question n'est définie pour la thématique"/>
         <FIELD NAME="tutortime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
@@ -222,6 +224,7 @@
         <INDEX NAME="stageid-userid" UNIQUE="false" FIELDS="stageid, userid"/>
         <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
         <INDEX NAME="tutortoken" UNIQUE="true" FIELDS="tutortoken"/>
+        <INDEX NAME="datestart" UNIQUE="false" FIELDS="datestart"/>
       </INDEXES>
     </TABLE>
 

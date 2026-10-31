@@ -175,6 +175,9 @@ class convention_request_form extends \moodleform {
         $mform->addRule('tutorphone', null, 'required', null, 'client');
         $mform->addElement('text', 'tutoremail', get_string('conventiontutoremail', 'mod_stage'), ['size' => '64']);
         $mform->setType('tutoremail', PARAM_TEXT);
+        // L'invitation à évaluer le stage part à cette adresse : une adresse invalide ne serait
+        // découverte qu'à l'envoi, sans que personne n'en soit averti.
+        $mform->addRule('tutoremail', get_string('invalidemail'), 'email', null, 'client');
         $mform->addRule('tutoremail', null, 'required', null, 'client');
 
         // Modalités particulières (art. 3.2) : cases à cocher, valeur par défaut (décochée)

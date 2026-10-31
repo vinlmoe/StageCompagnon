@@ -106,6 +106,34 @@ define('STAGE_THEME_OBJECTIVE_FILEAREA', 'themeobjective');
 define('STAGE_CONVENTION_REMINDER_DAYS', 7);
 
 /**
+ * Délai, en jours après la fin d'un stage, au-delà duquel le maître de stage n'est plus invité à
+ * l'évaluer (voir \mod_stage\task\send_tutor_evaluation_requests). Sans ce plafond, activer
+ * l'évaluation par le maître de stage sur une promotion qui a un historique invitait d'un coup les
+ * maîtres de stage de tous les anciens stages encore éligibles, et un envoi en échec (adresse
+ * invalide) était retenté chaque jour indéfiniment.
+ */
+define('STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END', 60);
+
+/**
+ * Nombre maximal d'invitations de maîtres de stage envoyées par passage de la tâche planifiée :
+ * le reliquat part aux passages suivants.
+ */
+define('STAGE_TUTOR_REQUEST_BATCH', 200);
+
+/**
+ * Taille des paquets d'identifiants passés dans une clause IN, sous les limites de paramètres de
+ * toutes les bases prises en charge (Oracle : 1 000 éléments par liste, MSSQL : 2 100 paramètres).
+ */
+define('STAGE_SQL_CHUNK', 500);
+
+/**
+ * Durée maximale, en jours, d'une plage de dates de stage : au-delà, il s'agit d'une erreur de
+ * saisie (année mal tapée), qui ferait afficher des milliers de jours dans le sélecteur des jours
+ * effectifs.
+ */
+define('STAGE_PERIOD_MAX_DAYS', 366);
+
+/**
  * Returns the list of features supported by this module.
  *
  * @param string $feature FEATURE_xx constant.

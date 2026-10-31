@@ -34,6 +34,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_apply_deve_validation
  * @covers     ::stage_tutor_invitation_statuses
  * @covers     ::stage_tutor_invitation_convention_statuses
+ * @covers     \mod_stage\task\send_tutor_evaluation_requests
  */
 final class workflow_regression_test extends \advanced_testcase {
     /**
@@ -121,6 +122,83 @@ final class workflow_regression_test extends \advanced_testcase {
         $this->assertTrue(stage_maybe_request_tutor_evaluation($stage, $cm, $entry));
         $this->assertCount(1, $sink->get_messages());
         $sink->close();
+    }
+
+    /**
+     * La tâche planifiée écarte sans tentative une adresse invalide, qui ne doit ni bloquer les
+     * invitations suivantes ni être retentée, et invite les autres maîtres de stage.
+     */
+    public function test_task_skips_invalid_address_and_invites_others(): void {
+        global $DB;
+        [$stage, $cm, $entry] = $this->prepare();
+        // Un second stage, plus ancien (donc en tête de liste), dont l'adresse est invalide.
+        $student = $this->getDataGenerator()->create_user();
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        $invalid = $generator->create_entry($stage, $student->id, $entry->themeid, [
+            'datestart' => time() - 3 * DAYSECS, 'dateend' => time() + DAYSECS,
+            'conventionstatus' => STAGE_CONVENTION_SIGNED,
+        ]);
+        stage_save_convention_detail($invalid->id, (object) ['tutorname' => 'Autre', 'tutoremail' => 'pas-une-adresse']);
+
+        $sink = $this->redirectEmails();
+        ob_start();
+        (new \mod_stage\task\send_tutor_evaluation_requests())->execute();
+        $output = ob_get_clean();
+
+        $this->assertCount(1, $sink->get_messages());
+        $this->assertSame('tutor@example.com', $sink->get_messages()[0]->to);
+        $this->assertNotEquals(0, $DB->get_field('stage_entry', 'tutorrequesttime', ['id' => $entry->id]));
+        $this->assertEquals(0, $DB->get_field('stage_entry', 'tutorrequesttime', ['id' => $invalid->id]));
+        $this->assertNotEquals(0, $DB->get_field('stage_entry', 'tutorrequestfailtime', ['id' => $invalid->id]));
+        $this->assertArrayNotHasKey($invalid->id, stage_get_entries_needing_tutor_request());
+        $this->assertStringContainsString('1 adresse(s) invalide(s)', $output);
+        $sink->close();
+    }
+
+    /**
+     * Un envoi automatique refusé n'est pas retenté par la tâche planifiée ; la relance manuelle
+     * de la DEVE reste possible et efface l'échec.
+     */
+    public function test_failed_automatic_invitation_is_only_resent_manually(): void {
+        global $DB;
+        [$stage, $cm, $entry] = $this->prepare();
+        // Étudiant introuvable : l'invitation ne peut pas être composée, l'envoi échoue.
+        $studentid = $entry->userid;
+        $DB->set_field('stage_entry', 'userid', 0, ['id' => $entry->id]);
+
+        $sink = $this->redirectEmails();
+        ob_start();
+        (new \mod_stage\task\send_tutor_evaluation_requests())->execute();
+        $DB->set_field('stage_entry', 'userid', $studentid, ['id' => $entry->id]);
+        (new \mod_stage\task\send_tutor_evaluation_requests())->execute();
+        ob_end_clean();
+
+        $this->assertCount(0, $sink->get_messages());
+        $this->assertNotEquals(0, $DB->get_field('stage_entry', 'tutorrequestfailtime', ['id' => $entry->id]));
+        $this->assertArrayNotHasKey($entry->id, stage_get_entries_needing_tutor_request());
+
+        $entry = $DB->get_record('stage_entry', ['id' => $entry->id]);
+        $this->assertTrue(stage_resend_tutor_evaluation_request($stage, $cm, $entry));
+        $this->assertCount(1, $sink->get_messages());
+        $this->assertEquals(0, $DB->get_field('stage_entry', 'tutorrequestfailtime', ['id' => $entry->id]));
+        $sink->close();
+    }
+
+    /**
+     * Un stage terminé depuis plus de STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END jours n'est plus
+     * proposé à l'invitation automatique : activer l'évaluation sur une promotion qui a un
+     * historique ne doit pas inviter les maîtres de stage de stages anciens.
+     */
+    public function test_old_internship_is_not_invited(): void {
+        global $DB;
+        [$stage, $cm, $entry] = $this->prepare();
+        $end = time() - (STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END + 1) * DAYSECS;
+        $DB->update_record('stage_entry', (object) ['id' => $entry->id, 'datestart' => $end - 10 * DAYSECS, 'dateend' => $end]);
+        $this->assertArrayNotHasKey($entry->id, stage_get_entries_needing_tutor_request());
+
+        $recentend = time() - (STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END - 1) * DAYSECS;
+        $DB->set_field('stage_entry', 'dateend', $recentend, ['id' => $entry->id]);
+        $this->assertArrayHasKey($entry->id, stage_get_entries_needing_tutor_request());
     }
 
     /**

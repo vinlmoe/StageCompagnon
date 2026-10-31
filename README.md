@@ -117,12 +117,14 @@ Chaque poussée déclenche `.github/workflows/ci.yml`, en deux temps :
   compris. Une seule règle est désactivée, et le fichier dit pourquoi : le sniff qui exige
   qu'un commentaire commence par `[A-Z0-9]` ne reconnaît pas les capitales accentuées, et
   s'y conformer imposerait d'écrire « Ecran » pour « Écran ».
-- **Moodle** — `moodle-plugin-ci` installe un Moodle avec PostgreSQL et les modules du
+- **Moodle** — `moodle-plugin-ci` installe un Moodle et les modules du
   dépôt, puis enchaîne analyse syntaxique, validation de la structure du module, points de
   sauvegarde de la mise à jour, blocs de documentation (`phpdoc`), gabarits Mustache et tests
-  PHPUnit. Tous ces contrôles sont bloquants. Le job tourne sur deux combinaisons : Moodle 4.3
-  avec PHP 8.0, la borne basse annoncée par `version.php` et par ce README, et Moodle 4.5 avec
-  PHP 8.2. Sur cette dernière, la couverture de code est mesurée avec pcov (résumé dans le
+  PHPUnit. Tous ces contrôles sont bloquants. Le job tourne sur trois combinaisons : Moodle 4.3
+  avec PHP 8.0 et PostgreSQL, la borne basse annoncée par `version.php` et par ce README,
+  Moodle 4.5 avec PHP 8.2 et PostgreSQL, et la même avec MariaDB, pour le SQL que le module
+  écrit lui-même (MSSQL et Oracle ne sont pas proposés par `moodle-plugin-ci`). Sur la
+  combinaison PostgreSQL de Moodle 4.5, la couverture de code est mesurée avec pcov (résumé dans le
   journal de l'étape PHPUnit, rapports Clover en artefact du job) et les scénarios Behat de
   `mod/stage/tests/behat/` sont joués sans JavaScript, sur le serveur web intégré de PHP. Le
   workflow peut aussi être lancé à la main depuis l'onglet *Actions* (`workflow_dispatch`), par

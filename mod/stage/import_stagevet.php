@@ -44,6 +44,11 @@
  * étudiant, même thématique, plage qui se recoupe) le met à jour au lieu d'en créer un second ; dès
  * que les deux évaluations sont réunies, l'enseignant référent est invité par courriel à évaluer.
  *
+ * Le « tuteur » de l'export (enseignant référent de l'école) devient le référent de la convention
+ * s'il est reconnu parmi les enseignants du cours ; à défaut, la convention reprend l'enseignant
+ * référent de l'étudiant. Les tuteurs non reconnus sont listés après l'import, et la DEVE peut
+ * désigner pour chacun le bon compte enseignant.
+ *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -72,6 +77,23 @@ $PAGE->set_context($context);
 
 $results = null;
 $uploaderror = null;
+$notice = null;
+
+// Les étapes de l'import (arbitrages, correspondance des tuteurs) sont conservées d'une requête à
+// l'autre par \mod_stage\local\import_preview, dans un fichier temporaire propre à l'utilisateur et
+// à l'activité, et non dans la session : le CSV d'un import peut peser plusieurs mégaoctets.
+// Les résultats y sont gardés en JSON, puis reconstitués sous leur forme d'origine.
+$restoreresults = function (?array $saved): ?stdClass {
+    if ($saved === null) {
+        return null;
+    }
+    $results = (object) $saved;
+    foreach ($results->probableduplicates ?? [] as $line => $duplicate) {
+        $results->probableduplicates[$line] = (object) $duplicate;
+    }
+    return $results;
+};
+$pending = \mod_stage\local\import_preview::get('stagevet', $stage->id) ?? [];
 
 // Étapes suivantes éventuelles : la DEVE désigne un étudiant inscrit pour chaque libellé que le
 // fichier seul n'a pas permis de rapprocher, et tranche les doublons probables. Le CSV de la
@@ -81,9 +103,40 @@ $uploaderror = null;
 // disparaître l'autre.
 $resolvestudents = optional_param('resolvestudents', 0, PARAM_INT);
 $resolveduplicates = optional_param('resolveduplicates', 0, PARAM_INT);
-if (($resolvestudents || $resolveduplicates) && confirm_sesskey()) {
-    $pending = $SESSION->stage_stagevet_import[$stage->id] ?? null;
-
+$resolvereferents = optional_param('resolvereferents', 0, PARAM_INT);
+if ($resolvereferents && confirm_sesskey()) {
+    // Tuteurs de l'export sans compte reconnu : les stages sont déjà créés, avec l'enseignant
+    // référent de l'étudiant par défaut. Le compte choisi par la DEVE remplace ce référent dans la
+    // convention de ces stages, et vaut pour les lignes des passes suivantes.
+    $unknownreferents = $pending['unknownreferents'] ?? [];
+    if (!$unknownreferents) {
+        $uploaderror = get_string('importstagevetexpired', 'mod_stage');
+    } else {
+        $teachers = stage_get_potential_teachers($context);
+        $labels = optional_param_array('referentlabel', [], PARAM_TEXT);
+        $teacherids = optional_param_array('referentuser', [], PARAM_INT);
+        $updated = 0;
+        foreach ($labels as $index => $label) {
+            $teacherid = (int) ($teacherids[$index] ?? 0);
+            if (!$teacherid || !isset($teachers[$teacherid]) || empty($unknownreferents[$label]['entryids'])) {
+                continue;
+            }
+            foreach (array_chunk($unknownreferents[$label]['entryids'], STAGE_SQL_CHUNK) as $chunk) {
+                [$insql, $inparams] = $DB->get_in_or_equal($chunk);
+                $DB->set_field_select('stage_convention_detail', 'referentteacherid', $teacherid, "entryid $insql", $inparams);
+            }
+            $updated += count($unknownreferents[$label]['entryids']);
+            $pending['referentresolutions'][$label] = $teacherid;
+            unset($unknownreferents[$label]);
+        }
+        $pending['unknownreferents'] = $unknownreferents;
+        $notice = get_string('importstagevetreferentsapplied', 'mod_stage', $updated);
+        $results = $restoreresults($pending['results'] ?? null);
+        if ($results) {
+            $results->unknownreferents = $unknownreferents;
+        }
+    }
+} else if (($resolvestudents || $resolveduplicates) && confirm_sesskey()) {
     if (empty($pending['content'])) {
         $uploaderror = get_string('importstagevetexpired', 'mod_stage');
     } else {
@@ -112,13 +165,13 @@ if (($resolvestudents || $resolveduplicates) && confirm_sesskey()) {
             }
         }
 
-        $SESSION->stage_stagevet_import[$stage->id]['studentresolutions'] = $resolutions;
-        $SESSION->stage_stagevet_import[$stage->id]['duplicatedecisions'] = $decisions;
+        $pending['studentresolutions'] = $resolutions;
+        $pending['duplicatedecisions'] = $decisions;
         if (!$newchoices) {
             // Aucun choix fait : les arbitrages en attente sont réaffichés tels quels plutôt que
             // de rejouer l'import pour rien.
             $uploaderror = get_string('importstagevetresolvenone', 'mod_stage');
-            $results = $pending['results'] ?? null;
+            $results = $restoreresults($pending['results'] ?? null);
         } else {
             $import = \mod_stage\local\csv_importer::stagevet(
                 $stage,
@@ -126,14 +179,26 @@ if (($resolvestudents || $resolveduplicates) && confirm_sesskey()) {
                 $pending['content'],
                 $resolutions,
                 $decisions,
-                $pending['pendinglines'] ?? []
+                $pending['pendinglines'] ?? [],
+                $pending['referentresolutions'] ?? []
             );
             $results = $import['results'];
             $uploaderror = $import['error'];
+            // Les tuteurs non reconnus des passes précédentes, encore à rapprocher, restent
+            // proposés avec ceux de cette passe.
+            foreach ($pending['unknownreferents'] ?? [] as $label => $info) {
+                foreach (['lines', 'entryids', 'retained'] as $key) {
+                    $results->unknownreferents[$label][$key] = array_merge(
+                        $info[$key] ?? [],
+                        $results->unknownreferents[$label][$key] ?? []
+                    );
+                }
+            }
         }
     }
 } else if (data_submitted() && optional_param('importfile', 0, PARAM_INT) && confirm_sesskey()) {
-    unset($SESSION->stage_stagevet_import[$stage->id]);
+    \mod_stage\local\import_preview::delete('stagevet', $stage->id);
+    $pending = [];
     $upload = $_FILES['csvfile'] ?? null;
 
     if (empty($upload) || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
@@ -143,27 +208,35 @@ if (($resolvestudents || $resolveduplicates) && confirm_sesskey()) {
         $import = \mod_stage\local\csv_importer::stagevet($stage, $context, $content);
         $results = $import['results'];
         $uploaderror = $import['error'];
-        // Le contenu n'est mis de côté que s'il reste des lignes à arbitrer, et seulement le
-        // temps de ces arbitrages.
-        $SESSION->stage_stagevet_import[$stage->id] = ['content' => $content];
+        $pending = ['content' => $content];
     }
 }
 
-if ($results !== null && !empty($SESSION->stage_stagevet_import[$stage->id]['content'])) {
+// Ce qui reste à arbitrer est conservé, et seulement le temps de ces arbitrages : le contenu du
+// fichier tant que des lignes attendent, les stages dont le tuteur reste à rapprocher d'un compte.
+if ($results !== null && $pending) {
     $pendinglines = \mod_stage\local\csv_importer::pending_lines($results);
-    if ($pendinglines) {
-        $SESSION->stage_stagevet_import[$stage->id]['pendinglines'] = $pendinglines;
-        $SESSION->stage_stagevet_import[$stage->id]['results'] = (object) [
-            'created' => 0,
-            'unknownstudents' => $results->unknownstudents,
-            'probableduplicates' => $results->probableduplicates,
-            'unknownthemes' => [],
-            'errors' => [],
-        ];
+    $pending['pendinglines'] = $pendinglines;
+    if (!$pendinglines) {
+        unset($pending['content']);
+    }
+    $pending['unknownreferents'] = $results->unknownreferents ?? [];
+    $pending['results'] = [
+        'created' => 0,
+        'unknownstudents' => $results->unknownstudents ?? [],
+        'probableduplicates' => array_map(fn($duplicate) => (array) $duplicate, $results->probableduplicates ?? []),
+        'unknownreferents' => $pending['unknownreferents'],
+        'unknownthemes' => [],
+        'errors' => [],
+    ];
+    if ($pendinglines || $pending['unknownreferents']) {
+        \mod_stage\local\import_preview::set('stagevet', $stage->id, $pending);
     } else {
-        unset($SESSION->stage_stagevet_import[$stage->id]);
+        \mod_stage\local\import_preview::delete('stagevet', $stage->id);
+        $pending = [];
     }
 }
+$replayable = !empty($pending['content']);
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('importstagevetcsv', 'mod_stage'));
@@ -172,23 +245,95 @@ echo html_writer::link(new moodle_url('/mod/stage/register.php', ['id' => $cm->i
 if ($uploaderror !== null) {
     echo $OUTPUT->notification($uploaderror, \core\output\notification::NOTIFY_ERROR);
 }
+if ($notice !== null) {
+    echo $OUTPUT->notification($notice, \core\output\notification::NOTIFY_SUCCESS);
+}
 
 if ($results) {
     $summary = [get_string('importresult', 'mod_stage', $results->created)];
-    foreach (['updated', 'unchanged', 'evaluations', 'notified', 'notifyskipped'] as $counter) {
+    if ($resolvereferents) {
+        // Simple correspondance des tuteurs : aucun stage n'a été importé par cette passe.
+        $summary = [];
+    }
+    foreach (['updated', 'unchanged', 'evaluations', 'notified', 'notifyskipped', 'referentfallback'] as $counter) {
         if (!empty($results->$counter)) {
             $summary[] = get_string('importstagevet' . $counter, 'mod_stage', $results->$counter);
         }
     }
-    echo $OUTPUT->notification(
-        implode(html_writer::empty_tag('br'), $summary),
-        \core\output\notification::NOTIFY_SUCCESS
-    );
+    if ($summary) {
+        echo $OUTPUT->notification(
+            implode(html_writer::empty_tag('br'), $summary),
+            \core\output\notification::NOTIFY_SUCCESS
+        );
+    }
     if (!empty($results->noreferent)) {
         echo $OUTPUT->notification(
             get_string('importstagevetnoreferent', 'mod_stage', s(implode(', ', $results->noreferent))),
             \core\output\notification::NOTIFY_WARNING
         );
+    }
+
+    // Tuteurs de l'export (enseignants référents de l'école) qu'aucun compte ne permet de
+    // reconnaître, ni par l'adresse ni par le nom : les stages sont créés avec l'enseignant
+    // référent de l'étudiant, que la DEVE peut remplacer ici par le bon compte.
+    if (!empty($results->unknownreferents)) {
+        echo $OUTPUT->heading(get_string(
+            'importstagevetunknownreferentsreport',
+            'mod_stage',
+            count($results->unknownreferents)
+        ), 4);
+        echo $OUTPUT->box(get_string('importstagevetreferents_help', 'mod_stage'), 'generalbox mb-3');
+
+        $teacheroptions = [];
+        foreach (stage_get_potential_teachers($context) as $teacher) {
+            $teacheroptions[$teacher->id] = fullname($teacher) . ' (' . $teacher->email . ')';
+        }
+        core_collator::asort($teacheroptions);
+
+        echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl]);
+        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'resolvereferents', 'value' => 1]);
+        $referenttable = new html_table();
+        $referenttable->head = [
+            get_string('importstagevetreferentlabel', 'mod_stage'),
+            get_string('importstagevetresolvelines', 'mod_stage'),
+            get_string('importstagevetreferentretained', 'mod_stage'),
+            get_string('importstagevetreferentaccount', 'mod_stage'),
+        ];
+        $index = 0;
+        foreach ($results->unknownreferents as $label => $info) {
+            // Référent retenu par défaut : celui de chaque étudiant, qui peut différer d'une
+            // ligne à l'autre ; « aucun » pour un étudiant sans référent attribué.
+            $retained = array_count_values(array_map(function ($name) {
+                return $name !== '' ? $name : get_string('importstagevetreferentnone', 'mod_stage');
+            }, $info['retained'] ?? []));
+            $retainedlabels = [];
+            foreach ($retained as $name => $count) {
+                $retainedlabels[] = s($name) . ($count > 1 ? ' (' . $count . ')' : '');
+            }
+            $referenttable->data[] = [
+                s($label) . html_writer::empty_tag('input', [
+                    'type' => 'hidden', 'name' => 'referentlabel[' . $index . ']', 'value' => $label,
+                ]),
+                s(implode(', ', $info['lines'] ?? [])),
+                implode(html_writer::empty_tag('br'), $retainedlabels),
+                html_writer::select(
+                    $teacheroptions,
+                    'referentuser[' . $index . ']',
+                    0,
+                    ['0' => get_string('importstagevetreferentdefault', 'mod_stage')],
+                    ['class' => 'form-control']
+                ),
+            ];
+            $index++;
+        }
+        echo html_writer::table($referenttable);
+        echo html_writer::tag(
+            'button',
+            get_string('importstagevetreferentapply', 'mod_stage'),
+            ['type' => 'submit', 'class' => 'btn btn-primary']
+        );
+        echo html_writer::end_tag('form');
     }
 
     // Rapport groupé : un étudiant ou une thématique manquant sur cent lignes ne doit apparaître
@@ -204,7 +349,6 @@ if ($results) {
         foreach (stage_get_enrolled_students($context) as $enrolled) {
             $studentoptions[$enrolled->id] = fullname($enrolled) . ' (' . $enrolled->email . ')';
         }
-        $replayable = !empty($SESSION->stage_stagevet_import[$stage->id]['content']);
 
         if (!$studentoptions || !$replayable) {
             // Sans inscrit à proposer, ou une fois le contenu mis de côté expiré, il ne reste
@@ -258,7 +402,7 @@ if ($results) {
         }
     }
 
-    if (!empty($results->probableduplicates) && !empty($SESSION->stage_stagevet_import[$stage->id]['content'])) {
+    if (!empty($results->probableduplicates) && $replayable) {
         echo $OUTPUT->heading(get_string(
             'importstagevetduplicatesreport',
             'mod_stage',

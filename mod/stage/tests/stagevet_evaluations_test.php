@@ -151,6 +151,9 @@ final class stagevet_evaluations_test extends \advanced_testcase {
         $this->assertNotEmpty($entry->tutortime);
         $this->assertEquals(STAGE_STATUS_EVAL_ETUDIANT, $entry->status);
 
+        // Les invitations partent par une tâche ad hoc, pas pendant l'import.
+        $this->assertCount(0, $sink->get_messages());
+        $this->run_teacher_eval_tasks();
         $messages = $sink->get_messages();
         $this->assertCount(1, $messages);
         $this->assertSame($teacher->email, $messages[0]->to);
@@ -203,6 +206,7 @@ final class stagevet_evaluations_test extends \advanced_testcase {
         $this->assertSame(1, $fourth['results']->unchanged);
         $this->assertSame(0, $fourth['results']->notified);
         $this->assertEquals(1, $DB->count_records('stage_entry'));
+        $this->run_teacher_eval_tasks();
         $this->assertCount(1, $sink->get_messages());
     }
 
@@ -250,6 +254,7 @@ final class stagevet_evaluations_test extends \advanced_testcase {
         $this->assertSame(1, $result['results']->created);
         $this->assertSame(0, $result['results']->notified);
         $this->assertSame([$student->id => fullname($student)], $result['results']->noreferent);
+        $this->run_teacher_eval_tasks();
         $this->assertCount(0, $sink->get_messages());
         $entry = $DB->get_record('stage_entry', [], '*', MUST_EXIST);
         $this->assertSame('Avis global : 5/5', $entry->tutoreval);
@@ -307,5 +312,56 @@ final class stagevet_evaluations_test extends \advanced_testcase {
         $plain = stage_render_evaluation_text('<p>Très bon stage</p>', FORMAT_HTML);
         $this->assertStringNotContainsString('stage-evaluation-table', $plain);
         $this->assertStringContainsString('Très bon stage', $plain);
+    }
+
+    /**
+     * Un tuteur de l'export (enseignant référent de l'école) sans compte reconnu ne bloque pas
+     * la ligne : la convention reprend l'enseignant référent de l'étudiant, et le libellé est
+     * remonté avec le stage créé. Le compte désigné ensuite par la DEVE vaut pour les passes
+     * suivantes ; un tuteur reconnu par son adresse l'emporte sur le référent de l'étudiant.
+     */
+    public function test_unknown_tutor_defaults_to_student_referent(): void {
+        global $DB;
+        [$stage, $context, $student, $teacher] = $this->fixture();
+        $other = $this->getDataGenerator()->create_user(['email' => 'autre@example.test']);
+        $this->getDataGenerator()->enrol_user($other->id, $stage->course, 'teacher');
+
+        $first = csv_importer::stagevet($stage, $context, $this->csv([$this->row(['Nom tuteur' => 'Dr Inconnu'])]));
+        $this->assertSame(1, $first['results']->created);
+        $this->assertSame(1, $first['results']->referentfallback);
+        $entry = $DB->get_record('stage_entry', ['stageid' => $stage->id], '*', MUST_EXIST);
+        $referentid = $DB->get_field('stage_convention_detail', 'referentteacherid', ['entryid' => $entry->id]);
+        $this->assertEquals($teacher->id, $referentid);
+        $this->assertSame([2], $first['results']->unknownreferents['Dr Inconnu']['lines']);
+        $this->assertSame([(int) $entry->id], $first['results']->unknownreferents['Dr Inconnu']['entryids']);
+        $this->assertSame([fullname($teacher)], $first['results']->unknownreferents['Dr Inconnu']['retained']);
+
+        // Le compte désigné par la DEVE pour ce libellé s'applique aux lignes suivantes.
+        $second = csv_importer::stagevet($stage, $context, $this->csv([$this->row([
+            'Nom tuteur' => 'Dr Inconnu', 'Début stage' => '01/03/2026', 'Fin stage' => '05/03/2026',
+        ])]), [], [], null, ['Dr Inconnu' => $other->id]);
+        $this->assertSame(1, $second['results']->created);
+        $this->assertSame(0, $second['results']->referentfallback);
+        $this->assertEmpty($second['results']->unknownreferents);
+        $created = $DB->get_field_select('stage_entry', 'MAX(id)', 'stageid = ?', [$stage->id]);
+        $this->assertEquals($other->id, $DB->get_field('stage_convention_detail', 'referentteacherid', ['entryid' => $created]));
+
+        // Tuteur reconnu par son adresse : ni repli, ni libellé à rapprocher.
+        $third = csv_importer::stagevet($stage, $context, $this->csv([$this->row([
+            'Nom tuteur' => 'Quelqu\'un', 'Email tuteur' => 'autre@example.test',
+            'Début stage' => '01/04/2026', 'Fin stage' => '05/04/2026',
+        ])]));
+        $this->assertSame(0, $third['results']->referentfallback);
+        $this->assertEmpty($third['results']->unknownreferents);
+    }
+
+    /**
+     * Exécute les tâches ad hoc d'invitation des enseignants référents, sans laisser leur sortie
+     * (mtrace) dans celle du test.
+     */
+    private function run_teacher_eval_tasks(): void {
+        ob_start();
+        $this->runAdhocTasks(\mod_stage\task\send_teacher_eval_requests::class);
+        ob_end_clean();
     }
 }

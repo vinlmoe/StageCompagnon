@@ -121,6 +121,7 @@ $string['importerrorduplicate'] = 'Ligne {$a->line} : "{$a->email}" a déjà un 
     . 'avec ces mêmes dates, ligne ignorée.';
 $string['importerrordate'] = 'Ligne {$a->line} : date "{$a->value}" illisible (formats acceptés : AAAA-MM-JJ ou JJ/MM/AAAA), '
     . 'ligne ignorée.';
+$string['importerrorperiodtoolong'] = 'Ligne {$a->line} : la plage de dates dépasse {$a->max} jours, ligne ignorée. Vérifiez l\'année de ses dates.';
 $string['importerrordaterange'] = 'Ligne {$a} : la date de fin précède la date de début, ligne ignorée.';
 $string['importstagevetcsv'] = 'Importer un export StageVet (CSV)';
 $string['importstagevetcsv_help'] = "Importez directement le fichier CSV exporté depuis StageVet (menu export de "
@@ -219,6 +220,8 @@ $string['importteacherscsv_help'] = "Importez un fichier CSV (enregistré depuis
     . "l'étudiant ; une ligne dont un référent n'est pas reconnu est ignorée et l'attribution existante conservée.";
 $string['importteachersresult'] = '{$a} étudiant(s) mis à jour avec succès.';
 $string['importerrorunknownteacher'] = 'Ligne {$a->line} : aucun enseignant référent potentiel avec l\'adresse "{$a->email}".';
+$string['erroractivitybusy'] = 'Un autre enregistrement de stages ou d\'enseignants est en cours dans cette activité. Réessayez dans quelques secondes.';
+$string['errorduplicateentryown'] = 'Vous avez déjà un stage enregistré sur cette thématique avec ces mêmes dates.';
 $string['errorduplicateentry'] = 'Cet étudiant a déjà un stage enregistré sur cette thématique avec ces mêmes dates.';
 $string['registerstage'] = 'Enregistrer un stage';
 $string['editstage'] = 'Modifier un stage';
@@ -345,6 +348,7 @@ $string['addperiod'] = 'Ajouter une plage';
 $string['removeperiod'] = 'Retirer';
 $string['periods_help'] = "Un stage peut comporter plusieurs plages de dates non contiguës (ex : deux séjours séparés). L'étudiant choisira ses jours de stage effectifs parmi ces plages lors de son auto-évaluation.";
 $string['periodsrequired'] = "Renseignez au moins une plage de dates : les dates du stage en sont déduites.";
+$string['periodtoolong'] = 'Une plage ne peut pas dépasser {$a} jours : vérifiez l\'année de ses dates.';
 $string['periodendbeforestart'] = "La date de fin d'une plage ne peut pas précéder sa date de début.";
 $string['periodstartinpast'] = "Une convention ne peut pas être demandée pour un stage déjà commencé : la date "
     . "de début doit être aujourd'hui ou plus tard. Si le stage a déjà commencé, adressez-vous à la DEVE.";
@@ -752,6 +756,8 @@ $string['conventionremindernotifbody'] = "Bonjour {\$a->student},\n\nVotre stage
     . "convention signée, le stage ne peut pas débuter.\n\nMerci de régulariser votre demande de convention au "
     . "plus vite :\n{\$a->url}";
 $string['taskconventionreminders'] = 'Relance des conventions de stage non signées';
+$string['tutoremailinvalid'] = "Cette adresse du maître de stage n'est pas valide : l'invitation à évaluer le stage ne peut pas partir. Corrigez-la dans les informations de la convention, puis relancez l'invitation.";
+$string['tutorrequestfailed'] = "L'invitation automatique à évaluer le stage n'a pas pu partir le {\$a}. Elle ne sera pas retentée automatiquement : relancez-la à la main.";
 $string['tasktutorevaluationrequests'] = 'Envoi des invitations à évaluer le stage aux maîtres de stage';
 $string['reportmode'] = 'Rapport de stage';
 $string['reportmode_help'] = "Dépôt de documents demandé à l'étudiant lors de son auto-évaluation, sur le "
@@ -922,6 +928,7 @@ $string['errorvalidatecancelled'] = 'Réinitialisez le stage annulé avant de le
 $string['errornegativeduration'] = 'La durée ne peut pas être négative.';
 $string['errorrequiredanswer'] = 'Une réponse est obligatoire pour la question : {$a}';
 $string['errorinvalidanswer'] = 'Choisissez une réponse proposée pour la question : {$a}';
+$string['privacy:metadata:stage_entry:tutorrequestfailtime'] = "La date de l'échec de l'invitation automatique du maître de stage.";
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = "La date du dernier envoi de l'invitation au maître de stage.";
 
 // Page unique de gestion d'une thématique (theme_edit.php).
@@ -970,7 +977,17 @@ $string['importstagevetupdated'] = '{$a} stage(s) déjà présent(s) mis à jour
 $string['importstagevetunchanged'] = '{$a} stage(s) déjà présent(s), sans nouvelle information : inchangé(s).';
 $string['importstagevetevaluations'] = '{$a} évaluation(s) importée(s).';
 $string['importstagevetnotified'] = "{\$a} stage(s) dont les deux évaluations sont désormais disponibles : "
-    . "l'enseignant référent a été invité par courriel à évaluer.";
+    . "l'enseignant référent va être invité par courriel à évaluer (envoi au prochain passage du cron).";
+$string['importstagevetreferentfallback'] = "{\$a} stage(s) sans tuteur reconnu dans l'export : la convention reprend l'enseignant référent attribué à l'étudiant.";
+$string['importstagevetunknownreferentsreport'] = '{$a} tuteur(s) de l\'export sans compte enseignant reconnu';
+$string['importstagevetreferents_help'] = "Dans l'export StageVet, le « tuteur » est l'enseignant référent de l'école. Ces noms ne correspondent à aucun compte enseignant du cours, ni par l'adresse ni par le nom. Les stages ont été créés avec l'enseignant référent attribué à l'étudiant ; choisissez un compte pour le remplacer dans la convention de ces stages. Le choix vaut aussi pour les lignes encore à arbitrer.";
+$string['importstagevetreferentlabel'] = "Tuteur dans l'export";
+$string['importstagevetreferentretained'] = 'Référent retenu';
+$string['importstagevetreferentaccount'] = 'Compte enseignant';
+$string['importstagevetreferentdefault'] = "Garder l'enseignant référent de l'étudiant";
+$string['importstagevetreferentnone'] = 'Aucun (pas de référent attribué)';
+$string['importstagevetreferentapply'] = 'Appliquer ces comptes';
+$string['importstagevetreferentsapplied'] = '{$a} convention(s) mise(s) à jour avec le compte enseignant choisi.';
 $string['importstagevetnoreferent'] = "Évaluations complètes, mais aucun enseignant référent n'est attribué à : {\$a}. "
     . "Attribuez-en un pour qu'il puisse évaluer le stage.";
 $string['importstageveterrorambiguous'] = 'Ligne {$a->line} ({$a->student}, {$a->theme}) : plusieurs stages déjà '

@@ -77,10 +77,14 @@ echo html_writer::empty_tag('input', ['type' => 'submit', 'value' => get_string(
 echo html_writer::link($searchformurl, get_string('resetfilters', 'mod_stage'), ['class' => 'btn btn-link']);
 echo html_writer::end_tag('form');
 
-$allentries = stage_get_convention_entries($stage->id, $search, $tsort, $tdir);
-[$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
+// Une page lue en SQL, plutôt que toutes les demandes de la promotion découpées ensuite.
+$entrytotal = stage_count_convention_entries($stage->id, $search);
+$entries = $entrytotal > 0
+    ? stage_get_convention_entries($stage->id, $search, $tsort, $tdir, max(0, $page) * STAGE_LIST_PERPAGE, STAGE_LIST_PERPAGE)
+    : [];
+$pagingbarhtml = stage_paging_bar($entrytotal, $page, $listurl);
 
-if (empty($allentries)) {
+if ($entrytotal === 0) {
     echo $OUTPUT->notification(get_string('noconventionrequests', 'mod_stage'), 'info');
 } else {
     $students = stage_get_entry_users($entries);

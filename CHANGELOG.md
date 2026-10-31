@@ -23,6 +23,8 @@ changements. À tenir à jour à chaque modification de `version.php`.
   main (`workflow_dispatch`). La couverture de code est mesurée (pcov) sur la combinaison la plus
   récente, résumée dans le journal du job et publiée en artefact Clover.
 - Tests : cas tabulaires portés en `dataProvider` (filtre de statut, chevauchements de plages).
+- CI : la suite PHPUnit tourne aussi sur MariaDB (Moodle 4.5, PHP 8.2), pour le SQL écrit par le
+  module lui-même.
 - CI : scénarios Behat joués sans JavaScript (serveur web intégré de PHP, profil `default`) sur
   la combinaison Moodle 4.5 / PHP 8.2.
 
@@ -84,6 +86,54 @@ changements. À tenir à jour à chaque modification de `version.php`.
   erreurs signalées ligne par ligne sans bloquer les autres.
 - Pilotage : après une action lancée depuis le volet d'un étudiant, retour sur ce volet et non
   plus sur la liste.
+- Test de charge (`docs/audit/`) et corrections qui en découlent :
+  - Export Excel : la colonne « Évalué par » était toujours vide (variable non définie) ; plages
+    de dates, référents et enseignants responsables lus en une requête chacun au lieu d'une par
+    stage, étudiant ou thématique ; limites de temps et de mémoire relevées.
+  - Invitations des maîtres de stage : une seule tentative automatique. Plus d'invitation
+    au-delà de 60 jours après la fin du stage (après son début s'il n'a pas de date de fin) ;
+    activer l'évaluation sur une promotion qui a un historique invitait d'un coup tous les
+    anciens stages. Un échec (adresse invalide, envoi refusé) est enregistré
+    (`tutorrequestfailtime`, version 2026103101, sauvegardé avec le cours et exporté au titre
+    du RGPD) et n'est plus jamais retenté par la tâche planifiée : la DEVE en est avertie sur le
+    détail du stage et relance à la main, un envoi réussi effaçant l'échec. 200 tentatives au
+    plus par passage. Adresse contrôlée dans les formulaires de convention, et envoyée sans les
+    espaces qui l'entourent.
+  - Listes (enregistrement, validation DEVE, enseignant référent, thématique, conventions,
+    suppression) paginées en SQL au lieu de charger toute la promotion.
+  - Volet de suivi de l'étudiant : données chargées une fois (cache du bilan de promotion) au
+    lieu de plusieurs centaines de requêtes ; documents d'objectifs repérés en une requête.
+  - Suppression des stages (réinitialisation, suppression de l'activité, RGPD), téléchargement
+    groupé des rapports et lectures par identifiants faits par paquets : plus de liste `IN`
+    dépassant les limites de MSSQL et d'Oracle, une requête de fichiers par paquet au lieu
+    d'une par stage.
+  - Verrou par activité sur les écritures en lot : création de stages (formulaires, création en
+    masse, service web, imports CSV, StageVet et historique, doublons relus sous le verrou) et
+    attribution des enseignants (référents, responsables, import historique). Attributions
+    écrites par différences. Validation et rejet DEVE conditionnés au statut « non annulé »
+    dans la requête même, en une transaction avec le commentaire et l'événement. Le jeton du
+    maître de stage n'est plus remplacé quand l'affichage et la tâche planifiée le créent en
+    même temps.
+  - Plages de dates limitées à 366 jours (formulaires, service web, imports CSV et StageVet) ;
+    une plage existante inchangée reste acceptée dans les formulaires de la DEVE et de
+    l'enseignant. Import StageVet : mises à jour et créations en une transaction, doublons
+    probables cherchés sans relire la base à chaque ligne. Événements : saisie et module de
+    cours lus en une requête. Index sur la date de début des stages.
+  - Listes : le tri à rebours par étudiant s'applique au nom comme au prénom (seul le prénom
+    était trié à rebours). Message de doublon propre à l'étudiant.
+  - Import historique : la prévisualisation est conservée dans un fichier temporaire propre à
+    l'utilisateur et à l'activité (valable un jour) au lieu de la session, qu'un gros classeur
+    alourdissait.
+  - Import StageVet : les invitations des enseignants référents partent par une tâche ad hoc
+    (`send_teacher_eval_requests`) au lieu de la requête web ; le compte rendu de l'import dit
+    toujours qui sera invité et qui n'a pas de référent.
+  - Import CSV des référents sous le verrou de l'activité, en une transaction.
+- Import StageVet : le référent de la convention est le tuteur de l'export (enseignant référent
+  de l'école) reconnu par son adresse ou son nom ; à défaut, l'enseignant référent attribué à
+  l'étudiant. Les tuteurs sans compte reconnu ne bloquent plus rien et ne sont plus ignorés en
+  silence : le compte rendu les liste avec le référent retenu et propose de choisir le bon
+  compte enseignant, appliqué aux stages créés et aux lignes encore à arbitrer. Les étapes de
+  l'import sont conservées dans un fichier temporaire au lieu de la session.
 
 ### mod_stagesynthesis
 - Événement Moodle de consultation de l'activité.

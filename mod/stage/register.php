@@ -147,13 +147,15 @@ if ($mode === 'list') {
     ]);
     echo stage_render_list_filters($listurl, $allthemes, $search, $filterthemeid, $filterstatus);
 
-    $allentries = stage_get_filtered_entries(
+    [$entries, $pagingbarhtml, $entrytotal] = stage_get_filtered_entries_page(
         $stage->id,
         ['search' => $search, 'themeid' => $filterthemeid, 'status' => $filterstatus],
         $tsort,
-        $tdir
+        $tdir,
+        null,
+        $page,
+        $listurl
     );
-    [$entries, $pagingbarhtml] = stage_paginate($allentries, $page, $listurl);
     $students = stage_get_entry_users($entries);
     $stagetypes = stage_get_entry_stagetypes(array_keys($entries));
 
@@ -246,7 +248,7 @@ if ($mode === 'list') {
             $actions,
         ];
     }
-    if (empty($allentries)) {
+    if ($entrytotal === 0) {
         echo $OUTPUT->notification(get_string('nostages', 'mod_stage'), 'info');
     } else {
         echo html_writer::table($table);
@@ -344,22 +346,41 @@ if ($mode === 'single') {
             stage_set_entry_convention_exempt($entry, !empty($data->exemptfromconvention));
             stage_set_entry_stagetype($entry->id, $data->stagetype);
         } else {
-            $conventionstatus = !empty($data->exemptfromconvention) ? STAGE_CONVENTION_EXEMPT : STAGE_CONVENTION_NONE;
-            $newentryid = stage_register_entry(
-                $stage->id,
-                $data->userid,
-                $data->themeid,
-                $data->structure,
-                $datestart,
-                $dateend,
-                $data->declaredduration,
-                $data->studyyear,
-                $conventionstatus,
-                $data->abroad,
-                $data->country ?? ''
-            );
-            stage_save_entry_periods($newentryid, $periods);
-            stage_set_entry_stagetype($newentryid, $data->stagetype);
+            // Le formulaire a déjà écarté les doublons, mais deux enregistrements simultanés (deux
+            // membres de la DEVE) passent ce contrôle avant que l'autre saisie n'existe : il est
+            // refait sous le verrou de l'activité.
+            $lock = stage_get_activity_lock($stage->id);
+            try {
+                $duplicate = stage_entry_is_duplicate($stage->id, $data->userid, $data->themeid, $datestart, $dateend);
+                if (!$duplicate) {
+                    $conventionstatus = !empty($data->exemptfromconvention) ? STAGE_CONVENTION_EXEMPT : STAGE_CONVENTION_NONE;
+                    $newentryid = stage_register_entry(
+                        $stage->id,
+                        $data->userid,
+                        $data->themeid,
+                        $data->structure,
+                        $datestart,
+                        $dateend,
+                        $data->declaredduration,
+                        $data->studyyear,
+                        $conventionstatus,
+                        $data->abroad,
+                        $data->country ?? ''
+                    );
+                    stage_save_entry_periods($newentryid, $periods);
+                    stage_set_entry_stagetype($newentryid, $data->stagetype);
+                }
+            } finally {
+                $lock->release();
+            }
+            if ($duplicate) {
+                redirect(
+                    $backurl,
+                    get_string('errorduplicateentry', 'mod_stage'),
+                    null,
+                    \core\output\notification::NOTIFY_ERROR
+                );
+            }
         }
         redirect($backurl, get_string('stagesaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }

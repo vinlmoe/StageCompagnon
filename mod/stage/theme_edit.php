@@ -133,94 +133,101 @@ $mform->set_data($formdata);
 
 if ($data = $mform->get_data()) {
     $now = time();
-    $transaction = $DB->start_delegated_transaction();
+    // Sous le verrou de l'activité, comme toute attribution d'enseignants (voir
+    // stage_get_activity_lock()).
+    $lock = stage_get_activity_lock($stage->id);
+    try {
+        $transaction = $DB->start_delegated_transaction();
 
-    // Paramètres généraux.
-    $record = (object) [
-        'stageid' => $stage->id,
-        'name' => $data->name,
-        'description' => $data->description,
-        'mandatory' => !empty($data->mandatory) ? 1 : 0,
-        'requiredduration' => (int) $data->requiredduration,
-        'minstudyyear' => (int) $data->minstudyyear,
-        'maxstudyyear' => (int) $data->maxstudyyear,
-        'sortorder' => (int) $data->sortorder,
-        'visible' => !empty($data->visible) ? 1 : 0,
-        'tutorevaluationenabled' => !empty($data->tutorevaluationenabled) ? 1 : 0,
-        'reportmode' => array_key_exists((int) $data->reportmode, stage_report_mode_options())
-            ? (int) $data->reportmode : STAGE_REPORT_NONE,
-        'timemodified' => $now,
-    ];
-    // Liste d'évaluation de chaque formulaire : seule une liste de cette activité et de ce type
-    // est acceptée. Un champ absent du formulaire (maître de stage non proposé) garde sa valeur.
-    foreach (stage_evallist_fields() as $evaltype => $field) {
-        if (isset($data->$field)) {
-            $listid = (int) $data->$field;
-            $record->$field = isset($evallists[$evaltype][$listid]) ? $listid : 0;
-        } else {
-            $record->$field = $theme ? (int) $theme->$field : 0;
-        }
-    }
-    if ($theme) {
-        $record->id = $theme->id;
-        $DB->update_record('stage_theme', $record);
-    } else {
-        $record->timecreated = $now;
-        $record->id = $DB->insert_record('stage_theme', $record);
-    }
-    $savedthemeid = (int) $record->id;
-
-    // Durées par année, en l'absence de durée unique (les champs sont alors désactivés et non
-    // soumis). Un champ vide supprime la valeur propre à l'année, qui reprend alors la valeur
-    // « toutes années » ; enregistrer 0 la masquerait.
-    if (empty($record->requiredduration)) {
-        foreach (array_keys(stage_studyyear_options()) as $year) {
-            $value = trim((string) ($data->{'duration_' . $year} ?? ''));
-            if ($value === '') {
-                stage_delete_theme_duration($savedthemeid, $year);
-            } else {
-                stage_set_theme_duration($savedthemeid, $year, (int) $value);
-            }
-        }
-    }
-
-    // Enseignants responsables : choisis parmi les enseignants du cours uniquement, sans quoi un
-    // id arbitraire soumis à la main donnerait accès aux rapports de la thématique.
-    if (!empty($teacheroptions)) {
-        $teacherids = array_intersect((array) ($data->teacherids ?? []), array_keys($teacheroptions));
-        stage_set_theme_teachers($savedthemeid, $teacherids);
-    }
-
-    // Check-list d'objectifs.
-    $existingitems = [];
-    foreach ($checklist as $item) {
-        $existingitems[(int) $item->id] = $item;
-    }
-    foreach ($data->checklistid ?? [] as $i => $itemid) {
-        $itemid = (int) $itemid;
-        $name = trim((string) ($data->checklistname[$i] ?? ''));
-        $delete = !empty($data->checklistdelete[$i]);
-        $item = (object) [
-            'themeid' => $savedthemeid,
-            'name' => $name,
-            'description' => $data->checklistdescription[$i] ?? '',
-            'sortorder' => (int) ($data->checklistsortorder[$i] ?? 0),
+        // Paramètres généraux.
+        $record = (object) [
+            'stageid' => $stage->id,
+            'name' => $data->name,
+            'description' => $data->description,
+            'mandatory' => !empty($data->mandatory) ? 1 : 0,
+            'requiredduration' => (int) $data->requiredduration,
+            'minstudyyear' => (int) $data->minstudyyear,
+            'maxstudyyear' => (int) $data->maxstudyyear,
+            'sortorder' => (int) $data->sortorder,
+            'visible' => !empty($data->visible) ? 1 : 0,
+            'tutorevaluationenabled' => !empty($data->tutorevaluationenabled) ? 1 : 0,
+            'reportmode' => array_key_exists((int) $data->reportmode, stage_report_mode_options())
+                ? (int) $data->reportmode : STAGE_REPORT_NONE,
             'timemodified' => $now,
         ];
-        if ($itemid && isset($existingitems[$itemid])) {
-            if ($delete) {
-                stage_delete_theme_checklist_item($itemid);
+        // Liste d'évaluation de chaque formulaire : seule une liste de cette activité et de ce type
+        // est acceptée. Un champ absent du formulaire (maître de stage non proposé) garde sa valeur.
+        foreach (stage_evallist_fields() as $evaltype => $field) {
+            if (isset($data->$field)) {
+                $listid = (int) $data->$field;
+                $record->$field = isset($evallists[$evaltype][$listid]) ? $listid : 0;
             } else {
-                $item->id = $itemid;
-                $DB->update_record('stage_theme_checklist', $item);
+                $record->$field = $theme ? (int) $theme->$field : 0;
             }
-        } else if (!$itemid && !$delete && $name !== '') {
-            $item->timecreated = $now;
-            $DB->insert_record('stage_theme_checklist', $item);
         }
-    }
+        if ($theme) {
+            $record->id = $theme->id;
+            $DB->update_record('stage_theme', $record);
+        } else {
+            $record->timecreated = $now;
+            $record->id = $DB->insert_record('stage_theme', $record);
+        }
+        $savedthemeid = (int) $record->id;
 
-    $transaction->allow_commit();
+        // Durées par année, en l'absence de durée unique (les champs sont alors désactivés et non
+        // soumis). Un champ vide supprime la valeur propre à l'année, qui reprend alors la valeur
+        // « toutes années » ; enregistrer 0 la masquerait.
+        if (empty($record->requiredduration)) {
+            foreach (array_keys(stage_studyyear_options()) as $year) {
+                $value = trim((string) ($data->{'duration_' . $year} ?? ''));
+                if ($value === '') {
+                    stage_delete_theme_duration($savedthemeid, $year);
+                } else {
+                    stage_set_theme_duration($savedthemeid, $year, (int) $value);
+                }
+            }
+        }
+
+        // Enseignants responsables : choisis parmi les enseignants du cours uniquement, sans quoi un
+        // id arbitraire soumis à la main donnerait accès aux rapports de la thématique.
+        if (!empty($teacheroptions)) {
+            $teacherids = array_intersect((array) ($data->teacherids ?? []), array_keys($teacheroptions));
+            stage_set_theme_teachers($savedthemeid, $teacherids);
+        }
+
+        // Check-list d'objectifs.
+        $existingitems = [];
+        foreach ($checklist as $item) {
+            $existingitems[(int) $item->id] = $item;
+        }
+        foreach ($data->checklistid ?? [] as $i => $itemid) {
+            $itemid = (int) $itemid;
+            $name = trim((string) ($data->checklistname[$i] ?? ''));
+            $delete = !empty($data->checklistdelete[$i]);
+            $item = (object) [
+                'themeid' => $savedthemeid,
+                'name' => $name,
+                'description' => $data->checklistdescription[$i] ?? '',
+                'sortorder' => (int) ($data->checklistsortorder[$i] ?? 0),
+                'timemodified' => $now,
+            ];
+            if ($itemid && isset($existingitems[$itemid])) {
+                if ($delete) {
+                    stage_delete_theme_checklist_item($itemid);
+                } else {
+                    $item->id = $itemid;
+                    $DB->update_record('stage_theme_checklist', $item);
+                }
+            } else if (!$itemid && !$delete && $name !== '') {
+                $item->timecreated = $now;
+                $DB->insert_record('stage_theme_checklist', $item);
+            }
+        }
+
+        $transaction->allow_commit();
+    } finally {
+        $lock->release();
+    }
 
     file_save_draft_area_files(
         $data->objectivefiles,

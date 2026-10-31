@@ -283,6 +283,17 @@ if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tuto
                 'p',
                 html_writer::tag('strong', get_string('conventiontutoremail', 'mod_stage') . ' : ') . s($detail->tutoremail)
             );
+            // Sans adresse valide, l'invitation ne peut pas partir ; un échec de l'invitation
+            // automatique n'est jamais retenté par la tâche planifiée : la DEVE doit le savoir pour
+            // corriger l'adresse dans la convention puis relancer.
+            if (!stage_tutor_email_valid($detail->tutoremail)) {
+                echo $OUTPUT->notification(get_string('tutoremailinvalid', 'mod_stage'), 'warning');
+            } else if (!empty($entry->tutorrequestfailtime) && empty($entry->tutorrequesttime)) {
+                echo $OUTPUT->notification(
+                    get_string('tutorrequestfailed', 'mod_stage', userdate($entry->tutorrequestfailtime, $datetimeformat)),
+                    'warning'
+                );
+            }
             $resendurl = new moodle_url($baseurl, ['resendtutor' => 1, 'sesskey' => sesskey()]);
             echo html_writer::link(
                 $resendurl,

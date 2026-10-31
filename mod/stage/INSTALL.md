@@ -189,9 +189,16 @@ L'étudiant est identifié par courriel si la colonne est renseignée, sinon par
 nom et prénom (comparaison insensible aux accents et à la casse).
 L'année du stage est tirée de la colonne `Année étudiant (convention)`, avec
 `Année d'étude` comme valeur de repli.
-Le `Nom tuteur` est rapproché de l'enseignant référent Moodle ; le
-`Nom maître de stage` et sa fonction renseignent séparément l'encadrant de la
-structure d'accueil.
+Le « tuteur » de l'export est l'enseignant référent de l'école : `Email tuteur`
+puis `Nom tuteur` sont rapprochés d'un compte enseignant du cours, et ce compte
+devient le référent de la convention. À défaut (tuteur absent de l'export ou
+sans compte reconnu), la convention reprend l'enseignant référent attribué à
+l'étudiant dans l'activité (le premier par ordre alphabétique s'il en a
+plusieurs). Les tuteurs non reconnus ne bloquent pas l'import : le compte rendu
+les liste, avec leurs lignes et le référent retenu, et propose pour chacun de
+choisir le bon compte enseignant, appliqué aux stages créés et aux lignes encore
+à arbitrer. Le `Nom maître de stage` et sa fonction renseignent séparément
+l'encadrant de la structure d'accueil.
 
 Les noms de thématiques doivent correspondre exactement aux intitulés StageVet
 (par exemple `THEME LIBRE / A2, A3, A4, A5`) : créez-les au préalable. Le
