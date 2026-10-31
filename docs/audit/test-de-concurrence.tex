@@ -1,4 +1,5 @@
-% Test de concurrence de mod_stage : imports simultanés, verrous, volumétrie, dans un Moodle réel.
+% Test de concurrence de mod_stage : imports simultanés, circuit du stage entre acteurs, verrous,
+% volumétrie, dans un Moodle réel.
 % Compilation : latexmk -pdf test-de-concurrence.tex
 \documentclass[11pt,a4paper]{article}
 \usepackage[french]{babel}
@@ -7,7 +8,7 @@
 \usepackage[margin=2.2cm]{geometry}
 \newcommand{\code}[1]{\texttt{\detokenize{#1}}}
 \newcommand{\grav}[1]{\textbf{\textcolor{#1}{\textbullet}}}
-\title{Test de concurrence des imports de \code{mod_stage}}
+\title{Test de concurrence de \code{mod_stage} : imports et circuit des stages}
 \author{Sébastien Lefebvre}
 \date{31 octobre 2026}
 
@@ -32,12 +33,23 @@ de Moodle (verrous consultatifs PostgreSQL).
   \item \textbf{Parcours HTTP.} Les pages d'import (prévisualisation puis confirmation) sont
     appelées par plusieurs sessions DEVE distinctes, sur le serveur intégré de PHP avec dix
     workers et \code{memory_limit = 256M}.
+  \item \textbf{Acteurs.} Étudiants, enseignants référents, maîtres de stage (lien à jeton, sans
+    compte) et membres de la DEVE agissent par HTTP, chacun dans sa propre session, sur les mêmes
+    stages et dans un ordre aléatoire : 226 sessions et 48 clients simultanés sur 16 workers PHP.
+    Le journal standard de Moodle, réglé pour écrire chaque événement aussitôt
+    (\code{buffersize = 1}), donne l'ordre réel des écritures. Un audit rejoue cette suite
+    d'événements sur le circuit du stage. Il signale chaque action que la page aurait dû refuser
+    et chaque état final qui contredit la suite d'événements, c'est-à-dire une mise à jour perdue.
 \end{itemize}
 
 Les procédures couvertes sont les suivantes : import CSV des stages et des référents, import
 StageVet, import des mobilités d'études, import du suivi historique, restauration d'un export
 global, import depuis un autre cours, service web \code{register_entries}, enregistrement en
-masse, suppression en masse, tâches planifiées et ad hoc. Les scripts sont dans
+masse, suppression en masse, tâches planifiées et ad hoc. Côté circuit : auto-évaluation de
+l'étudiant, avis de l'enseignant référent (validation ou refus), évaluation du maître de stage,
+validation, refus, annulation et réinitialisation par la DEVE, contournement de l'évaluation du
+maître de stage, jours effectifs, validation et refus de la demande de convention par les deux
+référents, revue de la convention par la DEVE. Les scripts sont dans
 \code{docs/audit/concurrence/}.
 
 \section{Synthèse}
@@ -50,9 +62,17 @@ masse, suppression en masse, tâches planifiées et ad hoc. Les scripts sont dan
 \grav{red} & Import historique confirmé par deux DEVE : 900 stages en double & Bogue \\
 \grav{red} & Restauration d'export global confirmée deux fois : 300 stages en double & Bogue \\
 \grav{red} & Deux imports de mobilités simultanés : erreur SQL, import interrompu à mi-fichier & Erreur \\
+\grav{red} & Avis de l'enseignant ou auto-évaluation enregistrés pendant une validation ou une
+  annulation DEVE : la décision de la DEVE est effacée & Bogue \\
+\grav{red} & Conventions : validation, refus et revue possibles sur un stage annulé ; files
+  d'attente non filtrées & Bogue \\
+\grav{red} & Deux référents : 21 demandes de convention sur 148 reçoivent les deux décisions
+  contraires & Bogue \\
 \grav{orange} & Import depuis un autre cours lancé trois fois : thématiques triplées & Bogue \\
 \grav{orange} & Import StageVet et suppression en masse : erreur après validation de l'import & Erreur \\
 \grav{orange} & Restauration d'un export de 30\,000 stages : mémoire épuisée & Erreur \\
+\grav{orange} & Maître de stage : évaluation enregistrée sur un stage annulé entre-temps & Bogue \\
+\grav{orange} & Jours effectifs enregistrés par deux acteurs à la fois : erreur SQL & Erreur \\
 \grav{orange} & Export Excel : 357~s et 1,5~Go pour 30\,000 stages & Ralentissement \\
 \grav{orange} & Verrou d'activité tenu plus de 30~s : les imports suivants échouent & Blocage \\
 \bottomrule
@@ -147,6 +167,136 @@ soit environ 11~ko par stage. La limite de 256~Mo est donc atteinte vers 15\,000
 \code{core_php_time_limit::raise()} dans \code{import_global.php}, comme le fait déjà
 \code{export.php}.
 
+\section{Circuit du stage : interactions entre acteurs}
+
+\subsection{Résultat d'ensemble}
+
+Le test porte sur 400 stages (200 étudiants, deux thématiques, l'une avec questionnaires et
+l'autre en commentaire libre). Ces stages ont une convention signée et sont commencés ; le
+maître de stage a déjà son lien. Deux tours de 3\,600 requêtes ont été lancés, soit
+2\,132 événements. Un premier tour séquentiel de contrôle, sur 6 stages, ne présente aucune
+anomalie : les écarts relevés ci-dessous viennent donc uniquement de la concurrence.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X r@{}}
+\toprule
+\textbf{Action appliquée alors que la page aurait dû la refuser} & \textbf{Cas} \\
+\midrule
+Avis de l'enseignant sur un stage déjà validé par la DEVE & 7 \\
+Auto-évaluation de l'étudiant sur un stage déjà validé & 4 \\
+Évaluation du maître de stage sur un stage annulé & 3 \\
+Auto-évaluation sur un stage annulé (stage \og ressuscité\fg{}) & 1 \\
+Auto-évaluation ou avis de l'enseignant sur un stage refusé & 2 \\
+Refus par l'enseignant d'un stage déjà validé & 1 \\
+\midrule
+\textbf{Total} & \textbf{18} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Décisions de la DEVE effacées par une évaluation}
+
+Trois stages montrent l'effet dans l'état enregistré :
+\begin{itemize}
+  \item \textbf{Stage 142343} : l'étudiant s'auto-évalue, la DEVE valide, puis l'avis de
+    l'enseignant arrive. Le stage reste en \og évalué par l'enseignant\fg{} alors que sa date
+    de validation DEVE est renseignée. La DEVE a reçu \og enregistré\fg{}, mais sa validation
+    n'a plus d'effet.
+  \item \textbf{Stage 142064} : la DEVE annule le stage, puis l'auto-évaluation de l'étudiant le
+    fait repasser en \og évalué par l'étudiant\fg{}. Le stage, sorti de l'annulation, a perdu le
+    lien du maître de stage, que l'annulation avait révoqué.
+  \item \textbf{Stage 142315} : stage validé par la DEVE, puis auto-évalué, puis refusé par
+    l'enseignant. Il finit \og non validé\fg{}.
+\end{itemize}
+
+\textbf{Cause.} \code{entry.php} (ligne 77) et \code{teacher.php} (ligne 73) lisent le statut
+au début de la requête et décident ainsi que le stage est modifiable.
+\code{stage_apply_student_eval()}, \code{stage_apply_teacher_eval()} et
+\code{stage_reject_by_teacher()} (\code{locallib.php}, lignes 2077, 2100 et 2171) écrivent
+ensuite un statut calculé sur cette lecture, sans condition, par \code{stage_update_entry_fields()}.
+Une validation, un refus ou une annulation enregistrés entre-temps sont écrasés. Seules la
+validation et le refus DEVE sont protégés, par \code{stage_update_entry_unless_cancelled()}, et
+seulement contre l'annulation.
+
+\textbf{Correction proposée.} Écrire chaque transition par une mise à jour conditionnelle sur le
+statut attendu (\code{UPDATE \dots{} WHERE id = :id AND status = :attendu}), sur le modèle de
+\code{stage_update_entry_unless_cancelled()}. Si aucune ligne n'est modifiée, relire le stage et
+afficher \og ce stage a changé entre-temps\fg{}.
+
+\subsection{Maître de stage : évaluation d'un stage annulé}
+
+Sur les 3 cas, le maître de stage avait ouvert le formulaire avant l'annulation et l'a envoyé
+après : l'évaluation est enregistrée, alors que l'annulation venait de révoquer son lien.
+\code{tutor_eval.php} (ligne 77) ne contrôle le jeton et l'absence d'évaluation qu'au début de
+la requête, puis \code{stage_apply_tutor_eval()} écrit sans condition.
+
+\textbf{Correction proposée.} Mise à jour conditionnelle :
+\code{WHERE id = :id AND status <> :annule AND tutortime = 0}. Elle empêche aussi d'enregistrer
+deux fois l'évaluation, depuis deux navigateurs.
+
+\subsection{Jours effectifs : erreur d'index unique}
+
+Sur 2\,400 enregistrements de jours effectifs faits par l'étudiant, l'enseignant et la DEVE en
+même temps, deux se terminent sur \code{dml_write_exception} (index unique
+\code{entryid, workdate}). \code{stage_set_entry_workdays()} (\code{locallib.php}, ligne 1963)
+supprime les jours puis réinsère la liste, sans transaction. Deux enregistrements simultanés
+suppriment chacun, puis insèrent tous deux.
+
+\textbf{Correction proposée.} Faire la suppression et l'insertion dans une transaction, après
+avoir verrouillé la ligne du stage (\code{SELECT \dots{} FOR UPDATE}, ou une mise à jour de
+\code{timemodified}). Le second enregistrement attend alors le premier.
+
+\subsection{Conventions : stages annulés}
+
+Ce bogue se produit aussi sans concurrence. Lors du tour de contrôle séquentiel, le stage 142602
+a été annulé par la DEVE, puis sa demande de convention validée par l'enseignant référent.
+\code{convention_teacher_validate.php} (ligne 64), \code{convention_review.php} (ligne 59) et
+\code{convention_sign.php} (ligne 58) ne contrôlent que le statut de la convention, jamais
+l'annulation du stage. Les files d'attente ne filtrent pas non plus les stages annulés : celle de
+l'enseignant (\code{locallib.php}, ligne 5763) et celle de la DEVE
+(\code{stage_convention_entries_where()}, ligne 5721). Le test concurrent ajoute 7 validations et
+7 refus par un référent sur un stage déjà annulé. À la fin, 28 stages annulés ont une convention
+\og demandée\fg{} qui attend la DEVE.
+
+\textbf{Correction proposée.} Refuser ces trois pages pour un stage annulé, comme le fait déjà
+\code{stage_convention_request_allowed()} pour la demande, et exclure \code{status = annulé} des
+deux files.
+
+\subsection{Conventions : décisions contraires des deux référents}
+
+Chaque étudiant a deux référents. L'un valide la demande de convention pendant que l'autre la
+refuse. Sur 148 demandes, 21 reçoivent les deux décisions :
+\begin{itemize}
+  \item 14 fois, la validation passe d'abord, puis le refus. La demande, déjà transmise à la
+    DEVE, repasse en \og refusée\fg{}.
+  \item 7 fois, le refus passe d'abord, puis la validation. L'étudiant a reçu le courriel de
+    refus, mais sa demande part quand même à la DEVE, sans qu'il l'ait de nouveau déposée.
+\end{itemize}
+
+\textbf{Cause.} Les pages contrôlent l'état \og en attente de l'enseignant\fg{} au début de la
+requête, puis \code{stage_teacher_validate_convention()} et \code{stage_reject_convention()}
+(\code{locallib.php}, lignes 6047 et 6167) écrivent sans condition. Le même schéma s'applique
+à la revue par deux membres de la DEVE, \code{stage_convention_mark_edited()} et
+\code{stage_convention_mark_signed()}.
+
+\textbf{Correction proposée.} Mise à jour conditionnelle sur le statut de convention attendu,
+comme pour le statut du stage ; le second acteur voit alors la décision du premier.
+
+\subsection{Refus attendus présentés comme des erreurs}
+
+Valider ou refuser un stage annulé est refusé, ce qui est le comportement voulu. Mais le refus
+prend la forme d'une exception (\code{errorvalidatecancelled}) : la DEVE voit une page d'erreur
+Moodle, avec un code HTTP~404, au lieu d'un message sur la page du stage. Le cas s'est produit
+175 fois pendant le test.
+
+\subsection{Temps de réponse sous charge}
+
+Avec 48 clients simultanés, le serveur traite environ 21 requêtes par seconde. Le temps médian
+d'une action est de 1,2~s pour l'étudiant, 1,6~s pour l'enseignant et 2,7~s pour la DEVE. Le
+95\textsuperscript{e} centile ne dépasse 4~s pour aucune action. Le délai plus long côté DEVE
+vient surtout de la conception du test : six sessions DEVE reçoivent 40~\% des requêtes, et
+Moodle sérialise les requêtes d'une même session. Aucune requête n'a échoué pour cause de délai.
+
 \section{Ralentissements et blocages}
 
 \subsection{Export Excel}
@@ -217,6 +367,10 @@ Import StageVet, 15\,000 lignes & 37~s & 90\,054 \\
     reste ouverte.
   \item Avec 30\,000 stages, toutes les pages de l'activité répondent en moins de 0,5~s, sauf le
     tableau de bord (1,7~s), la vue de l'activité (0,8~s) et l'export PDF (1,5~s).
+  \item Circuit du stage en séquentiel : aucune transition interdite, aucune mise à jour perdue.
+    Sous concurrence, aucun doublon de réponses aux questionnaires, aucune évaluation du maître
+    de stage enregistrée deux fois, aucune annulation sans auteur, et aucun stage annulé ne garde
+    son lien de maître de stage.
   \item Les tâches planifiées sont sérialisées par le cron de Moodle. Les invitations des
     enseignants référents passent par des tâches ad hoc groupées : 30 tâches pour
     15\,000 stages.

@@ -51,3 +51,34 @@ PHP_CLI_SERVER_WORKERS=10 php -d max_input_vars=5000 -d memory_limit=256M \
 - `h3.py` : prévisualisation d'une restauration d'un gros export (mémoire).
 - `pages.py site.json` : chronométrage de toutes les pages de l'activité.
 - `memread.php <classe> <fichier>` : mémoire de lecture d'un classeur par un importeur.
+
+## Circuit du stage entre acteurs (HTTP)
+
+Le journal standard doit écrire chaque événement aussitôt, pour que l'audit en connaisse l'ordre :
+
+```bash
+php admin/cli/cfg.php --component=logstore_standard --name=buffersize --set=1
+```
+
+- `setup4.php <étudiants>` : stages signés et commencés (thème A en commentaire libre, thème B
+  avec questionnaires), un référent par étudiant, lien du maître de stage. Écrit `actors-<tag>.json`.
+- `actors.py actors-<tag>.json <tours> <threads> <graine>` : étudiants (auto-évaluation, jours
+  effectifs), enseignants (avis, refus, jours effectifs), maîtres de stage (lien à jeton) et DEVE
+  (validation, refus, annulation, réinitialisation, contournement, jours effectifs) agissent
+  ensemble, chacun dans sa session. Réponses dans `logs/actors.jsonl`, temps par action.
+- `audit_actors.php actors-<tag>.json <id de journal de départ>` : rejoue les événements de
+  chaque stage sur le circuit ; transitions interdites, mises à jour perdues, cohérence des champs.
+- `setup7.php <étudiants>` : demandes de convention en attente de l'enseignant, deux référents
+  par étudiant. Écrit `conv-<tag>.json`.
+- `conventions.py conv-<tag>.json <threads> <graine>` : les deux référents (validation, refus),
+  deux DEVE (revue : validation, refus) et une annulation du stage, en même temps.
+- `audit_conv.php conv-<tag>.json <id de journal de départ>` : suites d'événements, décisions
+  contraires, actions sur stage annulé, statuts finaux.
+- `historique_stage.php <id de journal> <stage>...` : événements et champs d'un stage.
+- `actorslib.py` : formulaires (valeurs par défaut comme un navigateur), sessions, `psql`.
+
+```bash
+mkdir -p logs
+L0=$(psql -tAc "SELECT MAX(id) FROM mdl_logstore_standard_log")
+python3 actors.py actors-6.json 2 48 7 && php audit_actors.php actors-6.json $L0
+```
