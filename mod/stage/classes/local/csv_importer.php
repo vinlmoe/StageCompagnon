@@ -75,7 +75,9 @@ class csv_importer {
                 // studyyear (facultative).
                 $email = isset($row[0]) ? trim($row[0]) : '';
                 $themename = isset($row[1]) ? trim($row[1]) : '';
-                $structure = isset($row[2]) ? trim($row[2]) : '';
+                // Structure limitée à la taille de son champ (255 caractères) : une valeur plus longue
+                // ferait échouer l'écriture, et avec elle tout le fichier.
+                $structure = isset($row[2]) ? core_text::substr(trim($row[2]), 0, 255) : '';
                 $datestartraw = isset($row[3]) ? trim($row[3]) : '';
                 $dateendraw = isset($row[4]) ? trim($row[4]) : '';
                 $duration = isset($row[5]) ? (int) trim($row[5]) : 0;
@@ -732,7 +734,7 @@ class csv_importer {
                             'userid' => $student->id,
                             'themeid' => $theme->id,
                             'studyyear' => $studyyear,
-                            'structure' => $getcol($row, 'structurealt', 'structure'),
+                            'structure' => core_text::substr($getcol($row, 'structurealt', 'structure'), 0, 255),
                             'datestart' => $start,
                             'dateend' => $end,
                             'declaredduration' => $duration,

@@ -107,6 +107,34 @@ final class global_export_importer_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : un nom contenant « & » est écrit « &amp; » par format_string() dans l'export ;
+     * la thématique n'était plus retrouvée à la restauration.
+     */
+    public function test_normalize_decodes_html_entities(): void {
+        $this->assertSame(
+            global_export_importer::normalize('Santé publique & hygiène'),
+            global_export_importer::normalize('Santé publique &amp; hygiène')
+        );
+        $this->assertSame('l animal', global_export_importer::normalize('L&#039;animal'));
+    }
+
+    /**
+     * Régression : l'export précède d'une apostrophe les textes commençant par = + - ou @ (pour
+     * qu'Excel ne les prenne pas pour des formules) ; elle était restaurée avec eux.
+     */
+    public function test_formula_escape_apostrophe_is_removed(): void {
+        $path = $this->workbook([
+            ['Internship ID', 'Email address', 'Theme', 'Student phone', 'Administration office comment'],
+            [7, 'student@example.com', 'Clinic', "'+33 6 12 34 56 78", "'- report checked"],
+            [8, 'other@example.com', 'Clinic', "0600000001", "It's fine"],
+        ]);
+        $records = global_export_importer::read($path)['records'];
+        $this->assertSame('+33 6 12 34 56 78', $records[0]->studentphone);
+        $this->assertSame('- report checked', $records[0]->devecomment);
+        $this->assertSame("It's fine", $records[1]->devecomment);
+    }
+
+    /**
      * Régression : l'export global écrivait une colonne de courriel vide, ce qui rendait sa
      * restauration impossible (les étudiants y sont retrouvés par leur courriel).
      *

@@ -38,6 +38,15 @@ changements. À tenir à jour à chaque modification de `version.php`.
 - Restauration d'un export global : le téléphone du maître de stage reprenait celui de
   l'étudiant, les deux colonnes portant le même intitulé (« Téléphone », « Phone ») ; chaque
   colonne ne renseigne plus qu'un champ, dans l'ordre de la feuille.
+- Restauration d'un export global : les stages d'une thématique masquée ou dont le nom contient
+  « & » (écrit « &amp; » dans l'export) sont de nouveau restaurés ; l'apostrophe qu'ajoute
+  l'export devant un texte commençant par = + - ou @ (téléphone « +33… », commentaire « - … »)
+  n'est plus restaurée avec lui.
+- Import StageVet : un export enregistré par Excel (Windows-1252) reste lisible après un
+  arbitrage (étudiant à rapprocher, doublon probable) ; il n'importait plus rien à la seconde
+  passe.
+- Imports CSV et StageVet : une structure d'accueil de plus de 255 caractères est tronquée au
+  lieu de faire échouer l'import de tout le fichier.
 - Listes d'évaluation : nouveau type de question « Note (de 1 à 5) », saisie par boutons radio,
   affichée en étoiles et reprise dans la colonne numérique de l'export Excel des évaluations.
   Scénarios Behat (`tests/behat/evaluation_rating.feature`) : création d'une question notée,

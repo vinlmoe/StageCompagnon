@@ -84,7 +84,9 @@ class global_export_importer {
                 }
                 $record = new \stdClass();
                 foreach ($columns as $field => $column) {
-                    $record->$field = trim((string) ($row[$column] ?? ''));
+                    // L'export protège les textes commençant par = + - ou @ d'une apostrophe, pour
+                    // qu'Excel ne les prenne pas pour des formules (voir escape_spreadsheet_formula()).
+                    $record->$field = preg_replace("/^'(?=[=+\\-@])/", '', trim((string) ($row[$column] ?? '')));
                 }
                 $record->line = $index + 1;
                 foreach (
@@ -315,6 +317,9 @@ class global_export_importer {
      * @return string
      */
     public static function normalize(string $value): string {
+        // Les noms de thématique et de gabarit sont écrits par format_string() : « & » y devient
+        // « &amp; ». Les entités sont décodées pour retrouver le nom enregistré.
+        $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $value = \core_text::strtolower(trim($value));
         $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
         $value = $ascii === false ? $value : $ascii;
