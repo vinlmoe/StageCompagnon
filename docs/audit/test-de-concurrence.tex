@@ -1,0 +1,225 @@
+% Test de concurrence de mod_stage : imports simultanés, verrous, volumétrie, dans un Moodle réel.
+% Compilation : latexmk -pdf test-de-concurrence.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref}
+\usepackage[margin=2.2cm]{geometry}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\grav}[1]{\textbf{\textcolor{#1}{\textbullet}}}
+\title{Test de concurrence des imports de \code{mod_stage}}
+\author{Sébastien Lefebvre}
+\date{31 octobre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Méthode}
+
+Contrairement au test de charge précédent (\code{test-de-charge.tex}), celui-ci tourne dans un
+Moodle complet : Moodle~4.5 (\code{MOODLE_405_STABLE}), PHP~8.3, PostgreSQL~16, version du
+module issue de la branche \code{main} (commit \code{dc952d1}). Les verrous d'activité sont ceux
+de Moodle (verrous consultatifs PostgreSQL).
+
+\begin{itemize}
+  \item \textbf{Données.} Une promotion de 1\,500 étudiants, 60 enseignants, 6 comptes DEVE et
+    10 thématiques ; une seconde de 300 étudiants pour les parcours HTTP. Jusqu'à 30\,000 stages
+    dans une même activité, soit environ vingt fois une promotion réelle.
+  \item \textbf{Processus concurrents.} Chaque procédure tourne dans son propre processus PHP
+    (\code{worker.php}). Les processus d'une vague démarrent à la même seconde. Une vague est
+    suivie d'un contrôle d'invariants : doublons de stages, stages sans plage, lignes orphelines,
+    attributions, mobilités, verrous restants, transactions ouvertes.
+  \item \textbf{Parcours HTTP.} Les pages d'import (prévisualisation puis confirmation) sont
+    appelées par plusieurs sessions DEVE distinctes, sur le serveur intégré de PHP avec dix
+    workers et \code{memory_limit = 256M}.
+\end{itemize}
+
+Les procédures couvertes sont les suivantes : import CSV des stages et des référents, import
+StageVet, import des mobilités d'études, import du suivi historique, restauration d'un export
+global, import depuis un autre cours, service web \code{register_entries}, enregistrement en
+masse, suppression en masse, tâches planifiées et ad hoc. Les scripts sont dans
+\code{docs/audit/concurrence/}.
+
+\section{Synthèse}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+& \textbf{Constat} & \textbf{Type} \\
+\midrule
+\grav{red} & Import historique confirmé par deux DEVE : 900 stages en double & Bogue \\
+\grav{red} & Restauration d'export global confirmée deux fois : 300 stages en double & Bogue \\
+\grav{red} & Deux imports de mobilités simultanés : erreur SQL, import interrompu à mi-fichier & Erreur \\
+\grav{orange} & Import depuis un autre cours lancé trois fois : thématiques triplées & Bogue \\
+\grav{orange} & Import StageVet et suppression en masse : erreur après validation de l'import & Erreur \\
+\grav{orange} & Restauration d'un export de 30\,000 stages : mémoire épuisée & Erreur \\
+\grav{orange} & Export Excel : 357~s et 1,5~Go pour 30\,000 stages & Ralentissement \\
+\grav{orange} & Verrou d'activité tenu plus de 30~s : les imports suivants échouent & Blocage \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent\grav{red}~doublons ou perte de données en usage normal ;
+\grav{orange}~erreur ou lenteur en cas de forte charge ou de cas particulier.
+
+\section{Bogues et erreurs}
+
+\subsection{Import du suivi historique : doublons à la confirmation}
+
+Deux DEVE prévisualisent le même classeur (900 stages), puis confirment. Les deux confirmations
+réussissent et annoncent chacune « 900 stages importés et validés ». L'activité compte alors
+1\,800 stages, dont 900 en double.
+
+\textbf{Cause.} Les doublons probables sont calculés à la prévisualisation, puis enregistrés avec
+elle. La confirmation (\code{import_historical.php}, lignes 170 à 223) prend bien le verrou de
+l'activité, mais elle ne relit pas les stages déjà enregistrés. La concurrence n'est pas
+nécessaire pour déclencher le bogue : il suffit que deux prévisualisations soient confirmées
+l'une après l'autre, ou qu'un import CSV ou StageVet ait lieu entre la prévisualisation et la
+confirmation.
+
+\textbf{Correction proposée.} Sous le verrou, relire \code{stage_get_existing_theme_pairs()} et
+écarter les lignes déjà présentes, comme le fait déjà \code{csv_importer::entries()}.
+
+\subsection{Restauration d'un export global : doublons à la confirmation}
+
+Le même scénario, avec l'export d'une promotion de 300 stages, produit 300 doublons.
+
+\textbf{Cause.} \code{global_export_importer::restore()} écrit dans une transaction, mais elle ne
+prend pas le verrou de l'activité et ne relit pas les doublons. Le contrôle des doublons
+probables n'a lieu qu'à la prévisualisation (\code{import_global.php}, lignes 58 à 75).
+
+\textbf{Correction proposée.} Prendre le verrou dans \code{restore()}, puis écarter les lignes
+qui sont devenues des doublons depuis la prévisualisation.
+
+\subsection{Import des mobilités d'études : erreur d'index unique}
+
+Trois imports simultanés de classeurs qui portent sur les mêmes étudiants donnent le résultat
+suivant : un import réussit, les deux autres s'arrêtent sur
+\code{dml_write_exception} (index unique \code{stageid, userid} de \code{stage_study_mobility}).
+L'un d'eux s'arrête après une quarantaine de lignes déjà écrites.
+
+\textbf{Cause.} \code{study_mobility_importer::import()} n'a ni verrou ni transaction.
+\code{stage_set_student_study_mobility()} (\code{locallib.php}, ligne 865) lit la ligne existante,
+puis l'insère si elle est absente. Entre ces deux étapes, un autre import peut l'avoir créée.
+
+\textbf{Correction proposée.} Exécuter l'import sous le verrou de l'activité et dans une
+transaction. À défaut, rattraper l'erreur d'unicité et mettre à jour la ligne à la place, comme
+le fait \code{stage_insert_assignment()}.
+
+\subsection{Import depuis un autre cours : thématiques dupliquées}
+
+Trois imports simultanés des thématiques d'une activité source vers une activité vide créent
+30 thématiques au lieu de 10, chacune en trois exemplaires. Les modèles de courriel, protégés par
+un index unique, ne sont pas dupliqués.
+
+\textbf{Cause.} \code{stage_import_themes()} (\code{locallib.php}, ligne 5343) écarte les
+thématiques de même nom d'après une lecture faite au début de la transaction. Aucun verrou ni
+aucun index n'empêche deux imports de faire ce contrôle en même temps. Un double clic reste sans
+effet, car la session Moodle sérialise les requêtes d'un même utilisateur. Le cas se produit
+avec deux comptes, ou deux navigateurs.
+
+\textbf{Correction proposée.} Prendre le verrou de l'activité cible dans
+\code{stage_import_from_stage()}.
+
+\subsection{Import StageVet et suppression en masse : erreur après validation}
+
+Un import StageVet de 300 lignes est lancé en même temps qu'une suppression en masse des stages
+qu'il met à jour. L'import se termine sur \code{dml_missing_record_exception}. Pourtant, sa
+transaction a été validée : 150 stages ont été créés et 150 mis à jour. La DEVE voit une page
+d'erreur, et les invitations aux enseignants référents ne sont pas planifiées.
+
+\textbf{Cause.} Après la libération du verrou, la boucle qui prépare les invitations relit
+chaque stage avec \code{MUST_EXIST} (\code{csv_importer.php}, ligne 861). La suppression en masse
+ne prend pas le verrou : un stage peut donc disparaître dans l'intervalle.
+
+\textbf{Correction proposée.} Lire avec \code{IGNORE_MISSING} et ignorer le stage absent. Il est
+aussi possible de faire prendre le verrou à \code{stage_bulk_delete_entries()}.
+
+\subsection{Restauration d'un gros export : mémoire épuisée}
+
+La prévisualisation de la restauration d'un export de 30\,000 stages (classeur de 6~Mo) s'arrête
+sur une erreur fatale : \og Allowed memory size of 268435456 bytes exhausted\fg{}
+(\code{global_export_importer.php}, ligne 92). La lecture seule du classeur consomme 336~Mo,
+soit environ 11~ko par stage. La limite de 256~Mo est donc atteinte vers 15\,000 à
+20\,000 stages. Une promotion de 300 stages se lit en 17~Mo.
+
+\textbf{Correction proposée.} Appeler \code{raise_memory_limit(MEMORY_HUGE)} et
+\code{core_php_time_limit::raise()} dans \code{import_global.php}, comme le fait déjà
+\code{export.php}.
+
+\section{Ralentissements et blocages}
+
+\subsection{Export Excel}
+
+\begin{center}
+\begin{tabular}{@{}r r r r@{}}
+\toprule
+\textbf{Stages} & \textbf{Durée} & \textbf{Requêtes SQL} & \textbf{Mémoire} \\
+\midrule
+300 & 3,9~s & -- & -- \\
+30\,000 & 357~s & 152 & 1\,515~Mo \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Les requêtes sont déjà groupées : elles représentent 3~s sur 357. Le reste vient de l'écriture
+des cellules, à raison de 11~ms par stage, c'est-à-dire une centaine de cellules.
+\code{MoodleExcelWorksheet::write_string()} applique deux styles à chaque cellule
+(\code{lib/excellib.class.php}, lignes 205 et 456), et c'est là que le temps passe. Pour une
+promotion de 1\,500 stages, l'export devrait prendre une vingtaine de secondes. Derrière un
+mandataire inverse dont le délai est de 60~s, un export d'environ 5\,000 stages échouerait.
+
+\textbf{Piste.} Écrire la feuille de détail par \code{PhpSpreadsheet} sans style par cellule,
+ou en flux (\texttt{\textbackslash core\textbackslash dataformat}). La restauration doit alors
+toujours relire les dates.
+
+\subsection{Verrou d'activité}
+
+Le verrou attend au plus 30~s (\code{stage_get_activity_lock()}, \code{locallib.php},
+ligne 1236). Un import de 15\,000 lignes le garde environ 23~s. Avec trois gros imports
+simultanés, le troisième échoue au bout de 30,2~s sur \og Another registration \dots{} Please
+try again in a few seconds\fg{}. Seize appels simultanés du service web, de 1\,500 stages
+chacun, passent tout juste : le dernier se termine en 29,85~s. Pendant ce temps, tout
+enregistrement de l'activité est bloqué, y compris les formulaires unitaires, l'enregistrement
+par l'étudiant et l'attribution des référents.
+
+\textbf{Pistes.} Ajuster le message, qui annonce \og quelques secondes\fg{}, et allonger l'attente
+pour les imports. Pour les très gros fichiers, valider la transaction par paquets.
+
+\section{Ce qui tient}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X r r@{}}
+\toprule
+\textbf{Procédure (1\,500 lignes, seule)} & \textbf{Durée} & \textbf{Requêtes} \\
+\midrule
+Import CSV des stages & 2,1~s & 4\,544 \\
+Import CSV des référents & 1,1~s & 4\,510 \\
+Import StageVet (évaluations comprises) & 3,9~s & 9\,017 \\
+Import des mobilités & 2,2~s & 3\,004 \\
+Service web, lot de 500 stages & 2,3~s & 1\,555 \\
+Import StageVet, 15\,000 lignes & 37~s & 90\,054 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{itemize}
+  \item Quatre imports CSV simultanés de deux fichiers à moitié recouvrants créent 1\,500 stages,
+    sans aucun doublon.
+  \item Trois imports simultanés de référents contradictoires donnent exactement deux référents
+    par étudiant, sans violation d'index.
+  \item Une vague mêlant huit procédures différentes (CSV, StageVet, référents, deux appels du
+    service web, deux enregistrements en masse, mobilités) reste cohérente. Les doubles envois
+    du service web et de l'enregistrement en masse sont écartés comme doublons.
+  \item Suppression en masse et import StageVet, à 0, 300, 800 et 1\,500~ms d'écart : aucune
+    ligne orpheline (plages, détails, réponses, check-lists).
+  \item Après chaque vague, aucun verrou consultatif ne reste posé et aucune transaction ne
+    reste ouverte.
+  \item Avec 30\,000 stages, toutes les pages de l'activité répondent en moins de 0,5~s, sauf le
+    tableau de bord (1,7~s), la vue de l'activité (0,8~s) et l'export PDF (1,5~s).
+  \item Les tâches planifiées sont sérialisées par le cron de Moodle. Les invitations des
+    enseignants référents passent par des tâches ad hoc groupées : 30 tâches pour
+    15\,000 stages.
+\end{itemize}
+
+\end{document}
