@@ -858,7 +858,13 @@ class csv_importer {
                 if ($torequest) {
                     $toqueue = [];
                     foreach ($torequest as $entryid => $student) {
-                        $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
+                        // Relu après la libération du verrou : un stage supprimé entre-temps (par une
+                        // suppression en masse) n'a plus d'enseignant à inviter. L'import, déjà
+                        // validé, ne doit pas pour autant finir sur une erreur.
+                        $entry = $DB->get_record('stage_entry', ['id' => $entryid]);
+                        if (!$entry) {
+                            continue;
+                        }
                         // Le même stage est déjà validé sous une autre forme (suivi historique,
                         // autre thématique) : rien à demander à l'enseignant.
                         if (stage_has_validated_probable_duplicate($entry)) {
@@ -1065,7 +1071,21 @@ class csv_importer {
         }
         if ($changed) {
             $update->timemodified = time();
-            $DB->update_record('stage_entry', $update);
+            // Le passage à « évalué par l'étudiant » n'est écrit que si le stage est toujours
+            // « enregistré » : la DEVE a pu le valider, le refuser ou l'annuler depuis sa lecture
+            // (voir stage_update_entry_if()). Les évaluations, elles, sont écrites dans tous les cas.
+            $fields = array_diff(array_keys(get_object_vars($update)), ['id']);
+            if (
+                isset($update->status) && !\stage_update_entry_if($update, $fields, 'status = :expected', [
+                    'expected' => STAGE_STATUS_ENREGISTRE,
+                ])
+            ) {
+                unset($update->status);
+                $entry->status = $DB->get_field('stage_entry', 'status', ['id' => $entry->id]);
+            }
+            if (!isset($update->status)) {
+                $DB->update_record('stage_entry', $update);
+            }
         }
 
         $hasboth = trim((string) $entry->studentselfeval) !== '' && trim((string) $entry->tutoreval) !== '';

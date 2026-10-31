@@ -109,11 +109,22 @@ if ($entryid) {
                     \core\output\notification::NOTIFY_ERROR
                 );
             }
-            stage_reject_by_deve($entry, $USER->id, $comment);
-        } else {
-            $retained = optional_param('retainedduration', 0, PARAM_INT);
-            $comment = optional_param('devecomment', '', PARAM_TEXT);
-            stage_apply_deve_validation($entry, $USER->id, $retained, $comment);
+        }
+        // Un stage annulé (éventuellement entre l'affichage et l'envoi du formulaire) doit d'abord
+        // être réinitialisé : la DEVE en est prévenue sur la page du stage, pas par une page d'erreur.
+        try {
+            if (optional_param('rejectstage', '', PARAM_TEXT) !== '') {
+                stage_reject_by_deve($entry, $USER->id, $comment);
+            } else {
+                $retained = optional_param('retainedduration', 0, PARAM_INT);
+                $comment = optional_param('devecomment', '', PARAM_TEXT);
+                stage_apply_deve_validation($entry, $USER->id, $retained, $comment);
+            }
+        } catch (moodle_exception $e) {
+            if (!in_array($e->errorcode, ['errorvalidatecancelled', 'errornegativeduration'], true)) {
+                throw $e;
+            }
+            redirect($entryurl, $e->getMessage(), null, \core\output\notification::NOTIFY_ERROR);
         }
         redirect($backurl, get_string('evalsaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }

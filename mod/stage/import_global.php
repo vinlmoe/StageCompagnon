@@ -23,6 +23,7 @@
  */
 
 use mod_stage\local\global_export_importer;
+use mod_stage\local\import_preview;
 
 require(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/stage/lib.php');
@@ -56,8 +57,10 @@ $yes = function ($value) use ($normal) {
 };
 
 if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
-    $pending = $SESSION->stage_global_import[$stage->id] ?? null;
-    unset($SESSION->stage_global_import[$stage->id]);
+    core_php_time_limit::raise();
+    raise_memory_limit(MEMORY_HUGE);
+    $pending = import_preview::get('global', $stage->id);
+    import_preview::delete('global', $stage->id);
     if (!$pending || empty($pending['records'])) {
         $error = get_string('globalimportexpired', 'mod_stage');
     } else {
@@ -72,17 +75,25 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
             }
             $records[] = $record;
         }
-        $restoredcount = $records ? global_export_importer::restore($stage->id, $records) : 0;
+        $sincepreview = 0;
+        $restoredcount = $records ? global_export_importer::restore($stage->id, $records, $sincepreview) : 0;
         $message = get_string('globalimportdone', 'mod_stage', $restoredcount);
         if ($skipped) {
             $message .= ' ' . get_string('historicalimportduplicatesskipped', 'mod_stage', $skipped);
+        }
+        if ($sincepreview) {
+            $message .= ' ' . get_string('importduplicatessincepreview', 'mod_stage', $sincepreview);
         }
         redirect($backurl, $message, null, \core\output\notification::NOTIFY_SUCCESS);
     }
 }
 
 if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm_sesskey()) {
-    unset($SESSION->stage_global_import[$stage->id]);
+    // Lecture du classeur entier : environ 11 ko par stage, soit plus de 256 Mo au-delà de
+    // 20 000 stages. Comme pour l'export (export.php), la page dépasse les limites ordinaires.
+    core_php_time_limit::raise();
+    raise_memory_limit(MEMORY_HUGE);
+    import_preview::delete('global', $stage->id);
     $upload = $_FILES['xlsxfile'] ?? null;
     if (!$upload || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
         $error = get_string('importerrorupload', 'mod_stage');
@@ -269,7 +280,11 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     ))];
             }
             $preview = $records;
-            $SESSION->stage_global_import[$stage->id] = ['records' => $records];
+            // La prévisualisation est gardée dans un fichier temporaire (voir import_preview), comme
+            // celle de l'import historique, et non dans la session : celle d'un export de 30 000
+            // stages pesait 57 Mo, que chaque page suivante de l'utilisateur rechargeait jusqu'à
+            // épuiser sa mémoire.
+            import_preview::set('global', $stage->id, ['records' => $records]);
         } catch (Throwable $exception) {
             $error = $exception instanceof moodle_exception ? $exception->getMessage()
                 : get_string('globalimportinvalid', 'mod_stage');

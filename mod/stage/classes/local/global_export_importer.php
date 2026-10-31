@@ -25,45 +25,78 @@ namespace mod_stage\local;
  */
 class global_export_importer {
     /**
-     * Restaure les saisies prévisualisées et leurs plages dans une transaction.
+     * Restaure les saisies préparées par la prévisualisation, sous le verrou d'écriture de
+     * l'activité.
+     *
+     * Sous le verrou, les doublons sont relus : une seconde restauration du même export (confirmée
+     * par un collègue), ou un import, a pu enregistrer ces stages depuis la prévisualisation. Une
+     * saisie que la prévisualisation avait trouvée sans doublon (clé probableduplicates présente et
+     * vide) et qui en a un désormais n'est pas restaurée : la DEVE n'a pas pu l'arbitrer. Une saisie
+     * signalée comme doublon probable et cochée par la DEVE est restaurée telle quelle.
      *
      * @param int $stageid Activité cible contrôlée par l'appelant.
      * @param array $records Saisies préparées par la prévisualisation.
+     * @param int|null $skipped Nombre de saisies écartées, devenues des doublons depuis la
+     *        prévisualisation.
      * @return int Nombre de saisies restaurées.
      */
-    public static function restore(int $stageid, array $records): int {
+    public static function restore(int $stageid, array $records, ?int &$skipped = null): int {
         global $DB;
 
-        $transaction = $DB->start_delegated_transaction();
-        foreach ($records as $saved) {
-            $saved = (object) $saved;
-            $entry = clone (object) $saved->entry;
-            $entry->stageid = $stageid;
-            $entry->timecreated = $entry->timecreated ?: time();
-            $entry->timemodified = $entry->timemodified ?: $entry->timecreated;
-            $entryid = $DB->insert_record('stage_entry', $entry);
-            if (!empty($saved->detail)) {
-                $detail = clone (object) $saved->detail;
-                $detail->entryid = $entryid;
-                $detail->timecreated = $entry->timecreated;
-                $detail->timemodified = $entry->timemodified;
-                $DB->insert_record('stage_convention_detail', convention_detail::fit($detail));
+        $skipped = 0;
+        $restored = 0;
+        $createdids = [];
+        $lock = \stage_get_activity_lock($stageid);
+        try {
+            $transaction = $DB->start_delegated_transaction();
+            foreach ($records as $saved) {
+                $saved = (object) $saved;
+                $entry = clone (object) $saved->entry;
+                if (isset($saved->probableduplicates) && empty($saved->probableduplicates)) {
+                    $probables = array_diff_key(\stage_find_probable_duplicate_entries(
+                        $stageid,
+                        $entry->userid,
+                        $entry->themeid,
+                        $entry->datestart ?: null,
+                        $entry->dateend ?: null,
+                        $entry->studyyear ?? 0
+                    ), $createdids);
+                    if ($probables) {
+                        $skipped++;
+                        continue;
+                    }
+                }
+                $entry->stageid = $stageid;
+                $entry->timecreated = $entry->timecreated ?: time();
+                $entry->timemodified = $entry->timemodified ?: $entry->timecreated;
+                $entryid = $DB->insert_record('stage_entry', $entry);
+                $createdids[$entryid] = true;
+                if (!empty($saved->detail)) {
+                    $detail = clone (object) $saved->detail;
+                    $detail->entryid = $entryid;
+                    $detail->timecreated = $entry->timecreated;
+                    $detail->timemodified = $entry->timemodified;
+                    $DB->insert_record('stage_convention_detail', convention_detail::fit($detail));
+                }
+                // Les plages exportées sont restaurées telles quelles : un stage en plusieurs plages
+                // ne doit pas devenir une plage continue, qui compterait les jours entre deux.
+                $periods = !empty($saved->periods) ? array_values((array) $saved->periods) : [];
+                if (!$periods && $entry->datestart && $entry->dateend) {
+                    $periods = [['datestart' => $entry->datestart, 'dateend' => $entry->dateend]];
+                }
+                if ($periods) {
+                    \stage_save_entry_periods($entryid, array_map(fn($period) => (array) $period, $periods));
+                    // L'enregistrement des plages date la saisie d'aujourd'hui : sa date d'origine est
+                    // rétablie.
+                    $DB->set_field('stage_entry', 'timemodified', $entry->timemodified, ['id' => $entryid]);
+                }
+                $restored++;
             }
-            // Les plages exportées sont restaurées telles quelles : un stage en plusieurs plages
-            // ne doit pas devenir une plage continue, qui compterait les jours entre deux.
-            $periods = !empty($saved->periods) ? array_values((array) $saved->periods) : [];
-            if (!$periods && $entry->datestart && $entry->dateend) {
-                $periods = [['datestart' => $entry->datestart, 'dateend' => $entry->dateend]];
-            }
-            if ($periods) {
-                \stage_save_entry_periods($entryid, array_map(fn($period) => (array) $period, $periods));
-                // L'enregistrement des plages date la saisie d'aujourd'hui : sa date d'origine est
-                // rétablie.
-                $DB->set_field('stage_entry', 'timemodified', $entry->timemodified, ['id' => $entryid]);
-            }
+            $transaction->allow_commit();
+        } finally {
+            $lock->release();
         }
-        $transaction->allow_commit();
-        return count($records);
+        return $restored;
     }
 
     /**

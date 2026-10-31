@@ -931,6 +931,8 @@ $string['privacy:metadata:stage_entry_checklist:checked'] = "Si l'objectif est a
 $string['privacy:metadata:stage_entry_checklist:explanation'] = "La justification apportée lorsque l'objectif n'est pas coché.";
 $string['errorrejectreasonrequired'] = 'Indiquez le motif de la non-validation : il est communiqué à l\'étudiant.';
 $string['errorvalidatecancelled'] = 'Réinitialisez le stage annulé avant de le valider.';
+$string['conventionentrycancelled'] = 'Ce stage est annulé : sa convention ne peut plus être traitée. Il doit d\'abord être réinitialisé par la DEVE.';
+$string['errorentrychanged'] = 'Ce stage a changé entre-temps (évalué, validé, refusé ou annulé par un autre intervenant) : votre saisie n\'a pas été enregistrée. Vérifiez son état avant de recommencer.';
 $string['errornegativeduration'] = 'La durée ne peut pas être négative.';
 $string['errorrequiredanswer'] = 'Une réponse est obligatoire pour la question : {$a}';
 $string['errorinvalidanswer'] = 'Choisissez une réponse proposée pour la question : {$a}';
@@ -1087,6 +1089,7 @@ $string['historicalimportforce'] = 'Importer quand même';
 $string['historicalimportduplicateswarning'] = "{\$a} ligne(s) ressemblent à un stage déjà enregistré (mêmes dates, "
     . "ou même thématique sans dates). Elles ne seront importées que si vous cochez « Importer quand même ».";
 $string['historicalimportduplicatesskipped'] = '{$a} doublon(s) probable(s) non importé(s).';
+$string['importduplicatessincepreview'] = '{$a} stage(s) enregistré(s) entre-temps, depuis la prévisualisation, non importé(s) : relancez la prévisualisation pour les arbitrer.';
 $string['exportratingoutoffive'] = 'Note (sur 5)';
 
 // Événements (journaux Moodle).

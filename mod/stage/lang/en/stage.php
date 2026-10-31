@@ -910,6 +910,8 @@ $string['privacy:metadata:stage_entry_checklist:checked'] = 'Whether the objecti
 $string['privacy:metadata:stage_entry_checklist:explanation'] = 'The explanation given when the objective is not ticked.';
 $string['errorrejectreasonrequired'] = 'Give the reason why the internship is not validated: it is passed on to the student.';
 $string['errorvalidatecancelled'] = 'Reset the cancelled internship before validating it.';
+$string['conventionentrycancelled'] = 'This internship is cancelled: its agreement can no longer be processed. The administration office must reset it first.';
+$string['errorentrychanged'] = 'This internship was changed in the meantime (evaluated, validated, rejected or cancelled by someone else): your input was not saved. Check its current state before trying again.';
 $string['errornegativeduration'] = 'The duration cannot be negative.';
 $string['errorrequiredanswer'] = 'An answer is required for this question: {$a}';
 $string['errorinvalidanswer'] = 'Select one of the available answers for this question: {$a}';
@@ -1065,6 +1067,7 @@ $string['historicalimportforce'] = 'Import anyway';
 $string['historicalimportduplicateswarning'] = '{$a} line(s) look like an internship already recorded (same dates, '
     . 'or same theme without dates). They will only be imported if you tick "Import anyway".';
 $string['historicalimportduplicatesskipped'] = '{$a} probable duplicate(s) not imported.';
+$string['importduplicatessincepreview'] = '{$a} internship(s) recorded in the meantime, since the preview, not imported: preview the file again to review them.';
 $string['exportratingoutoffive'] = 'Rating (out of 5)';
 
 // Events (Moodle logs).

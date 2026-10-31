@@ -116,7 +116,41 @@ class study_mobility_importer {
             $studentsbyemail[\core_text::strtolower(trim($student->email))][] = $student;
         }
 
+        global $DB;
+
         $results = (object) ['validated' => 0, 'removed' => 0, 'skipped' => 0, 'errors' => []];
+        // Sous le verrou de l'activité et en une transaction : deux imports simultanés (ou un import
+        // et la validation unitaire d'une mobilité) lisaient tous deux l'absence de mobilité d'un
+        // étudiant puis l'inséraient, ce que l'index unique refusait au milieu du fichier, en
+        // laissant appliquées les lignes déjà traitées.
+        $lock = stage_get_activity_lock($stage->id);
+        try {
+            $transaction = $DB->start_delegated_transaction();
+            self::import_locked($stage->id, $studentsbyemail, $records, $byuserid, $results);
+            $transaction->allow_commit();
+        } finally {
+            $lock->release();
+        }
+        return $results;
+    }
+
+    /**
+     * Applique les lignes de l'import, sous le verrou et dans la transaction ouverts par import().
+     *
+     * @param int $stageid Activité.
+     * @param array $studentsbyemail Courriel normalisé => étudiants inscrits.
+     * @param array $records Lignes de read().
+     * @param int $byuserid Membre de la DEVE à l'origine de l'import.
+     * @param \stdClass $results Compte rendu, complété en place.
+     * @return void
+     */
+    private static function import_locked(
+        int $stageid,
+        array $studentsbyemail,
+        array $records,
+        int $byuserid,
+        \stdClass $results
+    ): void {
         foreach ($records as $record) {
             if (trim($record->location) === '' && trim((string) $record->validated) === '') {
                 $results->skipped++;
@@ -149,14 +183,13 @@ class study_mobility_importer {
                 continue;
             }
 
-            stage_set_student_study_mobility($stage->id, $student->id, $validate, $record->location, $byuserid);
+            stage_set_student_study_mobility($stageid, $student->id, $validate, $record->location, $byuserid);
             if ($validate) {
                 $results->validated++;
             } else {
                 $results->removed++;
             }
         }
-        return $results;
     }
 
     /**

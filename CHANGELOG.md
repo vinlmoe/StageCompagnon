@@ -35,6 +35,42 @@ changements. À tenir à jour à chaque modification de `version.php`.
   « communication » (orange, la couleur d'origine du module).
 
 ### mod_stage
+- Accès simultanés (test de concurrence, `docs/audit/test-de-concurrence.tex`) :
+  - circuit du stage : l'auto-évaluation, l'avis ou le refus de l'enseignant référent et
+    l'évaluation du maître de stage ne sont plus écrits que si le stage est toujours dans l'état
+    lu à l'ouverture de la page. Une validation, un refus ou une annulation enregistrés
+    entre-temps par la DEVE ne sont donc plus effacés : un stage annulé ne repasse plus en
+    « évalué par l'étudiant », et le maître de stage ne peut plus évaluer un stage annulé, ni
+    évaluer deux fois. Les réponses au questionnaire ne sont enregistrées qu'avec l'étape
+    elle-même. Une seconde annulation simultanée ne remplace plus l'auteur ni le motif de la
+    première ;
+  - conventions : la validation ou le refus de la demande par un enseignant référent, la revue et
+    la signature par la DEVE sont écrits à la même condition. Les deux référents d'un étudiant ne
+    peuvent plus prendre chacun une décision sur la même demande. Un stage annulé n'avance plus
+    dans le circuit de sa convention : les pages de validation, de revue et de signature le
+    refusent, et ses demandes en cours sortent des files de l'enseignant et de la DEVE ;
+  - l'utilisateur dont la saisie n'a pas été enregistrée est prévenu (« Ce stage a changé
+    entre-temps »). Valider ou refuser un stage annulé donne un message sur la page du stage au
+    lieu d'une page d'erreur ;
+  - jours effectifs : enregistrés en même temps par l'étudiant, l'enseignant et la DEVE, ils
+    faisaient échouer l'un des enregistrements sur l'index unique ;
+  - import du suivi historique et restauration d'un export global : sous le verrou de l'activité,
+    les doublons sont relus à la confirmation. Deux prévisualisations du même fichier
+    confirmées l'une après l'autre (ou par deux membres de la DEVE) créaient tous les stages en
+    double ; ceux enregistrés depuis la prévisualisation sont écartés et signalés ;
+  - import des mobilités d'études : sous le verrou de l'activité et en une transaction, comme la
+    validation unitaire. Deux imports simultanés s'arrêtaient sur l'index unique au milieu du
+    fichier ;
+  - import depuis une autre activité : sous le verrou de l'activité cible. Trois imports
+    simultanés copiaient trois fois les thématiques ;
+  - import StageVet : un stage supprimé pendant l'import ne fait plus finir l'import, déjà
+    enregistré, sur une erreur ; le passage d'un stage existant à « évalué par l'étudiant »
+    n'efface plus une validation DEVE simultanée.
+- Restauration d'un export global : la prévisualisation est gardée dans un fichier temporaire, comme
+  celle de l'import historique, et non plus dans la session. Pour un export de 30 000 stages, elle
+  pesait 57 Mo, et chaque page suivante de l'utilisateur épuisait sa mémoire. Les limites de
+  mémoire et de durée sont levées pour la lecture du classeur, qui échouait au-delà d'environ
+  20 000 stages.
 - Restauration d'un export global :
   - l'export se relit quelle que soit la langue de la session : intitulés de colonnes et valeurs
     (statuts, statut de convention, année d'étude, type de stage, situation dans l'année) sont

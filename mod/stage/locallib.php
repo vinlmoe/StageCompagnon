@@ -1216,7 +1216,9 @@ function stage_insert_assignment($table, array $record) {
 
 /**
  * Verrou des écritures en lot d'une activité : enregistrement de stages (formulaires, en masse,
- * imports, service web) et attribution des enseignants référents ou responsables.
+ * imports CSV, StageVet et historique, restauration d'un export global, service web), attribution
+ * des enseignants référents ou responsables, mobilités d'études (import et validation unitaire) et
+ * import depuis une autre activité.
  *
  * Le contrôle de doublon se fait en PHP avant l'insertion, et l'attribution des enseignants lit
  * les attributions existantes avant d'écrire la différence : sans verrou, deux enregistrements
@@ -1239,6 +1241,81 @@ function stage_get_activity_lock($stageid) {
         throw new moodle_exception('erroractivitybusy', 'mod_stage', $PAGE->has_set_url() ? $PAGE->url : '');
     }
     return $lock;
+}
+
+/**
+ * Écrit des champs d'une saisie à condition qu'elle soit encore dans l'état attendu.
+ *
+ * Les pages lisent la saisie au début de la requête et en déduisent ce qui est permis (évaluer,
+ * valider la convention...). Écrire ensuite sans condition laissait une décision prise entre-temps
+ * par un autre intervenant (validation ou annulation par la DEVE, décision de l'autre enseignant
+ * référent) être écrasée par un statut calculé sur une lecture périmée.
+ *
+ * La ligne de la saisie est d'abord verrouillée par une mise à jour sans effet, jusqu'à la fin de la
+ * transaction : toute autre écriture de la saisie attend. La condition est ensuite vérifiée sur une
+ * relecture, qui voit donc la dernière écriture validée, et les champs ne sont écrits que si elle
+ * est remplie. Rien n'est écrit sinon : la transaction englobante, s'il y en a une, peut continuer.
+ *
+ * @param stdClass $entry Saisie, avec les nouvelles valeurs des champs à écrire.
+ * @param string[] $fields Champs à écrire (un champ absent de l'objet n'est pas écrit).
+ * @param string $where Condition SQL sur la ligne de stage_entry, paramètres nommés.
+ * @param array $whereparams Paramètres de la condition.
+ * @return bool False si la saisie n'était plus dans l'état attendu : rien n'a été écrit.
+ */
+function stage_update_entry_if(stdClass $entry, array $fields, $where, array $whereparams) {
+    global $DB;
+
+    $transaction = $DB->start_delegated_transaction();
+    $DB->execute('UPDATE {stage_entry} SET timemodified = timemodified WHERE id = ?', [$entry->id]);
+    $applied = $DB->record_exists_select('stage_entry', "id = :entryid AND ($where)", ['entryid' => $entry->id] + $whereparams);
+    if ($applied) {
+        stage_update_entry_fields($entry, $fields);
+    }
+    $transaction->allow_commit();
+    return $applied;
+}
+
+/**
+ * Écrit une étape de la convention d'une saisie à condition que la convention soit encore dans l'un
+ * des statuts attendus et que le stage ne soit pas annulé (voir stage_update_entry_if()) : les deux
+ * enseignants référents, ou deux membres de la DEVE, ne prennent pas chacun une décision sur la
+ * même demande, et un stage annulé entre-temps n'avance plus dans le circuit de convention.
+ *
+ * @param stdClass $entry Saisie, avec les nouvelles valeurs.
+ * @param string[] $fields Champs à écrire.
+ * @param int[] $fromconventionstatuses Statuts de convention attendus.
+ * @return bool False si la convention ou le stage avaient changé : rien n'a été écrit.
+ */
+function stage_update_entry_if_convention(stdClass $entry, array $fields, array $fromconventionstatuses) {
+    global $DB;
+
+    [$insql, $inparams] = $DB->get_in_or_equal($fromconventionstatuses, SQL_PARAMS_NAMED, 'fromconv');
+    return stage_update_entry_if(
+        $entry,
+        $fields,
+        "conventionstatus $insql AND status <> :cancelledstatus",
+        $inparams + ['cancelledstatus' => STAGE_STATUS_ANNULE]
+    );
+}
+
+/**
+ * Exécute en une transaction une étape conditionnelle du circuit d'une saisie et ce qui
+ * l'accompagne (réponses au questionnaire, détail de la convention, fichier signé...).
+ *
+ * $write commence par l'étape conditionnelle (stage_update_entry_if() et ses appelants) et n'écrit
+ * rien d'autre si elle échoue : il n'y a alors rien à annuler. Si l'étape est appliquée, la ligne de
+ * la saisie reste verrouillée jusqu'à la fin de la transaction, et ce qui suit est écrit avec elle.
+ *
+ * @param callable $write Écritures ; renvoie false si l'étape n'a pas été appliquée.
+ * @return bool False si la saisie avait changé : la page prévient l'utilisateur (errorentrychanged).
+ */
+function stage_run_entry_transition(callable $write) {
+    global $DB;
+
+    $transaction = $DB->start_delegated_transaction();
+    $applied = (bool) $write();
+    $transaction->allow_commit();
+    return $applied;
 }
 
 /**
@@ -1969,8 +2046,6 @@ function stage_set_entry_workdays($entryid, array $dates) {
             $allowed[$date] = true;
         }
     }
-    $DB->delete_records('stage_entry_workday', ['entryid' => $entryid]);
-
     $records = [];
     $now = time();
     foreach (array_unique(array_map('intval', $dates)) as $date) {
@@ -1979,9 +2054,19 @@ function stage_set_entry_workdays($entryid, array $dates) {
         }
         $records[] = (object) ['entryid' => $entryid, 'workdate' => $date, 'timecreated' => $now];
     }
+
+    // L'étudiant, l'enseignant référent et la DEVE peuvent enregistrer les jours au même moment :
+    // supprimés puis réinsérés hors transaction, deux enregistrements simultanés insérant chacun
+    // leur liste faisaient échouer le second sur l'index unique (entryid, workdate). La ligne de la
+    // saisie est verrouillée d'abord (mise à jour sans effet) : le second enregistrement attend la
+    // fin du premier, puis remplace sa liste.
+    $transaction = $DB->start_delegated_transaction();
+    $DB->execute('UPDATE {stage_entry} SET timemodified = timemodified WHERE id = ?', [$entryid]);
+    $DB->delete_records('stage_entry_workday', ['entryid' => $entryid]);
     if ($records) {
         $DB->insert_records('stage_entry_workday', $records);
     }
+    $transaction->allow_commit();
 }
 
 /**
@@ -2072,9 +2157,11 @@ function stage_render_workday_picker(array $periods, array $selected, $editable,
  * @param stdClass $entry
  * @param string|null $selfeval Commentaire libre, ou null pour conserver la valeur existante
  *                              (cas d'un formulaire de questions défini par la DEVE).
- * @return void
+ * @param int[]|null $fromstatuses Statuts depuis lesquels l'étape est permise, relus au moment de
+ *        l'écriture (voir stage_update_entry_if()) ; null pour écrire sans condition.
+ * @return bool False si la saisie n'était plus dans l'un de ces statuts : rien n'a été écrit.
  */
-function stage_apply_student_eval(stdClass $entry, $selfeval = null) {
+function stage_apply_student_eval(stdClass $entry, $selfeval = null, ?array $fromstatuses = null) {
     global $DB;
 
     if ($selfeval !== null) {
@@ -2084,8 +2171,16 @@ function stage_apply_student_eval(stdClass $entry, $selfeval = null) {
         $entry->status = STAGE_STATUS_EVAL_ETUDIANT;
     }
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['studentselfeval', 'status', 'timemodified']);
+    if ($fromstatuses === null) {
+        stage_update_entry_fields($entry, ['studentselfeval', 'status', 'timemodified']);
+    } else {
+        [$insql, $inparams] = $DB->get_in_or_equal($fromstatuses, SQL_PARAMS_NAMED, 'from');
+        if (!stage_update_entry_if($entry, ['studentselfeval', 'status', 'timemodified'], "status $insql", $inparams)) {
+            return false;
+        }
+    }
     stage_trigger_entry_event(\mod_stage\event\entry_student_evaluated::class, $entry->id);
+    return true;
 }
 
 /**
@@ -2095,9 +2190,11 @@ function stage_apply_student_eval(stdClass $entry, $selfeval = null) {
  * @param int $teacherid
  * @param string|null $comment Commentaire libre, ou null pour conserver la valeur existante
  *                             (cas d'un formulaire de questions défini par la DEVE).
- * @return void
+ * @param int[]|null $fromstatuses Statuts depuis lesquels l'étape est permise, relus au moment de
+ *        l'écriture (voir stage_update_entry_if()) ; null pour écrire sans condition.
+ * @return bool False si la saisie n'était plus dans l'un de ces statuts : rien n'a été écrit.
  */
-function stage_apply_teacher_eval(stdClass $entry, $teacherid, $comment = null) {
+function stage_apply_teacher_eval(stdClass $entry, $teacherid, $comment = null, ?array $fromstatuses = null) {
     global $DB;
 
     $entry->teacherid = $teacherid;
@@ -2109,8 +2206,17 @@ function stage_apply_teacher_eval(stdClass $entry, $teacherid, $comment = null) 
         $entry->status = STAGE_STATUS_EVAL_ENSEIGNANT;
     }
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
+    if ($fromstatuses === null) {
+        stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
+    } else {
+        [$insql, $inparams] = $DB->get_in_or_equal($fromstatuses, SQL_PARAMS_NAMED, 'from');
+        $fields = ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified'];
+        if (!stage_update_entry_if($entry, $fields, "status $insql", $inparams)) {
+            return false;
+        }
+    }
     stage_trigger_entry_event(\mod_stage\event\entry_teacher_evaluated::class, $entry->id);
+    return true;
 }
 
 /**
@@ -2166,9 +2272,11 @@ function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retaineddura
  * @param stdClass $entry
  * @param int $teacherid
  * @param string $comment Motif de non-validation.
- * @return void
+ * @param int[]|null $fromstatuses Statuts depuis lesquels l'étape est permise, relus au moment de
+ *        l'écriture (voir stage_update_entry_if()) ; null pour écrire sans condition.
+ * @return bool False si la saisie n'était plus dans l'un de ces statuts : rien n'a été écrit.
  */
-function stage_reject_by_teacher(stdClass $entry, $teacherid, $comment) {
+function stage_reject_by_teacher(stdClass $entry, $teacherid, $comment, ?array $fromstatuses = null) {
     global $DB;
 
     if (trim((string) $comment) === '') {
@@ -2179,8 +2287,17 @@ function stage_reject_by_teacher(stdClass $entry, $teacherid, $comment) {
     $entry->teachertime = time();
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
+    if ($fromstatuses === null) {
+        stage_update_entry_fields($entry, ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified']);
+    } else {
+        [$insql, $inparams] = $DB->get_in_or_equal($fromstatuses, SQL_PARAMS_NAMED, 'from');
+        $fields = ['teacherid', 'teachereval', 'teachertime', 'status', 'timemodified'];
+        if (!stage_update_entry_if($entry, $fields, "status $insql", $inparams)) {
+            return false;
+        }
+    }
     stage_trigger_entry_event(\mod_stage\event\entry_rejected::class, $entry->id, ['role' => 'teacher']);
+    return true;
 }
 
 /**
@@ -2267,7 +2384,8 @@ function stage_reset_entry(stdClass $entry) {
  * @param stdClass $entry
  * @param int $byuserid
  * @param string $comment
- * @return void
+ * @return bool False si le stage était déjà annulé (par un autre membre de la DEVE, en même
+ *         temps) : rien n'a été écrit.
  */
 function stage_cancel_entry(stdClass $entry, $byuserid, $comment) {
     global $DB;
@@ -2280,11 +2398,17 @@ function stage_cancel_entry(stdClass $entry, $byuserid, $comment) {
     $entry->canceltime = time();
     $entry->cancelcomment = $comment;
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, [
+    // Une seule annulation : une seconde, envoyée en même temps par un autre membre de la DEVE,
+    // n'écrase ni l'auteur ni le motif de la première.
+    $fields = [
         'status', 'tutortoken', 'tutorrequesttime', 'tutorrequestfailtime', 'cancelledby', 'canceltime', 'cancelcomment',
         'timemodified',
-    ]);
+    ];
+    if (!stage_update_entry_if($entry, $fields, 'status <> :cancelled', ['cancelled' => STAGE_STATUS_ANNULE])) {
+        return false;
+    }
     stage_trigger_entry_event(\mod_stage\event\entry_cancelled::class, $entry->id);
+    return true;
 }
 
 /**
@@ -5617,7 +5741,41 @@ function stage_import_from_stage(
     global $DB;
 
     $result = (object) ['themes' => 0, 'templates' => 0, 'logos' => 0, 'emails' => 0, 'establishment' => false];
-    // Tout ou rien : une erreur en cours de copie ne doit pas laisser une moitié de thématiques.
+    // Sous le verrou de l'activité cible : les thématiques déjà présentes sont écartées d'après une
+    // lecture faite avant la copie, et deux imports simultanés (deux membres de la DEVE) copiaient
+    // sinon chacun toutes les thématiques. Tout ou rien : une erreur en cours de copie ne doit pas
+    // laisser une moitié de thématiques.
+    $lock = stage_get_activity_lock($targetstage->id);
+    try {
+        $result = stage_import_from_stage_locked($sourcestage, $sourcecontext, $targetstage, $targetcontext, $options, $result);
+    } finally {
+        $lock->release();
+    }
+    return $result;
+}
+
+/**
+ * Copie d'un import depuis une autre activité, sous le verrou de l'activité cible (voir
+ * stage_import_from_stage()).
+ *
+ * @param stdClass $sourcestage
+ * @param context $sourcecontext
+ * @param stdClass $targetstage
+ * @param context $targetcontext
+ * @param array $options Éléments à copier (themes, templates, logos, emails, establishment).
+ * @param stdClass $result Compte rendu, complété.
+ * @return stdClass
+ */
+function stage_import_from_stage_locked(
+    stdClass $sourcestage,
+    context $sourcecontext,
+    stdClass $targetstage,
+    context $targetcontext,
+    array $options,
+    stdClass $result
+) {
+    global $DB;
+
     $transaction = $DB->start_delegated_transaction();
 
     if (!empty($options['themes'])) {
@@ -5731,6 +5889,12 @@ function stage_convention_entries_where($stageid, $search) {
     $where = [
         'e.stageid = :stageid', 'e.conventionstatus != :none', 'e.conventionstatus != :signvet',
         'e.conventionstatus != :pending',
+        // Une demande encore à traiter (demandée, éditée) d'un stage annulé n'attend plus rien de la
+        // DEVE ; une convention signée ou refusée reste visible, pour mémoire.
+        'NOT (e.status = :cancelled AND e.conventionstatus IN (:requested, :edited))',
+    ];
+    $params += [
+        'cancelled' => STAGE_STATUS_ANNULE, 'requested' => STAGE_CONVENTION_REQUESTED, 'edited' => STAGE_CONVENTION_EDITED,
     ];
 
     if ($search !== '') {
@@ -5760,11 +5924,14 @@ function stage_get_teacher_pending_convention_entries($stageid, $teacherid) {
     }
 
     [$insql, $inparams] = $DB->get_in_or_equal($assignedids, SQL_PARAMS_NAMED, 'stud');
-    $params = array_merge($inparams, ['stageid' => $stageid, 'pending' => STAGE_CONVENTION_TEACHERPENDING]);
+    $params = array_merge($inparams, [
+        'stageid' => $stageid, 'pending' => STAGE_CONVENTION_TEACHERPENDING, 'cancelled' => STAGE_STATUS_ANNULE,
+    ]);
 
+    // Un stage annulé n'attend plus la validation de sa demande de convention.
     return $DB->get_records_select(
         'stage_entry',
-        "stageid = :stageid AND conventionstatus = :pending AND userid $insql",
+        "stageid = :stageid AND conventionstatus = :pending AND status <> :cancelled AND userid $insql",
         $params,
         'conventionrequesttime ASC'
     );
@@ -6042,19 +6209,26 @@ function stage_request_convention(stdClass $entry, $templateid, $requireteacherv
  *
  * @param stdClass $entry
  * @param int $byuserid
- * @return void
+ * @param int[]|null $fromconventionstatuses Statuts de convention depuis lesquels l'étape est
+ *        permise, relus au moment de l'écriture, stage non annulé (voir
+ *        stage_update_entry_if_convention()) ; null pour écrire sans condition.
+ * @return bool False si la convention ou le stage avaient changé : rien n'a été écrit.
  */
-function stage_teacher_validate_convention(stdClass $entry, $byuserid) {
+function stage_teacher_validate_convention(stdClass $entry, $byuserid, ?array $fromconventionstatuses = null) {
     global $DB;
 
     $entry->conventionstatus = STAGE_CONVENTION_REQUESTED;
     $entry->conventionteachervalidatedby = $byuserid;
     $entry->conventionteachervalidatetime = time();
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, [
-        'conventionstatus', 'conventionteachervalidatedby', 'conventionteachervalidatetime', 'timemodified',
-    ]);
+    $fields = ['conventionstatus', 'conventionteachervalidatedby', 'conventionteachervalidatetime', 'timemodified'];
+    if ($fromconventionstatuses === null) {
+        stage_update_entry_fields($entry, $fields);
+    } else if (!stage_update_entry_if_convention($entry, $fields, $fromconventionstatuses)) {
+        return false;
+    }
     stage_trigger_entry_event(\mod_stage\event\convention_teacher_validated::class, $entry->id);
+    return true;
 }
 
 /**
@@ -6088,17 +6262,26 @@ function stage_notify_teacher_convention_pending(stdClass $stage, stdClass $cm, 
  *
  * @param stdClass $entry
  * @param int $byuserid
- * @return void
+ * @param int[]|null $fromconventionstatuses Statuts de convention depuis lesquels l'étape est
+ *        permise, relus au moment de l'écriture, stage non annulé (voir
+ *        stage_update_entry_if_convention()) ; null pour écrire sans condition.
+ * @return bool False si la convention ou le stage avaient changé : rien n'a été écrit.
  */
-function stage_convention_mark_edited(stdClass $entry, $byuserid) {
+function stage_convention_mark_edited(stdClass $entry, $byuserid, ?array $fromconventionstatuses = null) {
     global $DB;
 
     $entry->conventionstatus = STAGE_CONVENTION_EDITED;
     $entry->conventioneditedby = $byuserid;
     $entry->conventionedittime = time();
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['conventionstatus', 'conventioneditedby', 'conventionedittime', 'timemodified']);
+    $fields = ['conventionstatus', 'conventioneditedby', 'conventionedittime', 'timemodified'];
+    if ($fromconventionstatuses === null) {
+        stage_update_entry_fields($entry, $fields);
+    } else if (!stage_update_entry_if_convention($entry, $fields, $fromconventionstatuses)) {
+        return false;
+    }
     stage_trigger_entry_event(\mod_stage\event\convention_edited::class, $entry->id);
+    return true;
 }
 
 /**
@@ -6127,6 +6310,30 @@ function stage_convention_validate_from_review(
     $withsignatures
 ) {
     stage_convention_mark_edited($entry, $byuserid);
+    return stage_convention_after_review_validation($stage, $cm, $context, $entry, $withsignatures);
+}
+
+/**
+ * Suite de la validation d'une convention par la DEVE, une fois son statut « éditée » écrit (voir
+ * stage_convention_validate_from_review()) : contrôle des prérequis du PDF et, si l'exemplaire à
+ * signer est demandé, courriel à l'étudiant. La page de revue écrit d'abord le statut, sous
+ * condition (stage_convention_mark_edited() avec le statut attendu), puis appelle cette fonction :
+ * l'étudiant n'est pas prévenu d'une convention qu'un autre membre de la DEVE vient de refuser.
+ *
+ * @param stdClass $stage
+ * @param stdClass $cm Course module.
+ * @param context $context Contexte du module.
+ * @param stdClass $entry Saisie, au statut « éditée ».
+ * @param bool $withsignatures Exemplaire à faire signer demandé.
+ * @return array ['error' => identifiant de chaîne ou null, 'notified' => bool ou null si sans objet]
+ */
+function stage_convention_after_review_validation(
+    stdClass $stage,
+    stdClass $cm,
+    context $context,
+    stdClass $entry,
+    $withsignatures
+) {
     $error = stage_check_convention_pdf_prerequisites($entry, $context);
     $notified = null;
     if ($error === null && $withsignatures) {
@@ -6141,17 +6348,26 @@ function stage_convention_validate_from_review(
  *
  * @param stdClass $entry
  * @param int $byuserid
- * @return void
+ * @param int[]|null $fromconventionstatuses Statuts de convention depuis lesquels l'étape est
+ *        permise, relus au moment de l'écriture, stage non annulé (voir
+ *        stage_update_entry_if_convention()) ; null pour écrire sans condition.
+ * @return bool False si la convention ou le stage avaient changé : rien n'a été écrit.
  */
-function stage_convention_mark_signed(stdClass $entry, $byuserid) {
+function stage_convention_mark_signed(stdClass $entry, $byuserid, ?array $fromconventionstatuses = null) {
     global $DB;
 
     $entry->conventionstatus = STAGE_CONVENTION_SIGNED;
     $entry->conventionsignedby = $byuserid;
     $entry->conventionsigntime = time();
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['conventionstatus', 'conventionsignedby', 'conventionsigntime', 'timemodified']);
+    $fields = ['conventionstatus', 'conventionsignedby', 'conventionsigntime', 'timemodified'];
+    if ($fromconventionstatuses === null) {
+        stage_update_entry_fields($entry, $fields);
+    } else if (!stage_update_entry_if_convention($entry, $fields, $fromconventionstatuses)) {
+        return false;
+    }
     stage_trigger_entry_event(\mod_stage\event\convention_signed::class, $entry->id);
+    return true;
 }
 
 /**
@@ -6162,9 +6378,12 @@ function stage_convention_mark_signed(stdClass $entry, $byuserid) {
  * @param stdClass $entry
  * @param int $byuserid
  * @param string $comment
- * @return void
+ * @param int[]|null $fromconventionstatuses Statuts de convention depuis lesquels l'étape est
+ *        permise, relus au moment de l'écriture, stage non annulé (voir
+ *        stage_update_entry_if_convention()) ; null pour écrire sans condition.
+ * @return bool False si la convention ou le stage avaient changé : rien n'a été écrit.
  */
-function stage_reject_convention(stdClass $entry, $byuserid, $comment) {
+function stage_reject_convention(stdClass $entry, $byuserid, $comment, ?array $fromconventionstatuses = null) {
     global $DB;
 
     $entry->conventionstatus = STAGE_CONVENTION_REJECTED;
@@ -6172,10 +6391,14 @@ function stage_reject_convention(stdClass $entry, $byuserid, $comment) {
     $entry->conventionrejecttime = time();
     $entry->conventionrejectcomment = $comment;
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, [
-        'conventionstatus', 'conventionrejectedby', 'conventionrejecttime', 'conventionrejectcomment', 'timemodified',
-    ]);
+    $fields = ['conventionstatus', 'conventionrejectedby', 'conventionrejecttime', 'conventionrejectcomment', 'timemodified'];
+    if ($fromconventionstatuses === null) {
+        stage_update_entry_fields($entry, $fields);
+    } else if (!stage_update_entry_if_convention($entry, $fields, $fromconventionstatuses)) {
+        return false;
+    }
     stage_trigger_entry_event(\mod_stage\event\convention_rejected::class, $entry->id);
+    return true;
 }
 
 /**
@@ -6662,13 +6885,15 @@ function stage_bypass_tutor_eval(stdClass $entry) {
  * définit aucune question de type "tutor" : les réponses au questionnaire, elles, sont déjà
  * enregistrées via stage_save_answers()).
  *
+ * Écrit à condition que le stage ne soit pas annulé et pas encore évalué par le maître de stage :
+ * le formulaire, ouvert avant une annulation ou dans un second navigateur, ne doit pas enregistrer
+ * une évaluation sur un lien révoqué, ni remplacer la première.
+ *
  * @param stdClass $entry
  * @param string|null $comment
- * @return void
+ * @return bool False si l'évaluation n'a pas été enregistrée.
  */
 function stage_apply_tutor_eval(stdClass $entry, $comment = null) {
-    global $DB;
-
     $update = (object) [
         'id' => $entry->id,
         'tutortime' => time(),
@@ -6677,8 +6902,13 @@ function stage_apply_tutor_eval(stdClass $entry, $comment = null) {
     if ($comment !== null) {
         $update->tutoreval = $comment;
     }
-    $DB->update_record('stage_entry', $update);
+    $where = 'status <> :cancelled AND (tutortime IS NULL OR tutortime = 0)';
+    $params = ['cancelled' => STAGE_STATUS_ANNULE];
+    if (!stage_update_entry_if($update, ['tutortime', 'tutoreval', 'timemodified'], $where, $params)) {
+        return false;
+    }
     stage_trigger_entry_event(\mod_stage\event\entry_tutor_evaluated::class, $entry->id);
+    return true;
 }
 
 /**
@@ -6701,15 +6931,22 @@ function stage_submit_tutor_eval(stdClass $entry, array $questions, array $submi
         } catch (moodle_exception $e) {
             return $e->getMessage();
         }
-        stage_save_answers($entry->id, $questions, $submitted);
-        stage_apply_tutor_eval($entry);
-        return null;
+        // Les réponses ne sont enregistrées qu'avec l'évaluation elle-même : rien n'est écrit sur un
+        // stage annulé, ou déjà évalué, depuis l'ouverture du formulaire.
+        $applied = stage_run_entry_transition(function () use ($entry, $questions, $submitted) {
+            if (!stage_apply_tutor_eval($entry)) {
+                return false;
+            }
+            stage_save_answers($entry->id, $questions, $submitted);
+            return true;
+        });
+    } else {
+        if (trim((string) $comment) === '') {
+            return get_string_manager()->get_string('tutorevalcommentrequired', 'mod_stage', null, $lang);
+        }
+        $applied = stage_apply_tutor_eval($entry, $comment);
     }
-    if (trim((string) $comment) === '') {
-        return get_string_manager()->get_string('tutorevalcommentrequired', 'mod_stage', null, $lang);
-    }
-    stage_apply_tutor_eval($entry, $comment);
-    return null;
+    return $applied ? null : get_string_manager()->get_string('tutorevalinvalidtoken', 'mod_stage', null, $lang);
 }
 
 /**
