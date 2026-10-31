@@ -90,6 +90,23 @@ final class global_export_importer_test extends \advanced_testcase {
     }
 
     /**
+     * Régression : le téléphone de l'étudiant et celui du maître de stage portent le même intitulé
+     * (« Téléphone », « Phone ») ; le maître de stage reprenait à la restauration le numéro de
+     * l'étudiant.
+     */
+    public function test_columns_with_the_same_header_are_read_in_order(): void {
+        $phone = get_string('conventionstudentphone', 'mod_stage');
+        $this->assertSame($phone, get_string('conventiontutorphone', 'mod_stage'));
+        $path = $this->workbook([
+            ['Internship ID', 'Email address', 'Theme', $phone, 'Workplace tutor', $phone],
+            [7, 'student@example.com', 'Clinic', '0600000001', 'Dr X', '0400000003'],
+        ]);
+        $record = global_export_importer::read($path)['records'][0];
+        $this->assertSame('0600000001', $record->studentphone);
+        $this->assertSame('0400000003', $record->tutorphone);
+    }
+
+    /**
      * Régression : l'export global écrivait une colonne de courriel vide, ce qui rendait sa
      * restauration impossible (les étudiants y sont retrouvés par leur courriel).
      *

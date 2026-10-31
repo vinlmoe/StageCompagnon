@@ -35,6 +35,9 @@ changements. À tenir à jour à chaque modification de `version.php`.
   « communication » (orange, la couleur d'origine du module).
 
 ### mod_stage
+- Restauration d'un export global : le téléphone du maître de stage reprenait celui de
+  l'étudiant, les deux colonnes portant le même intitulé (« Téléphone », « Phone ») ; chaque
+  colonne ne renseigne plus qu'un champ, dans l'ordre de la feuille.
 - Listes d'évaluation : nouveau type de question « Note (de 1 à 5) », saisie par boutons radio,
   affichée en étoiles et reprise dans la colonne numérique de l'export Excel des évaluations.
   Scénarios Behat (`tests/behat/evaluation_rating.feature`) : création d'une question notée,

@@ -208,9 +208,12 @@ class global_export_importer {
             foreach ($aliases as $field => $names) {
                 // La première colonne reconnue l'emporte : un intitulé générique plus loin dans la
                 // feuille (le « Courriel » du maître de stage, par exemple) ne doit pas remplacer
-                // la colonne principale du même nom.
+                // la colonne principale du même nom. Une colonne ne renseigne qu'un champ : deux
+                // colonnes de même intitulé (« Téléphone » de l'étudiant puis du maître de stage)
+                // vont, dans l'ordre de la feuille, aux champs dans l'ordre où ils sont déclarés.
                 if (!isset($result[$field]) && in_array($normalized, $names, true)) {
                     $result[$field] = $column;
+                    break;
                 }
             }
         }
