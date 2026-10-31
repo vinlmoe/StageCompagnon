@@ -225,7 +225,11 @@ class convention_review_form extends \moodleform {
             // Les plages de dates conditionnent les dates du stage et sa convention : elles sont
             // vérifiées à la validation, au même titre que les champs obligatoires, mais pas au
             // refus, qui doit rester possible sur une saisie incohérente.
-            $perioderror = stage_validate_periods(stage_extract_submitted_periods((object) $data));
+            $perioderror = stage_validate_periods(
+                stage_extract_submitted_periods((object) $data),
+                false,
+                $this->_customdata['periods'] ?? []
+            );
             if ($perioderror !== null) {
                 $errors[stage_period_error_field($data)] = $perioderror;
             }

@@ -1169,7 +1169,9 @@ function stage_set_student_teachers($stageid, $studentid, array $teacherids) {
 
     // Seules les différences sont écrites : tout supprimer puis tout réinsérer faisait échouer sur
     // l'index unique (stageid, studentid, teacherid) deux enregistrements simultanés, le second
-    // réinsérant les attributions que le premier venait de recréer.
+    // réinsérant les attributions que le premier venait de recréer. Les pages qui attribuent en lot
+    // prennent en plus le verrou de l'activité (stage_get_activity_lock()) ; hors transaction, une
+    // attribution insérée entre-temps par un autre enregistrement est simplement constatée.
     $removed = array_diff($existing, $wanted);
     if ($removed) {
         [$insql, $inparams] = $DB->get_in_or_equal($removed, SQL_PARAMS_NAMED, 'rt');
@@ -1179,34 +1181,62 @@ function stage_set_student_teachers($stageid, $studentid, array $teacherids) {
             ['stageid' => $stageid, 'studentid' => $studentid] + $inparams
         );
     }
-    $records = [];
     foreach (array_diff($wanted, $existing) as $teacherid) {
-        $records[] = (object) [
+        stage_insert_assignment('stage_entry_teacher', [
             'stageid' => $stageid,
             'studentid' => $studentid,
             'teacherid' => $teacherid,
-        ];
-    }
-    if ($records) {
-        $DB->insert_records('stage_entry_teacher', $records);
+        ]);
     }
 }
 
 /**
- * Verrou d'enregistrement des stages d'une activité. Le contrôle de doublon se fait en PHP avant
- * l'insertion : sans verrou, un double clic ou deux appels simultanés du service web passent tous
- * deux le contrôle et créent deux fois le même stage. Le verrou est à prendre avant le contrôle et
- * à libérer après la validation de la transaction qui crée le stage ; il ne s'imbrique pas.
+ * Insère une attribution d'enseignant (référent ou responsable de thématique), sauf si un
+ * enregistrement concurrent vient de l'insérer : l'index unique refuse alors le doublon, ce qui
+ * est le résultat voulu. Dans une transaction, l'erreur est remontée, la base ne permettant pas de
+ * poursuivre une transaction après un échec : l'appelant doit prendre le verrou de l'activité.
+ *
+ * @param string $table stage_entry_teacher ou stage_theme_teacher.
+ * @param array $record Champs de l'attribution (clé unique complète).
+ * @return void
+ */
+function stage_insert_assignment($table, array $record) {
+    global $DB;
+
+    try {
+        $DB->insert_record($table, (object) $record);
+    } catch (dml_write_exception $e) {
+        $unique = $record;
+        unset($unique['timecreated']);
+        if ($DB->is_transaction_started() || !$DB->record_exists($table, $unique)) {
+            throw $e;
+        }
+    }
+}
+
+/**
+ * Verrou des écritures en lot d'une activité : enregistrement de stages (formulaires, en masse,
+ * imports, service web) et attribution des enseignants référents ou responsables.
+ *
+ * Le contrôle de doublon se fait en PHP avant l'insertion, et l'attribution des enseignants lit
+ * les attributions existantes avant d'écrire la différence : sans verrou, deux enregistrements
+ * simultanés (deux membres de la DEVE, deux appels du service web) passent tous deux le contrôle
+ * et créent deux fois le même stage, ou insèrent deux fois la même attribution, ce que l'index
+ * unique refuse. Le verrou est à prendre avant le contrôle et à libérer après la validation de la
+ * transaction qui écrit ; il ne s'imbrique pas.
  *
  * @param int $stageid
  * @return \core\lock\lock
  * @throws moodle_exception Si le verrou n'est pas obtenu dans le délai.
  */
-function stage_get_registration_lock($stageid) {
-    $factory = \core\lock\lock_config::get_lock_factory('mod_stage_registration');
+function stage_get_activity_lock($stageid) {
+    global $PAGE;
+
+    $factory = \core\lock\lock_config::get_lock_factory('mod_stage_activity');
     $lock = $factory->get_lock('stage-' . (int) $stageid, 30);
     if (!$lock) {
-        throw new moodle_exception('errorregistrationbusy', 'mod_stage');
+        // La page d'erreur propose de revenir à la page en cours, pour réessayer.
+        throw new moodle_exception('erroractivitybusy', 'mod_stage', $PAGE->has_set_url() ? $PAGE->url : '');
     }
     return $lock;
 }
@@ -1216,10 +1246,13 @@ function stage_get_registration_lock($stageid) {
  * du statut puis l'écriture laissaient une annulation simultanée être écrasée par une validation :
  * la condition est désormais portée par la requête de mise à jour elle-même.
  *
- * Les champs texte sont à écrire ensuite par stage_update_entry_fields() : certaines bases ne les
- * acceptent pas dans une requête SQL écrite à la main.
+ * À appeler dans une transaction (voir stage_apply_deve_validation()) : la ligne mise à jour reste
+ * alors verrouillée jusqu'à sa validation, une annulation concurrente attend, et la relecture
+ * ci-dessous voit donc soit l'écriture, soit l'annulation qui l'a précédée. Les champs texte sont
+ * à écrire ensuite, dans la même transaction, par stage_update_entry_fields() : certaines bases ne
+ * les acceptent pas dans une requête SQL écrite à la main.
  *
- * @param stdClass $entry Saisie, avec les nouvelles valeurs des champs à écrire.
+ * @param stdClass $entry Saisie, avec les nouvelles valeurs des champs à écrire (dont status).
  * @param string[] $fields Champs numériques à écrire.
  * @return bool False si la saisie était annulée : rien n'a été écrit.
  */
@@ -1237,9 +1270,9 @@ function stage_update_entry_unless_cancelled(stdClass $entry, array $fields) {
         $params
     );
 
-    // Une annulation validée avant cette écriture l'a empêchée ; une annulation postérieure
-    // l'emporte légitimement, étant la dernière action.
-    return (int) $DB->get_field('stage_entry', 'status', ['id' => $entry->id], MUST_EXIST) !== STAGE_STATUS_ANNULE;
+    // Le statut relu est celui qui vient d'être écrit, sauf si une annulation enregistrée avant
+    // cette écriture l'a empêchée.
+    return (int) $DB->get_field('stage_entry', 'status', ['id' => $entry->id], MUST_EXIST) === (int) $entry->status;
 }
 
 /**
@@ -1358,7 +1391,7 @@ function stage_bulk_register_entries(stdClass $stage, context $context, array $s
 
     $enrolled = stage_get_enrolled_students($context);
     // Les doublons sont relus sous le verrou : un second envoi du même lot (double clic) les voit.
-    $lock = stage_get_registration_lock($stage->id);
+    $lock = stage_get_activity_lock($stage->id);
     try {
         $results = stage_bulk_register_entries_locked($stage, $studentids, $fields, $enrolled, $start, $end, $results);
     } finally {
@@ -1484,24 +1517,23 @@ function stage_update_entry_fields(stdClass $entry, array $fields) {
 function stage_trigger_entry_event($eventclass, $entryid, array $other = []) {
     global $DB;
 
-    // Le module de cours est mémorisé par activité pour la durée de la requête : un import ou un
-    // enregistrement en masse déclenche un événement par saisie, et relisait chaque fois le même.
-    static $cms = [];
-
-    $entry = $DB->get_record('stage_entry', ['id' => $entryid], 'id, stageid, userid, status, conventionstatus', MUST_EXIST);
-    $stageid = (int) $entry->stageid;
-    // Les tests unitaires réinitialisent la base entre deux tests, identifiants compris : rien
-    // n'y est mémorisé.
-    if (PHPUNIT_TEST || !array_key_exists($stageid, $cms)) {
-        $cms[$stageid] = get_coursemodule_from_instance('stage', $stageid, 0, false, IGNORE_MISSING);
-    }
-    $cm = $cms[$stageid];
-    if (!$cm) {
+    // Saisie et module de cours en une requête : un import ou un enregistrement en masse déclenche
+    // un événement par saisie, et relisait chaque fois le module de cours à part.
+    $entry = $DB->get_record_sql(
+        "SELECT e.id, e.stageid, e.userid, e.status, e.conventionstatus, cm.id AS cmid
+           FROM {stage_entry} e
+           JOIN {modules} m ON m.name = 'stage'
+      LEFT JOIN {course_modules} cm ON cm.instance = e.stageid AND cm.module = m.id
+          WHERE e.id = :entryid",
+        ['entryid' => $entryid],
+        MUST_EXIST
+    );
+    if (empty($entry->cmid)) {
         return;
     }
     $event = $eventclass::create([
         'objectid' => $entry->id,
-        'context' => context_module::instance($cm->id),
+        'context' => context_module::instance($entry->cmid),
         'relateduserid' => $entry->userid,
         'other' => $other + [
             'status' => (int) $entry->status,
@@ -1704,9 +1736,13 @@ function stage_save_entry_periods($entryid, array $periods) {
  *                     ne peut pas couvrir un stage déjà commencé, alors que la DEVE enregistre au
  *                     contraire couramment des stages passés (reprise d'historique, saisie a
  *                     posteriori) et n'est donc pas soumise à cette règle.
+ * @param array $existing Plages déjà enregistrées (objets ou tableaux datestart/dateend) : une
+ *                        plage soumise identique à l'une d'elles, au jour près, échappe au contrôle
+ *                        de durée maximale, pour qu'un stage antérieur à ce contrôle reste
+ *                        modifiable sans devoir corriger d'abord ses dates.
  * @return string|null Message d'erreur à afficher, ou null si les plages sont cohérentes.
  */
-function stage_validate_periods(array $periods, $nopast = false) {
+function stage_validate_periods(array $periods, $nopast = false, array $existing = []) {
     if (empty($periods)) {
         return get_string('periodsrequired', 'mod_stage');
     }
@@ -1717,7 +1753,7 @@ function stage_validate_periods(array $periods, $nopast = false) {
         }
         // Une plage de plus d'un an est une erreur de saisie (année mal tapée) : elle ferait
         // proposer des milliers de jours au choix des jours de stage effectifs.
-        if (intdiv((int) $period['dateend'] - (int) $period['datestart'], DAYSECS) >= STAGE_PERIOD_MAX_DAYS) {
+        if (stage_period_too_long($period['datestart'], $period['dateend']) && !stage_period_in($period, $existing)) {
             return get_string('periodtoolong', 'mod_stage', STAGE_PERIOD_MAX_DAYS);
         }
     }
@@ -1752,6 +1788,41 @@ function stage_validate_periods(array $periods, $nopast = false) {
     }
 
     return null;
+}
+
+/**
+ * Indique si une plage figure, au jour près, parmi des plages données.
+ *
+ * @param array $period ['datestart' => int, 'dateend' => int]
+ * @param array $periods Objets ou tableaux datestart/dateend.
+ * @return bool
+ */
+function stage_period_in(array $period, array $periods) {
+    foreach ($periods as $candidate) {
+        $candidate = (array) $candidate;
+        if (
+            usergetmidnight((int) $candidate['datestart']) === usergetmidnight((int) $period['datestart'])
+            && usergetmidnight((int) $candidate['dateend']) === usergetmidnight((int) $period['dateend'])
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Indique si une plage de dates dépasse la durée maximale d'une plage de stage
+ * (STAGE_PERIOD_MAX_DAYS) : contrôle commun aux formulaires, au service web et aux imports.
+ *
+ * @param int|null $datestart
+ * @param int|null $dateend
+ * @return bool False si l'une des dates manque.
+ */
+function stage_period_too_long($datestart, $dateend) {
+    if (empty($datestart) || empty($dateend)) {
+        return false;
+    }
+    return intdiv((int) $dateend - (int) $datestart, DAYSECS) >= STAGE_PERIOD_MAX_DAYS;
 }
 
 /**
@@ -2069,13 +2140,22 @@ function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retaineddura
     $entry->retainedduration = $retainedduration > 0 ? $retainedduration : $entry->declaredduration;
     $entry->status = STAGE_STATUS_VALIDE_DEVE;
     $entry->timemodified = time();
-    if (!stage_update_entry_unless_cancelled($entry, ['deveuserid', 'devetime', 'retainedduration', 'status', 'timemodified'])) {
-        throw new moodle_exception('errorvalidatecancelled', 'mod_stage');
+    // Écriture conditionnelle, commentaire et événement ensemble : voir
+    // stage_update_entry_unless_cancelled().
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        $fields = ['deveuserid', 'devetime', 'retainedduration', 'status', 'timemodified'];
+        if (!stage_update_entry_unless_cancelled($entry, $fields)) {
+            throw new moodle_exception('errorvalidatecancelled', 'mod_stage');
+        }
+        stage_update_entry_fields($entry, ['devecomment']);
+        stage_trigger_entry_event(\mod_stage\event\entry_validated::class, $entry->id, [
+            'retainedduration' => (int) $entry->retainedduration,
+        ]);
+        $transaction->allow_commit();
+    } catch (Throwable $e) {
+        $transaction->rollback($e);
     }
-    stage_update_entry_fields($entry, ['devecomment']);
-    stage_trigger_entry_event(\mod_stage\event\entry_validated::class, $entry->id, [
-        'retainedduration' => (int) $entry->retainedduration,
-    ]);
 }
 
 /**
@@ -2127,11 +2207,19 @@ function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
     $entry->devetime = time();
     $entry->status = STAGE_STATUS_NON_VALIDE;
     $entry->timemodified = time();
-    if (!stage_update_entry_unless_cancelled($entry, ['deveuserid', 'devetime', 'status', 'timemodified'])) {
-        throw new moodle_exception('errorvalidatecancelled', 'mod_stage');
+    // Écriture conditionnelle, commentaire et événement ensemble : voir
+    // stage_update_entry_unless_cancelled().
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        if (!stage_update_entry_unless_cancelled($entry, ['deveuserid', 'devetime', 'status', 'timemodified'])) {
+            throw new moodle_exception('errorvalidatecancelled', 'mod_stage');
+        }
+        stage_update_entry_fields($entry, ['devecomment']);
+        stage_trigger_entry_event(\mod_stage\event\entry_rejected::class, $entry->id, ['role' => 'deve']);
+        $transaction->allow_commit();
+    } catch (Throwable $e) {
+        $transaction->rollback($e);
     }
-    stage_update_entry_fields($entry, ['devecomment']);
-    stage_trigger_entry_event(\mod_stage\event\entry_rejected::class, $entry->id, ['role' => 'deve']);
 }
 
 /**
@@ -2147,13 +2235,19 @@ function stage_reset_entry(stdClass $entry) {
     global $DB;
 
     if ((int) $entry->status === STAGE_STATUS_ANNULE) {
+        // Un stage annulé puis rouvert repart d'un nouveau circuit : sa première invitation n'est
+        // pas une relance, la tâche planifiée peut de nouveau la tenter une fois.
         $entry->tutortoken = null;
         $entry->tutorrequesttime = 0;
+        $entry->tutorrequestfailtime = 0;
     }
     $entry->status = STAGE_STATUS_ENREGISTRE;
     $entry->tutorbypassed = 0;
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['tutortoken', 'tutorrequesttime', 'status', 'tutorbypassed', 'timemodified']);
+    stage_update_entry_fields(
+        $entry,
+        ['tutortoken', 'tutorrequesttime', 'tutorrequestfailtime', 'status', 'tutorbypassed', 'timemodified']
+    );
     stage_trigger_entry_event(\mod_stage\event\entry_reset::class, $entry->id);
 }
 
@@ -2173,12 +2267,14 @@ function stage_cancel_entry(stdClass $entry, $byuserid, $comment) {
     $entry->status = STAGE_STATUS_ANNULE;
     $entry->tutortoken = null;
     $entry->tutorrequesttime = 0;
+    $entry->tutorrequestfailtime = 0;
     $entry->cancelledby = $byuserid;
     $entry->canceltime = time();
     $entry->cancelcomment = $comment;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, [
-        'status', 'tutortoken', 'tutorrequesttime', 'cancelledby', 'canceltime', 'cancelcomment', 'timemodified',
+        'status', 'tutortoken', 'tutorrequesttime', 'tutorrequestfailtime', 'cancelledby', 'canceltime', 'cancelcomment',
+        'timemodified',
     ]);
     stage_trigger_entry_event(\mod_stage\event\entry_cancelled::class, $entry->id);
 }
@@ -2595,7 +2691,9 @@ function stage_find_probable_duplicate_entries($stageid, $userid, $themeid, $sta
     if ($entries === null) {
         $entries = $DB->get_records('stage_entry', ['stageid' => $stageid, 'userid' => $userid], 'datestart, id');
     } else {
-        uasort($entries, fn($a, $b) => [(int) $a->datestart, (int) $a->id] <=> [(int) $b->datestart, (int) $b->id]);
+        // Même ordre que la lecture en base (datestart, id), les stages sans date en dernier.
+        uasort($entries, fn($a, $b) => [empty($a->datestart), (int) $a->datestart, (int) $a->id]
+            <=> [empty($b->datestart), (int) $b->datestart, (int) $b->id]);
     }
     foreach ($entries as $entry) {
         if ((int) $entry->status === STAGE_STATUS_ANNULE) {
@@ -3582,17 +3680,31 @@ function stage_get_filtered_entries(
         'duration' => 'e.declaredduration',
         'timecreated' => 'e.timecreated',
     ];
-    $sortcolumn = $sortmap[$sort] ?? $sortmap['timecreated'];
     $dir = strtoupper($dir) === 'ASC' ? 'ASC' : 'DESC';
+    // Chaque colonne du tri reçoit le sens demandé : « nom, prénom DESC » ne triait à rebours que
+    // les prénoms.
+    $orderby = stage_sql_order($sortmap[$sort] ?? $sortmap['timecreated'], $dir);
 
     $sql = "SELECT e.*
               FROM {stage_entry} e
               JOIN {user} u ON u.id = e.userid
          LEFT JOIN {stage_theme} t ON t.id = e.themeid
              WHERE $wheresql
-          ORDER BY $sortcolumn $dir, e.id $dir";
+          ORDER BY $orderby, e.id $dir";
 
     return $DB->get_records_sql($sql, $params, (int) $limitfrom, (int) $limitnum);
+}
+
+/**
+ * Clause ORDER BY appliquant un même sens à chacune des colonnes d'une liste.
+ *
+ * @param string $columns Colonnes séparées par des virgules (« u.lastname, u.firstname »).
+ * @param string $dir 'ASC' ou 'DESC'.
+ * @return string
+ */
+function stage_sql_order($columns, $dir) {
+    $dir = $dir === 'ASC' ? 'ASC' : 'DESC';
+    return implode(', ', array_map(fn($column) => trim($column) . ' ' . $dir, explode(',', $columns)));
 }
 
 /**
@@ -4304,8 +4416,13 @@ function stage_print_student_dashboard(stdClass $stage, $userid, $cm = null, $se
     // Les bilans de la page (par thématique, par année, mobilité, stages complémentaires) relisent
     // chacun les stages, thématiques et durées requises de l'étudiant : sans cache, plusieurs
     // centaines de requêtes par affichage. Les données sont chargées une fois, comme pour le bilan
-    // de promotion (voir \mod_stage\local\progress_cache), sauf si l'appelant l'a déjà fait.
-    if (\mod_stage\local\progress_cache::covers($stage->id, $userid)) {
+    // de promotion (voir \mod_stage\local\progress_cache), sauf si l'appelant l'a déjà fait. Un
+    // cache armé par l'appelant pour d'autres étudiants n'est pas remplacé : les bilans de cet
+    // étudiant interrogent alors la base, plus lentement mais sans priver l'appelant du sien.
+    if (
+        \mod_stage\local\progress_cache::covers($stage->id, $userid)
+        || \mod_stage\local\progress_cache::active()
+    ) {
         stage_print_student_dashboard_content($stage, $userid, $cm, $selfevallink, $detaillink);
         return;
     }
@@ -5500,15 +5617,15 @@ function stage_get_convention_entries(
         'status' => 'e.conventionstatus',
         'requested' => 'e.conventionrequesttime',
     ];
-    $sortcolumn = $sortmap[$sort] ?? $sortmap['requested'];
     $dir = strtoupper($dir) === 'ASC' ? 'ASC' : 'DESC';
+    $orderby = stage_sql_order($sortmap[$sort] ?? $sortmap['requested'], $dir);
 
     $sql = "SELECT e.*
               FROM {stage_entry} e
               JOIN {user} u ON u.id = e.userid
          LEFT JOIN {stage_theme} t ON t.id = e.themeid
              WHERE $wheresql
-          ORDER BY $sortcolumn $dir, e.id DESC";
+          ORDER BY $orderby, e.id DESC";
 
     return $DB->get_records_sql($sql, $params, (int) $limitfrom, (int) $limitnum);
 }
@@ -6186,7 +6303,9 @@ function stage_notify_tutor_evaluation_request(
     $names = explode(' ', trim($tutorname), 2);
     $tutoruser = (object) [
         'id' => -1,
-        'email' => $tutoremail,
+        // Même adresse que celle contrôlée par stage_tutor_email_valid() : sans les espaces
+        // saisis par mégarde autour, qu'email_to_user() refuserait.
+        'email' => trim((string) $tutoremail),
         'firstname' => $names[0] !== '' ? $names[0] : $tutorname,
         'lastname' => $names[1] ?? '',
         'firstnamephonetic' => '',
@@ -6206,8 +6325,12 @@ function stage_notify_tutor_evaluation_request(
     if (!email_to_user($tutoruser, core_user::get_noreply_user(), $text->subject, $text->body)) {
         return false;
     }
+    // Un envoi réussi, automatique ou manuel, efface un échec antérieur.
     $entry->tutorrequesttime = time();
-    $DB->set_field('stage_entry', 'tutorrequesttime', $entry->tutorrequesttime, ['id' => $entry->id]);
+    $entry->tutorrequestfailtime = 0;
+    $DB->update_record('stage_entry', (object) [
+        'id' => $entry->id, 'tutorrequesttime' => $entry->tutorrequesttime, 'tutorrequestfailtime' => 0,
+    ]);
     return true;
 }
 
@@ -6231,15 +6354,15 @@ function stage_tutor_evaluation_enabled(stdClass $stage, ?stdClass $theme) {
  * stage_maybe_request_tutor_evaluation() (évaluation activée, coordonnées connues) pour ne pas
  * représenter indéfiniment, à chaque passage du cron, les saisies qui n'y sont pas éligibles.
  *
- * Les stages terminés depuis plus de STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END jours sont écartés :
- * activer l'évaluation par le maître de stage sur une promotion qui a un historique ne doit pas
- * inviter d'un coup les maîtres de stage de stages anciens, et un envoi qui échoue toujours
- * (adresse invalide) cesse d'être retenté passé ce délai.
+ * Les stages terminés depuis plus de STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END jours (à défaut de
+ * date de fin : commencés depuis plus longtemps) sont écartés : activer l'évaluation par le maître
+ * de stage sur une promotion qui a un historique ne doit pas inviter d'un coup les maîtres de
+ * stage de stages anciens. Une invitation automatique qui a échoué (tutorrequestfailtime) n'est
+ * pas retentée : seule la DEVE peut relancer, à la main.
  *
- * @param int $limit Nombre maximal de saisies renvoyées (0 : toutes).
  * @return array stdClass[] Saisies (stage_entry), triées par date de début.
  */
-function stage_get_entries_needing_tutor_request($limit = 0) {
+function stage_get_entries_needing_tutor_request() {
     global $DB;
 
     [$statussql, $statusparams] = $DB->get_in_or_equal(stage_tutor_invitation_statuses(), SQL_PARAMS_NAMED, 'st');
@@ -6256,11 +6379,13 @@ function stage_get_entries_needing_tutor_request($limit = 0) {
               JOIN {stage_theme} t ON t.id = e.themeid
               JOIN {stage_convention_detail} d ON d.entryid = e.id
              WHERE e.datestart > 0 AND e.datestart <= :now
-               AND (e.dateend IS NULL OR e.dateend = 0 OR e.dateend >= :endfloor)
+               AND ((e.dateend > 0 AND e.dateend >= :endfloor)
+                    OR ((e.dateend IS NULL OR e.dateend = 0) AND e.datestart >= :startfloor))
                AND e.status $statussql
                AND e.conventionstatus $conventionsql
                AND e.tutorbypassed = 0
                AND e.tutorrequesttime = 0
+               AND e.tutorrequestfailtime = 0
                AND (e.tutortime IS NULL OR e.tutortime = 0)
                AND s.tutorevaluationenabled = 1
                AND t.tutorevaluationenabled = 1
@@ -6268,12 +6393,40 @@ function stage_get_entries_needing_tutor_request($limit = 0) {
           ORDER BY e.datestart ASC, e.id ASC";
 
     $now = time();
+    $floor = $now - STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END * DAYSECS;
     $params = array_merge(
-        ['now' => $now, 'endfloor' => $now - STAGE_TUTOR_REQUEST_MAX_DAYS_AFTER_END * DAYSECS],
+        ['now' => $now, 'endfloor' => $floor, 'startfloor' => $floor],
         $statusparams,
         $conventionparams
     );
-    return $DB->get_records_sql($sql, $params, 0, (int) $limit);
+    return $DB->get_records_sql($sql, $params);
+}
+
+/**
+ * Indique si une adresse de maître de stage permet l'envoi de l'invitation : même contrôle que
+ * celui d'email_to_user(), sur l'adresse débarrassée des espaces saisis par mégarde autour,
+ * telle que stage_notify_tutor_evaluation_request() l'utilise.
+ *
+ * @param string|null $email
+ * @return bool
+ */
+function stage_tutor_email_valid($email) {
+    $email = trim((string) $email);
+    return $email !== '' && validate_email($email);
+}
+
+/**
+ * Marque l'échec de l'invitation automatique d'un maître de stage : la tâche planifiée ne la
+ * retente pas, la DEVE en est avertie sur le détail du stage et peut relancer à la main.
+ *
+ * @param stdClass $entry
+ * @return void
+ */
+function stage_mark_tutor_request_failed(stdClass $entry) {
+    global $DB;
+
+    $entry->tutorrequestfailtime = time();
+    $DB->set_field('stage_entry', 'tutorrequestfailtime', $entry->tutorrequestfailtime, ['id' => $entry->id]);
 }
 
 /**
@@ -7245,7 +7398,7 @@ function stage_set_theme_teachers($themeid, array $teacherids) {
         );
     }
     foreach (array_diff($wanted, $existing) as $teacherid) {
-        $DB->insert_record('stage_theme_teacher', (object) [
+        stage_insert_assignment('stage_theme_teacher', [
             'themeid' => $themeid,
             'teacherid' => $teacherid,
             'timecreated' => time(),
@@ -7894,28 +8047,31 @@ function stage_load_entries_by_id($stageid, array $entryids) {
     if (!$entryids) {
         return [];
     }
-    // Par paquets (« tous les stages filtrés » peut désigner toute la promotion), puis triés
-    // ensemble comme le ferait la requête unique.
-    $entries = [];
-    $sortkeys = [];
+    // Par paquets (« tous les stages filtrés » peut désigner toute la promotion). L'ordre est
+    // ensuite celui que donne la base pour toute l'activité, avec sa collation (noms accentués,
+    // particules) : seuls des identifiants sont relus pour cela.
+    $loaded = [];
     foreach (array_chunk($entryids, STAGE_SQL_CHUNK) as $chunk) {
         [$insql, $inparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED);
-        $records = $DB->get_records_sql(
-            "SELECT e.*, u.lastname AS sortlastname, u.firstname AS sortfirstname
-               FROM {stage_entry} e
-               JOIN {user} u ON u.id = e.userid
-              WHERE e.stageid = :stageid AND e.id $insql",
-            ['stageid' => $stageid] + $inparams
-        );
-        foreach ($records as $id => $record) {
-            $sortkeys[$id] = [$record->sortlastname, $record->sortfirstname, (int) $record->themeid, (int) $id];
-            unset($record->sortlastname, $record->sortfirstname);
-            $entries[$id] = $record;
+        $loaded += $DB->get_records_select('stage_entry', "stageid = :stageid AND id $insql", ['stageid' => $stageid] + $inparams);
+    }
+    if (!$loaded) {
+        return [];
+    }
+    $order = $DB->get_fieldset_sql(
+        "SELECT e.id
+           FROM {stage_entry} e
+           JOIN {user} u ON u.id = e.userid
+          WHERE e.stageid = :stageid
+       ORDER BY u.lastname, u.firstname, e.themeid, e.id",
+        ['stageid' => $stageid]
+    );
+    $entries = [];
+    foreach ($order as $id) {
+        if (isset($loaded[$id])) {
+            $entries[$id] = $loaded[$id];
         }
     }
-    uksort($entries, function ($a, $b) use ($sortkeys) {
-        return $sortkeys[$a] <=> $sortkeys[$b];
-    });
     return $entries;
 }
 

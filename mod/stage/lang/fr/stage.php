@@ -121,6 +121,7 @@ $string['importerrorduplicate'] = 'Ligne {$a->line} : "{$a->email}" a déjà un 
     . 'avec ces mêmes dates, ligne ignorée.';
 $string['importerrordate'] = 'Ligne {$a->line} : date "{$a->value}" illisible (formats acceptés : AAAA-MM-JJ ou JJ/MM/AAAA), '
     . 'ligne ignorée.';
+$string['importerrorperiodtoolong'] = 'Ligne {$a->line} : la plage de dates dépasse {$a->max} jours, ligne ignorée. Vérifiez l\'année de ses dates.';
 $string['importerrordaterange'] = 'Ligne {$a} : la date de fin précède la date de début, ligne ignorée.';
 $string['importstagevetcsv'] = 'Importer un export StageVet (CSV)';
 $string['importstagevetcsv_help'] = "Importez directement le fichier CSV exporté depuis StageVet (menu export de "
@@ -219,7 +220,8 @@ $string['importteacherscsv_help'] = "Importez un fichier CSV (enregistré depuis
     . "l'étudiant ; une ligne dont un référent n'est pas reconnu est ignorée et l'attribution existante conservée.";
 $string['importteachersresult'] = '{$a} étudiant(s) mis à jour avec succès.';
 $string['importerrorunknownteacher'] = 'Ligne {$a->line} : aucun enseignant référent potentiel avec l\'adresse "{$a->email}".';
-$string['errorregistrationbusy'] = 'Un autre enregistrement de stage est en cours dans cette activité. Réessayez dans quelques secondes.';
+$string['erroractivitybusy'] = 'Un autre enregistrement de stages ou d\'enseignants est en cours dans cette activité. Réessayez dans quelques secondes.';
+$string['errorduplicateentryown'] = 'Vous avez déjà un stage enregistré sur cette thématique avec ces mêmes dates.';
 $string['errorduplicateentry'] = 'Cet étudiant a déjà un stage enregistré sur cette thématique avec ces mêmes dates.';
 $string['registerstage'] = 'Enregistrer un stage';
 $string['editstage'] = 'Modifier un stage';
@@ -754,7 +756,8 @@ $string['conventionremindernotifbody'] = "Bonjour {\$a->student},\n\nVotre stage
     . "convention signée, le stage ne peut pas débuter.\n\nMerci de régulariser votre demande de convention au "
     . "plus vite :\n{\$a->url}";
 $string['taskconventionreminders'] = 'Relance des conventions de stage non signées';
-$string['tutoremailinvalid'] = "Cette adresse du maître de stage n'est pas valide : l'invitation à évaluer le stage ne peut pas partir. Corrigez-la dans les informations de la convention.";
+$string['tutoremailinvalid'] = "Cette adresse du maître de stage n'est pas valide : l'invitation à évaluer le stage ne peut pas partir. Corrigez-la dans les informations de la convention, puis relancez l'invitation.";
+$string['tutorrequestfailed'] = "L'invitation automatique à évaluer le stage n'a pas pu partir le {$a}. Elle ne sera pas retentée automatiquement : relancez-la à la main.";
 $string['tasktutorevaluationrequests'] = 'Envoi des invitations à évaluer le stage aux maîtres de stage';
 $string['reportmode'] = 'Rapport de stage';
 $string['reportmode_help'] = "Dépôt de documents demandé à l'étudiant lors de son auto-évaluation, sur le "
@@ -925,6 +928,7 @@ $string['errorvalidatecancelled'] = 'Réinitialisez le stage annulé avant de le
 $string['errornegativeduration'] = 'La durée ne peut pas être négative.';
 $string['errorrequiredanswer'] = 'Une réponse est obligatoire pour la question : {$a}';
 $string['errorinvalidanswer'] = 'Choisissez une réponse proposée pour la question : {$a}';
+$string['privacy:metadata:stage_entry:tutorrequestfailtime'] = "La date de l'échec de l'invitation automatique du maître de stage.";
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = "La date du dernier envoi de l'invitation au maître de stage.";
 
 // Page unique de gestion d'une thématique (theme_edit.php).

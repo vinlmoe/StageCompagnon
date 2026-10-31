@@ -123,6 +123,12 @@ class csv_importer {
                     $results->errors[] = get_string('importerrordaterange', 'mod_stage', $linenum);
                     continue;
                 }
+                if (stage_period_too_long($start, $end)) {
+                    $results->errors[] = get_string('importerrorperiodtoolong', 'mod_stage', (object) [
+                        'line' => $linenum, 'max' => STAGE_PERIOD_MAX_DAYS,
+                    ]);
+                    continue;
+                }
 
                 $pairkey = stage_duplicate_key($student->id, $theme->id, $start ?: null, $end ?: null);
                 if (isset($existingpairs[$pairkey])) {
@@ -148,21 +154,34 @@ class csv_importer {
             // Création par stage_register_entry(), comme toute saisie : chaque stage daté reçoit
             // sa plage. Une transaction évite un import à moitié fait en cas d'erreur.
             if ($records) {
-                $transaction = $DB->start_delegated_transaction();
-                foreach ($records as $record) {
-                    stage_register_entry(
-                        $stage->id,
-                        $record->userid,
-                        $record->themeid,
-                        $record->structure,
-                        $record->datestart,
-                        $record->dateend,
-                        $record->declaredduration,
-                        $record->studyyear
-                    );
+                // Sous le verrou de l'activité, les doublons sont relus : un autre import ou
+                // enregistrement simultané a pu créer les mêmes stages depuis l'analyse du fichier.
+                $lock = stage_get_activity_lock($stage->id);
+                try {
+                    $existingpairs = stage_get_existing_theme_pairs($stage->id);
+                    $transaction = $DB->start_delegated_transaction();
+                    foreach ($records as $record) {
+                        $pairkey = stage_duplicate_key($record->userid, $record->themeid, $record->datestart, $record->dateend);
+                        if (isset($existingpairs[$pairkey])) {
+                            continue;
+                        }
+                        $existingpairs[$pairkey] = true;
+                        stage_register_entry(
+                            $stage->id,
+                            $record->userid,
+                            $record->themeid,
+                            $record->structure,
+                            $record->datestart,
+                            $record->dateend,
+                            $record->declaredduration,
+                            $record->studyyear
+                        );
+                        $results->created++;
+                    }
+                    $transaction->allow_commit();
+                } finally {
+                    $lock->release();
                 }
-                $transaction->allow_commit();
-                $results->created = count($records);
             }
         }
 
@@ -433,328 +452,341 @@ class csv_importer {
                 $entryrecords = [];
                 $detailbyrowkey = [];
                 $studentbyrowkey = [];
-                $cir->init();
-                $linenum = 1;
-                // Stages déjà enregistrés, par étudiant et thématique : une ligne qui correspond à
-                // l'un d'eux le met à jour (évaluations) au lieu d'en créer un second.
-                $existingbykey = [];
-                // Les mêmes stages, par étudiant seulement : recherche des doublons probables
-                // (stage_find_probable_duplicate_entries()) sans relire la base à chaque ligne.
-                $existingbyuser = [];
-                $existingfields = 'id, userid, themeid, studyyear, structure, datestart, dateend, status, conventionstatus, '
-                    . 'studentselfeval, tutoreval, tutortime';
-                foreach ($DB->get_records('stage_entry', ['stageid' => $stage->id], 'id ASC', $existingfields) as $existing) {
-                    $existingbykey[$existing->userid . '-' . $existing->themeid][$existing->id] = $existing;
-                    $existingbyuser[$existing->userid][$existing->id] = $existing;
-                }
-                // Doublons à l'intérieur du fichier lui-même : même stage répété à l'identique, ou
-                // plages qui se recoupent pour le même étudiant et la même thématique (dates de la
-                // convention d'un côté, du tableau de bord de l'autre).
-                $filepairs = [];
-                $pendingranges = [];
-                // Stages dont les deux évaluations viennent d'être complétées : l'enseignant
-                // référent est sollicité une fois l'import terminé.
-                $torequest = [];
-
-                while ($row = $cir->next()) {
-                    $linenum++;
-
-                    $lastname = $getcol($row, 'lastname');
-                    $firstname = $getcol($row, 'firstname');
-                    $email = $getcol($row, 'email');
-                    $fullname = $getcol($row, 'fullname');
-                    $themename = $getcol($row, 'theme', 'themealt');
-
-                    // Une ligne entièrement vide (dernier saut de ligne du fichier) n'est pas une
-                    // donnée manquante. Toute autre ligne doit en revanche aboutir à un étudiant
-                    // ou être signalée : une ligne écartée en silence ferait annoncer un import
-                    // réussi alors que des stages n'ont pas été créés.
-                    if (trim(implode('', array_map('strval', $row))) === '') {
-                        continue;
+                // Mises à jour des stages existants et créations sont faites ensemble, sous le
+                // verrou de l'activité : un échec en cours de route ne laisse pas un import à moitié
+                // appliqué, que la DEVE ne saurait pas reprendre, et un enregistrement simultané ne
+                // peut pas créer entre-temps un stage que l'analyse du fichier n'aurait pas vu.
+                $lock = stage_get_activity_lock($stage->id);
+                try {
+                    $transaction = $DB->start_delegated_transaction();
+                    $cir->init();
+                    $linenum = 1;
+                    // Stages déjà enregistrés, par étudiant et thématique : une ligne qui correspond à
+                    // l'un d'eux le met à jour (évaluations) au lieu d'en créer un second.
+                    $existingbykey = [];
+                    // Les mêmes stages, par étudiant seulement : recherche des doublons probables
+                    // (stage_find_probable_duplicate_entries()) sans relire la base à chaque ligne.
+                    $existingbyuser = [];
+                    $existingfields = 'id, userid, themeid, studyyear, structure, datestart, dateend, status, conventionstatus, '
+                        . 'studentselfeval, tutoreval, tutortime';
+                    foreach ($DB->get_records('stage_entry', ['stageid' => $stage->id], 'id ASC', $existingfields) as $existing) {
+                        $existingbykey[$existing->userid . '-' . $existing->themeid][$existing->id] = $existing;
+                        $existingbyuser[$existing->userid][$existing->id] = $existing;
                     }
-                    if ($onlylines !== null && !isset($onlylines[$linenum])) {
-                        continue;
-                    }
+                    // Doublons à l'intérieur du fichier lui-même : même stage répété à l'identique, ou
+                    // plages qui se recoupent pour le même étudiant et la même thématique (dates de la
+                    // convention d'un côté, du tableau de bord de l'autre).
+                    $filepairs = [];
+                    $pendingranges = [];
+                    // Stages dont les deux évaluations viennent d'être complétées : l'enseignant
+                    // référent est sollicité une fois l'import terminé.
+                    $torequest = [];
 
-                    $student = null;
-                    if ($email !== '') {
-                        $student = self::unique_match($studentsbyemail[core_text::strtolower($email)] ?? []);
-                    }
-                    if (!$student && ($firstname !== '' || $lastname !== '')) {
-                        $student = self::unique_match(
-                            $studentsbyname[stage_normalize_name($firstname . ' ' . $lastname)] ?? []
+                    while ($row = $cir->next()) {
+                        $linenum++;
+
+                        $lastname = $getcol($row, 'lastname');
+                        $firstname = $getcol($row, 'firstname');
+                        $email = $getcol($row, 'email');
+                        $fullname = $getcol($row, 'fullname');
+                        $themename = $getcol($row, 'theme', 'themealt');
+
+                        // Une ligne entièrement vide (dernier saut de ligne du fichier) n'est pas une
+                        // donnée manquante. Toute autre ligne doit en revanche aboutir à un étudiant
+                        // ou être signalée : une ligne écartée en silence ferait annoncer un import
+                        // réussi alors que des stages n'ont pas été créés.
+                        if (trim(implode('', array_map('strval', $row))) === '') {
+                            continue;
+                        }
+                        if ($onlylines !== null && !isset($onlylines[$linenum])) {
+                            continue;
+                        }
+
+                        $student = null;
+                        if ($email !== '') {
+                            $student = self::unique_match($studentsbyemail[core_text::strtolower($email)] ?? []);
+                        }
+                        if (!$student && ($firstname !== '' || $lastname !== '')) {
+                            $student = self::unique_match(
+                                $studentsbyname[stage_normalize_name($firstname . ' ' . $lastname)] ?? []
+                            );
+                        }
+                        if (!$student && $fullname !== '') {
+                            // Repli sur la colonne « Étudiant » du tableau de bord StageVet, toujours
+                            // renseignée : les colonnes « Nom étudiant », « Prénom étudiant » et
+                            // « Email étudiant » proviennent de la convention PDF et sont vides tant
+                            // que celle-ci n'a pas été analysée par StageVetManager.
+                            $namekey = stage_normalize_name($fullname);
+                            $student = self::unique_match(
+                                ($studentsbyname[$namekey] ?? []) + ($studentsbyreversedname[$namekey] ?? [])
+                            );
+                        }
+
+                        $studentlabel = trim($firstname . ' ' . $lastname);
+                        if ($studentlabel === '') {
+                            $studentlabel = $fullname !== '' ? $fullname : $email;
+                        }
+                        if ($studentlabel === '') {
+                            $studentlabel = get_string('importstagevetunnamedstudent', 'mod_stage', $linenum);
+                        }
+
+                        // Étudiant désigné par la DEVE pour ce libellé. La correspondance est relue
+                        // dans la liste des inscrits : un identifiant forgé dans le formulaire ne peut
+                        // pas rattacher un stage à quelqu'un qui n'est pas inscrit au cours.
+                        if (!$student && isset($studentresolutions[$studentlabel])) {
+                            $student = $students[(int) $studentresolutions[$studentlabel]] ?? null;
+                        }
+
+                        if (!$student) {
+                            $results->unknownstudents[$studentlabel][] = $linenum;
+                            continue;
+                        }
+
+                        if ($themename === '') {
+                            $results->errors[] = get_string('importstageveterrornotheme', 'mod_stage', $linenum);
+                            continue;
+                        }
+                        $theme = $themesbyname[core_text::strtolower($themename)] ?? null;
+                        if (!$theme) {
+                            $results->unknownthemes[$themename][] = $linenum;
+                            continue;
+                        }
+
+                        // Les dates de début et de fin de l'export constituent l'unique plage du
+                        // stage importé, et donc ses dates. Sans elles, ou si la fin précède le début,
+                        // la ligne est refusée : un stage sans plage n'aurait ni dates affichables ni
+                        // convention exploitable, et ne serait plus réenregistrable sans que la DEVE
+                        // invente des dates.
+                        $start = self::parse_date($getcol($row, 'datestartalt', 'datestart'));
+                        $end = self::parse_date($getcol($row, 'dateendalt', 'dateend'));
+                        if (empty($start) || empty($end) || $end < $start) {
+                            $results->errors[] = get_string('importstageveterrordates', 'mod_stage', (object) [
+                                'line' => $linenum, 'student' => fullname($student),
+                            ]);
+                            continue;
+                        }
+                        if (stage_period_too_long($start, $end)) {
+                            $results->errors[] = get_string('importerrorperiodtoolong', 'mod_stage', (object) [
+                                'line' => $linenum, 'max' => STAGE_PERIOD_MAX_DAYS,
+                            ]);
+                            continue;
+                        }
+
+                        $pairkey = stage_duplicate_key($student->id, $theme->id, $start, $end);
+                        if (isset($filepairs[$pairkey])) {
+                            $results->errors[] = get_string('importerrorduplicate', 'mod_stage', (object) [
+                                'line' => $linenum, 'email' => fullname($student), 'theme' => $themename,
+                            ]);
+                            continue;
+                        }
+                        $filepairs[$pairkey] = true;
+                        $rangekey = $student->id . '-' . $theme->id;
+
+                        $studenteval = self::clean_evaluation($getcol($row, 'studentevaluation'));
+                        $tutoreval = self::clean_evaluation($getcol($row, 'tutorevaluation'));
+
+                        // Stage déjà présent : mêmes étudiant et thématique, et plage qui recoupe celle
+                        // du fichier (les dates de la convention peuvent différer de quelques jours
+                        // de celles du tableau de bord utilisées lors d'un import précédent).
+                        $matches = self::find_existing_entries(
+                            $existingbykey[$student->id . '-' . $theme->id] ?? [],
+                            $start,
+                            $end
                         );
-                    }
-                    if (!$student && $fullname !== '') {
-                        // Repli sur la colonne « Étudiant » du tableau de bord StageVet, toujours
-                        // renseignée : les colonnes « Nom étudiant », « Prénom étudiant » et
-                        // « Email étudiant » proviennent de la convention PDF et sont vides tant
-                        // que celle-ci n'a pas été analysée par StageVetManager.
-                        $namekey = stage_normalize_name($fullname);
-                        $student = self::unique_match(
-                            ($studentsbyname[$namekey] ?? []) + ($studentsbyreversedname[$namekey] ?? [])
-                        );
-                    }
-
-                    $studentlabel = trim($firstname . ' ' . $lastname);
-                    if ($studentlabel === '') {
-                        $studentlabel = $fullname !== '' ? $fullname : $email;
-                    }
-                    if ($studentlabel === '') {
-                        $studentlabel = get_string('importstagevetunnamedstudent', 'mod_stage', $linenum);
-                    }
-
-                    // Étudiant désigné par la DEVE pour ce libellé. La correspondance est relue
-                    // dans la liste des inscrits : un identifiant forgé dans le formulaire ne peut
-                    // pas rattacher un stage à quelqu'un qui n'est pas inscrit au cours.
-                    if (!$student && isset($studentresolutions[$studentlabel])) {
-                        $student = $students[(int) $studentresolutions[$studentlabel]] ?? null;
-                    }
-
-                    if (!$student) {
-                        $results->unknownstudents[$studentlabel][] = $linenum;
-                        continue;
-                    }
-
-                    if ($themename === '') {
-                        $results->errors[] = get_string('importstageveterrornotheme', 'mod_stage', $linenum);
-                        continue;
-                    }
-                    $theme = $themesbyname[core_text::strtolower($themename)] ?? null;
-                    if (!$theme) {
-                        $results->unknownthemes[$themename][] = $linenum;
-                        continue;
-                    }
-
-                    // Les dates de début et de fin de l'export constituent l'unique plage du
-                    // stage importé, et donc ses dates. Sans elles, ou si la fin précède le début,
-                    // la ligne est refusée : un stage sans plage n'aurait ni dates affichables ni
-                    // convention exploitable, et ne serait plus réenregistrable sans que la DEVE
-                    // invente des dates.
-                    $start = self::parse_date($getcol($row, 'datestartalt', 'datestart'));
-                    $end = self::parse_date($getcol($row, 'dateendalt', 'dateend'));
-                    if (empty($start) || empty($end) || $end < $start) {
-                        $results->errors[] = get_string('importstageveterrordates', 'mod_stage', (object) [
-                            'line' => $linenum, 'student' => fullname($student),
-                        ]);
-                        continue;
-                    }
-
-                    $pairkey = stage_duplicate_key($student->id, $theme->id, $start, $end);
-                    if (isset($filepairs[$pairkey])) {
-                        $results->errors[] = get_string('importerrorduplicate', 'mod_stage', (object) [
-                            'line' => $linenum, 'email' => fullname($student), 'theme' => $themename,
-                        ]);
-                        continue;
-                    }
-                    $filepairs[$pairkey] = true;
-                    $rangekey = $student->id . '-' . $theme->id;
-
-                    $studenteval = self::clean_evaluation($getcol($row, 'studentevaluation'));
-                    $tutoreval = self::clean_evaluation($getcol($row, 'tutorevaluation'));
-
-                    // Stage déjà présent : mêmes étudiant et thématique, et plage qui recoupe celle
-                    // du fichier (les dates de la convention peuvent différer de quelques jours
-                    // de celles du tableau de bord utilisées lors d'un import précédent).
-                    $matches = self::find_existing_entries(
-                        $existingbykey[$student->id . '-' . $theme->id] ?? [],
-                        $start,
-                        $end
-                    );
-                    if (count($matches) > 1) {
-                        $results->errors[] = get_string('importstageveterrorambiguous', 'mod_stage', (object) [
-                            'line' => $linenum, 'student' => fullname($student), 'theme' => $themename,
-                        ]);
-                        continue;
-                    }
-                    // Aucun stage de cette thématique ne correspond, mais un stage du même étudiant
-                    // (autre thématique aux dates qui se recoupent, ou stage sans dates, comme
-                    // ceux d'un ancien suivi) pourrait être le même : la DEVE décide, plutôt
-                    // qu'un second exemplaire soit créé en silence.
-                    if (!$matches) {
-                        // Une ligne précédente du fichier crée déjà ce stage (plage qui recoupe) :
-                        // il ne doit pas être créé une seconde fois.
-                        foreach ($pendingranges[$rangekey] ?? [] as [$pendingstart, $pendingend]) {
-                            if ($pendingstart <= $end && $pendingend >= $start) {
-                                $results->errors[] = get_string('importerrorduplicate', 'mod_stage', (object) [
-                                    'line' => $linenum, 'email' => fullname($student), 'theme' => $themename,
-                                ]);
-                                continue 2;
+                        if (count($matches) > 1) {
+                            $results->errors[] = get_string('importstageveterrorambiguous', 'mod_stage', (object) [
+                                'line' => $linenum, 'student' => fullname($student), 'theme' => $themename,
+                            ]);
+                            continue;
+                        }
+                        // Aucun stage de cette thématique ne correspond, mais un stage du même étudiant
+                        // (autre thématique aux dates qui se recoupent, ou stage sans dates, comme
+                        // ceux d'un ancien suivi) pourrait être le même : la DEVE décide, plutôt
+                        // qu'un second exemplaire soit créé en silence.
+                        if (!$matches) {
+                            // Une ligne précédente du fichier crée déjà ce stage (plage qui recoupe) :
+                            // il ne doit pas être créé une seconde fois.
+                            foreach ($pendingranges[$rangekey] ?? [] as [$pendingstart, $pendingend]) {
+                                if ($pendingstart <= $end && $pendingend >= $start) {
+                                    $results->errors[] = get_string('importerrorduplicate', 'mod_stage', (object) [
+                                        'line' => $linenum, 'email' => fullname($student), 'theme' => $themename,
+                                    ]);
+                                    continue 2;
+                                }
+                            }
+                            $probables = stage_find_probable_duplicate_entries(
+                                $stage->id,
+                                $student->id,
+                                $theme->id,
+                                $start,
+                                $end,
+                                self::parse_studyyear($getcol($row, 'studentyear', 'studyyear')),
+                                $existingbyuser[$student->id] ?? []
+                            );
+                            $decision = $duplicateresolutions[$linenum] ?? null;
+                            if ($probables && $decision === null) {
+                                $results->probableduplicates[$linenum] = (object) [
+                                    'line' => $linenum,
+                                    'student' => fullname($student),
+                                    'theme' => $themename,
+                                    'start' => $start,
+                                    'end' => $end,
+                                    'candidates' => array_map(
+                                        fn($entry) => stage_entry_short_description($entry, $allthemes),
+                                        $probables
+                                    ),
+                                ];
+                                continue;
+                            }
+                            if ($probables && $decision === 'skip') {
+                                continue;
+                            }
+                            if ($probables && isset($probables[(int) $decision])) {
+                                $matches = [$probables[(int) $decision]];
                             }
                         }
-                        $probables = stage_find_probable_duplicate_entries(
-                            $stage->id,
-                            $student->id,
-                            $theme->id,
-                            $start,
-                            $end,
-                            self::parse_studyyear($getcol($row, 'studentyear', 'studyyear')),
-                            $existingbyuser[$student->id] ?? []
-                        );
-                        $decision = $duplicateresolutions[$linenum] ?? null;
-                        if ($probables && $decision === null) {
-                            $results->probableduplicates[$linenum] = (object) [
-                                'line' => $linenum,
-                                'student' => fullname($student),
-                                'theme' => $themename,
-                                'start' => $start,
-                                'end' => $end,
-                                'candidates' => array_map(
-                                    fn($entry) => stage_entry_short_description($entry, $allthemes),
-                                    $probables
-                                ),
-                            ];
+                        if ($matches) {
+                            $existing = reset($matches);
+                            $outcome = self::apply_evaluations($existing, $studenteval, $tutoreval);
+                            foreach ($outcome['kept'] as $kind) {
+                                $results->errors[] = get_string('importstagevetevalkept', 'mod_stage', (object) [
+                                    'line' => $linenum,
+                                    'student' => fullname($student),
+                                    'evaluation' => get_string(
+                                        $kind === 'student' ? 'studentselfeval' : 'tutorevalheading',
+                                        'mod_stage'
+                                    ),
+                                ]);
+                            }
+                            if ($outcome['changed']) {
+                                $results->updated++;
+                                $results->evaluations += $outcome['changed'];
+                            } else {
+                                $results->unchanged++;
+                            }
+                            if ($outcome['completed']) {
+                                $torequest[$existing->id] = $student;
+                            }
                             continue;
                         }
-                        if ($probables && $decision === 'skip') {
-                            continue;
-                        }
-                        if ($probables && isset($probables[(int) $decision])) {
-                            $matches = [$probables[(int) $decision]];
-                        }
-                    }
-                    if ($matches) {
-                        $existing = reset($matches);
-                        $outcome = self::apply_evaluations($existing, $studenteval, $tutoreval);
-                        foreach ($outcome['kept'] as $kind) {
-                            $results->errors[] = get_string('importstagevetevalkept', 'mod_stage', (object) [
-                                'line' => $linenum,
-                                'student' => fullname($student),
-                                'evaluation' => get_string(
-                                    $kind === 'student' ? 'studentselfeval' : 'tutorevalheading',
-                                    'mod_stage'
-                                ),
-                            ]);
-                        }
-                        if ($outcome['changed']) {
-                            $results->updated++;
-                            $results->evaluations += $outcome['changed'];
-                        } else {
-                            $results->unchanged++;
-                        }
-                        if ($outcome['completed']) {
-                            $torequest[$existing->id] = $student;
-                        }
-                        continue;
-                    }
 
-                    // Les compteurs en jours viennent tous de la convention PDF. Sans elle, la
-                    // seule durée de l'export est le libellé du tableau de bord, exprimé en
-                    // semaines : la plage de dates du stage prend alors le relais. La durée ainsi
-                    // obtenue reste indicative, la DEVE fixant la durée retenue à la validation.
-                    $duration = (int) $getcol($row, 'durationeffective');
-                    if (!$duration) {
-                        $duration = (int) $getcol($row, 'durationdeclared');
-                    }
-                    if (!$duration) {
-                        $duration = self::parse_duration($getcol($row, 'durationtext'));
-                    }
-                    if (!$duration) {
-                        $duration = self::parse_duration($getcol($row, 'durationlabel'));
-                    }
-                    if (!$duration) {
-                        $duration = self::count_period_days($start, $end);
-                    }
+                        // Les compteurs en jours viennent tous de la convention PDF. Sans elle, la
+                        // seule durée de l'export est le libellé du tableau de bord, exprimé en
+                        // semaines : la plage de dates du stage prend alors le relais. La durée ainsi
+                        // obtenue reste indicative, la DEVE fixant la durée retenue à la validation.
+                        $duration = (int) $getcol($row, 'durationeffective');
+                        if (!$duration) {
+                            $duration = (int) $getcol($row, 'durationdeclared');
+                        }
+                        if (!$duration) {
+                            $duration = self::parse_duration($getcol($row, 'durationtext'));
+                        }
+                        if (!$duration) {
+                            $duration = self::parse_duration($getcol($row, 'durationlabel'));
+                        }
+                        if (!$duration) {
+                            $duration = self::count_period_days($start, $end);
+                        }
 
-                    // L'année propre à l'étudiant dans la convention décrit l'année à laquelle
-                    // ce stage doit être rattaché. L'année d'étude générale de l'export sert de
-                    // repli pour les anciens exports qui ne fournissent pas la première colonne.
-                    $studyyear = self::parse_studyyear($getcol($row, 'studentyear', 'studyyear'));
+                        // L'année propre à l'étudiant dans la convention décrit l'année à laquelle
+                        // ce stage doit être rattaché. L'année d'étude générale de l'export sert de
+                        // repli pour les anciens exports qui ne fournissent pas la première colonne.
+                        $studyyear = self::parse_studyyear($getcol($row, 'studentyear', 'studyyear'));
 
-                    $pendingranges[$rangekey][] = [$start, $end];
-                    $rowkey = count($entryrecords);
-                    $entryrecords[$rowkey] = (object) [
-                        'stageid' => $stage->id,
-                        'userid' => $student->id,
-                        'themeid' => $theme->id,
-                        'studyyear' => $studyyear,
-                        'structure' => $getcol($row, 'structurealt', 'structure'),
-                        'datestart' => $start,
-                        'dateend' => $end,
-                        'declaredduration' => $duration,
-                        'retainedduration' => 0,
-                        // L'évaluation de l'étudiant, si l'export la fournit, tient lieu de son
-                        // auto-évaluation ; celle du maître de stage remplace l'invitation que
-                        // l'activité lui aurait sinon envoyée.
-                        'status' => $studenteval !== '' ? STAGE_STATUS_EVAL_ETUDIANT : STAGE_STATUS_ENREGISTRE,
-                        'studentselfeval' => $studenteval !== '' ? $studenteval : null,
-                        'tutoreval' => $tutoreval !== '' ? $tutoreval : null,
-                        'tutortime' => $tutoreval !== '' ? time() : null,
-                        'conventionstatus' => STAGE_CONVENTION_SIGNVET,
-                        'timecreated' => time(),
-                        'timemodified' => time(),
-                    ];
-                    $results->evaluations += ($studenteval !== '' ? 1 : 0) + ($tutoreval !== '' ? 1 : 0);
-                    $studentbyrowkey[$rowkey] = $student;
+                        $pendingranges[$rangekey][] = [$start, $end];
+                        $rowkey = count($entryrecords);
+                        $entryrecords[$rowkey] = (object) [
+                            'stageid' => $stage->id,
+                            'userid' => $student->id,
+                            'themeid' => $theme->id,
+                            'studyyear' => $studyyear,
+                            'structure' => $getcol($row, 'structurealt', 'structure'),
+                            'datestart' => $start,
+                            'dateend' => $end,
+                            'declaredduration' => $duration,
+                            'retainedduration' => 0,
+                            // L'évaluation de l'étudiant, si l'export la fournit, tient lieu de son
+                            // auto-évaluation ; celle du maître de stage remplace l'invitation que
+                            // l'activité lui aurait sinon envoyée.
+                            'status' => $studenteval !== '' ? STAGE_STATUS_EVAL_ETUDIANT : STAGE_STATUS_ENREGISTRE,
+                            'studentselfeval' => $studenteval !== '' ? $studenteval : null,
+                            'tutoreval' => $tutoreval !== '' ? $tutoreval : null,
+                            'tutortime' => $tutoreval !== '' ? time() : null,
+                            'conventionstatus' => STAGE_CONVENTION_SIGNVET,
+                            'timecreated' => time(),
+                            'timemodified' => time(),
+                        ];
+                        $results->evaluations += ($studenteval !== '' ? 1 : 0) + ($tutoreval !== '' ? 1 : 0);
+                        $studentbyrowkey[$rowkey] = $student;
 
-                    $detailbyrowkey[$rowkey] = (object) [
-                        'referentteacherid' => null,
-                        'yearsituation' => 'normal',
-                        'stagetype' => 'obligatoire',
-                        'studentbirthdate' => self::parse_date($getcol($row, 'studentbirthdate')),
-                        'studentaddress' => $getcol($row, 'studentaddress'),
-                        'studentphone' => $getcol($row, 'studentphone'),
-                        'hostaddress' => $getcol($row, 'hostaddressalt', 'hostaddress'),
-                        'hostrepresentative' => $getcol($row, 'hostrepresentative'),
-                        'hostrepresentativetitle' => '',
-                        'hostservice' => '',
-                        'hostphone' => $getcol($row, 'hostphone'),
-                        'hostemail' => $getcol($row, 'hostemail'),
-                        'hostlocation' => '',
-                        'tutorname' => $getcol($row, 'tutorname'),
-                        'tutorfunction' => $getcol($row, 'tutorfunction'),
-                        'tutorphone' => '',
-                        'tutoremail' => '',
-                        'nightpresence' => core_text::strtolower($getcol($row, 'nightpresence')) === 'oui' ? 1 : 0,
-                        'sundaypresence' => core_text::strtolower($getcol($row, 'sundaypresence')) === 'oui' ? 1 : 0,
-                        'holidaypresence' => core_text::strtolower($getcol($row, 'holidaypresence')) === 'oui' ? 1 : 0,
-                        'homebased' => core_text::strtolower($getcol($row, 'homebased')) === 'oui' ? 1 : 0,
-                        'othermodality' => '',
-                        'hasleave' => 0,
-                        'leavedays' => null,
-                        'leavemodalities' => '',
-                        'gratificationamount' => $getcol($row, 'gratificationamount'),
-                    ];
+                        $detailbyrowkey[$rowkey] = (object) [
+                            'referentteacherid' => null,
+                            'yearsituation' => 'normal',
+                            'stagetype' => 'obligatoire',
+                            'studentbirthdate' => self::parse_date($getcol($row, 'studentbirthdate')),
+                            'studentaddress' => $getcol($row, 'studentaddress'),
+                            'studentphone' => $getcol($row, 'studentphone'),
+                            'hostaddress' => $getcol($row, 'hostaddressalt', 'hostaddress'),
+                            'hostrepresentative' => $getcol($row, 'hostrepresentative'),
+                            'hostrepresentativetitle' => '',
+                            'hostservice' => '',
+                            'hostphone' => $getcol($row, 'hostphone'),
+                            'hostemail' => $getcol($row, 'hostemail'),
+                            'hostlocation' => '',
+                            'tutorname' => $getcol($row, 'tutorname'),
+                            'tutorfunction' => $getcol($row, 'tutorfunction'),
+                            'tutorphone' => '',
+                            'tutoremail' => '',
+                            'nightpresence' => core_text::strtolower($getcol($row, 'nightpresence')) === 'oui' ? 1 : 0,
+                            'sundaypresence' => core_text::strtolower($getcol($row, 'sundaypresence')) === 'oui' ? 1 : 0,
+                            'holidaypresence' => core_text::strtolower($getcol($row, 'holidaypresence')) === 'oui' ? 1 : 0,
+                            'homebased' => core_text::strtolower($getcol($row, 'homebased')) === 'oui' ? 1 : 0,
+                            'othermodality' => '',
+                            'hasleave' => 0,
+                            'leavedays' => null,
+                            'leavemodalities' => '',
+                            'gratificationamount' => $getcol($row, 'gratificationamount'),
+                        ];
 
-                    $referentteacher = null;
-                    $referentemail = $getcol($row, 'referentteacheremail');
-                    if ($referentemail !== '') {
-                        $referentteacher = self::unique_match($teachersbyemail[core_text::strtolower($referentemail)] ?? []);
+                        $referentteacher = null;
+                        $referentemail = $getcol($row, 'referentteacheremail');
+                        if ($referentemail !== '') {
+                            $referentteacher = self::unique_match($teachersbyemail[core_text::strtolower($referentemail)] ?? []);
+                        }
+                        $referentname = $getcol($row, 'referentteachername');
+                        if (!$referentteacher && $referentname !== '') {
+                            $referentteacher = self::unique_match($teachersbyname[stage_normalize_name($referentname)] ?? []);
+                        }
+                        if ($referentteacher) {
+                            $detailbyrowkey[$rowkey]->referentteacherid = $referentteacher->id;
+                        }
                     }
-                    $referentname = $getcol($row, 'referentteachername');
-                    if (!$referentteacher && $referentname !== '') {
-                        $referentteacher = self::unique_match($teachersbyname[stage_normalize_name($referentname)] ?? []);
+                    $cir->cleanup(true);
+
+                    foreach ($entryrecords as $rowkey => $record) {
+                        $entryid = $DB->insert_record('stage_entry', $record);
+                        // Comme toute saisie créée par stage_register_entry(), celle-ci reçoit sa
+                        // plage : les dates de l'export en sont l'unique plage. Les lignes sans dates
+                        // exploitables ont été écartées plus haut, elle est donc toujours créée.
+                        $DB->insert_record('stage_entry_period', (object) [
+                            'entryid' => $entryid,
+                            'datestart' => $record->datestart,
+                            'dateend' => $record->dateend,
+                            'timecreated' => time(),
+                        ]);
+                        $detailbyrowkey[$rowkey]->entryid = $entryid;
+                        $detailbyrowkey[$rowkey]->timecreated = time();
+                        $detailbyrowkey[$rowkey]->timemodified = time();
+                        $DB->insert_record('stage_convention_detail', convention_detail::fit($detailbyrowkey[$rowkey]));
+                        if (!empty($record->studentselfeval) && !empty($record->tutoreval)) {
+                            $torequest[$entryid] = $studentbyrowkey[$rowkey];
+                        }
                     }
-                    if ($referentteacher) {
-                        $detailbyrowkey[$rowkey]->referentteacherid = $referentteacher->id;
-                    }
+                    $transaction->allow_commit();
+                    $results->created = count($entryrecords);
+                } finally {
+                    $lock->release();
                 }
-                $cir->cleanup(true);
-
-                // Les stages sont créés ensemble : un échec en cours de route ne doit pas laisser un
-                // import à moitié appliqué, que la DEVE ne saurait pas reprendre.
-                $transaction = $DB->start_delegated_transaction();
-                foreach ($entryrecords as $rowkey => $record) {
-                    $entryid = $DB->insert_record('stage_entry', $record);
-                    // Comme toute saisie créée par stage_register_entry(), celle-ci reçoit sa
-                    // plage : les dates de l'export en sont l'unique plage. Les lignes sans dates
-                    // exploitables ont été écartées plus haut, elle est donc toujours créée.
-                    $DB->insert_record('stage_entry_period', (object) [
-                        'entryid' => $entryid,
-                        'datestart' => $record->datestart,
-                        'dateend' => $record->dateend,
-                        'timecreated' => time(),
-                    ]);
-                    $detailbyrowkey[$rowkey]->entryid = $entryid;
-                    $detailbyrowkey[$rowkey]->timecreated = time();
-                    $detailbyrowkey[$rowkey]->timemodified = time();
-                    $DB->insert_record('stage_convention_detail', convention_detail::fit($detailbyrowkey[$rowkey]));
-                    if (!empty($record->studentselfeval) && !empty($record->tutoreval)) {
-                        $torequest[$entryid] = $studentbyrowkey[$rowkey];
-                    }
-                }
-                $transaction->allow_commit();
-                $results->created = count($entryrecords);
 
                 // Les deux évaluations amont sont disponibles : l'enseignant référent est invité
                 // à évaluer à son tour. Un étudiant sans référent est signalé à la DEVE, qui

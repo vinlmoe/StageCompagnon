@@ -130,12 +130,19 @@ if (data_submitted() && confirm_sesskey() && !empty($teacheroptions)) {
     }
 
     // En une transaction : une action en masse sur toute la promotion ne doit pas rester appliquée
-    // à moitié si la page est interrompue en cours de route.
-    $transaction = $DB->start_delegated_transaction();
-    foreach ($wanted as $studentid => $teacherids) {
-        stage_set_student_teachers($stage->id, $studentid, $teacherids);
+    // à moitié si la page est interrompue en cours de route. Sous le verrou de l'activité : un
+    // autre enregistrement simultané des référents ne peut pas insérer entre-temps les
+    // attributions que celui-ci s'apprête à écrire.
+    $lock = stage_get_activity_lock($stage->id);
+    try {
+        $transaction = $DB->start_delegated_transaction();
+        foreach ($wanted as $studentid => $teacherids) {
+            stage_set_student_teachers($stage->id, $studentid, $teacherids);
+        }
+        $transaction->allow_commit();
+    } finally {
+        $lock->release();
     }
-    $transaction->allow_commit();
     // Le filtre "sans référent" peut faire disparaître les étudiants qui viennent d'être pourvus :
     // on revient à la première page plutôt que sur une page désormais vide.
     redirect(

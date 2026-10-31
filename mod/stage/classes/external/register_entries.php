@@ -86,7 +86,7 @@ class register_entries extends \external_api {
         $validthemeids = array_flip(array_keys(stage_get_themes($stage->id)));
         // Contrôle des doublons et création sous le verrou d'enregistrement de l'activité : deux
         // appels simultanés avec le même lot ne doivent pas créer deux fois les mêmes stages.
-        $lock = stage_get_registration_lock($stage->id);
+        $lock = stage_get_activity_lock($stage->id);
         try {
             // Un même étudiant a déjà un stage sur cette thématique : on l'écarte plutôt que
             // de créer un doublon silencieux via l'API.
@@ -101,8 +101,11 @@ class register_entries extends \external_api {
                     || $entrydata['datestart'] < 0 || $entrydata['dateend'] < 0
                     || (($entrydata['datestart'] === 0) !== ($entrydata['dateend'] === 0))
                     || $entrydata['dateend'] < $entrydata['datestart']
+                    || stage_period_too_long($entrydata['datestart'], $entrydata['dateend'])
                 ) {
-                    throw new \invalid_parameter_exception('Invalid duration, study year, abroad flag or date range.');
+                    throw new \invalid_parameter_exception(
+                        'Invalid duration, study year, abroad flag or date range (at most ' . STAGE_PERIOD_MAX_DAYS . ' days).'
+                    );
                 }
             }
 

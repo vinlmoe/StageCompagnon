@@ -1169,5 +1169,26 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026103100, 'stage');
     }
 
+    if ($oldversion < 2026103101) {
+        // Échec de l'invitation automatique du maître de stage : la tâche planifiée ne la retente
+        // plus, seule la DEVE peut relancer à la main.
+        $table = new xmldb_table('stage_entry');
+        $field = new xmldb_field(
+            'tutorrequestfailtime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            '0',
+            'tutorrequesttime'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026103101, 'stage');
+    }
+
     return true;
 }

@@ -178,10 +178,10 @@ if ($mform->is_cancelled()) {
     // Stage, demande de convention, informations complémentaires, plages et check-list sont
     // enregistrés ensemble : un échec en cours de route ne doit pas laisser un stage dont la
     // demande de convention n'a pas de contenu.
-    // Un double envoi du formulaire passe deux fois les contrôles avant que le premier n'ait rien
-    // enregistré : ils sont refaits sous le verrou d'enregistrement de l'activité, sur une saisie
-    // relue en base.
-    $lock = stage_get_registration_lock($stage->id);
+    // Le formulaire ne contrôle pas les doublons, et un double envoi ne doit pas créer deux fois le
+    // même stage : le contrôle est fait ici, sous le verrou de l'activité (qui couvre aussi un
+    // enregistrement simultané par la DEVE), sur une saisie relue en base.
+    $lock = stage_get_activity_lock($stage->id);
     $refused = null;
     try {
         if ($existingentry) {
@@ -200,7 +200,7 @@ if ($mform->is_cancelled()) {
                 true
             )
         ) {
-            $refused = 'errorduplicateentry';
+            $refused = 'errorduplicateentryown';
         }
         if ($refused === null) {
             $transaction = $DB->start_delegated_transaction();

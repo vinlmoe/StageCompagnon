@@ -80,6 +80,7 @@ class provider implements
             'teachereval' => 'privacy:metadata:stage_entry:teachereval',
             'tutoreval' => 'privacy:metadata:stage_entry:tutoreval',
             'tutorrequesttime' => 'privacy:metadata:stage_entry:tutorrequesttime',
+            'tutorrequestfailtime' => 'privacy:metadata:stage_entry:tutorrequestfailtime',
             'deveuserid' => 'privacy:metadata:stage_entry:deveuserid',
             'devecomment' => 'privacy:metadata:stage_entry:devecomment',
             'conventionstatus' => 'privacy:metadata:stage_entry:conventionstatus',
@@ -345,6 +346,8 @@ class provider implements
                     'teachereval' => $entry->teachereval,
                     'tutoreval' => $entry->tutoreval,
                     'tutorrequesttime' => $entry->tutorrequesttime ? transform::datetime($entry->tutorrequesttime) : null,
+                    'tutorrequestfailtime' => $entry->tutorrequestfailtime
+                        ? transform::datetime($entry->tutorrequestfailtime) : null,
                     'devecomment' => $entry->devecomment,
                     'conventionstatus' => stage_convention_status_label($entry->conventionstatus),
                     'cancelcomment' => $entry->cancelcomment,

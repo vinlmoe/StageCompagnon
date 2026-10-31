@@ -119,6 +119,7 @@ $string['importerrorduplicate'] = 'Line {$a->line}: "{$a->email}" already has an
     . 'with these same dates, line skipped.';
 $string['importerrordate'] = 'Line {$a->line}: unreadable date "{$a->value}" (accepted formats: YYYY-MM-DD or DD/MM/YYYY), '
     . 'line skipped.';
+$string['importerrorperiodtoolong'] = 'Line {$a->line}: the date range exceeds {$a->max} days, line ignored. Check the year of its dates.';
 $string['importerrordaterange'] = 'Line {$a}: the end date is before the start date, line skipped.';
 $string['importstagevetcsv'] = 'Import a StageVet export (CSV)';
 $string['importstagevetcsv_help'] = 'Import the CSV file exported directly from StageVet (StageVet\'s export '
@@ -211,7 +212,8 @@ $string['importteacherscsv_help'] = 'Import a CSV file (saved from Excel via "Sa
     . 'a line with an unrecognised teacher is skipped and the existing assignment kept.';
 $string['importteachersresult'] = '{$a} student(s) updated successfully.';
 $string['importerrorunknownteacher'] = 'Line {$a->line}: no potential referent teacher with email "{$a->email}".';
-$string['errorregistrationbusy'] = 'Another internship registration is in progress for this activity. Please try again in a few seconds.';
+$string['erroractivitybusy'] = 'Another registration of internships or teachers is in progress for this activity. Please try again in a few seconds.';
+$string['errorduplicateentryown'] = 'You already have an internship registered on this theme with these same dates.';
 $string['errorduplicateentry'] = 'This student already has an internship registered on this theme with these same dates.';
 $string['registerstage'] = 'Register an internship';
 $string['editstage'] = 'Edit an internship';
@@ -739,7 +741,8 @@ $string['conventionremindernotifbody'] = "Hello {\$a->student},\n\nYour internsh
     . "agreement, the internship cannot start.\n\nPlease sort out your agreement request as soon as "
     . "possible:\n{\$a->url}";
 $string['taskconventionreminders'] = 'Send unsigned internship agreement reminders';
-$string['tutoremailinvalid'] = 'This tutor email address is invalid: the evaluation invitation cannot be sent. Correct it in the agreement details.';
+$string['tutoremailinvalid'] = 'This tutor email address is invalid: the evaluation invitation cannot be sent. Correct it in the agreement details, then resend the invitation.';
+$string['tutorrequestfailed'] = 'The automatic evaluation invitation could not be sent on {$a}. It will not be retried automatically: resend it manually.';
 $string['tasktutorevaluationrequests'] = 'Send workplace tutor evaluation invitations';
 $string['reportmode'] = 'Internship report';
 $string['reportmode_help'] = 'Document submission requested from the student during their self-assessment, '
@@ -904,6 +907,7 @@ $string['errorvalidatecancelled'] = 'Reset the cancelled internship before valid
 $string['errornegativeduration'] = 'The duration cannot be negative.';
 $string['errorrequiredanswer'] = 'An answer is required for this question: {$a}';
 $string['errorinvalidanswer'] = 'Select one of the available answers for this question: {$a}';
+$string['privacy:metadata:stage_entry:tutorrequestfailtime'] = 'The date the automatic tutor evaluation invitation failed.';
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = 'The date the tutor evaluation invitation was last sent.';
 $string['viewthemeobjectives'] = 'Objectives';
 $string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be transferred: add matching objectives with unique names to the target theme.';

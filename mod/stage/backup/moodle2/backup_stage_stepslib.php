@@ -121,11 +121,13 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         // « tutorrequesttime », lui, est sauvegardé : un maître de stage déjà invité pour ce stage
         // ne doit pas être réinvité par le cron dans chaque copie du cours. La DEVE peut toujours
         // relancer depuis la copie, ce qui envoie un lien portant le jeton de la copie.
+        // « tutorrequestfailtime » l'est pour la même raison : un échec d'invitation automatique
+        // n'est pas retenté par le cron, ni dans le cours d'origine ni dans ses copies.
         $entry = new backup_nested_element('entry', ['id'], [
             'themeid', 'studyyear', 'userid', 'structure', 'abroad', 'country',
             'datestart', 'dateend', 'declaredduration', 'retainedduration', 'status',
             'studentselfeval', 'teacherid', 'teachereval', 'teachertime',
-            'tutoreval', 'tutortime', 'tutorbypassed', 'tutorrequesttime',
+            'tutoreval', 'tutortime', 'tutorbypassed', 'tutorrequesttime', 'tutorrequestfailtime',
             'deveuserid', 'devecomment', 'devetime',
             'conventiontemplateid', 'conventionstatus',
             'conventionrejectedby', 'conventionrejecttime', 'conventionrejectcomment',

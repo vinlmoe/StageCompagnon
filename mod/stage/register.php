@@ -346,9 +346,10 @@ if ($mode === 'single') {
             stage_set_entry_convention_exempt($entry, !empty($data->exemptfromconvention));
             stage_set_entry_stagetype($entry->id, $data->stagetype);
         } else {
-            // Le formulaire a déjà écarté les doublons, mais un double envoi passe ce contrôle
-            // deux fois avant que la première saisie n'existe : il est refait sous le verrou.
-            $lock = stage_get_registration_lock($stage->id);
+            // Le formulaire a déjà écarté les doublons, mais deux enregistrements simultanés (deux
+            // membres de la DEVE) passent ce contrôle avant que l'autre saisie n'existe : il est
+            // refait sous le verrou de l'activité.
+            $lock = stage_get_activity_lock($stage->id);
             try {
                 $duplicate = stage_entry_is_duplicate($stage->id, $data->userid, $data->themeid, $datestart, $dateend);
                 if (!$duplicate) {

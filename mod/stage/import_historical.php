@@ -171,49 +171,55 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
     if (!$pending || empty($pending['ready']) || empty($pending['records'])) {
         $error = get_string('historicalimportexpired', 'mod_stage');
     } else {
-        $transaction = $DB->start_delegated_transaction();
-        $created = 0;
-        $skipped = 0;
-        $forced = optional_param_array('forceimport', [], PARAM_INT);
-        foreach ($pending['records'] as $index => $candidate) {
-            $candidate = (object) $candidate;
-            // Doublon probable d'un stage déjà enregistré : importé seulement si la DEVE l'a coché.
-            if (!empty($candidate->probableduplicates) && empty($forced[$index])) {
-                $skipped++;
-                continue;
+        // Sous le verrou de l'activité : création des stages et attribution des référents.
+        $lock = stage_get_activity_lock($stage->id);
+        try {
+            $transaction = $DB->start_delegated_transaction();
+            $created = 0;
+            $skipped = 0;
+            $forced = optional_param_array('forceimport', [], PARAM_INT);
+            foreach ($pending['records'] as $index => $candidate) {
+                $candidate = (object) $candidate;
+                // Doublon probable d'un stage déjà enregistré : importé seulement si la DEVE l'a coché.
+                if (!empty($candidate->probableduplicates) && empty($forced[$index])) {
+                    $skipped++;
+                    continue;
+                }
+                $entryid = stage_register_entry(
+                    $stage->id,
+                    $candidate->userid,
+                    $candidate->themeid,
+                    $candidate->structure,
+                    $candidate->datestart ?: null,
+                    $candidate->dateend ?: null,
+                    $candidate->duration,
+                    $candidate->studyyear,
+                    STAGE_CONVENTION_NONE,
+                    $candidate->abroad ?? 0,
+                    $candidate->country ?? ''
+                );
+                $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
+                if (!empty($candidate->teacherid)) {
+                    $entry->teacherid = $candidate->teacherid;
+                    $entry->teachertime = time();
+                    $entry->teachereval = get_string('historicalimportcomment', 'mod_stage');
+                    $assigned = array_keys(stage_get_student_teachers($stage->id, $candidate->userid));
+                    $assigned[] = $candidate->teacherid;
+                    stage_set_student_teachers($stage->id, $candidate->userid, $assigned);
+                }
+                stage_apply_deve_validation(
+                    $entry,
+                    $USER->id,
+                    $candidate->duration,
+                    get_string('historicalimportcomment', 'mod_stage')
+                );
+                stage_set_entry_stagetype($entryid, $candidate->stagetype);
+                $created++;
             }
-            $entryid = stage_register_entry(
-                $stage->id,
-                $candidate->userid,
-                $candidate->themeid,
-                $candidate->structure,
-                $candidate->datestart ?: null,
-                $candidate->dateend ?: null,
-                $candidate->duration,
-                $candidate->studyyear,
-                STAGE_CONVENTION_NONE,
-                $candidate->abroad ?? 0,
-                $candidate->country ?? ''
-            );
-            $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
-            if (!empty($candidate->teacherid)) {
-                $entry->teacherid = $candidate->teacherid;
-                $entry->teachertime = time();
-                $entry->teachereval = get_string('historicalimportcomment', 'mod_stage');
-                $assigned = array_keys(stage_get_student_teachers($stage->id, $candidate->userid));
-                $assigned[] = $candidate->teacherid;
-                stage_set_student_teachers($stage->id, $candidate->userid, $assigned);
-            }
-            stage_apply_deve_validation(
-                $entry,
-                $USER->id,
-                $candidate->duration,
-                get_string('historicalimportcomment', 'mod_stage')
-            );
-            stage_set_entry_stagetype($entryid, $candidate->stagetype);
-            $created++;
+            $transaction->allow_commit();
+        } finally {
+            $lock->release();
         }
-        $transaction->allow_commit();
         $message = get_string('historicalimportdone', 'mod_stage', $created);
         if ($skipped) {
             $message .= ' ' . get_string('historicalimportduplicatesskipped', 'mod_stage', $skipped);

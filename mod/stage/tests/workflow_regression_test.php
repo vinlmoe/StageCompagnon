@@ -126,7 +126,7 @@ final class workflow_regression_test extends \advanced_testcase {
 
     /**
      * La tâche planifiée écarte sans tentative une adresse invalide, qui ne doit ni bloquer les
-     * invitations suivantes ni être marquée comme envoyée, et invite les autres maîtres de stage.
+     * invitations suivantes ni être retentée, et invite les autres maîtres de stage.
      */
     public function test_task_skips_invalid_address_and_invites_others(): void {
         global $DB;
@@ -149,7 +149,38 @@ final class workflow_regression_test extends \advanced_testcase {
         $this->assertSame('tutor@example.com', $sink->get_messages()[0]->to);
         $this->assertNotEquals(0, $DB->get_field('stage_entry', 'tutorrequesttime', ['id' => $entry->id]));
         $this->assertEquals(0, $DB->get_field('stage_entry', 'tutorrequesttime', ['id' => $invalid->id]));
-        $this->assertStringContainsString('1 invitation(s) de maîtres de stage en attente d\'une adresse valide', $output);
+        $this->assertNotEquals(0, $DB->get_field('stage_entry', 'tutorrequestfailtime', ['id' => $invalid->id]));
+        $this->assertArrayNotHasKey($invalid->id, stage_get_entries_needing_tutor_request());
+        $this->assertStringContainsString('1 adresse(s) invalide(s)', $output);
+        $sink->close();
+    }
+
+    /**
+     * Un envoi automatique refusé n'est pas retenté par la tâche planifiée ; la relance manuelle
+     * de la DEVE reste possible et efface l'échec.
+     */
+    public function test_failed_automatic_invitation_is_only_resent_manually(): void {
+        global $DB;
+        [$stage, $cm, $entry] = $this->prepare();
+        // Étudiant introuvable : l'invitation ne peut pas être composée, l'envoi échoue.
+        $studentid = $entry->userid;
+        $DB->set_field('stage_entry', 'userid', 0, ['id' => $entry->id]);
+
+        $sink = $this->redirectEmails();
+        ob_start();
+        (new \mod_stage\task\send_tutor_evaluation_requests())->execute();
+        $DB->set_field('stage_entry', 'userid', $studentid, ['id' => $entry->id]);
+        (new \mod_stage\task\send_tutor_evaluation_requests())->execute();
+        ob_end_clean();
+
+        $this->assertCount(0, $sink->get_messages());
+        $this->assertNotEquals(0, $DB->get_field('stage_entry', 'tutorrequestfailtime', ['id' => $entry->id]));
+        $this->assertArrayNotHasKey($entry->id, stage_get_entries_needing_tutor_request());
+
+        $entry = $DB->get_record('stage_entry', ['id' => $entry->id]);
+        $this->assertTrue(stage_resend_tutor_evaluation_request($stage, $cm, $entry));
+        $this->assertCount(1, $sink->get_messages());
+        $this->assertEquals(0, $DB->get_field('stage_entry', 'tutorrequestfailtime', ['id' => $entry->id]));
         $sink->close();
     }
 
