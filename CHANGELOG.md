@@ -35,6 +35,18 @@ changements. À tenir à jour à chaque modification de `version.php`.
   « communication » (orange, la couleur d'origine du module).
 
 ### mod_stage
+- Restauration d'un export global :
+  - l'export se relit quelle que soit la langue de la session : intitulés de colonnes et valeurs
+    (statuts, statut de convention, année d'étude, type de stage, situation dans l'année) sont
+    reconnus en français comme en anglais ; une valeur non reconnue est signalée au lieu d'être
+    remplacée en silence par la valeur par défaut ;
+  - les intervenants (validateur DEVE, évaluateur, référent, signataire...) non inscrits au cours
+    sont retrouvés parmi tous les comptes du site, par leur nom, si un seul compte correspond ;
+    sinon, ils sont signalés ;
+  - les dates d'invitation du maître de stage et de relance de convention sont exportées et
+    restaurées, pour que la tâche planifiée ne les renvoie pas ; un export antérieur les tient pour
+    envoyées dès que leur moment est passé ;
+  - la date de dernière modification des stages est conservée.
 - Restauration d'un export global : le téléphone du maître de stage reprenait celui de
   l'étudiant, les deux colonnes portant le même intitulé (« Téléphone », « Phone ») ; chaque
   colonne ne renseigne plus qu'un champ, dans l'ordre de la feuille.

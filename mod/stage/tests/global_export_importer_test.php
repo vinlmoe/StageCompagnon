@@ -25,6 +25,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 // Charge PhpSpreadsheet : Moodle 4.3 ne l'inscrit pas encore dans son chargeur automatique.
 require_once($CFG->libdir . '/excellib.class.php');
+require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 /**
  * Lecture de vrais classeurs d'export global.
@@ -264,5 +265,85 @@ final class global_export_importer_test extends \advanced_testcase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage(get_string('historicalimportinvalidfile', 'mod_stage'));
         global_export_importer::read($path);
+    }
+
+    /**
+     * Installe un paquet de langue français minimal : les chaînes françaises du module deviennent
+     * disponibles.
+     *
+     * @return void
+     */
+    private function install_french(): void {
+        global $CFG;
+        check_dir_exists($CFG->dataroot . '/lang/fr');
+        file_put_contents($CFG->dataroot . '/lang/fr/langconfig.php', "<?php\n"
+            . "\$string['thislanguage'] = 'Français';\n\$string['thislanguageint'] = 'French';\n"
+            . "\$string['parentlanguage'] = '';\n\$string['locale'] = 'fr_FR.UTF-8';\n");
+        get_string_manager()->reset_caches();
+    }
+
+    /**
+     * Régression : les statuts étaient relus dans la seule langue de la restauration ; un export
+     * fait en français et restauré en anglais (ou l'inverse) ramenait tous les stages à
+     * « Enregistré », sans avertissement.
+     */
+    public function test_options_are_recognised_in_every_language(): void {
+        $this->resetAfterTest();
+        $this->install_french();
+        force_current_language('en');
+
+        $options = global_export_importer::option_labels(fn() => [
+            STAGE_STATUS_ENREGISTRE => stage_status_label(STAGE_STATUS_ENREGISTRE),
+            STAGE_STATUS_VALIDE_DEVE => stage_status_label(STAGE_STATUS_VALIDE_DEVE),
+        ]);
+
+        $this->assertSame('en', current_language(), 'La langue de la session est rétablie.');
+        $this->assertSame(STAGE_STATUS_VALIDE_DEVE, global_export_importer::match_option('Validé DEVE', $options));
+        $this->assertSame(STAGE_STATUS_VALIDE_DEVE, global_export_importer::match_option('validated', $options));
+        $this->assertSame(STAGE_STATUS_ENREGISTRE, global_export_importer::match_option('Enregistré', $options));
+        $this->assertNull(global_export_importer::match_option('Statut inconnu', $options));
+        $this->assertNull(global_export_importer::match_option('', $options));
+        force_current_language('');
+    }
+
+    /**
+     * Régression : un intervenant non inscrit au cours (la DEVE, souvent inscrite par sa catégorie)
+     * n'était pas retrouvé ; des homonymes désignaient le dernier lu.
+     */
+    public function test_find_user_outside_course_and_ignores_homonyms(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $deve = $gen->create_user(['firstname' => 'Anne', 'lastname' => 'Durand-Léger']);
+        $gen->create_user(['firstname' => 'Paul', 'lastname' => 'Martin']);
+        $gen->create_user(['firstname' => 'Paul', 'lastname' => 'Martin']);
+        $teacher = $gen->create_user(['firstname' => 'Paul', 'lastname' => 'Martin']);
+        $enrolled = [global_export_importer::normalize('Paul Martin') => [$teacher->id => $teacher]];
+
+        $this->assertSame((int) $deve->id, global_export_importer::find_user('Anne Durand-Léger', []));
+        $this->assertSame((int) $deve->id, global_export_importer::find_user('DURAND-LÉGER anne', []));
+        $this->assertSame((int) $teacher->id, global_export_importer::find_user('Paul Martin', $enrolled));
+        $this->assertNull(global_export_importer::find_user('Paul Martin', []), 'Homonymes : personne n\'est retenu.');
+        $this->assertNull(global_export_importer::find_user('Inconnu Total', []));
+        $this->assertNull(global_export_importer::find_user('', []));
+    }
+
+    /**
+     * Les dates d'invitation du maître de stage et de relance de convention sont relues quand
+     * l'export les contient, et absentes d'un export antérieur à ces colonnes.
+     */
+    public function test_message_dates_are_read_only_when_exported(): void {
+        $path = $this->workbook([
+            ['Internship ID', 'Email address', 'Theme', 'Workplace tutor invitation date', 'Agreement reminder date'],
+            [7, 'student@example.com', 'Clinic', 46082, ''],
+        ]);
+        $record = global_export_importer::read($path)['records'][0];
+        $this->assertSame(make_timestamp(2026, 3, 1), $record->tutorrequesttime);
+        $this->assertTrue(property_exists($record, 'conventionremindertime'));
+        $this->assertNull($record->conventionremindertime);
+
+        $path = $this->workbook([['Internship ID', 'Email address', 'Theme'], [7, 'student@example.com', 'Clinic']]);
+        $record = global_export_importer::read($path)['records'][0];
+        $this->assertFalse(property_exists($record, 'tutorrequesttime'));
+        $this->assertFalse(property_exists($record, 'conventionremindertime'));
     }
 }

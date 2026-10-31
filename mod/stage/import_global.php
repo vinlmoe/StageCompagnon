@@ -51,15 +51,6 @@ $preview = null;
 $normal = function ($value) {
     return global_export_importer::normalize((string) $value);
 };
-$optionvalue = function ($label, array $options, $default) use ($normal) {
-    $needle = $normal($label);
-    foreach ($options as $value => $optionlabel) {
-        if ($needle === $normal($optionlabel) || $needle === $normal($value)) {
-            return $value;
-        }
-    }
-    return $default;
-};
 $yes = function ($value) use ($normal) {
     return in_array($normal($value), ['1', 'yes', 'oui', 'true'], true);
 };
@@ -110,28 +101,58 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
             }
             $people = [];
             foreach (get_enrolled_users($context) as $person) {
-                $people[$normal(fullname($person))] = $person;
+                $people[$normal(fullname($person))][$person->id] = $person;
             }
             $templates = [];
             foreach (stage_get_convention_templates($stage->id) as $template) {
                 $templates[$normal($template->name)] = $template;
             }
-            $statusoptions = [];
-            foreach (
-                [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE,
-                    STAGE_STATUS_EVAL_ETUDIANT, STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $value
-            ) {
-                $statusoptions[$value] = stage_status_label($value);
-            }
-            $conventionoptions = [];
-            foreach (
-                [STAGE_CONVENTION_REJECTED, STAGE_CONVENTION_NONE, STAGE_CONVENTION_REQUESTED,
-                    STAGE_CONVENTION_EDITED, STAGE_CONVENTION_SIGNED, STAGE_CONVENTION_SIGNVET,
-                    STAGE_CONVENTION_TEACHERPENDING, STAGE_CONVENTION_EXEMPT] as $value
-            ) {
-                $conventionoptions[$value] = stage_convention_status_label($value);
-            }
+            // Libellés des valeurs dans toutes les langues installées : l'export a pu être fait
+            // dans une autre langue que celle de la restauration.
+            $statusoptions = global_export_importer::option_labels(function () {
+                $options = [];
+                foreach (
+                    [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE, STAGE_STATUS_ENREGISTRE,
+                        STAGE_STATUS_EVAL_ETUDIANT, STAGE_STATUS_EVAL_ENSEIGNANT, STAGE_STATUS_VALIDE_DEVE] as $value
+                ) {
+                    $options[$value] = stage_status_label($value);
+                }
+                return $options;
+            });
+            $conventionoptions = global_export_importer::option_labels(function () {
+                $options = [];
+                foreach (
+                    [STAGE_CONVENTION_REJECTED, STAGE_CONVENTION_NONE, STAGE_CONVENTION_REQUESTED,
+                        STAGE_CONVENTION_EDITED, STAGE_CONVENTION_SIGNED, STAGE_CONVENTION_SIGNVET,
+                        STAGE_CONVENTION_TEACHERPENDING, STAGE_CONVENTION_EXEMPT] as $value
+                ) {
+                    $options[$value] = stage_convention_status_label($value);
+                }
+                return $options;
+            });
+            $studyyearoptions = global_export_importer::option_labels(function () {
+                $options = [];
+                for ($year = 1; $year <= 6; $year++) {
+                    $options[$year] = stage_studyyear_label($year);
+                }
+                return $options;
+            });
+            $stagetypeoptions = global_export_importer::option_labels(fn() => stage_convention_stagetype_options());
+            $yearsituationoptions = global_export_importer::option_labels(fn() => stage_convention_yearsituation_options());
+            // Valeur d'une liste ; une valeur non reconnue est signalée, et la valeur par défaut
+            // retenue, plutôt que remplacée en silence.
+            $choose = function ($raw, string $field, string $column, array $options, $default) use (&$warnings) {
+                $text = trim((string) ($raw->$field ?? ''));
+                $value = global_export_importer::match_option($text, $options);
+                if ($value === null && $text !== '') {
+                    $warnings[] = get_string('globalimportunknownvalue', 'mod_stage', (object) [
+                        'line' => $raw->line, 'value' => $text, 'column' => get_string($column, 'mod_stage'),
+                    ]);
+                }
+                return $value ?? $default;
+            };
             $records = [];
+            $peoplecache = [];
             foreach ($parsed['records'] as $raw) {
                 $student = $students[$normal($raw->email)] ?? null;
                 $theme = $themes[$normal($raw->theme)] ?? null;
@@ -149,16 +170,34 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     $warnings[] = get_string('globalimportduplicate', 'mod_stage', $raw->line);
                     continue;
                 }
-                $personid = function ($field) use ($raw, $people, $normal) {
-                    return !empty($raw->$field) && isset($people[$normal($raw->$field)])
-                        ? $people[$normal($raw->$field)]->id : null;
-                };
-                $studyyear = 0;
-                for ($year = 1; $year <= 6; $year++) {
-                    if ($normal($raw->studyyear ?? '') === $normal(stage_studyyear_label($year))) {
-                        $studyyear = $year;
+                // Intervenant (validateur, évaluateur, signataire...) : inscrit au cours ou, à
+                // défaut, compte unique du site portant ce nom ; sinon signalé et laissé vide.
+                $personid = function ($field, $column) use ($raw, $people, &$warnings, &$peoplecache) {
+                    $name = trim((string) ($raw->$field ?? ''));
+                    if ($name === '') {
+                        return null;
                     }
-                }
+                    if (!array_key_exists($name, $peoplecache)) {
+                        $peoplecache[$name] = global_export_importer::find_user($name, $people);
+                    }
+                    if ($peoplecache[$name] === null) {
+                        $warnings[] = get_string('globalimportunknownperson', 'mod_stage', (object) [
+                            'line' => $raw->line, 'value' => $name, 'column' => get_string($column, 'mod_stage'),
+                        ]);
+                    }
+                    return $peoplecache[$name];
+                };
+                $studyyear = $choose($raw, 'studyyear', 'studyyear', $studyyearoptions, 0);
+                // Invitation du maître de stage et relance de convention : reprises de l'export.
+                // Un export antérieur à ces colonnes ne les donne pas ; elles sont alors tenues pour
+                // déjà envoyées dès que leur moment est passé, pour que la tâche planifiée ne les
+                // envoie pas une seconde fois.
+                $hasmessagecolumns = property_exists($raw, 'tutorrequesttime');
+                $tutorrequesttime = $hasmessagecolumns ? (int) $raw->tutorrequesttime
+                    : (!empty($raw->datestart) && $raw->datestart <= time() ? time() : 0);
+                $conventionremindertime = $hasmessagecolumns ? ($raw->conventionremindertime ?: null)
+                    : (!empty($raw->datestart) && $raw->datestart <= time() + (STAGE_CONVENTION_REMINDER_DAYS + 1) * DAYSECS
+                        ? time() : null);
                 $template = !empty($raw->conventiontemplatename)
                     ? ($templates[$normal($raw->conventiontemplatename)] ?? null) : null;
                 $entry = [
@@ -167,34 +206,43 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     'country' => $raw->country ?? '', 'datestart' => $raw->datestart,
                     'dateend' => $raw->dateend, 'declaredduration' => (int) ($raw->declaredduration ?? 0),
                     'retainedduration' => (int) ($raw->retainedduration ?? 0),
-                    'status' => $optionvalue($raw->status ?? '', $statusoptions, STAGE_STATUS_ENREGISTRE),
-                    'studentselfeval' => $raw->studentselfeval ?? '', 'teacherid' => $personid('evaluatedby'),
+                    'status' => $choose($raw, 'status', 'status', $statusoptions, STAGE_STATUS_ENREGISTRE),
+                    'studentselfeval' => $raw->studentselfeval ?? '', 'teacherid' => $personid('evaluatedby', 'evaluatedby'),
                     'teachereval' => $raw->teachereval ?? '', 'teachertime' => $raw->teachertime ?? null,
                     'tutoreval' => $raw->tutoreval ?? '', 'tutortime' => $raw->tutortime ?? null,
-                    'tutorbypassed' => $yes($raw->tutorbypassed ?? ''), 'deveuserid' => $personid('devevalidatedby'),
+                    'tutorbypassed' => $yes($raw->tutorbypassed ?? ''),
+                    'deveuserid' => $personid('devevalidatedby', 'devevalidatedby'),
                     'devecomment' => $raw->devecomment ?? '', 'devetime' => $raw->devetime ?? null,
                     'conventiontemplateid' => $template ? $template->id : null,
-                    'conventionstatus' => $optionvalue($raw->conventionstatus ?? '', $conventionoptions, STAGE_CONVENTION_NONE),
-                    'conventionrejectedby' => $personid('conventionrejectedby'),
+                    'conventionstatus' => $choose(
+                        $raw,
+                        'conventionstatus',
+                        'conventionstatus',
+                        $conventionoptions,
+                        STAGE_CONVENTION_NONE
+                    ),
+                    'tutorrequesttime' => $tutorrequesttime, 'conventionremindertime' => $conventionremindertime,
+                    'conventionrejectedby' => $personid('conventionrejectedby', 'conventionrejectedby'),
                     'conventionrejecttime' => $raw->conventionrejecttime ?? null,
                     'conventionrejectcomment' => $raw->conventionrejectcomment ?? '',
                     'conventionrequesttime' => $raw->conventionrequesttime ?? null,
-                    'conventionteachervalidatedby' => $personid('conventionteachervalidatedby'),
+                    'conventionteachervalidatedby' => $personid('conventionteachervalidatedby', 'conventionteachervalidatedby'),
                     'conventionteachervalidatetime' => $raw->conventionteachervalidatetime ?? null,
-                    'conventioneditedby' => $personid('conventioneditedby'),
+                    'conventioneditedby' => $personid('conventioneditedby', 'conventioneditedby'),
                     'conventionedittime' => $raw->conventionedittime ?? null,
-                    'conventionsignedby' => $personid('conventionsignedby'),
+                    'conventionsignedby' => $personid('conventionsignedby', 'conventionsignedby'),
                     'conventionsigntime' => $raw->conventionsigntime ?? null,
-                    'cancelledby' => $personid('cancelledby'), 'canceltime' => $raw->canceltime ?? null,
+                    'cancelledby' => $personid('cancelledby', 'cancelledby'), 'canceltime' => $raw->canceltime ?? null,
                     'cancelcomment' => $raw->cancelcomment ?? '', 'timecreated' => $raw->timecreated ?? time(),
                     'timemodified' => $raw->timemodified ?? time(),
                 ];
                 $detailfields = ['studentaddress', 'studentphone', 'hostaddress', 'hostrepresentative',
                     'hostrepresentativetitle', 'hostservice', 'hostphone', 'hostemail', 'hostlocation', 'tutorname',
                     'tutorfunction', 'tutorphone', 'tutoremail', 'othermodality', 'gratificationamount', 'leavemodalities'];
-                $detail = ['stagetype' => $optionvalue($raw->stagetype ?? '', stage_convention_stagetype_options(), 'obligatoire'),
-                    'yearsituation' => $optionvalue($raw->yearsituation ?? '', stage_convention_yearsituation_options(), 'normal'),
-                    'studentbirthdate' => $raw->studentbirthdate ?? null, 'referentteacherid' => $personid('referentteacher'),
+                $detail = ['stagetype' => $choose($raw, 'stagetype', 'conventionstagetype', $stagetypeoptions, 'obligatoire'),
+                    'yearsituation' => $choose($raw, 'yearsituation', 'conventionyearsituation', $yearsituationoptions, 'normal'),
+                    'studentbirthdate' => $raw->studentbirthdate ?? null,
+                    'referentteacherid' => $personid('referentteacher', 'conventionreferentteacher'),
                     'nightpresence' => $yes($raw->nightpresence ?? ''), 'sundaypresence' => $yes($raw->sundaypresence ?? ''),
                     'holidaypresence' => $yes($raw->holidaypresence ?? ''), 'homebased' => $yes($raw->homebased ?? ''),
                     'hasleave' => $yes($raw->hasleave ?? ''), 'leavedays' => (int) ($raw->leavedays ?? 0)];

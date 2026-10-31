@@ -57,6 +57,9 @@ class global_export_importer {
             }
             if ($periods) {
                 \stage_save_entry_periods($entryid, array_map(fn($period) => (array) $period, $periods));
+                // L'enregistrement des plages date la saisie d'aujourd'hui : sa date d'origine est
+                // rétablie.
+                $DB->set_field('stage_entry', 'timemodified', $entry->timemodified, ['id' => $entryid]);
             }
         }
         $transaction->allow_commit();
@@ -90,12 +93,20 @@ class global_export_importer {
                 }
                 $record->line = $index + 1;
                 foreach (
-                    ['datestart', 'dateend', 'studentbirthdate', 'teachertime', 'tutortime', 'devetime',
+                    ['datestart', 'dateend', 'studentbirthdate', 'teachertime', 'tutortime', 'tutorrequesttime',
+                        'conventionremindertime', 'devetime',
                         'canceltime', 'timecreated', 'timemodified', 'conventionrequesttime',
                         'conventionteachervalidatetime', 'conventionedittime', 'conventionsigntime',
                         'conventionrejecttime'] as $field
                 ) {
                     $record->$field = self::date($record->$field ?? '');
+                }
+                // Dates des messages automatiques : absentes des exports antérieurs à ces colonnes,
+                // ce que la restauration doit pouvoir distinguer d'un message jamais envoyé.
+                foreach (['tutorrequesttime', 'conventionremindertime'] as $field) {
+                    if (!isset($columns[$field])) {
+                        unset($record->$field);
+                    }
                 }
                 $record->periods = self::periods($record->periods ?? '');
                 $records[] = $record;
@@ -121,7 +132,8 @@ class global_export_importer {
             'yearsituation' => 'conventionyearsituation', 'studentselfeval' => 'studentselfeval',
             'evaluatedby' => 'evaluatedby', 'teachertime' => 'teachervalidationtime', 'teachereval' => 'teachereval',
             'tutoreval' => 'tutorevalheading', 'tutortime' => 'tutorevaltime',
-            'tutorbypassed' => 'tutorevalbypassedcolumn', 'devevalidatedby' => 'devevalidatedby',
+            'tutorbypassed' => 'tutorevalbypassedcolumn', 'tutorrequesttime' => 'exporttutorrequesttime',
+            'conventionremindertime' => 'exportconventionremindertime', 'devevalidatedby' => 'devevalidatedby',
             'devetime' => 'devevalidationtime', 'devecomment' => 'devecomment', 'cancelledby' => 'cancelledby',
             'canceltime' => 'canceltime', 'cancelcomment' => 'cancelcomment', 'timecreated' => 'timecreated',
             'timemodified' => 'lastmodified', 'referentteacher' => 'conventionreferentteacher',
@@ -163,6 +175,8 @@ class global_export_importer {
             'tutoreval' => ['evaluation du maitre de stage', 'workplace tutor evaluation'],
             'tutortime' => ['date de l evaluation du maitre de stage', 'workplace tutor evaluation date'],
             'tutorbypassed' => ['evaluation du maitre de stage ignoree', 'workplace tutor evaluation skipped'],
+            'tutorrequesttime' => ['date de l invitation du maitre de stage', 'workplace tutor invitation date'],
+            'conventionremindertime' => ['date de la relance de convention', 'agreement reminder date'],
             'devevalidatedby' => ['valide par la deve', 'validated by the administration office'],
             'devetime' => ['date de validation deve', 'administration office validation date'],
             'devecomment' => ['commentaire deve', 'administration office comment'],
@@ -200,9 +214,20 @@ class global_export_importer {
             'hasleave' => ['conges prevus', 'leave provided'], 'leavedays' => ['nombre de jours de conge', 'leave days'],
             'leavemodalities' => ['modalites des conges', 'leave arrangements'],
         ];
-        foreach ($languagekeys as $field => $key) {
-            $component = $key === 'email' || $key === 'lastmodified' ? 'moodle' : 'mod_stage';
-            $aliases[$field][] = self::normalize(get_string($key, $component));
+        // Intitulés de l'export dans toutes les langues installées : un export fait en anglais se
+        // restaure depuis une session en français, et inversement.
+        $labels = self::option_labels(function () use ($languagekeys) {
+            $labels = [];
+            foreach ($languagekeys as $field => $key) {
+                $component = $key === 'email' || $key === 'lastmodified' ? 'moodle' : 'mod_stage';
+                $labels[$field] = get_string($key, $component);
+            }
+            return $labels;
+        });
+        foreach ($labels as $field => $fieldlabels) {
+            foreach ($fieldlabels as $label) {
+                $aliases[$field][] = self::normalize($label);
+            }
         }
         $result = [];
         foreach ($headers as $column => $header) {
@@ -324,5 +349,93 @@ class global_export_importer {
         $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
         $value = $ascii === false ? $value : $ascii;
         return trim(preg_replace('/\s+/', ' ', preg_replace('/[^a-z0-9]+/', ' ', $value)));
+    }
+
+    /**
+     * Libellés de chaque valeur d'une liste, dans toutes les langues installées : un export fait
+     * en anglais doit se restaurer depuis une session en français, et inversement.
+     *
+     * @param callable $build Fonction sans argument qui rend valeur => libellé dans la langue
+     *        courante (celle-ci est changée le temps de chaque appel).
+     * @return array Valeur => libellés.
+     */
+    public static function option_labels(callable $build): array {
+        $languages = array_unique(array_merge(['en'], array_keys(get_string_manager()->get_list_of_translations(true))));
+        $labels = [];
+        $previous = force_current_language('en');
+        try {
+            foreach ($languages as $language) {
+                force_current_language($language);
+                foreach ($build() as $value => $label) {
+                    $labels[$value][] = (string) $label;
+                }
+            }
+        } finally {
+            force_current_language($previous);
+        }
+        return $labels;
+    }
+
+    /**
+     * Valeur dont l'un des libellés (ou la valeur elle-même) correspond au texte de la cellule.
+     *
+     * @param string $text Texte de la cellule.
+     * @param array $options Valeur => libellés (voir option_labels()).
+     * @return int|string|null La valeur, ou null si le texte n'en désigne aucune.
+     */
+    public static function match_option(string $text, array $options) {
+        $needle = self::normalize($text);
+        if ($needle === '') {
+            return null;
+        }
+        foreach ($options as $value => $labels) {
+            foreach (array_merge([(string) $value], (array) $labels) as $label) {
+                if ($needle === self::normalize($label)) {
+                    return $value;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Compte désigné par son nom complet dans l'export (validateur DEVE, évaluateur, signataire...).
+     *
+     * Les inscrits au cours sont cherchés d'abord ; à défaut, tous les comptes du site, la DEVE
+     * n'étant souvent pas inscrite au cours (rôle attribué sur la catégorie). Seule une
+     * correspondance unique est retenue : des homonymes ne désignent personne.
+     *
+     * @param string $name Nom complet tel qu'écrit dans l'export.
+     * @param array $enrolled Nom normalisé => comptes inscrits portant ce nom.
+     * @return int|null Identifiant du compte, ou null si aucun ou plusieurs comptes correspondent.
+     */
+    public static function find_user(string $name, array $enrolled): ?int {
+        global $DB;
+
+        $key = self::normalize($name);
+        if ($key === '') {
+            return null;
+        }
+        if (isset($enrolled[$key])) {
+            return count($enrolled[$key]) === 1 ? (int) reset($enrolled[$key])->id : null;
+        }
+        // Le nom est exporté dans l'ordre d'affichage du site (prénom nom, ou nom prénom) : les
+        // deux ordres sont essayés, sans tenir compte de la casse. Les accents comptent (PostgreSQL
+        // ne sait pas les ignorer ici) : l'export reprend les noms tels qu'ils sont enregistrés.
+        $words = preg_split('/\s+/', trim($name));
+        $candidates = [];
+        for ($split = 1; $split < count($words); $split++) {
+            $first = implode(' ', array_slice($words, 0, $split));
+            $last = implode(' ', array_slice($words, $split));
+            foreach ([[$first, $last], [$last, $first]] as [$firstname, $lastname]) {
+                $select = 'deleted = 0 AND ' . $DB->sql_like('firstname', ':firstname', false)
+                    . ' AND ' . $DB->sql_like('lastname', ':lastname', false);
+                $params = ['firstname' => $DB->sql_like_escape($firstname), 'lastname' => $DB->sql_like_escape($lastname)];
+                foreach ($DB->get_fieldset_select('user', 'id', $select, $params) as $id) {
+                    $candidates[(int) $id] = true;
+                }
+            }
+        }
+        return count($candidates) === 1 ? (int) array_key_first($candidates) : null;
     }
 }

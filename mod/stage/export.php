@@ -311,6 +311,8 @@ $headers = [
     get_string('tutorevalheading', 'mod_stage'),
     get_string('tutorevaltime', 'mod_stage'),
     get_string('tutorevalbypassedcolumn', 'mod_stage'),
+    get_string('exporttutorrequesttime', 'mod_stage'),
+    get_string('exportconventionremindertime', 'mod_stage'),
     // Rapport de stage déposé.
     get_string('reportmode', 'mod_stage'),
     get_string('reportfilescount', 'mod_stage'),
@@ -439,6 +441,9 @@ foreach ($entries as $entry) {
     $sheet->write_string($row, $col++, (string) $entry->tutoreval);
     $writedate($sheet, $row, $col++, $entry->tutortime);
     $sheet->write_string($row, $col++, $yesno($entry->tutorbypassed));
+    // Messages automatiques déjà envoyés : relus par la restauration, pour ne pas les renvoyer.
+    $writedate($sheet, $row, $col++, $entry->tutorrequesttime);
+    $writedate($sheet, $row, $col++, $entry->conventionremindertime);
 
     $sheet->write_string($row, $col++, $theme
         ? ($reportmodeoptions[stage_theme_report_mode($theme)] ?? '') : '');
