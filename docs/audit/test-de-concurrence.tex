@@ -37,9 +37,12 @@ de Moodle (verrous consultatifs PostgreSQL).
     compte) et membres de la DEVE agissent par HTTP, chacun dans sa propre session, sur les mêmes
     stages et dans un ordre aléatoire : 226 sessions et 48 clients simultanés sur 16 workers PHP.
     Le journal standard de Moodle, réglé pour écrire chaque événement aussitôt
-    (\code{buffersize = 1}), donne l'ordre réel des écritures. Un audit rejoue cette suite
+    (\code{buffersize = 1}), donne l'ordre des écritures. Un audit rejoue cette suite
     d'événements sur le circuit du stage. Il signale chaque action que la page aurait dû refuser
     et chaque état final qui contredit la suite d'événements, c'est-à-dire une mise à jour perdue.
+    Le journal n'est écrit qu'après la validation de la transaction : pour deux écritures à
+    quelques millisecondes d'écart, son ordre peut s'inverser. Les cas cités ci-dessous sont donc
+    confirmés par l'état enregistré du stage, pas seulement par le journal.
 \end{itemize}
 
 Les procédures couvertes sont les suivantes : import CSV des stages et des référents, import
@@ -81,6 +84,83 @@ référents, revue de la convention par la DEVE. Les scripts sont dans
 
 \noindent\grav{red}~doublons ou perte de données en usage normal ;
 \grav{orange}~erreur ou lenteur en cas de forte charge ou de cas particulier.
+
+\section{Corrections et second passage}
+
+Les sections~4 à~6 décrivent la version testée au départ. Les défauts ont ensuite été corrigés,
+puis le banc rejoué à l'identique, sur des sites neufs, avec les mêmes graines aléatoires.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X r r@{}}
+\toprule
+\textbf{Mesure} & \textbf{Avant} & \textbf{Après} \\
+\midrule
+Import historique confirmé par deux DEVE : stages en double & 900 & 0 \\
+Restauration globale confirmée deux fois : stages en double & 300 & 0 \\
+Trois imports de mobilités simultanés : imports en échec & 2 & 0 \\
+Trois imports depuis un autre cours : thématiques créées (10 attendues) & 30 & 10 \\
+Import StageVet et suppression en masse : import en erreur & 1 & 0 \\
+Restauration d'un export de 30\,000 stages & erreur mémoire & 86~s, sans doublon \\
+Circuit, 7\,200 requêtes : transitions interdites appliquées & 18 & 0 \\
+Circuit : mises à jour perdues & 1 & 0 \\
+Circuit : erreurs SQL sur les jours effectifs & 2 & 0 \\
+Circuit : refus présentés en page d'erreur & 175 & 0 \\
+Conventions, 148--150 demandes : décisions contraires des deux référents & 21 & 0 \\
+Conventions : décisions prises sur un stage annulé & 14 & 0 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Principe retenu pour le circuit}
+
+Chaque étape du circuit (auto-évaluation, avis ou refus de l'enseignant, évaluation du maître de
+stage, annulation, décisions sur la convention) passe par \code{stage_update_entry_if()}. Une
+mise à jour sans effet verrouille d'abord la ligne du stage jusqu'à la fin de la transaction.
+La condition (statut attendu, convention attendue, stage non annulé) est ensuite vérifiée sur une
+relecture, et les champs ne sont écrits que si elle est remplie. Une écriture concurrente attend
+donc la première, puis voit son résultat. Le procédé n'utilise ni \code{SELECT \dots{} FOR
+UPDATE} ni \code{RETURNING}, et vaut pour toutes les bases que Moodle prend en charge.
+
+Une première version comparait, après une mise à jour conditionnelle, les valeurs relues aux
+valeurs écrites. Les nouveaux tests unitaires l'ont prise en défaut : deux évaluations du maître
+de stage dans la même seconde écrivent les mêmes valeurs, et la seconde passait pour appliquée.
+Elle supposait aussi de pouvoir annuler une transaction imbriquée sans interrompre la requête,
+ce que Moodle n'admet pas. Dans la version retenue, l'étape conditionnelle passe en premier, et
+rien d'autre (réponses, détail de la convention, fichier signé) n'est écrit si elle échoue. Il
+n'y a donc rien à annuler.
+
+Les pages préviennent l'utilisateur dont la saisie n'a pas été enregistrée (\og Ce stage a changé
+entre-temps\fg{}). Pendant le second passage, ce message a remplacé une écriture 9 fois, et le
+refus de valider un stage annulé s'est affiché en notification sur la page du stage.
+
+\subsection{Défaut révélé par la correction}
+
+Une fois la limite de mémoire levée, la prévisualisation d'un export de 30\,000 stages a abouti
+(32~s). Mais elle était rangée dans la session de l'utilisateur, qui pesait alors 57~Mo : chaque
+page suivante de cet utilisateur rechargeait la session et s'arrêtait sur une erreur fatale de
+mémoire, jusqu'à sa déconnexion. La prévisualisation est désormais gardée dans un fichier
+temporaire (\code{import_preview}), comme celle de l'import historique. La session reste à 4~ko
+et les pages suivantes répondent en 0,6~s.
+
+\subsection{Non corrigé}
+
+\begin{itemize}
+  \item \textbf{Export Excel} : la lenteur vient de l'écriture cellule par cellule de la
+    bibliothèque Excel de Moodle. La réécrire est un chantier à part entière.
+  \item \textbf{Verrou d'activité limité à 30~s} : la restauration d'un export de 30\,000 stages
+    le garde 86~s. Pendant ce temps, un autre import de la même activité échoue et invite à
+    réessayer. Ce volume dépasse d'un ordre de grandeur celui d'une promotion.
+\end{itemize}
+
+\subsection{Vérifications}
+
+\begin{itemize}
+  \item PHPUnit, Moodle~4.5 et PostgreSQL~16 : 234 tests, dont 10 nouveaux
+    (\code{tests/concurrency_regression_test.php}), qui rejouent chacun un entrelacement relevé
+    par le banc avec une copie périmée de la saisie.
+  \item \code{phpcs} avec le standard Moodle du dépôt : aucune erreur, aucun avertissement.
+  \item Vague mixte de neuf imports simultanés : aucun doublon, aucun orphelin, aucun échec.
+\end{itemize}
 
 \section{Bogues et erreurs}
 

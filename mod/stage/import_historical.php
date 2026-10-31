@@ -179,12 +179,41 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
             $transaction = $DB->start_delegated_transaction();
             $created = 0;
             $skipped = 0;
+            $sincepreview = 0;
+            // Stages créés par cette confirmation : ils ne comptent pas comme doublons apparus depuis
+            // la prévisualisation (deux stages du même étudiant aux dates proches dans le classeur).
+            $createdids = [];
             $forced = optional_param_array('forceimport', [], PARAM_INT);
             foreach ($pending['records'] as $index => $candidate) {
                 $candidate = (object) $candidate;
                 // Doublon probable d'un stage déjà enregistré : importé seulement si la DEVE l'a coché.
                 if (!empty($candidate->probableduplicates) && empty($forced[$index])) {
                     $skipped++;
+                    continue;
+                }
+                // Les doublons sont relus sous le verrou : un autre import (une seconde
+                // prévisualisation du même classeur confirmée par un collègue, un import CSV ou
+                // StageVet) a pu enregistrer ces stages depuis la prévisualisation. Un stage
+                // identique n'est jamais recréé ; un doublon probable apparu depuis n'est pas
+                // importé, puisque la DEVE n'a pas pu l'arbitrer.
+                $identical = $DB->record_exists('stage_entry', [
+                    'stageid' => $stage->id,
+                    'userid' => $candidate->userid,
+                    'themeid' => $candidate->themeid,
+                    'structure' => $candidate->structure,
+                    'studyyear' => $candidate->studyyear,
+                    'declaredduration' => $candidate->duration,
+                ]);
+                $newprobables = empty($candidate->probableduplicates) ? array_diff_key(stage_find_probable_duplicate_entries(
+                    $stage->id,
+                    $candidate->userid,
+                    $candidate->themeid,
+                    $candidate->datestart ?: null,
+                    $candidate->dateend ?: null,
+                    $candidate->studyyear
+                ), $createdids) : [];
+                if ($identical || $newprobables) {
+                    $sincepreview++;
                     continue;
                 }
                 $entryid = stage_register_entry(
@@ -200,6 +229,7 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
                     $candidate->abroad ?? 0,
                     $candidate->country ?? ''
                 );
+                $createdids[$entryid] = true;
                 $entry = $DB->get_record('stage_entry', ['id' => $entryid], '*', MUST_EXIST);
                 if (!empty($candidate->teacherid)) {
                     $entry->teacherid = $candidate->teacherid;
@@ -225,6 +255,9 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
         $message = get_string('historicalimportdone', 'mod_stage', $created);
         if ($skipped) {
             $message .= ' ' . get_string('historicalimportduplicatesskipped', 'mod_stage', $skipped);
+        }
+        if ($sincepreview) {
+            $message .= ' ' . get_string('importduplicatessincepreview', 'mod_stage', $sincepreview);
         }
         redirect($backurl, $message, null, \core\output\notification::NOTIFY_SUCCESS);
     }

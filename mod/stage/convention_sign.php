@@ -58,6 +58,10 @@ $backurl = $returnurlparam !== ''
 if ((int) $entry->conventionstatus !== STAGE_CONVENTION_EDITED) {
     redirect($backurl);
 }
+// Un stage annulé ne poursuit pas le circuit de sa convention : il doit d'abord être réinitialisé.
+if ((int) $entry->status === STAGE_STATUS_ANNULE) {
+    redirect($backurl, get_string('conventionentrycancelled', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
+}
 
 $baseurl = new moodle_url('/mod/stage/convention_sign.php', [
     'id' => $cm->id, 'entryid' => $entryid, 'returnurl' => $returnurlparam,
@@ -83,15 +87,26 @@ $mform->set_data((object) ['id' => $cm->id, 'entryid' => $entryid, 'signedfile' 
 if ($mform->is_cancelled()) {
     redirect($backurl);
 } else if ($data = $mform->get_data()) {
-    file_save_draft_area_files(
-        $data->signedfile,
-        $context->id,
-        'mod_stage',
-        'signedconvention',
-        $entryid,
-        $filemanageroptions
-    );
-    stage_convention_mark_signed($entry, $USER->id);
+    // Exemplaire signé et statut ensemble, et seulement si la convention est toujours « éditée » et
+    // le stage non annulé : un autre membre de la DEVE a pu la traiter entre-temps.
+    $deveid = $USER->id;
+    $applied = stage_run_entry_transition(function () use ($entry, $data, $context, $entryid, $filemanageroptions, $deveid) {
+        if (!stage_convention_mark_signed($entry, $deveid, [STAGE_CONVENTION_EDITED])) {
+            return false;
+        }
+        file_save_draft_area_files(
+            $data->signedfile,
+            $context->id,
+            'mod_stage',
+            'signedconvention',
+            $entryid,
+            $filemanageroptions
+        );
+        return true;
+    });
+    if (!$applied) {
+        redirect($backurl, get_string('errorentrychanged', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
+    }
     redirect(
         $backurl,
         get_string('conventionmarkedsigned', 'mod_stage'),

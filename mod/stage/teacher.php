@@ -93,13 +93,25 @@ if ($entryid) {
                     \core\output\notification::NOTIFY_ERROR
                 );
             }
-            stage_reject_by_teacher($entry, $USER->id, $rejectcomment);
+            $applied = stage_reject_by_teacher($entry, $USER->id, $rejectcomment, [STAGE_STATUS_EVAL_ETUDIANT]);
         } else if (!empty($questions)) {
-            stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions));
-            stage_apply_teacher_eval($entry, $USER->id);
+            $submitted = stage_get_submitted_answers($questions);
+            $teacherid = $USER->id;
+            $applied = stage_run_entry_transition(function () use ($entry, $questions, $submitted, $teacherid) {
+                if (!stage_apply_teacher_eval($entry, $teacherid, null, [STAGE_STATUS_EVAL_ETUDIANT])) {
+                    return false;
+                }
+                stage_save_answers($entry->id, $questions, $submitted);
+                return true;
+            });
         } else {
             $comment = optional_param('teachereval', '', PARAM_TEXT);
-            stage_apply_teacher_eval($entry, $USER->id, $comment);
+            $applied = stage_apply_teacher_eval($entry, $USER->id, $comment, [STAGE_STATUS_EVAL_ETUDIANT]);
+        }
+        // L'avis n'est écrit que si le stage attend toujours l'enseignant : validé, refusé ou annulé
+        // entre-temps par la DEVE (ou évalué par l'autre référent), il n'est pas modifié.
+        if (!$applied) {
+            redirect($entryurl, get_string('errorentrychanged', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
         }
         redirect($backurl, get_string('evalsaved', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
     }

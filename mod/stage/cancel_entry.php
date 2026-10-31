@@ -71,7 +71,10 @@ $mform->set_data((object) ['id' => $cm->id, 'entryid' => $entryid]);
 if ($mform->is_cancelled()) {
     redirect($backurl);
 } else if ($data = $mform->get_data()) {
-    stage_cancel_entry($entry, $USER->id, $data->cancelcomment);
+    // Déjà annulé entre-temps par un autre membre de la DEVE : la première annulation est conservée.
+    if (!stage_cancel_entry($entry, $USER->id, $data->cancelcomment)) {
+        redirect($backurl, get_string('errorentrychanged', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
+    }
     redirect($backurl, get_string('stagecancelled', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 

@@ -150,11 +150,29 @@ if (
     // Les réponses sont enregistrées dans tous les cas : seul le passage au statut « évalué par
     // l'étudiant » est retenu faute de rapport, et l'étudiant retrouve sa saisie telle quelle
     // après avoir déposé ses documents.
-    stage_save_answers($entry->id, $questions, stage_get_submitted_answers($questions));
+    $submitted = stage_get_submitted_answers($questions);
     if ($reportmissing) {
+        stage_save_answers($entry->id, $questions, $submitted);
         $reportblocked = true;
     } else {
-        stage_apply_student_eval($entry);
+        // Réponses et changement de statut ensemble, et seulement si le stage est toujours
+        // « enregistré » : validé, refusé ou annulé entre-temps par la DEVE, il ne doit pas repasser
+        // à « évalué par l'étudiant » (voir stage_update_entry_if()).
+        $applied = stage_run_entry_transition(function () use ($entry, $questions, $submitted) {
+            if (!stage_apply_student_eval($entry, null, [STAGE_STATUS_ENREGISTRE])) {
+                return false;
+            }
+            stage_save_answers($entry->id, $questions, $submitted);
+            return true;
+        });
+        if (!$applied) {
+            redirect(
+                new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
+                get_string('errorentrychanged', 'mod_stage'),
+                null,
+                \core\output\notification::NOTIFY_WARNING
+            );
+        }
         stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
 
         redirect(
@@ -187,7 +205,14 @@ if ($editable && empty($questions)) {
             $reportblocked = true;
         } else {
             $selfeval = is_array($data->studentselfeval) ? $data->studentselfeval['text'] : $data->studentselfeval;
-            stage_apply_student_eval($entry, $selfeval);
+            if (!stage_apply_student_eval($entry, $selfeval, [STAGE_STATUS_ENREGISTRE])) {
+                redirect(
+                    new moodle_url('/mod/stage/view.php', ['id' => $cm->id]),
+                    get_string('errorentrychanged', 'mod_stage'),
+                    null,
+                    \core\output\notification::NOTIFY_WARNING
+                );
+            }
             stage_notify_teachers_selfeval($stage, $cm, $entry, $USER);
 
             redirect(

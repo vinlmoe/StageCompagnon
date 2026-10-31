@@ -64,6 +64,10 @@ $backurl = $returnurlparam !== ''
 if ((int) $entry->conventionstatus !== STAGE_CONVENTION_TEACHERPENDING) {
     redirect($backurl);
 }
+// Un stage annulé ne poursuit pas le circuit de sa convention : il doit d'abord être réinitialisé.
+if ((int) $entry->status === STAGE_STATUS_ANNULE) {
+    redirect($backurl, get_string('conventionentrycancelled', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
+}
 
 $referentteachers = stage_get_student_teachers($stage->id, $entry->userid);
 
@@ -139,11 +143,30 @@ if ($mform->is_cancelled()) {
     // ci-dessous, propre à ce formulaire.
     $newdetail->paperrequestedbystudent = !empty($detail->paperrequestedbystudent) ? 1 : 0;
     $newdetail->paperrequestedbyteacher = !empty($data->paperrequestedbyteacher) ? 1 : 0;
-    stage_save_convention_detail($entry->id, $newdetail);
-    stage_save_entry_periods($entry->id, stage_extract_submitted_periods($data));
+    // Détail, plages et décision ensemble, et seulement si la demande attend toujours un référent :
+    // l'autre enseignant référent de l'étudiant a pu la valider ou la refuser, ou la DEVE annuler
+    // le stage, depuis l'ouverture du formulaire (voir stage_update_entry_if_convention()).
+    $teacherid = $USER->id;
+    $applied = stage_run_entry_transition(function () use ($entry, $newdetail, $data, $teacherid) {
+        $from = [STAGE_CONVENTION_TEACHERPENDING];
+        if (!empty($data->validateconvention)) {
+            $applied = stage_teacher_validate_convention($entry, $teacherid, $from);
+        } else if (!empty($data->rejectconvention)) {
+            $applied = stage_reject_convention($entry, $teacherid, $data->rejectcomment, $from);
+        } else {
+            $applied = true;
+        }
+        if ($applied) {
+            stage_save_convention_detail($entry->id, $newdetail);
+            stage_save_entry_periods($entry->id, stage_extract_submitted_periods($data));
+        }
+        return $applied;
+    });
+    if (!$applied) {
+        redirect($backurl, get_string('errorentrychanged', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
+    }
 
     if (!empty($data->validateconvention)) {
-        stage_teacher_validate_convention($entry, $USER->id);
         redirect(
             $backurl,
             get_string('conventionteachervalidated', 'mod_stage'),
@@ -151,7 +174,6 @@ if ($mform->is_cancelled()) {
             \core\output\notification::NOTIFY_SUCCESS
         );
     } else if (!empty($data->rejectconvention)) {
-        stage_reject_convention($entry, $USER->id, $data->rejectcomment);
         stage_notify_student_convention_rejected($stage, $cm, $entry, $data->rejectcomment);
         redirect(
             $backurl,

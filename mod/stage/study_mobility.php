@@ -60,7 +60,14 @@ if ($validated && trim($location) === '') {
     );
 }
 
-stage_set_student_study_mobility($stage->id, $student->id, $validated, $location, $USER->id);
+// Sous le verrou de l'activité, comme l'import des mobilités : la lecture de la mobilité existante
+// puis son insertion ne doivent pas croiser un import qui valide le même étudiant.
+$lock = stage_get_activity_lock($stage->id);
+try {
+    stage_set_student_study_mobility($stage->id, $student->id, $validated, $location, $USER->id);
+} finally {
+    $lock->release();
+}
 redirect(
     $returnurl,
     get_string($validated ? 'studymobilitysaved' : 'studymobilityremoved', 'mod_stage'),

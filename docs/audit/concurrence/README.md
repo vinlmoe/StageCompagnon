@@ -49,6 +49,7 @@ PHP_CLI_SERVER_WORKERS=10 php -d max_input_vars=5000 -d memory_limit=256M \
 - `h1.py` : deux DEVE confirment le même import historique.
 - `h2.py` : deux DEVE confirment la même restauration d'export global.
 - `h3.py` : prévisualisation d'une restauration d'un gros export (mémoire).
+- `h3b.py` : prévisualisation puis confirmation de cette restauration (mémoire, durée sous verrou).
 - `pages.py site.json` : chronométrage de toutes les pages de l'activité.
 - `memread.php <classe> <fichier>` : mémoire de lecture d'un classeur par un importeur.
 

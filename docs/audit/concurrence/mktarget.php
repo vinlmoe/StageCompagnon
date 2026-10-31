@@ -10,6 +10,6 @@ $src = (int) $argv[1];
 foreach (array_keys(stage_get_email_definitions()) as $i => $key) {
     if ($i < 5) { stage_save_email_template($src, $key, "Sujet $key", "Corps $key"); }
 }
-$course = $gen->create_course();
+$course = $gen->create_course(['shortname' => 'CIBLE' . time() . rand(1, 999)]);
 $m = $gen->create_module('stage', ['course' => $course->id]);
 echo $m->id, "\n";
