@@ -36,6 +36,6 @@ class convention_signed extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe('marqué signée la convention pour');
+        return $this->describe('marked as signed the agreement of');
     }
 }

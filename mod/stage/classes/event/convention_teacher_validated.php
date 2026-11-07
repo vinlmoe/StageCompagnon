@@ -36,6 +36,6 @@ class convention_teacher_validated extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe("validé, en tant qu'enseignant référent, la demande de convention pour");
+        return $this->describe('validated, as referent teacher, the agreement request of');
     }
 }

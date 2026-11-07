@@ -116,12 +116,12 @@ final class events_test extends \advanced_testcase {
         $this->assertSame(STAGE_STATUS_EVAL_ENSEIGNANT, $events[2]->other['status']);
         $this->assertSame(STAGE_STATUS_VALIDE_DEVE, $events[3]->other['status']);
         $this->assertSame(12, $events[3]->other['retainedduration']);
-        $this->assertStringContainsString('12 jour', $events[3]->get_description());
+        $this->assertStringContainsString('12 day', $events[3]->get_description());
         $this->assertSame(STAGE_STATUS_ENREGISTRE, $events[4]->other['status']);
         $this->assertSame('teacher', $events[5]->other['role']);
-        $this->assertStringContainsString('enseignant référent', $events[5]->get_description());
+        $this->assertStringContainsString('referent teacher', $events[5]->get_description());
         $this->assertSame('deve', $events[7]->other['role']);
-        $this->assertStringContainsString('DEVE', $events[7]->get_description());
+        $this->assertStringContainsString('academic office', $events[7]->get_description());
         $this->assertSame(STAGE_STATUS_ANNULE, $events[8]->other['status']);
     }
 
@@ -159,7 +159,7 @@ final class events_test extends \advanced_testcase {
 
         $this->assertSame(1, $events[0]->other['teacherpending']);
         $this->assertSame(STAGE_CONVENTION_TEACHERPENDING, $events[0]->other['conventionstatus']);
-        $this->assertStringContainsString('enseignant référent', $events[0]->get_description());
+        $this->assertStringContainsString('referent teacher', $events[0]->get_description());
         $this->assertSame(STAGE_CONVENTION_REQUESTED, $events[1]->other['conventionstatus']);
         $this->assertSame(STAGE_CONVENTION_EDITED, $events[2]->other['conventionstatus']);
         $this->assertSame(STAGE_CONVENTION_SIGNED, $events[3]->other['conventionstatus']);
@@ -188,7 +188,7 @@ final class events_test extends \advanced_testcase {
         $this->assertCount(1, $events);
         $this->assertInstanceOf(event\entry_tutor_evaluated::class, $events[0]);
         $this->assertSame(0, (int) $events[0]->userid);
-        $this->assertStringContainsString('maître de stage', $events[0]->get_description());
+        $this->assertStringContainsString('tutor', $events[0]->get_description());
         $this->assert_entry_events($events, $entry, (int) $student->id, (int) $cm->id);
     }
 

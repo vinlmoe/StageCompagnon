@@ -221,6 +221,10 @@ echo $OUTPUT->heading(get_string('conventionreview', 'mod_stage'));
 echo html_writer::link($backurl, get_string('back'));
 
 echo $OUTPUT->box(get_string('conventionreviewfor', 'mod_stage', fullname($student)), 'generalbox mb-3');
+$tutorwarning = stage_tutor_email_warning($context, $student, $detail->tutoremail ?? null);
+if ($tutorwarning !== null) {
+    echo $OUTPUT->notification($tutorwarning, \core\output\notification::NOTIFY_WARNING);
+}
 
 $mform->display();
 

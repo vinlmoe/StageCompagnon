@@ -255,18 +255,7 @@ if ($entryid) {
 // Validation en masse : sélection de plusieurs saisies puis validation d'un coup.
 if (optional_param('bulkvalidate', 0, PARAM_INT) && confirm_sesskey()) {
     $ids = optional_param_array('selected', [], PARAM_INT);
-    $transaction = $DB->start_delegated_transaction();
-    $validatedcount = 0;
-    foreach ($ids as $sid) {
-        $entry = $DB->get_record('stage_entry', ['id' => $sid, 'stageid' => $stage->id]);
-        // Un stage annulé entre l'affichage de la liste et sa soumission est écarté plutôt que de
-        // faire échouer toute la validation en masse (voir stage_apply_deve_validation()).
-        if ($entry && (int) $entry->status !== STAGE_STATUS_ANNULE) {
-            stage_apply_deve_validation($entry, $USER->id, $entry->declaredduration, '');
-            $validatedcount++;
-        }
-    }
-    $transaction->allow_commit();
+    $validatedcount = stage_bulk_validate_entries($stage, $ids, $USER->id);
     redirect(
         $baseurl,
         get_string('bulkvalidated', 'mod_stage', $validatedcount),
@@ -324,7 +313,9 @@ if ($entrytotal === 0) {
         $themename = isset($themes[$entry->themeid]) ? format_string($themes[$entry->themeid]->name) : '-';
         $badge = html_writer::span(stage_status_label($entry->status), 'badge ' . stage_status_badgeclass($entry->status));
         $cancelled = (int) $entry->status === STAGE_STATUS_ANNULE;
-        $checkbox = $cancelled ? '' : html_writer::checkbox('selected[]', $entry->id, false, '', ['class' => 'stageselect']);
+        // Pas de case pour un stage annulé ou non validé : la validation en masse les écarte.
+        $bulkselectable = (int) $entry->status >= STAGE_STATUS_ENREGISTRE;
+        $checkbox = !$bulkselectable ? '' : html_writer::checkbox('selected[]', $entry->id, false, '', ['class' => 'stageselect']);
         // Le retour ramène sur cette liste telle qu'affichée (recherche, tri, page), pas sur la
         // liste "vierge" : voir $backurl ci-dessus, qui honore ce paramètre.
         $action = html_writer::link(

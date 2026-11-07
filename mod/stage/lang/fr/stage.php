@@ -120,6 +120,9 @@ $string['importcsv_help'] = "Importez un fichier CSV (enregistré depuis Excel v
 $string['importresult'] = '{$a} stage(s) importé(s) avec succès.';
 $string['importerrorupload'] = "Le fichier n'a pas pu être téléversé. Vérifiez sa taille et réessayez.";
 $string['importerrorunknownemail'] = 'Ligne {$a->line} : aucun étudiant inscrit avec l\'adresse "{$a->email}".';
+$string['importerrormissing'] = 'Ligne {$a} : courriel de l\'étudiant ou thématique manquant, ligne ignorée.';
+$string['importerrormissingstudent'] = 'Ligne {$a} : courriel de l\'étudiant manquant, ligne ignorée.';
+$string['importerrorduration'] = 'Ligne {$a->line} : la durée « {$a->value} » n\'est pas un nombre entier de jours, ligne ignorée.';
 $string['importerrorunknowntheme'] = 'Ligne {$a->line} : thématique "{$a->theme}" introuvable.';
 $string['importerrorduplicate'] = 'Ligne {$a->line} : "{$a->email}" a déjà un stage sur la thématique "{$a->theme}" '
     . 'avec ces mêmes dates, ligne ignorée.';
@@ -512,6 +515,8 @@ $string['conventiontutor'] = "Tuteur en structure d'accueil";
 $string['conventiontemplatemissing'] = "Le fichier PDF du gabarit de convention sélectionné est "
     . 'introuvable. Téléversez-le à nouveau depuis la page des gabarits de convention avant de '
     . 'générer cette convention.';
+$string['conventiontemplateunreadable'] = 'Ce PDF ne peut pas être lu pour assembler la convention (table de références compressée, PDF 1.5 ou plus récent, ou fichier chiffré). Réenregistrez-le en PDF 1.4, ou imprimez-le en PDF, puis déposez-le de nouveau.';
+$string['conventionlogoinvalid'] = 'Le logo doit être une image PNG.';
 $string['conventionfpdimissing'] = "La librairie FPDI nécessaire à la génération des conventions "
     . '(mod/stage/thirdparty/vendor) est introuvable sur ce site. Contactez un administrateur.';
 
@@ -763,6 +768,8 @@ $string['conventionremindernotifbody'] = "Bonjour {\$a->student},\n\nVotre stage
     . "plus vite :\n{\$a->url}";
 $string['taskconventionreminders'] = 'Relance des conventions de stage non signées';
 $string['tutoremailinvalid'] = "Cette adresse du maître de stage n'est pas valide : l'invitation à évaluer le stage ne peut pas partir. Corrigez-la dans les informations de la convention, puis relancez l'invitation.";
+$string['tutoremailisstudent'] = 'L\'adresse du maître de stage est celle de l\'étudiant : l\'invitation à évaluer le stage lui serait envoyée. Vérifiez-la avant de valider.';
+$string['tutoremailiscourseuser'] = 'L\'adresse du maître de stage est celle de {$a}, inscrit à ce cours : vérifiez que cette personne est bien le maître de stage avant de valider.';
 $string['tutorrequestfailed'] = "L'invitation automatique à évaluer le stage n'a pas pu partir le {\$a}. Elle ne sera pas retentée automatiquement : relancez-la à la main.";
 $string['tasktutorevaluationrequests'] = 'Envoi des invitations à évaluer le stage aux maîtres de stage';
 $string['reportmode'] = 'Rapport de stage';
@@ -896,6 +903,22 @@ $string['privacy:metadata:stage_entry:devecomment'] = 'Le commentaire rédigé p
 $string['privacy:metadata:stage_entry:conventionstatus'] = "L'état de la convention de stage.";
 $string['privacy:metadata:stage_entry:cancelcomment'] = "Le motif indiqué lors de l'annulation du stage.";
 $string['privacy:metadata:stage_entry:timecreated'] = "La date d'enregistrement du stage.";
+$string['privacy:metadata:stage_entry:conventionrejectedby'] = 'L\'utilisateur qui a refusé la demande de convention.';
+$string['privacy:metadata:stage_entry:conventionrejectcomment'] = 'Le motif du refus de la demande de convention.';
+$string['privacy:metadata:stage_entry:conventionteachervalidatedby'] = 'L\'enseignant référent qui a validé la demande de convention.';
+$string['privacy:metadata:stage_entry:conventioneditedby'] = 'Le membre de la DEVE qui a édité la convention.';
+$string['privacy:metadata:stage_entry:conventionsignedby'] = 'Le membre de la DEVE qui a marqué la convention comme signée.';
+$string['privacy:metadata:stage_entry:cancelledby'] = 'Le membre de la DEVE qui a annulé le stage.';
+$string['privacy:metadata:stage_entry:tutortoken'] = 'La clé d\'accès envoyée au maître de stage pour qu\'il évalue le stage sans compte.';
+$string['privacy:metadata:stage_convention_detail:hostrepresentative'] = 'Le nom du représentant de l\'organisme d\'accueil qui signe la convention.';
+$string['privacy:metadata:stage_convention_detail:hostrepresentativetitle'] = 'La fonction du représentant de l\'organisme d\'accueil.';
+$string['privacy:metadata:stage_convention_detail:hostphone'] = 'Le téléphone de l\'organisme d\'accueil.';
+$string['privacy:metadata:stage_convention_detail:hostemail'] = 'L\'adresse électronique de l\'organisme d\'accueil.';
+$string['privacy:metadata:stage_convention_detail:hostaddress'] = 'L\'adresse postale de l\'organisme d\'accueil.';
+$string['privacy:metadata:tutor_email'] = 'Le maître de stage, qui n\'a pas de compte Moodle, est invité par courriel à évaluer le stage.';
+$string['privacy:metadata:tutor_email:fullname'] = 'Le nom complet de l\'étudiant, donné dans l\'invitation.';
+$string['privacy:metadata:tutor_email:tutoremail'] = 'L\'adresse électronique du maître de stage.';
+$string['privacy:metadata:tutor_email:url'] = 'Le lien d\'évaluation, qui porte la clé d\'accès.';
 $string['privacy:metadata:stage_convention_detail'] = 'Les informations recueillies pour établir la convention de stage.';
 $string['privacy:metadata:stage_convention_detail:studentbirthdate'] = "La date de naissance de l'étudiant.";
 $string['privacy:metadata:stage_convention_detail:studentaddress'] = "L'adresse postale de l'étudiant.";
@@ -1094,6 +1117,7 @@ $string['exportratingoutoffive'] = 'Note (sur 5)';
 
 // Événements (journaux Moodle).
 $string['evententrycreated'] = 'Stage enregistré';
+$string['evententryedited'] = 'Stage modifié';
 $string['evententrystudentevaluated'] = 'Auto-évaluation soumise';
 $string['evententryteacherevaluated'] = "Stage évalué par l'enseignant référent";
 $string['evententrytutorevaluated'] = 'Stage évalué par le maître de stage';

@@ -37,6 +37,6 @@ class entry_validated extends entry_event_base {
      */
     public function get_description() {
         $days = isset($this->other['retainedduration']) ? (int) $this->other['retainedduration'] : 0;
-        return $this->describe("validé, pour une durée retenue de {$days} jour(s),");
+        return $this->describe("validated, with {$days} day(s) retained,");
     }
 }

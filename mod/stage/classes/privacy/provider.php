@@ -85,6 +85,13 @@ class provider implements
             'devecomment' => 'privacy:metadata:stage_entry:devecomment',
             'conventionstatus' => 'privacy:metadata:stage_entry:conventionstatus',
             'cancelcomment' => 'privacy:metadata:stage_entry:cancelcomment',
+            'conventionrejectedby' => 'privacy:metadata:stage_entry:conventionrejectedby',
+            'conventionrejectcomment' => 'privacy:metadata:stage_entry:conventionrejectcomment',
+            'conventionteachervalidatedby' => 'privacy:metadata:stage_entry:conventionteachervalidatedby',
+            'conventioneditedby' => 'privacy:metadata:stage_entry:conventioneditedby',
+            'conventionsignedby' => 'privacy:metadata:stage_entry:conventionsignedby',
+            'cancelledby' => 'privacy:metadata:stage_entry:cancelledby',
+            'tutortoken' => 'privacy:metadata:stage_entry:tutortoken',
             'timecreated' => 'privacy:metadata:stage_entry:timecreated',
         ], 'privacy:metadata:stage_entry');
 
@@ -98,6 +105,11 @@ class provider implements
             'tutorphone' => 'privacy:metadata:stage_convention_detail:tutorphone',
             'tutoremail' => 'privacy:metadata:stage_convention_detail:tutoremail',
             'gratificationamount' => 'privacy:metadata:stage_convention_detail:gratificationamount',
+            'hostrepresentative' => 'privacy:metadata:stage_convention_detail:hostrepresentative',
+            'hostrepresentativetitle' => 'privacy:metadata:stage_convention_detail:hostrepresentativetitle',
+            'hostphone' => 'privacy:metadata:stage_convention_detail:hostphone',
+            'hostemail' => 'privacy:metadata:stage_convention_detail:hostemail',
+            'hostaddress' => 'privacy:metadata:stage_convention_detail:hostaddress',
         ], 'privacy:metadata:stage_convention_detail');
 
         $collection->add_database_table('stage_entry_period', [
@@ -138,6 +150,14 @@ class provider implements
         ], 'privacy:metadata:stage_theme_teacher');
 
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
+
+        // Invitation du maître de stage, qui n'a pas de compte : son adresse, le nom de l'étudiant et
+        // le lien à jeton partent hors de Moodle, par courriel.
+        $collection->add_external_location_link('tutor_email', [
+            'fullname' => 'privacy:metadata:tutor_email:fullname',
+            'tutoremail' => 'privacy:metadata:tutor_email:tutoremail',
+            'url' => 'privacy:metadata:tutor_email:url',
+        ], 'privacy:metadata:tutor_email');
 
         return $collection;
     }
@@ -350,6 +370,15 @@ class provider implements
                         ? transform::datetime($entry->tutorrequestfailtime) : null,
                     'devecomment' => $entry->devecomment,
                     'conventionstatus' => stage_convention_status_label($entry->conventionstatus),
+                    'conventionrejectcomment' => $entry->conventionrejectcomment,
+                    'conventionrequesttime' => $entry->conventionrequesttime
+                        ? transform::datetime($entry->conventionrequesttime) : null,
+                    'conventionsigntime' => $entry->conventionsigntime ? transform::datetime($entry->conventionsigntime) : null,
+                    'abroad' => transform::yesno($entry->abroad),
+                    'teachertime' => $entry->teachertime ? transform::datetime($entry->teachertime) : null,
+                    'tutortime' => $entry->tutortime ? transform::datetime($entry->tutortime) : null,
+                    'tutorbypassed' => transform::yesno($entry->tutorbypassed),
+                    'devetime' => $entry->devetime ? transform::datetime($entry->devetime) : null,
                     'cancelcomment' => $entry->cancelcomment,
                     'timecreated' => transform::datetime($entry->timecreated),
                 ];
@@ -358,6 +387,12 @@ class provider implements
                 $detail = $DB->get_record('stage_convention_detail', ['entryid' => $entry->id]);
                 if ($detail) {
                     unset($detail->id, $detail->entryid);
+                    // Un tiers : son nom, pas son identifiant interne.
+                    if (!empty($detail->referentteacherid)) {
+                        $referent = \core_user::get_user($detail->referentteacherid);
+                        $detail->referentteacher = $referent ? fullname($referent) : '';
+                    }
+                    unset($detail->referentteacherid);
                     writer::with_context($context)->export_data(
                         array_merge($subcontext, [get_string('conventiondetails', 'mod_stage')]),
                         $detail
@@ -375,6 +410,14 @@ class provider implements
                     writer::with_context($context)->export_data(
                         array_merge($subcontext, [get_string('periods', 'mod_stage')]),
                         (object) ['periods' => $rows]
+                    );
+                }
+
+                $workdays = stage_get_entry_workdays($entry->id);
+                if ($workdays) {
+                    writer::with_context($context)->export_data(
+                        array_merge($subcontext, [get_string('workdays', 'mod_stage')]),
+                        (object) ['workdays' => array_map(fn($day) => transform::date($day), $workdays)]
                     );
                 }
 
@@ -421,6 +464,14 @@ class provider implements
                 writer::with_context($context)->export_data([get_string('studymobility', 'mod_stage')], (object) [
                     'location' => $studymobility->location,
                     'timemodified' => transform::datetime($studymobility->timemodified),
+                ]);
+            }
+
+            // Enseignants référents attribués à l'étudiant.
+            $teachers = stage_get_student_teachers($cm->instance, $user->id);
+            if ($teachers) {
+                writer::with_context($context)->export_data([get_string('referentteachers', 'mod_stage')], (object) [
+                    'teachers' => array_values(array_map('fullname', $teachers)),
                 ]);
             }
 
@@ -501,6 +552,42 @@ class provider implements
                 [get_string('supervisedstages', 'mod_stage'), (string) $entry->id],
                 $data
             );
+        }
+
+        // Étudiants dont il est l'enseignant référent, thématiques dont il est responsable et
+        // mobilités d'études qu'il a validées.
+        $students = $DB->get_records_sql(
+            "SELECT u.*
+               FROM {stage_entry_teacher} et
+               JOIN {user} u ON u.id = et.studentid
+              WHERE et.stageid = :stageid AND et.teacherid = :teacherid
+           ORDER BY u.lastname, u.firstname",
+            ['stageid' => $cm->instance, 'teacherid' => $userid]
+        );
+        $themes = $DB->get_records_sql(
+            "SELECT t.id, t.name
+               FROM {stage_theme_teacher} tt
+               JOIN {stage_theme} t ON t.id = tt.themeid
+              WHERE t.stageid = :stageid AND tt.teacherid = :teacherid
+           ORDER BY t.name",
+            ['stageid' => $cm->instance, 'teacherid' => $userid]
+        );
+        $mobilities = $DB->get_records_select(
+            'stage_study_mobility',
+            'stageid = :stageid AND validatedby = :validatedby AND userid <> :self',
+            ['stageid' => $cm->instance, 'validatedby' => $userid, 'self' => $userid],
+            'id',
+            'id, userid, location'
+        );
+        if ($students || $themes || $mobilities) {
+            writer::with_context($context)->export_data([get_string('supervisedstages', 'mod_stage')], (object) [
+                'assignedstudents' => array_values(array_map('fullname', $students)),
+                'themesinchargeof' => array_values(array_map(fn($theme) => format_string($theme->name), $themes)),
+                'validatedstudymobilities' => array_values(array_map(function ($mobility) {
+                    $student = \core_user::get_user($mobility->userid);
+                    return (object) ['student' => $student ? fullname($student) : '', 'location' => $mobility->location];
+                }, $mobilities)),
+            ]);
         }
     }
 
@@ -648,6 +735,15 @@ class provider implements
                     $update->$field = null;
                 }
                 $DB->update_record('stage_entry', $update);
+                // Même chose pour son évaluation par questionnaire : les réponses aux questions de
+                // l'enseignant sont les siennes, au même titre que son appréciation libre.
+                if ($column === 'teacherid') {
+                    $DB->delete_records_select(
+                        'stage_answer',
+                        "entryid = :entryid AND questionid IN (SELECT id FROM {stage_question} WHERE evaltype = :evaltype)",
+                        ['entryid' => $entryid, 'evaltype' => 'teacher']
+                    );
+                }
             }
         }
 

@@ -36,6 +36,6 @@ class entry_cancelled extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe('annulé');
+        return $this->describe('cancelled');
     }
 }

@@ -61,30 +61,39 @@ class csv_importer {
         } else {
             $results = (object) ['created' => 0, 'errors' => []];
             $records = [];
-            $cir->init();
-            // La première ligne est consommée comme en-tête par load_csv_content().
-            $linenum = 1;
 
             // Doublons détectés contre les stages déjà enregistrés, et entre les lignes
             // du fichier lui-même (un même étudiant répété deux fois sur la même thématique).
             $existingpairs = stage_get_existing_theme_pairs($stage->id);
 
-            while ($row = $cir->next()) {
-                $linenum++;
+            foreach (self::csv_rows($cir) as $linenum => $row) {
                 // Colonnes attendues : email, theme, structure, datestart, dateend, duration, et
                 // studyyear (facultative).
                 $email = isset($row[0]) ? trim($row[0]) : '';
                 $themename = isset($row[1]) ? trim($row[1]) : '';
-                // Structure limitée à la taille de son champ (255 caractères) : une valeur plus longue
-                // ferait échouer l'écriture, et avec elle tout le fichier.
-                $structure = isset($row[2]) ? core_text::substr(trim($row[2]), 0, 255) : '';
+                // Structure nettoyée (balises retirées) et limitée à la taille de son champ (255 caractères) :
+                // une valeur plus longue ferait échouer l'écriture, et avec elle tout le fichier.
+                $structure = isset($row[2]) ? stage_clean_entry_text($row[2]) : '';
                 $datestartraw = isset($row[3]) ? trim($row[3]) : '';
                 $dateendraw = isset($row[4]) ? trim($row[4]) : '';
-                $duration = isset($row[5]) ? (int) trim($row[5]) : 0;
+                $durationraw = isset($row[5]) ? trim($row[5]) : '';
+                $duration = (int) $durationraw;
                 $studyyear = isset($row[6]) ? self::parse_studyyear((string) $row[6]) : 0;
 
-                // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête.
-                if ($email === '' || $themename === '' || core_text::strtolower($email) === 'email') {
+                // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête ; une ligne
+                // incomplète est signalée, jamais écartée en silence.
+                if (self::row_is_empty($row) || core_text::strtolower($email) === 'email') {
+                    continue;
+                }
+                if ($email === '' || $themename === '') {
+                    $results->errors[] = get_string('importerrormissing', 'mod_stage', $linenum);
+                    continue;
+                }
+                // Une durée doit être un nombre entier de jours : « 12,5 » ou « abc » donnaient 12 ou 0.
+                if ($durationraw !== '' && !ctype_digit($durationraw)) {
+                    $results->errors[] = get_string('importerrorduration', 'mod_stage', (object) [
+                        'line' => $linenum, 'value' => $durationraw,
+                    ]);
                     continue;
                 }
 
@@ -223,8 +232,6 @@ class csv_importer {
             $cir->cleanup(true);
         } else {
             $results = (object) ['assigned' => 0, 'errors' => []];
-            $cir->init();
-            $linenum = 1;
 
             // Sous le verrou de l'activité et en une transaction : deux imports simultanés ne
             // s'entrelacent pas ligne à ligne, et un échec en cours de route n'en laisse pas une
@@ -232,14 +239,18 @@ class csv_importer {
             $lock = stage_get_activity_lock($stage->id);
             try {
                 $transaction = $DB->start_delegated_transaction();
-                while ($row = $cir->next()) {
-                    $linenum++;
+                foreach (self::csv_rows($cir) as $linenum => $row) {
                     $studentemail = isset($row[0]) ? trim($row[0]) : '';
                     $teacher1email = isset($row[1]) ? trim($row[1]) : '';
                     $teacher2email = isset($row[2]) ? trim($row[2]) : '';
 
-                    // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête.
-                    if ($studentemail === '' || core_text::strtolower($studentemail) === 'studentemail') {
+                    // Ignore les lignes vides et une éventuelle seconde ligne d'en-tête ; une ligne
+                    // sans courriel d'étudiant est signalée.
+                    if (self::row_is_empty($row) || core_text::strtolower($studentemail) === 'studentemail') {
+                        continue;
+                    }
+                    if ($studentemail === '') {
+                        $results->errors[] = get_string('importerrormissingstudent', 'mod_stage', $linenum);
                         continue;
                     }
 
@@ -502,7 +513,7 @@ class csv_importer {
                     // (stage_find_probable_duplicate_entries()) sans relire la base à chaque ligne.
                     $existingbyuser = [];
                     $existingfields = 'id, userid, themeid, studyyear, structure, datestart, dateend, status, conventionstatus, '
-                        . 'studentselfeval, tutoreval, tutortime';
+                        . 'studentselfeval, tutoreval, tutortime, tutortoken';
                     foreach ($DB->get_records('stage_entry', ['stageid' => $stage->id], 'id ASC', $existingfields) as $existing) {
                         $existingbykey[$existing->userid . '-' . $existing->themeid][$existing->id] = $existing;
                         $existingbyuser[$existing->userid][$existing->id] = $existing;
@@ -734,7 +745,7 @@ class csv_importer {
                             'userid' => $student->id,
                             'themeid' => $theme->id,
                             'studyyear' => $studyyear,
-                            'structure' => core_text::substr($getcol($row, 'structurealt', 'structure'), 0, 255),
+                            'structure' => stage_clean_entry_text($getcol($row, 'structurealt', 'structure')),
                             'datestart' => $start,
                             'dateend' => $end,
                             'declaredduration' => $duration,
@@ -947,6 +958,46 @@ class csv_importer {
     }
 
     /**
+     * Lignes d'un fichier CSV simple (stages ou référents), indexées par leur numéro dans le fichier.
+     *
+     * csv_import_reader consomme toujours la première ligne comme en-tête. L'en-tête de ces
+     * fichiers est facultative : si la première ligne commence par une adresse électronique, c'est
+     * une ligne de données, et elle est reprise au lieu d'être perdue.
+     *
+     * @param \csv_import_reader $cir Lecteur déjà chargé.
+     * @return array Numéro de ligne => cellules.
+     */
+    private static function csv_rows(\csv_import_reader $cir): array {
+        $rows = [];
+        $header = $cir->get_columns() ?: [];
+        if (strpos((string) ($header[0] ?? ''), '@') !== false) {
+            $rows[1] = $header;
+        }
+        $cir->init();
+        $linenum = 1;
+        while ($row = $cir->next()) {
+            $linenum++;
+            $rows[$linenum] = $row;
+        }
+        return $rows;
+    }
+
+    /**
+     * Vrai si toutes les cellules d'une ligne sont vides.
+     *
+     * @param array $row
+     * @return bool
+     */
+    private static function row_is_empty(array $row): bool {
+        foreach ($row as $cell) {
+            if (trim((string) $cell) !== '') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Encodage du CSV : UTF-8 s'il est valide, sinon Windows-1252, celui des CSV enregistrés par
      * Excel francophone (sans quoi les accents des en-têtes et des thématiques seraient perdus).
      *
@@ -1030,8 +1081,10 @@ class csv_importer {
     /**
      * Reporte sur un stage existant les évaluations de l'export. Une évaluation vide dans le
      * fichier ne change rien. Un stage importé de StageVet reçoit la version la plus récente de
-     * l'export ; pour un stage créé autrement, une évaluation déjà saisie dans l'activité n'est
-     * jamais remplacée (elle est signalée comme conservée).
+     * l'export, tant que l'enseignant ne l'a pas évalué et que la DEVE n'en a pas décidé ;
+     * l'évaluation du maître de stage n'est pas remplacée si un lien à jeton lui a été remis, car
+     * elle a pu être saisie dans l'activité. Dans tous les autres cas, une évaluation déjà
+     * présente n'est jamais remplacée : elle est signalée comme conservée.
      *
      * @param \stdClass $entry Stage existant (champs lus par stagevet()), mis à jour en place.
      * @param string $studenteval
@@ -1043,7 +1096,14 @@ class csv_importer {
         global $DB;
 
         $hadboth = trim((string) $entry->studentselfeval) !== '' && trim((string) $entry->tutoreval) !== '';
-        $fromstagevet = (int) $entry->conventionstatus === STAGE_CONVENTION_SIGNVET;
+        // Un stage évalué par l'enseignant, validé, refusé ou annulé est figé : une réimportation ne
+        // remplace plus rien, même pour un stage venu de StageVet.
+        $open = in_array((int) $entry->status, [STAGE_STATUS_ENREGISTRE, STAGE_STATUS_EVAL_ETUDIANT], true);
+        $fromstagevet = (int) $entry->conventionstatus === STAGE_CONVENTION_SIGNVET && $open;
+        $replaceable = [
+            'student' => $fromstagevet,
+            'tutor' => $fromstagevet && empty($entry->tutortoken),
+        ];
         $update = (object) ['id' => $entry->id];
         $changed = 0;
         $kept = [];
@@ -1054,7 +1114,7 @@ class csv_importer {
             if ($value === '' || $current === $value) {
                 continue;
             }
-            if ($current !== '' && !$fromstagevet) {
+            if ($current !== '' && !$replaceable[$kind]) {
                 $kept[] = $kind;
                 continue;
             }

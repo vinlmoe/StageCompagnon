@@ -79,11 +79,13 @@ class student_register_form extends \moodleform {
         $mform->addElement('text', 'structure', get_string('structure', 'mod_stage'), ['size' => '64']);
         $mform->setType('structure', PARAM_TEXT);
         $mform->addRule('structure', null, 'required', null, 'client');
+        $mform->addRule('structure', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
 
         $mform->addElement('advcheckbox', 'abroad', get_string('abroad', 'mod_stage'));
 
         $mform->addElement('text', 'country', get_string('country', 'mod_stage'), ['size' => '32']);
         $mform->setType('country', PARAM_TEXT);
+        $mform->addRule('country', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
         $mform->hideIf('country', 'abroad', 'notchecked');
 
         $mform->addElement('text', 'declaredduration', get_string('declaredduration', 'mod_stage'));

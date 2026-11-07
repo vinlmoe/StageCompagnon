@@ -55,15 +55,12 @@ $results = null;
 $uploaderror = null;
 
 if (data_submitted() && confirm_sesskey()) {
-    $upload = $_FILES['csvfile'] ?? null;
-
-    if (empty($upload) || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
-        $uploaderror = get_string('importerrorupload', 'mod_stage');
-    } else {
+    [$uploadpath, $uploaderror] = stage_get_uploaded_file('csvfile');
+    if ($uploadpath) {
         $import = \mod_stage\local\csv_importer::entries(
             $stage,
             $context,
-            file_get_contents($upload['tmp_name'])
+            file_get_contents($uploadpath)
         );
         $results = $import['results'];
         $uploaderror = $import['error'];
@@ -84,8 +81,9 @@ if ($results) {
         \core\output\notification::NOTIFY_SUCCESS
     );
     if (!empty($results->errors)) {
+        // Les messages reprennent des valeurs du fichier (courriels, thématiques, dates) : échappés.
         echo $OUTPUT->notification(
-            implode(html_writer::empty_tag('br'), $results->errors),
+            implode(html_writer::empty_tag('br'), array_map('s', $results->errors)),
             \core\output\notification::NOTIFY_WARNING
         );
     }

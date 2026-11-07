@@ -129,8 +129,8 @@ if ($userid && $targetstageid) {
             $table->data[] = [
                 $theme ? format_string($theme->name) : '-',
                 stage_studyyear_label($entry->studyyear),
-                $entry->structure,
-                $entry->retainedduration,
+                s($entry->structure),
+                (int) $entry->retainedduration,
                 html_writer::span(
                     stage_status_label($entry->status),
                     'badge ' . stage_status_badgeclass($entry->status)

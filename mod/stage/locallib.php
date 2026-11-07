@@ -454,6 +454,34 @@ function stage_delete_theme_duration($themeid, $studyyear) {
 }
 
 /**
+ * Durée requise d'une thématique pour un étudiant, selon les années d'étude où il y a des stages.
+ *
+ * Une durée unique prime. Sinon, la durée par année est celle exigée si le stage est fait cette
+ * année-là : elle est comptée une fois par année où l'étudiant a un stage sur la thématique. Sans
+ * stage, c'est la durée de la première année de la plage, à titre indicatif. Le tableau de bord de
+ * l'étudiant et le bilan par année utilisent ce même calcul.
+ *
+ * @param stdClass $theme
+ * @param int[] $years Années d'étude des stages de l'étudiant sur cette thématique (hors stages
+ *        complémentaires, annulés ou non validés).
+ * @return int
+ */
+function stage_get_theme_required_duration(stdClass $theme, array $years) {
+    if (!empty($theme->requiredduration)) {
+        return (int) $theme->requiredduration;
+    }
+    $years = array_unique(array_map('intval', $years));
+    if (!$years) {
+        return stage_get_theme_duration($theme->id, $theme->minstudyyear ?: $theme->maxstudyyear);
+    }
+    $required = 0;
+    foreach ($years as $year) {
+        $required += stage_get_theme_duration($theme->id, $year);
+    }
+    return $required;
+}
+
+/**
  * Années d'étude mises en avant pour les durées par année d'une thématique : la
  * plage minstudyyear - maxstudyyear, une seule année si l'une des bornes n'est pas spécifiée, ou
  * l'année 0 (non spécifiée) si aucune ne l'est.
@@ -721,9 +749,13 @@ function stage_get_student_year_progress($stageid, $userid) {
     $retainedbyyear = [];
     $retainedbythemeyear = [];
     $retainedbytheme = [];
+    $yearsbytheme = [];
     foreach ($entries as $entry) {
         if (($stagetypes[$entry->id] ?? 'obligatoire') === 'complementaire') {
             continue;
+        }
+        if (!in_array((int) $entry->status, [STAGE_STATUS_ANNULE, STAGE_STATUS_NON_VALIDE], true)) {
+            $yearsbytheme[$entry->themeid][] = (int) $entry->studyyear;
         }
         if ($entry->status != STAGE_STATUS_VALIDE_DEVE) {
             continue;
@@ -748,10 +780,12 @@ function stage_get_student_year_progress($stageid, $userid) {
             if ($finalyear !== null) {
                 // Thématique bornée à une plage : vérifiée uniquement à sa dernière année, de
                 // façon cumulative sur toute la plage (les années intermédiaires ne l'incluent pas).
+                // La durée requise est celle des années où l'étudiant a fait ses stages, comme au
+                // tableau de bord : la seule durée de la dernière année ignorait celles de A2, A3.
                 if ($year != $finalyear) {
                     continue;
                 }
-                $themerequired = stage_get_theme_duration($theme->id, $finalyear);
+                $themerequired = stage_get_theme_required_duration($theme, $yearsbytheme[$theme->id] ?? []);
                 $themeretained = $retainedbytheme[$theme->id] ?? 0;
             } else {
                 // Pas de plage définie : due chaque année, sur les seules saisies de cette année.
@@ -1017,27 +1051,17 @@ function stage_get_student_progress($stageid, $userid) {
             if ($entry->status == STAGE_STATUS_VALIDE_DEVE) {
                 $t->retained += $entry->retainedduration;
             }
-            // La durée requise pour la thématique est la somme des durées requises pour chacune
-            // des années d'étude sur lesquelles l'étudiant y a des saisies (un stage compte
-            // normalement une fois par thématique, mais rien n'empêche une redite en N-1/N+1).
+            // Années d'étude sur lesquelles l'étudiant a des saisies : elles fixent la durée requise
+            // (voir stage_get_theme_required_duration()).
             if (!in_array((int) $entry->studyyear, $t->requiredyears, true)) {
                 $t->requiredyears[] = (int) $entry->studyyear;
-                $t->requiredduration += stage_get_theme_duration($entry->themeid, $entry->studyyear);
             }
         }
     }
 
     foreach ($progress->themes as $themeid => $t) {
         if ($t->theme->mandatory) {
-            if (!empty($t->theme->requiredduration)) {
-                // Durée globale (unique pour toute la thématique, quel que soit le nombre
-                // d'années sur lesquelles elle est saisie) : ne pas la sommer par année.
-                $t->requiredduration = (int) $t->theme->requiredduration;
-            } else if (empty($t->requiredyears)) {
-                // Pas encore de saisie sur cette thématique : on affiche la durée requise pour
-                // l'année minimale de sa plage, à titre indicatif.
-                $t->requiredduration = stage_get_theme_duration($themeid, $t->theme->minstudyyear ?: $t->theme->maxstudyyear);
-            }
+            $t->requiredduration = stage_get_theme_required_duration($t->theme, $t->requiredyears);
             $progress->themes[$themeid]->requiredduration = $t->requiredduration;
             $progress->themes[$themeid]->done = ($t->retained >= $t->requiredduration) && $t->requiredduration > 0;
         }
@@ -1353,6 +1377,54 @@ function stage_update_entry_unless_cancelled(stdClass $entry, array $fields) {
 }
 
 /**
+ * Fichier envoyé par un formulaire d'import (CSV ou classeur), contrôlé et analysé.
+ *
+ * Les pages d'import reçoivent leur fichier par un champ de formulaire simple, pas par le
+ * sélecteur de fichiers de Moodle : l'analyse antivirus que l'API fichiers ferait à l'envoi est
+ * donc faite ici, avant toute lecture. Un fichier infecté est supprimé par l'antivirus.
+ *
+ * @param string $field Nom du champ de fichier.
+ * @return array [chemin temporaire ou null, message d'erreur ou null]
+ */
+function stage_get_uploaded_file($field) {
+    $upload = $_FILES[$field] ?? null;
+    if (empty($upload) || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
+        return [null, get_string('importerrorupload', 'mod_stage')];
+    }
+    try {
+        \core\antivirus\manager::scan_file($upload['tmp_name'], clean_param($upload['name'], PARAM_FILE), true);
+    } catch (moodle_exception $e) {
+        return [null, $e->getMessage()];
+    }
+    return [$upload['tmp_name'], null];
+}
+
+/**
+ * Nom (activité, thématique, gabarit...) prêt pour une sortie qui n'est pas du HTML : courriel en
+ * texte brut, PDF, classeur, nom de fichier. format_string() y laisserait ses entités (&amp;,
+ * &#039;) en toutes lettres.
+ *
+ * @param string $text
+ * @return string
+ */
+function stage_plain_string($text) {
+    return format_string((string) $text, true, ['escape' => false]);
+}
+
+/**
+ * Nettoie un champ texte court d'une saisie (structure, pays) : balises retirées, espaces de bord
+ * supprimés, longueur ramenée à celle de la colonne. Toute valeur venant d'un fichier importé ou
+ * d'un formulaire passe par là avant d'être écrite.
+ *
+ * @param string|null $value
+ * @param int $maxlength Longueur de la colonne, en caractères.
+ * @return string
+ */
+function stage_clean_entry_text($value, $maxlength = 255) {
+    return core_text::substr(trim(clean_param((string) $value, PARAM_TEXT)), 0, $maxlength);
+}
+
+/**
  * Enregistre un stage pour un étudiant, à l'initiative de la DEVE (ou de l'étudiant lui-même,
  * voir student_register.php).
  *
@@ -1392,9 +1464,9 @@ function stage_register_entry(
     $record->userid = $studentid;
     $record->themeid = $themeid;
     $record->studyyear = $studyyear;
-    $record->structure = $structure;
+    $record->structure = stage_clean_entry_text($structure);
     $record->abroad = $abroad ? 1 : 0;
-    $record->country = $abroad ? $country : '';
+    $record->country = $abroad ? stage_clean_entry_text($country) : '';
     $record->datestart = $datestart;
     $record->dateend = $dateend;
     $record->declaredduration = $declaredduration;
@@ -1667,14 +1739,20 @@ function stage_update_entry_details(
 
     $entry->themeid = $themeid;
     $entry->abroad = $abroad ? 1 : 0;
-    $entry->country = $abroad ? $country : '';
+    $entry->country = $abroad ? stage_clean_entry_text($country) : '';
     $entry->studyyear = $studyyear;
-    $entry->structure = $structure;
+    $entry->structure = stage_clean_entry_text($structure);
     $entry->datestart = $datestart;
     $entry->dateend = $dateend;
     $entry->declaredduration = $declaredduration;
     $entry->timemodified = time();
-    $DB->update_record('stage_entry', $entry);
+    // Seuls les champs du formulaire sont écrits : l'objet a été lu en début de page, et une étape
+    // du circuit enregistrée entre-temps (validation, annulation...) ne doit pas être effacée.
+    stage_update_entry_fields($entry, [
+        'themeid', 'abroad', 'country', 'studyyear', 'structure', 'datestart', 'dateend', 'declaredduration',
+        'timemodified',
+    ]);
+    stage_trigger_entry_event(\mod_stage\event\entry_edited::class, $entry->id);
 }
 
 /**
@@ -1994,17 +2072,37 @@ function stage_period_error_field(array $data) {
 }
 
 /**
- * Retourne la liste des jours (timestamps à minuit, fuseau de l'utilisateur) compris dans une plage de
- * dates, bornes incluses.
+ * Ramène un horodatage au minuit, dans le fuseau du site, du jour qu'il désigne.
+ *
+ * Les jours de stage effectifs sont stockés dans un fuseau unique, celui du site : calculés dans
+ * le fuseau de chaque lecteur, ils changeaient de valeur d'un utilisateur à l'autre, et une
+ * modification faite dans un autre fuseau que celui de l'étudiant effaçait tous ses jours. Les
+ * dates saisies, elles, sont à minuit dans le fuseau de celui qui les a saisies : décalées d'une
+ * demi-journée avant conversion, elles tombent sur le bon jour pour tout écart de fuseau inférieur
+ * à douze heures.
+ *
+ * @param int $timestamp
+ * @return int
+ */
+function stage_normalize_day($timestamp) {
+    return (new DateTimeImmutable('@' . ((int) $timestamp + 12 * HOURSECS)))
+        ->setTimezone(\core_date::get_server_timezone_object())
+        ->setTime(0, 0)
+        ->getTimestamp();
+}
+
+/**
+ * Retourne la liste des jours (timestamps à minuit, fuseau du site, voir stage_normalize_day())
+ * compris dans une plage de dates, bornes incluses.
  *
  * @param stdClass $period
  * @return array
  */
 function stage_get_period_days(stdClass $period) {
     $days = [];
-    $timezone = \core_date::get_user_timezone_object();
-    $cursor = (new DateTimeImmutable('@' . $period->datestart))->setTimezone($timezone)->setTime(0, 0);
-    $end = (new DateTimeImmutable('@' . $period->dateend))->setTimezone($timezone)->setTime(0, 0);
+    $timezone = \core_date::get_server_timezone_object();
+    $cursor = (new DateTimeImmutable('@' . stage_normalize_day($period->datestart)))->setTimezone($timezone);
+    $end = (new DateTimeImmutable('@' . stage_normalize_day($period->dateend)))->setTimezone($timezone);
     while ($cursor <= $end) {
         $days[] = $cursor->getTimestamp();
         $cursor = $cursor->modify('+1 day');
@@ -2023,7 +2121,8 @@ function stage_get_entry_workdays($entryid) {
     global $DB;
 
     $dates = $DB->get_fieldset_select('stage_entry_workday', 'workdate', 'entryid = :entryid', ['entryid' => $entryid]);
-    $dates = array_map('intval', $dates);
+    // Les jours enregistrés avant le passage au fuseau du site sont ramenés à ce fuseau.
+    $dates = array_values(array_unique(array_map('stage_normalize_day', $dates)));
     sort($dates);
     return $dates;
 }
@@ -2048,7 +2147,7 @@ function stage_set_entry_workdays($entryid, array $dates) {
     }
     $records = [];
     $now = time();
-    foreach (array_unique(array_map('intval', $dates)) as $date) {
+    foreach (array_unique(array_map('stage_normalize_day', $dates)) as $date) {
         if (!isset($allowed[$date])) {
             continue;
         }
@@ -2079,11 +2178,12 @@ function stage_set_entry_workdays($entryid, array $dates) {
  * @return bool
  */
 function stage_workdays_violate_restday_rule(array $dates) {
+    $dates = array_map('stage_normalize_day', $dates);
     $set = array_flip($dates);
-    $timezone = \core_date::get_user_timezone_object();
+    $timezone = \core_date::get_server_timezone_object();
     foreach ($dates as $date) {
         $fullweek = true;
-        $cursor = (new DateTimeImmutable('@' . $date))->setTimezone($timezone)->setTime(0, 0);
+        $cursor = (new DateTimeImmutable('@' . $date))->setTimezone($timezone);
         for ($i = 0; $i < 7; $i++) {
             if (!isset($set[$cursor->getTimestamp()])) {
                 $fullweek = false;
@@ -2117,7 +2217,10 @@ function stage_render_workday_picker(array $periods, array $selected, $editable,
     }
 
     $dateformat = get_string('strftimedateshort', 'langconfig');
-    $selectedset = array_flip($selected);
+    $selectedset = array_flip(array_map('stage_normalize_day', $selected));
+    // Les jours sont à minuit dans le fuseau du site : affichés dans ce même fuseau, sans quoi un
+    // lecteur à l'ouest du site les verrait la veille.
+    $daytimezone = \core_date::get_server_timezone();
 
     $out = html_writer::tag('p', get_string('restdayrule', 'mod_stage'), ['class' => 'alert alert-info']);
     foreach ($periods as $period) {
@@ -2131,12 +2234,12 @@ function stage_render_workday_picker(array $periods, array $selected, $editable,
             if ($editable) {
                 $out .= html_writer::tag(
                     'label',
-                    html_writer::checkbox($fieldname . '[]', $day, $checked, ' ' . userdate($day, '%d/%m')),
+                    html_writer::checkbox($fieldname . '[]', $day, $checked, ' ' . userdate($day, '%d/%m', $daytimezone)),
                     ['class' => 'mr-3 mb-1']
                 );
             } else {
                 $out .= html_writer::span(
-                    userdate($day, '%d/%m'),
+                    userdate($day, '%d/%m', $daytimezone),
                     'badge mr-1 mb-1 ' . ($checked ? 'badge-success' : 'badge-light')
                 );
             }
@@ -2265,6 +2368,38 @@ function stage_apply_deve_validation(stdClass $entry, $deveuserid, $retaineddura
 }
 
 /**
+ * Validation DEVE en masse (deve.php) : valide les saisies cochées de l'activité.
+ *
+ * Un stage annulé ou non validé (par l'enseignant ou la DEVE) n'est pas validable en masse : il
+ * doit d'abord être réinitialisé, ou validé un par un après examen. Un stage annulé entre
+ * l'affichage de la liste et sa soumission est donc écarté plutôt que de faire échouer toute la
+ * validation. Comme en validation unitaire, les jours effectivement cochés priment sur la durée
+ * déclarée.
+ *
+ * @param stdClass $stage
+ * @param int[] $entryids Saisies cochées ; celles d'une autre activité sont ignorées.
+ * @param int $deveuserid
+ * @return int Nombre de saisies validées.
+ */
+function stage_bulk_validate_entries(stdClass $stage, array $entryids, $deveuserid) {
+    global $DB;
+
+    $transaction = $DB->start_delegated_transaction();
+    $validated = 0;
+    foreach (array_unique(array_map('intval', $entryids)) as $entryid) {
+        $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id]);
+        if (!$entry || (int) $entry->status < STAGE_STATUS_ENREGISTRE) {
+            continue;
+        }
+        $workdays = count(stage_get_entry_workdays($entry->id));
+        stage_apply_deve_validation($entry, $deveuserid, $workdays ?: (int) $entry->declaredduration, '');
+        $validated++;
+    }
+    $transaction->allow_commit();
+    return $validated;
+}
+
+/**
  * Marque une saisie de stage comme non validée par l'enseignant référent, à la place de la
  * valider. Comme pour une évaluation normale, la saisie n'est alors plus modifiable par
  * l'étudiant ni par l'enseignant : seule la DEVE peut la réinitialiser (stage_reset_entry).
@@ -2368,11 +2503,24 @@ function stage_reset_entry(stdClass $entry) {
     $entry->devecomment = null;
     $entry->devetime = null;
     $entry->retainedduration = 0;
+    // L'avis de l'enseignant référent (évaluation ou motif de refus) appartient au circuit annulé :
+    // conservé, il s'affichait comme une évaluation en cours sur un stage redevenu « Enregistré »,
+    // puis devant la DEVE dès la nouvelle auto-évaluation.
+    $entry->teacherid = null;
+    $entry->teachereval = null;
+    $entry->teachertime = null;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, [
         'tutortoken', 'tutorrequesttime', 'tutorrequestfailtime', 'status', 'tutorbypassed',
-        'deveuserid', 'devecomment', 'devetime', 'retainedduration', 'timemodified',
+        'deveuserid', 'devecomment', 'devetime', 'retainedduration', 'teacherid', 'teachereval', 'teachertime',
+        'timemodified',
     ]);
+    // Les réponses de l'enseignant au questionnaire suivent son avis.
+    $DB->delete_records_select(
+        'stage_answer',
+        "entryid = :entryid AND questionid IN (SELECT id FROM {stage_question} WHERE evaltype = :evaltype)",
+        ['entryid' => $entry->id, 'evaltype' => 'teacher']
+    );
     stage_trigger_entry_event(\mod_stage\event\entry_reset::class, $entry->id);
 }
 
@@ -2660,7 +2808,7 @@ function stage_notify_teachers_selfeval(stdClass $stage, stdClass $cm, stdClass 
     $url = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
     $text = stage_resolve_email_text($stage->id, 'selfeval', [
         'student' => fullname($student),
-        'stage' => format_string($stage->name),
+        'stage' => stage_plain_string($stage->name),
         'url' => $url->out(false),
     ]);
     $noreply = core_user::get_noreply_user();
@@ -2694,8 +2842,8 @@ function stage_notify_teachers_eval_request(stdClass $stage, stdClass $cm, stdCl
     $url = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
     $text = stage_resolve_email_text($stage->id, 'teacherevalrequest', [
         'student' => fullname($student),
-        'stage' => format_string($stage->name),
-        'theme' => format_string($themename),
+        'stage' => stage_plain_string($stage->name),
+        'theme' => stage_plain_string($themename),
         'url' => $url->out(false),
     ]);
     $noreply = core_user::get_noreply_user();
@@ -4902,7 +5050,7 @@ function stage_print_student_dashboard_content(
         $row = [
             $themename,
             stage_studyyear_label($entry->studyyear),
-            $entry->structure,
+            s($entry->structure),
             $abroadcell,
             $entry->declaredduration,
             $entry->retainedduration,
@@ -5438,6 +5586,21 @@ function stage_execute_student_transfer(
     // L'attribution des enseignants référents est propre au cours : elle reste dans la source,
     // où elle continue de décrire l'année passée, et n'est pas recréée dans la cible.
     $DB->delete_records('stage_entry_teacher', ['stageid' => $sourcestage->id, 'studentid' => $userid]);
+
+    // La mobilité d'études compte dans les jours à l'étranger de l'étudiant : elle le suit, sans
+    // quoi il apparaissait en défaut dans la cible et la ligne restait orpheline dans la source.
+    // Une mobilité déjà saisie dans la cible (index unique stageid, userid) est la plus récente :
+    // elle est gardée.
+    $mobility = $DB->get_record('stage_study_mobility', ['stageid' => $sourcestage->id, 'userid' => $userid]);
+    if ($mobility) {
+        if ($DB->record_exists('stage_study_mobility', ['stageid' => $targetstage->id, 'userid' => $userid])) {
+            $DB->delete_records('stage_study_mobility', ['id' => $mobility->id]);
+        } else {
+            $DB->update_record('stage_study_mobility', (object) [
+                'id' => $mobility->id, 'stageid' => $targetstage->id, 'timemodified' => $now,
+            ]);
+        }
+    }
 
     $transaction->allow_commit();
 
@@ -6248,7 +6411,7 @@ function stage_notify_teacher_convention_pending(stdClass $stage, stdClass $cm, 
 
     $url = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id]);
     $text = stage_resolve_email_text($stage->id, 'teacherpending', [
-        'stage' => format_string($stage->name),
+        'stage' => stage_plain_string($stage->name),
         'url' => $url->out(false),
     ]);
     $noreply = core_user::get_noreply_user();
@@ -6421,7 +6584,7 @@ function stage_notify_student_convention_rejected(stdClass $stage, stdClass $cm,
 
     $url = new moodle_url('/mod/stage/student_register.php', ['id' => $cm->id, 'entryid' => $entry->id]);
     $text = stage_resolve_email_text($stage->id, 'studentrejected', [
-        'stage' => format_string($stage->name),
+        'stage' => stage_plain_string($stage->name),
         'comment' => $comment,
         'url' => $url->out(false),
     ]);
@@ -6455,8 +6618,8 @@ function stage_notify_student_convention_ready(stdClass $stage, stdClass $cm, st
     $url = new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
     $text = stage_resolve_email_text($stage->id, 'conventionready', [
         'student' => fullname($student),
-        'stage' => format_string($stage->name),
-        'theme' => $theme ? format_string($theme->name) : '',
+        'stage' => stage_plain_string($stage->name),
+        'theme' => $theme ? stage_plain_string($theme->name) : '',
         'url' => $url->out(false),
     ]);
 
@@ -6536,8 +6699,8 @@ function stage_notify_student_convention_reminder(
     $url = new moodle_url('/mod/stage/student_register.php', ['id' => $cm->id, 'entryid' => $entry->id]);
     $text = stage_resolve_email_text($stage->id, 'conventionreminder', [
         'student' => fullname($student),
-        'stage' => format_string($stage->name),
-        'theme' => $theme ? format_string($theme->name) : '',
+        'stage' => stage_plain_string($stage->name),
+        'theme' => $theme ? stage_plain_string($theme->name) : '',
         'datestart' => userdate($entry->datestart, get_string('strftimedate', 'langconfig')),
         'days' => STAGE_CONVENTION_REMINDER_DAYS,
         'url' => $url->out(false),
@@ -6580,7 +6743,7 @@ function stage_notify_tutor_evaluation_request(
     $url = new moodle_url('/mod/stage/tutor_eval.php', ['token' => $entry->tutortoken]);
     $text = stage_resolve_email_text($stage->id, 'tutorrequest', [
         'student' => fullname($student),
-        'stage' => format_string($stage->name),
+        'stage' => stage_plain_string($stage->name),
         'url' => $url->out(false),
     ], $lang);
 
@@ -6684,6 +6847,42 @@ function stage_get_entries_needing_tutor_request() {
         $conventionparams
     );
     return $DB->get_records_sql($sql, $params);
+}
+
+/**
+ * Avertissement à afficher à la revue d'une convention quand l'adresse du maître de stage, saisie
+ * par l'étudiant, n'est vraisemblablement pas la sienne : c'est celle de l'étudiant, ou celle d'un
+ * autre compte inscrit au cours. L'invitation à évaluer le stage partirait sinon vers quelqu'un
+ * qui n'est pas le maître de stage, par exemple l'étudiant lui-même.
+ *
+ * @param context $context Contexte du module.
+ * @param stdClass $student
+ * @param string|null $tutoremail
+ * @return string|null Message, ou null si rien ne paraît anormal.
+ */
+function stage_tutor_email_warning(context $context, stdClass $student, $tutoremail) {
+    global $DB;
+
+    $email = core_text::strtolower(trim((string) $tutoremail));
+    if ($email === '') {
+        return null;
+    }
+    if ($email === core_text::strtolower(trim((string) $student->email))) {
+        return get_string('tutoremailisstudent', 'mod_stage');
+    }
+    $users = $DB->get_records_select(
+        'user',
+        'deleted = 0 AND ' . $DB->sql_equal('email', ':email', false),
+        ['email' => $email],
+        '',
+        'id'
+    );
+    foreach (array_keys($users) as $userid) {
+        if (is_enrolled($context, $userid)) {
+            return get_string('tutoremailiscourseuser', 'mod_stage', fullname(core_user::get_user($userid)));
+        }
+    }
+    return null;
 }
 
 /**
@@ -7900,7 +8099,8 @@ function stage_send_reports_zip(context $context, array $entries, array $student
  * @return string Chemin du fichier temporaire.
  */
 function stage_stored_file_to_temp(\stored_file $file) {
-    $tmppath = tempnam(sys_get_temp_dir(), 'stageconv_');
+    // Dans le répertoire temporaire de Moodle, que son nettoyage et sa configuration couvrent.
+    $tmppath = tempnam(make_temp_directory('mod_stage'), 'stageconv_');
     $file->copy_content_to($tmppath);
     return $tmppath;
 }
@@ -7930,8 +8130,51 @@ function stage_check_convention_pdf_prerequisites(stdClass $entry, context $cont
     if (!is_readable($CFG->dirroot . '/mod/stage/thirdparty/vendor/autoload.php')) {
         return 'conventionfpdimissing';
     }
+    // Le gabarit et les logos sont relus ici : une erreur de FPDI ou de TCPDF pendant la
+    // génération, dans le cadre de téléchargement, ne serait jamais montrée.
+    if (!stage_convention_template_readable(stage_get_convention_template_file($context, $entry->conventiontemplateid))) {
+        return 'conventiontemplateunreadable';
+    }
+    foreach (['left', 'right'] as $side) {
+        $logo = stage_get_convention_logo_file($context, $side);
+        if ($logo && !stage_convention_logo_valid($logo)) {
+            return 'conventionlogoinvalid';
+        }
+    }
 
     return null;
+}
+
+/**
+ * Vrai si FPDI sait ouvrir ce PDF de gabarit. La version libre de son analyseur refuse les PDF à
+ * table de références compressée (PDF 1.5 et suivants, souvent produits par Word ou Acrobat) et
+ * les PDF chiffrés : le gabarit est alors à réenregistrer en PDF 1.4 ou à imprimer en PDF.
+ *
+ * @param \stored_file $file
+ * @return bool
+ */
+function stage_convention_template_readable(\stored_file $file) {
+    global $CFG;
+
+    require_once($CFG->dirroot . '/mod/stage/thirdparty/vendor/autoload.php');
+    try {
+        $fpdi = new \setasign\Fpdi\Tcpdf\Fpdi();
+        return $fpdi->setSourceFile(\setasign\Fpdi\PdfParser\StreamReader::createByString($file->get_content())) > 0;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * Vrai si un logo de convention est bien une image PNG : seul ce format est accepté à l'envoi,
+ * mais sur la seule extension, et un autre format renommé faisait échouer la génération.
+ *
+ * @param \stored_file $file
+ * @return bool
+ */
+function stage_convention_logo_valid(\stored_file $file) {
+    $info = @getimagesizefromstring($file->get_content());
+    return $info !== false && $info[2] === IMAGETYPE_PNG;
 }
 
 /**
@@ -8103,7 +8346,7 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
             'phone' => (string) $detail->studentphone,
         ],
         'theme' => [
-            'name' => $theme ? format_string($theme->name) : '-',
+            'name' => $theme ? stage_plain_string($theme->name) : '-',
         ],
         'dates' => [
             'start' => $entry->datestart ? $formatdate($entry->datestart) : '-',
@@ -8146,53 +8389,60 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
     // Les gabarits/logos sont stockés via l'API fichiers de Moodle : TCPDF/FPDI ont besoin d'un
     // chemin de fichier réel, on les copie donc vers des fichiers temporaires, nettoyés à la fin.
     $tempfiles = [];
-    $templatepath = stage_stored_file_to_temp($templatefile);
-    $tempfiles[] = $templatepath;
+    try {
+        $templatepath = stage_stored_file_to_temp($templatefile);
+        $tempfiles[] = $templatepath;
 
-    $logoleftpath = null;
-    $logofile = stage_get_convention_logo_file($context, 'left');
-    if ($logofile) {
-        $logoleftpath = stage_stored_file_to_temp($logofile);
-        $tempfiles[] = $logoleftpath;
-    }
-    $logorightpath = null;
-    $logofile = stage_get_convention_logo_file($context, 'right');
-    if ($logofile) {
-        $logorightpath = stage_stored_file_to_temp($logofile);
-        $tempfiles[] = $logorightpath;
-    }
+        $logoleftpath = null;
+        $logofile = stage_get_convention_logo_file($context, 'left');
+        if ($logofile) {
+            $logoleftpath = stage_stored_file_to_temp($logofile);
+            $tempfiles[] = $logoleftpath;
+        }
+        $logorightpath = null;
+        $logofile = stage_get_convention_logo_file($context, 'right');
+        if ($logofile) {
+            $logorightpath = stage_stored_file_to_temp($logofile);
+            $tempfiles[] = $logorightpath;
+        }
 
-    // Page 1 : générée dynamiquement avec la classe \pdf de Moodle (TCPDF), en PDF brut (chaîne),
-    // pour être réimportée ci-dessous comme un PDF source parmi d'autres.
-    $page1 = new \mod_stage\pdf\convention_pdf('P', 'mm', 'A4', true, 'UTF-8', false);
-    $page1->generate_page1($stagedata, $logoleftpath, $logorightpath, $conventionlang, $withsignatures);
-    $page1pdf = $page1->Output('', 'S');
+        // Page 1 : générée dynamiquement avec la classe \pdf de Moodle (TCPDF), en PDF brut (chaîne),
+        // pour être réimportée ci-dessous comme un PDF source parmi d'autres.
+        $page1 = new \mod_stage\pdf\convention_pdf('P', 'mm', 'A4', true, 'UTF-8', false);
+        $page1->generate_page1($stagedata, $logoleftpath, $logorightpath, $conventionlang, $withsignatures);
+        $page1pdf = $page1->Output('', 'S');
 
-    // Assemblage final : la page 1 générée ci-dessus, suivie des pages du gabarit choisi par
-    // l'étudiant, toutes deux réimportées par FPDI comme sources PDF.
-    $merger = new \setasign\Fpdi\Tcpdf\Fpdi('P', 'mm', 'A4', true, 'UTF-8', false);
-    $merger->setPrintHeader(false);
-    $merger->setPrintFooter(false);
+        // Assemblage final : la page 1 générée ci-dessus, suivie des pages du gabarit choisi par
+        // l'étudiant, toutes deux réimportées par FPDI comme sources PDF.
+        $merger = new \setasign\Fpdi\Tcpdf\Fpdi('P', 'mm', 'A4', true, 'UTF-8', false);
+        $merger->setPrintHeader(false);
+        $merger->setPrintFooter(false);
 
-    $streamreader = \setasign\Fpdi\PdfParser\StreamReader::createByString($page1pdf);
-    $pagecount = $merger->setSourceFile($streamreader);
-    for ($pageno = 1; $pageno <= $pagecount; $pageno++) {
-        $tplidx = $merger->importPage($pageno);
-        $size = $merger->getTemplateSize($tplidx);
-        $merger->AddPage($size['orientation'], [$size['width'], $size['height']]);
-        $merger->useTemplate($tplidx);
-    }
+        $streamreader = \setasign\Fpdi\PdfParser\StreamReader::createByString($page1pdf);
+        $pagecount = $merger->setSourceFile($streamreader);
+        for ($pageno = 1; $pageno <= $pagecount; $pageno++) {
+            $tplidx = $merger->importPage($pageno);
+            $size = $merger->getTemplateSize($tplidx);
+            $merger->AddPage($size['orientation'], [$size['width'], $size['height']]);
+            $merger->useTemplate($tplidx);
+        }
 
-    $articlespagecount = $merger->setSourceFile($templatepath);
-    for ($pageno = 1; $pageno <= $articlespagecount; $pageno++) {
-        $tplidx = $merger->importPage($pageno);
-        $size = $merger->getTemplateSize($tplidx);
-        $merger->AddPage($size['orientation'], [$size['width'], $size['height']]);
-        $merger->useTemplate($tplidx);
-    }
-
-    foreach ($tempfiles as $tempfile) {
-        unlink($tempfile);
+        $articlespagecount = $merger->setSourceFile($templatepath);
+        for ($pageno = 1; $pageno <= $articlespagecount; $pageno++) {
+            $tplidx = $merger->importPage($pageno);
+            $size = $merger->getTemplateSize($tplidx);
+            $merger->AddPage($size['orientation'], [$size['width'], $size['height']]);
+            $merger->useTemplate($tplidx);
+        }
+    } catch (\setasign\Fpdi\PdfParser\PdfParserException $e) {
+        return ['error' => 'conventiontemplateunreadable', 'pdf' => null, 'filename' => null];
+    } finally {
+        // Supprimés dans tous les cas : une exception laissait sinon jusqu'à trois copies sur
+        // disque à chaque tentative. FPDI garde ouvert le gabarit qu'il lit : sous Unix, son
+        // contenu reste lisible jusqu'à la fermeture.
+        foreach ($tempfiles as $tempfile) {
+            @unlink($tempfile);
+        }
     }
 
     $filename = clean_filename('convention_stage_' . fullname($student) . '_' . $entry->id . '.pdf');

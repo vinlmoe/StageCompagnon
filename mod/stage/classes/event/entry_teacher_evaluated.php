@@ -36,6 +36,6 @@ class entry_teacher_evaluated extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe('évalué, en tant qu\'enseignant référent,');
+        return $this->describe('evaluated, as referent teacher,');
     }
 }

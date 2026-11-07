@@ -55,6 +55,12 @@ $isthemeteacher = stage_is_theme_teacher($entry->themeid, $USER->id);
 if (!$isdeve && !$isassignedteacher && !$isthemeteacher) {
     throw new moodle_exception('nopermissions', 'error', '', get_string('viewdetails', 'mod_stage'));
 }
+// Relancer le maître de stage crée son jeton et envoie un courriel : c'est une écriture, réservée
+// à la DEVE qui valide les stages (comme dans deve.php), pas à la seule capacité de consultation.
+$canresendtutor = has_capability('mod/stage:validatedeve', $context);
+// Les coordonnées personnelles de l'étudiant ne servent qu'à la DEVE et à son référent : le
+// responsable de la thématique, qui suit le stage et ses rapports, ne les voit pas.
+$canseestudentdetails = $isdeve || $isassignedteacher;
 
 $student = $DB->get_record('user', ['id' => $entry->userid], '*', MUST_EXIST);
 $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
@@ -84,7 +90,7 @@ $PAGE->set_context($context);
 // Relance du courriel au maître de stage, à la demande de la DEVE : mêmes modalités que sur la
 // page de validation (deve.php), mais accessible directement depuis cette vue de détail plutôt que
 // de devoir passer par l'écran de validation.
-if ($isdeve && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()) {
+if ($canresendtutor && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()) {
     $sent = stage_resend_tutor_evaluation_request($stage, $cm, $entry);
     redirect(
         $baseurl,
@@ -175,12 +181,14 @@ if ($detail) {
         get_string('conventiontutoremail', 'mod_stage') => s($detail->tutoremail),
     ]);
 
-    echo stage_render_detail_section(get_string('conventionstudent', 'mod_stage'), [
-        get_string('conventionbirthdate', 'mod_stage') => $detail->studentbirthdate
-            ? userdate($detail->studentbirthdate, $dateformat) : null,
-        get_string('conventionstudentaddress', 'mod_stage') => s($detail->studentaddress),
-        get_string('conventionstudentphone', 'mod_stage') => s($detail->studentphone),
-    ]);
+    if ($canseestudentdetails) {
+        echo stage_render_detail_section(get_string('conventionstudent', 'mod_stage'), [
+            get_string('conventionbirthdate', 'mod_stage') => $detail->studentbirthdate
+                ? userdate($detail->studentbirthdate, $dateformat) : null,
+            get_string('conventionstudentaddress', 'mod_stage') => s($detail->studentaddress),
+            get_string('conventionstudentphone', 'mod_stage') => s($detail->studentphone),
+        ]);
+    }
 
     echo stage_render_detail_section(get_string('conventionhoststructure', 'mod_stage'), [
         get_string('conventionhostaddress', 'mod_stage') => s($detail->hostaddress),
@@ -278,7 +286,7 @@ if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tuto
 
         // Coordonnées du maître de stage et relance manuelle du courriel d'invitation, réservées à
         // la DEVE : les enseignants n'ont pas à connaître cette adresse ni à déclencher l'envoi.
-        if ($isdeve && empty($entry->tutortime) && empty($entry->tutorbypassed) && $detail && !empty($detail->tutoremail)) {
+        if ($canresendtutor && empty($entry->tutortime) && empty($entry->tutorbypassed) && $detail && !empty($detail->tutoremail)) {
             echo html_writer::tag(
                 'p',
                 html_writer::tag('strong', get_string('conventiontutoremail', 'mod_stage') . ' : ') . s($detail->tutoremail)

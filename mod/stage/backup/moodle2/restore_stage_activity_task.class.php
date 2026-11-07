@@ -60,6 +60,7 @@ class restore_stage_activity_task extends restore_activity_task {
 
         $contents[] = new restore_decode_content('stage', ['intro', 'abroadrule']);
         $contents[] = new restore_decode_content('stage_theme', ['description'], 'stage_theme');
+        $contents[] = new restore_decode_content('stage_theme_checklist', ['description'], 'stage_theme_checklist');
         $contents[] = new restore_decode_content(
             'stage_question',
             ['name', 'nameen', 'options', 'optionsen'],

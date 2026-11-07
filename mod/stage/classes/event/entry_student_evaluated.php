@@ -36,6 +36,6 @@ class entry_student_evaluated extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe("soumis l'auto-évaluation pour");
+        return $this->describe('submitted the self-evaluation of');
     }
 }

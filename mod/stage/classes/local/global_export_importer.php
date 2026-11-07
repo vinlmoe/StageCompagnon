@@ -67,6 +67,9 @@ class global_export_importer {
                     }
                 }
                 $entry->stageid = $stageid;
+                // Champs affichés tels quels dans plusieurs tableaux : nettoyés comme à la saisie.
+                $entry->structure = stage_clean_entry_text($entry->structure ?? '');
+                $entry->country = stage_clean_entry_text($entry->country ?? '');
                 $entry->timecreated = $entry->timecreated ?: time();
                 $entry->timemodified = $entry->timemodified ?: $entry->timecreated;
                 $entryid = $DB->insert_record('stage_entry', $entry);

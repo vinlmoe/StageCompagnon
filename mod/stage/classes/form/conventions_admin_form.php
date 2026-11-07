@@ -73,6 +73,15 @@ class conventions_admin_form extends \moodleform {
                 ['size' => '64']
             );
             $mform->setType('establishment' . $field, PARAM_TEXT);
+            // Longueur des colonnes (téléphone : 64 caractères) : au-delà, l'écriture échouait.
+            $maxlength = $field === 'phone' ? 64 : 255;
+            $mform->addRule(
+                'establishment' . $field,
+                get_string('maximumchars', '', $maxlength),
+                'maxlength',
+                $maxlength,
+                'client'
+            );
         }
         $mform->addHelpButton('establishmentsignatory', 'conventionestablishmentsignatory', 'mod_stage');
 
@@ -91,5 +100,30 @@ class conventions_admin_form extends \moodleform {
         }
 
         $this->add_action_buttons(false, get_string('savechanges'));
+    }
+
+    /**
+     * Les logos doivent être de vraies images PNG : le type n'est contrôlé à l'envoi que sur
+     * l'extension, et une image d'un autre format renommée faisait échouer la génération des
+     * conventions.
+     *
+     * @param array $data
+     * @param array $files
+     * @return array
+     */
+    public function validation($data, $files) {
+        global $USER;
+
+        $errors = parent::validation($data, $files);
+        $usercontext = \context_user::instance($USER->id);
+        $fs = get_file_storage();
+        foreach (['logoleft', 'logoright'] as $logo) {
+            foreach ($fs->get_area_files($usercontext->id, 'user', 'draft', (int) ($data[$logo] ?? 0), 'id', false) as $file) {
+                if (!stage_convention_logo_valid($file)) {
+                    $errors[$logo] = get_string('conventionlogoinvalid', 'mod_stage');
+                }
+            }
+        }
+        return $errors;
     }
 }

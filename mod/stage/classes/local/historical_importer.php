@@ -442,11 +442,19 @@ class historical_importer {
         $xpath = new \DOMXPath($doc);
         $xpath->registerNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
         $rows = [];
+        // Les attributs de position (r) sont facultatifs dans le format : certains outils ne les
+        // écrivent pas. À défaut, lignes et cellules sont numérotées dans l'ordre du fichier, au lieu
+        // de toutes s'écraser sur la même position.
+        $rowindex = -1;
         foreach ($xpath->query('//x:sheetData/x:row') as $row) {
-            $rowindex = (int) $row->getAttribute('r') - 1;
+            $rowindex = $row->hasAttribute('r') ? (int) $row->getAttribute('r') - 1 : $rowindex + 1;
+            $col = -1;
             foreach ($xpath->query('./x:c', $row) as $cell) {
-                preg_match('/^[A-Z]+/', $cell->getAttribute('r'), $columnmatch);
-                $col = self::column_index($columnmatch[0] ?? 'A');
+                if (preg_match('/^[A-Z]+/', $cell->getAttribute('r'), $columnmatch)) {
+                    $col = self::column_index($columnmatch[0]);
+                } else {
+                    $col++;
+                }
                 $value = '';
                 $valuenode = $xpath->query('./x:v', $cell)->item(0);
                 if ($cell->getAttribute('t') === 'inlineStr') {
@@ -482,10 +490,15 @@ class historical_importer {
     /**
      * Charge un fragment XML du classeur, en refusant tout accès réseau.
      *
-     * @param string $content Contenu XML.
+     * @param string|false $content Contenu XML, ou false si la partie manque à l'archive.
      * @return \DOMDocument
      */
-    private static function xml(string $content): \DOMDocument {
+    private static function xml($content): \DOMDocument {
+        // Une partie absente (document Word renommé en .xlsx...) ou vide : loadXML('') lèverait
+        // une ValueError, que toutes les pages n'attrapent pas.
+        if (!is_string($content) || trim($content) === '') {
+            throw new \moodle_exception('historicalimportinvalidfile', 'mod_stage');
+        }
         $doc = new \DOMDocument();
         if (!$doc->loadXML($content, LIBXML_NONET | LIBXML_NOBLANKS)) {
             throw new \moodle_exception('historicalimportinvalidfile', 'mod_stage');

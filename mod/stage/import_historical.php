@@ -245,6 +245,11 @@ if (optional_param('confirmimport', 0, PARAM_INT) && confirm_sesskey()) {
                     $candidate->duration,
                     get_string('historicalimportcomment', 'mod_stage')
                 );
+                if (!empty($candidate->teacherid)) {
+                    // La validation DEVE n'écrit que ses propres champs : l'évaluateur, posé plus haut
+                    // sur l'objet, doit être enregistré à part, sans quoi il était perdu.
+                    stage_update_entry_fields($entry, ['teacherid', 'teachertime', 'teachereval']);
+                }
                 stage_set_entry_stagetype($entryid, $candidate->stagetype);
                 $created++;
             }
@@ -290,15 +295,13 @@ if (optional_param('mapthemes', 0, PARAM_INT) && confirm_sesskey()) {
 
 if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm_sesskey()) {
     import_preview::delete('historical', $stage->id);
-    $upload = $_FILES['xlsxfile'] ?? null;
     $epthemeid = optional_param('epthemeid', 0, PARAM_INT);
-    if (!$upload || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
-        $error = get_string('importerrorupload', 'mod_stage');
-    } else if (!$epthemeid || !isset($themes[$epthemeid])) {
+    [$uploadpath, $error] = stage_get_uploaded_file('xlsxfile');
+    if ($uploadpath && (!$epthemeid || !isset($themes[$epthemeid]))) {
         $error = get_string('historicalimportselecteptheme', 'mod_stage');
-    } else {
+    } else if ($uploadpath) {
         try {
-            $parsed = historical_importer::read($upload['tmp_name']);
+            $parsed = historical_importer::read($uploadpath);
             [$preview, $warnings, $unmatchedthemes] = $resolvepreview(
                 $parsed['records'],
                 $epthemeid,

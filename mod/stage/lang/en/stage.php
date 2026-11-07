@@ -118,6 +118,9 @@ $string['importcsv_help'] = 'Import a CSV file (saved from Excel via "Save As > 
 $string['importresult'] = '{$a} internship(s) successfully imported.';
 $string['importerrorupload'] = 'The file could not be uploaded. Check its size and try again.';
 $string['importerrorunknownemail'] = 'Line {$a->line}: no enrolled student with email "{$a->email}".';
+$string['importerrormissing'] = 'Line {$a}: student email or theme missing, line ignored.';
+$string['importerrormissingstudent'] = 'Line {$a}: student email missing, line ignored.';
+$string['importerrorduration'] = 'Line {$a->line}: duration "{$a->value}" is not a whole number of days, line ignored.';
 $string['importerrorunknowntheme'] = 'Line {$a->line}: theme "{$a->theme}" not found.';
 $string['importerrorduplicate'] = 'Line {$a->line}: "{$a->email}" already has an internship on theme "{$a->theme}" '
     . 'with these same dates, line skipped.';
@@ -499,6 +502,8 @@ $string['conventionsupervision'] = 'Supervision';
 $string['conventiontutor'] = 'Host organisation supervisor';
 $string['conventiontemplatemissing'] = 'The PDF file of the selected agreement template is missing. '
     . 'Upload it again from the agreement templates page before generating this agreement.';
+$string['conventiontemplateunreadable'] = 'This PDF cannot be read to assemble the agreement (compressed cross-reference table, PDF 1.5 or later, or encrypted file). Save it again as PDF 1.4, or print it to PDF, then upload it again.';
+$string['conventionlogoinvalid'] = 'The logo must be a PNG image.';
 $string['conventionfpdimissing'] = 'The FPDI library required to generate conventions '
     . '(mod/stage/thirdparty/vendor) could not be found on this site. Contact an administrator.';
 
@@ -748,6 +753,8 @@ $string['conventionremindernotifbody'] = "Hello {\$a->student},\n\nYour internsh
     . "possible:\n{\$a->url}";
 $string['taskconventionreminders'] = 'Send unsigned internship agreement reminders';
 $string['tutoremailinvalid'] = 'This tutor email address is invalid: the evaluation invitation cannot be sent. Correct it in the agreement details, then resend the invitation.';
+$string['tutoremailisstudent'] = 'The tutor email address is the student\'s own address: the evaluation invitation would be sent to the student. Check it before validating.';
+$string['tutoremailiscourseuser'] = 'The tutor email address belongs to {$a}, who is enrolled in this course: check that this person really is the tutor before validating.';
 $string['tutorrequestfailed'] = 'The automatic evaluation invitation could not be sent on {$a}. It will not be retried automatically: resend it manually.';
 $string['tasktutorevaluationrequests'] = 'Send workplace tutor evaluation invitations';
 $string['reportmode'] = 'Internship report';
@@ -875,6 +882,22 @@ $string['privacy:metadata:stage_entry:devecomment'] = 'The comment written by th
 $string['privacy:metadata:stage_entry:conventionstatus'] = 'The state of the internship agreement.';
 $string['privacy:metadata:stage_entry:cancelcomment'] = 'The reason given when the internship was cancelled.';
 $string['privacy:metadata:stage_entry:timecreated'] = 'When the internship was recorded.';
+$string['privacy:metadata:stage_entry:conventionrejectedby'] = 'The user who rejected the agreement request.';
+$string['privacy:metadata:stage_entry:conventionrejectcomment'] = 'The reason given for rejecting the agreement request.';
+$string['privacy:metadata:stage_entry:conventionteachervalidatedby'] = 'The referent teacher who validated the agreement request.';
+$string['privacy:metadata:stage_entry:conventioneditedby'] = 'The academic office member who edited the agreement.';
+$string['privacy:metadata:stage_entry:conventionsignedby'] = 'The academic office member who marked the agreement as signed.';
+$string['privacy:metadata:stage_entry:cancelledby'] = 'The academic office member who cancelled the internship.';
+$string['privacy:metadata:stage_entry:tutortoken'] = 'The access key sent to the tutor so that they can evaluate the internship without an account.';
+$string['privacy:metadata:stage_convention_detail:hostrepresentative'] = 'The name of the host organisation representative who signs the agreement.';
+$string['privacy:metadata:stage_convention_detail:hostrepresentativetitle'] = 'The position of the host organisation representative.';
+$string['privacy:metadata:stage_convention_detail:hostphone'] = 'The phone number of the host organisation.';
+$string['privacy:metadata:stage_convention_detail:hostemail'] = 'The email address of the host organisation.';
+$string['privacy:metadata:stage_convention_detail:hostaddress'] = 'The postal address of the host organisation.';
+$string['privacy:metadata:tutor_email'] = 'The tutor, who has no Moodle account, is invited by email to evaluate the internship.';
+$string['privacy:metadata:tutor_email:fullname'] = 'The full name of the student, given in the invitation.';
+$string['privacy:metadata:tutor_email:tutoremail'] = 'The email address of the tutor.';
+$string['privacy:metadata:tutor_email:url'] = 'The evaluation link, which carries the access key.';
 $string['privacy:metadata:stage_convention_detail'] = 'The details gathered to produce the internship agreement.';
 $string['privacy:metadata:stage_convention_detail:studentbirthdate'] = 'The student date of birth.';
 $string['privacy:metadata:stage_convention_detail:studentaddress'] = 'The student postal address.';
@@ -1072,6 +1095,7 @@ $string['exportratingoutoffive'] = 'Rating (out of 5)';
 
 // Events (Moodle logs).
 $string['evententrycreated'] = 'Internship registered';
+$string['evententryedited'] = 'Internship edited';
 $string['evententrystudentevaluated'] = 'Self-evaluation submitted';
 $string['evententryteacherevaluated'] = 'Internship evaluated by referent teacher';
 $string['evententrytutorevaluated'] = 'Internship evaluated by tutor';

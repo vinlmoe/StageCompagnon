@@ -94,12 +94,10 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
     core_php_time_limit::raise();
     raise_memory_limit(MEMORY_HUGE);
     import_preview::delete('global', $stage->id);
-    $upload = $_FILES['xlsxfile'] ?? null;
-    if (!$upload || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
-        $error = get_string('importerrorupload', 'mod_stage');
-    } else {
+    [$uploadpath, $error] = stage_get_uploaded_file('xlsxfile');
+    if ($uploadpath) {
         try {
-            $parsed = global_export_importer::read($upload['tmp_name']);
+            $parsed = global_export_importer::read($uploadpath);
             $students = [];
             foreach (stage_get_enrolled_students($context) as $student) {
                 $students[$normal($student->email)] = $student;

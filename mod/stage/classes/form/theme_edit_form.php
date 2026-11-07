@@ -84,6 +84,7 @@ class theme_edit_form extends \moodleform {
         $mform->addElement('text', 'name', get_string('theme', 'mod_stage'), ['size' => '64']);
         $mform->setType('name', PARAM_TEXT);
         $mform->addRule('name', null, 'required', null, 'client');
+        $mform->addRule('name', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
 
         $mform->addElement('textarea', 'description', get_string('description'), ['rows' => 3, 'cols' => 60]);
         $mform->setType('description', PARAM_TEXT);
