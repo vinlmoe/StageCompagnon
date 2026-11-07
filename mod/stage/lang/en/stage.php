@@ -562,7 +562,7 @@ $string['noreferentteacheryet'] = 'No referent teacher has been assigned to you 
     . 'Please contact the DEVE.';
 $string['conventionvalidatedpdferror'] = 'The request was validated, but PDF generation failed: {$a} You will be '
     . 'able to re-download the agreement from this list once the issue is resolved.';
-$string['conventionstatus_teacherpending'] = 'Awaiting referent teacher';
+$string['conventionstatus_teacherpending'] = 'Awaiting teacher validation';
 $string['conventionstatus_exempt'] = 'No convention';
 $string['exemptfromconvention'] = 'Exempt from convention';
 $string['exemptfromconvention_help'] = 'If checked, this internship does not require any convention: its convention status is set directly to "No convention" and the student\'s self-evaluation is immediately opened, without waiting for a request or a signature.';
@@ -575,7 +575,7 @@ $string['conventionteachervalidation'] = 'Agreement requests to validate';
 $string['conventionteachervalidate'] = 'Validate the request';
 $string['conventionteachervalidated'] = 'The agreement request has been validated and sent to the DEVE.';
 $string['conventionteacherpendingnotifsubject'] = 'Internship agreement to validate: {$a}';
-$string['conventionteacherpendingnotifbody'] = 'A student you supervise has submitted an agreement request for '
+$string['conventionteacherpendingnotifbody'] = 'A student you supervise, or doing an internship in a theme you are in charge of, has submitted an agreement request for '
     . "the internship \"{\$a->stage}\", awaiting your validation before it is sent to the DEVE:\n{\$a->url}";
 $string['noconventionteachervalidations'] = 'No agreement requests awaiting your validation.';
 $string['generalsettings'] = 'General settings';
@@ -695,7 +695,7 @@ $string['tutorevaluationenabled_help'] = "If enabled, the workplace tutor (the s
     . "self-assesses. Their answer is then displayed to the referent teacher and to the administration "
     . "office when they carry out their own evaluation.";
 $string['emailkeyselfeval'] = 'Self-assessment notification (to the referent teacher)';
-$string['emailkeyteacherpending'] = 'Agreement pending validation notification (to the referent teacher)';
+$string['emailkeyteacherpending'] = 'Agreement pending validation notification (to the validating teachers)';
 $string['emailkeystudentrejected'] = 'Agreement rejected notification (to the student)';
 $string['emailkeyconventionready'] = 'Agreement ready to download notification (to the student)';
 $string['conventionreadynotifsubject'] = 'Your internship agreement is available: {$a}';
@@ -1109,3 +1109,5 @@ $string['conventionvalidationline'] = '{$a->role}: {$a->state}';
 $string['privacy:metadata:stage_entry:conventionthemevalidatedby'] = 'The teacher in charge of the theme who validated the agreement request.';
 $string['privacy:metadata:stage_convention_detail:siret'] = 'The SIRET number of the host organisation.';
 $string['stageandconventionpending'] = 'The internship has been registered. The agreement request is waiting for your teachers\' validation before reaching the DEVE.';
+$string['conventionthemevalidatedby'] = 'Validated by the teacher in charge of the theme';
+$string['conventionthemevalidatetime'] = 'Theme teacher validation date';

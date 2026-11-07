@@ -132,7 +132,8 @@ class global_export_importer {
                     ['datestart', 'dateend', 'studentbirthdate', 'teachertime', 'tutortime', 'tutorrequesttime',
                         'conventionremindertime', 'devetime',
                         'canceltime', 'timecreated', 'timemodified', 'conventionrequesttime',
-                        'conventionteachervalidatetime', 'conventionedittime', 'conventionsigntime',
+                        'conventionteachervalidatetime', 'conventionthemevalidatetime', 'conventionedittime',
+                        'conventionsigntime',
                         'conventionrejecttime'] as $field
                 ) {
                     $record->$field = self::date($record->$field ?? '');
@@ -176,6 +177,8 @@ class global_export_importer {
             'conventionrequesttime' => 'conventionrequesttime',
             'conventionteachervalidatedby' => 'conventionteachervalidatedby',
             'conventionteachervalidatetime' => 'conventionteachervalidatetime',
+            'conventionthemevalidatedby' => 'conventionthemevalidatedby',
+            'conventionthemevalidatetime' => 'conventionthemevalidatetime',
             'conventioneditedby' => 'conventioneditedby', 'conventionedittime' => 'conventionedittime',
             'conventionsignedby' => 'conventionsignedby', 'conventionsigntime' => 'conventionsigntime',
             'conventionrejectedby' => 'conventionrejectedby', 'conventionrejecttime' => 'conventionrejecttime',
@@ -223,6 +226,8 @@ class global_export_importer {
             'conventionrequesttime' => ['date de demande de convention', 'agreement request date'],
             'conventionteachervalidatedby' => ['demande de convention validee par', 'agreement request validated by'],
             'conventionteachervalidatetime' => ['date de validation de la demande', 'agreement request validation date'],
+            'conventionthemevalidatedby' => ['demande validee par le responsable', 'request validated by theme teacher'],
+            'conventionthemevalidatetime' => ['date de validation du responsable', 'theme teacher validation date'],
             'conventioneditedby' => ['convention editee par', 'agreement edited by'],
             'conventionedittime' => ['date d edition de la convention', 'agreement editing date'],
             'conventionsignedby' => ['convention signee par', 'agreement signed by'],

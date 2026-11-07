@@ -237,6 +237,8 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     'conventionrequesttime' => $raw->conventionrequesttime ?? null,
                     'conventionteachervalidatedby' => $personid('conventionteachervalidatedby', 'conventionteachervalidatedby'),
                     'conventionteachervalidatetime' => $raw->conventionteachervalidatetime ?? null,
+                    'conventionthemevalidatedby' => $personid('conventionthemevalidatedby', 'conventionthemevalidatedby'),
+                    'conventionthemevalidatetime' => $raw->conventionthemevalidatetime ?? null,
                     'conventioneditedby' => $personid('conventioneditedby', 'conventioneditedby'),
                     'conventionedittime' => $raw->conventionedittime ?? null,
                     'conventionsignedby' => $personid('conventionsignedby', 'conventionsignedby'),
@@ -258,6 +260,11 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     'hasleave' => $yes($raw->hasleave ?? ''), 'leavedays' => (int) ($raw->leavedays ?? 0)];
                 foreach ($detailfields as $field) {
                     $detail[$field] = $raw->$field ?? '';
+                }
+                // SIRET tel qu'il est stocké : sans espaces, et seulement s'il est plausible.
+                $detail['siret'] = stage_normalize_siret($detail['siret']);
+                if ($detail['siret'] !== '' && !stage_siret_valid($detail['siret'])) {
+                    $detail['siret'] = '';
                 }
                 // Stage déjà enregistré qui pourrait être le même sous une autre forme (autre
                 // thématique aux mêmes dates, stage sans dates d'un suivi historique) : signalé, et

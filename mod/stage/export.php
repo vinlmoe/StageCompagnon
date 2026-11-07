@@ -196,7 +196,8 @@ $actorids = [];
 foreach ($entries as $entry) {
     foreach (
         [$entry->teacherid, $entry->deveuserid, $entry->cancelledby, $entry->conventionrejectedby,
-            $entry->conventionteachervalidatedby, $entry->conventioneditedby, $entry->conventionsignedby] as $actorid
+            $entry->conventionteachervalidatedby, $entry->conventionthemevalidatedby, $entry->conventioneditedby,
+            $entry->conventionsignedby] as $actorid
     ) {
         if (!empty($actorid)) {
             $actorids[(int) $actorid] = (int) $actorid;
@@ -271,6 +272,8 @@ $headers = [
     get_string('conventionrequesttime', 'mod_stage'),
     get_string('conventionteachervalidatedby', 'mod_stage'),
     get_string('conventionteachervalidatetime', 'mod_stage'),
+    get_string('conventionthemevalidatedby', 'mod_stage'),
+    get_string('conventionthemevalidatetime', 'mod_stage'),
     get_string('conventioneditedby', 'mod_stage'),
     get_string('conventionedittime', 'mod_stage'),
     get_string('conventionsignedby', 'mod_stage'),
@@ -396,6 +399,8 @@ foreach ($entries as $entry) {
     $writedate($sheet, $row, $col++, $entry->conventionrequesttime);
     $sheet->write_string($row, $col++, $actorname($entry->conventionteachervalidatedby));
     $writedate($sheet, $row, $col++, $entry->conventionteachervalidatetime);
+    $sheet->write_string($row, $col++, $actorname($entry->conventionthemevalidatedby));
+    $writedate($sheet, $row, $col++, $entry->conventionthemevalidatetime);
     $sheet->write_string($row, $col++, $actorname($entry->conventioneditedby));
     $writedate($sheet, $row, $col++, $entry->conventionedittime);
     $sheet->write_string($row, $col++, $actorname($entry->conventionsignedby));

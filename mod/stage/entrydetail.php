@@ -69,7 +69,8 @@ $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
 // refus de convention...), pour affichage de leur nom plutôt que de leur seul id.
 $refuserids = array_unique(array_filter([
     $entry->teacherid, $entry->deveuserid, $entry->cancelledby, $entry->conventionrejectedby,
-    $entry->conventionteachervalidatedby, $entry->conventioneditedby, $entry->conventionsignedby,
+    $entry->conventionteachervalidatedby, $entry->conventionthemevalidatedby, $entry->conventioneditedby,
+    $entry->conventionsignedby,
 ]));
 $refusers = $refuserids ? $DB->get_records_list('user', 'id', $refuserids) : [];
 $userlabel = function ($userid) use ($refusers) {
@@ -151,6 +152,9 @@ $conventionrows = [
     get_string('conventionvalidatedby', 'mod_stage') => !empty($entry->conventionteachervalidatedby)
         ? $userlabel($entry->conventionteachervalidatedby) . ' - '
             . userdate($entry->conventionteachervalidatetime, $datetimeformat) : null,
+    get_string('conventionthemevalidatedby', 'mod_stage') => !empty($entry->conventionthemevalidatedby)
+        ? $userlabel($entry->conventionthemevalidatedby) . ' - '
+            . userdate($entry->conventionthemevalidatetime, $datetimeformat) : null,
     get_string('conventioneditedby', 'mod_stage') => !empty($entry->conventioneditedby)
         ? $userlabel($entry->conventioneditedby) . ' - ' . userdate($entry->conventionedittime, $datetimeformat) : null,
     get_string('conventionsignedby', 'mod_stage') => !empty($entry->conventionsignedby)

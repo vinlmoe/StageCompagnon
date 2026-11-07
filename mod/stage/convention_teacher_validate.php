@@ -96,11 +96,16 @@ $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
 $periods = array_values(stage_get_or_seed_entry_periods($entry));
+// Le responsable de thématique qui n'est pas aussi le référent de l'étudiant valide sur la base du
+// stage, de l'organisme et du questionnaire : les coordonnées personnelles de l'étudiant, le choix
+// du référent et la case « convention papier » du référent ne le concernent pas.
+$asreferent = $isreferent;
 $mform = new convention_review_form($baseurl, [
     'referentteachers' => $referentteachers, 'periods' => $periods,
     // Propre à l'enseignant référent : la DEVE ne voit pas cette case (convention_review.php),
     // seulement son résultat combiné à celle de l'étudiant (voir stage_convention_paper_requested_info()).
-    'showpaperrequest' => true,
+    'showpaperrequest' => $asreferent,
+    'hidestudentdetails' => !$asreferent,
 ]);
 
 $detail = stage_get_convention_detail($entry->id);
@@ -124,12 +129,13 @@ if ($mform->is_cancelled()) {
     redirect($backurl);
 } else if ($data = $mform->get_data()) {
     $newdetail = new stdClass();
-    $newdetail->referentteacherid = $data->referentteacherid;
+    // Champs masqués au responsable de thématique : repris tels qu'enregistrés.
+    $newdetail->referentteacherid = $asreferent ? $data->referentteacherid : ($detail->referentteacherid ?? null);
     $newdetail->yearsituation = $data->yearsituation;
     $newdetail->stagetype = $data->stagetype;
-    $newdetail->studentbirthdate = $data->studentbirthdate ?: null;
-    $newdetail->studentaddress = $data->studentaddress;
-    $newdetail->studentphone = $data->studentphone;
+    $newdetail->studentbirthdate = $asreferent ? ($data->studentbirthdate ?: null) : ($detail->studentbirthdate ?? null);
+    $newdetail->studentaddress = $asreferent ? $data->studentaddress : ($detail->studentaddress ?? '');
+    $newdetail->studentphone = $asreferent ? $data->studentphone : ($detail->studentphone ?? '');
     $newdetail->hostaddress = $data->hostaddress;
     $newdetail->hostrepresentative = $data->hostrepresentative;
     $newdetail->hostrepresentativetitle = $data->hostrepresentativetitle;
@@ -155,7 +161,8 @@ if ($mform->is_cancelled()) {
     // reprise telle quelle depuis la demande initiale, plutôt que la case de l'enseignant référent
     // ci-dessous, propre à ce formulaire.
     $newdetail->paperrequestedbystudent = !empty($detail->paperrequestedbystudent) ? 1 : 0;
-    $newdetail->paperrequestedbyteacher = !empty($data->paperrequestedbyteacher) ? 1 : 0;
+    $newdetail->paperrequestedbyteacher = $asreferent
+        ? (!empty($data->paperrequestedbyteacher) ? 1 : 0) : (!empty($detail->paperrequestedbyteacher) ? 1 : 0);
     // Détail, plages et décision ensemble, et seulement si la demande attend toujours un référent :
     // l'autre enseignant référent de l'étudiant a pu la valider ou la refuser, ou la DEVE annuler
     // le stage, depuis l'ouverture du formulaire (voir stage_update_entry_if_convention()).

@@ -227,7 +227,11 @@ if ($tutorwarning !== null) {
     echo $OUTPUT->notification($tutorwarning, \core\output\notification::NOTIFY_WARNING);
 }
 
-// Questionnaire de demande et validations déjà données, sur lesquels la DEVE s'appuie aussi.
+// Validations données avant la DEVE et questionnaire de demande, sur lesquels elle s'appuie aussi.
+$validations = stage_render_convention_validation_status($stage, $entry);
+if ($validations !== '') {
+    echo $OUTPUT->box($validations, 'generalbox mb-3');
+}
 echo stage_render_request_answers($entry);
 
 $mform->display();

@@ -370,7 +370,7 @@ stage à l'étranger.
 ### Validation par l'enseignant référent ou le responsable de la thématique (optionnelle)
 
 Si l'option est activée, la demande passe d'abord au statut **En attente de
-l'enseignant référent** et n'est pas encore visible par la DEVE. Le paramètre
+validation enseignante** et n'est pas encore visible par la DEVE. Le paramètre
 **Qui valide la demande** fixe qui doit l'accepter : l'enseignant référent de
 l'étudiant (par défaut), un enseignant responsable de la thématique, ou les
 deux. Une thématique sans responsable désigné est validée par le référent.

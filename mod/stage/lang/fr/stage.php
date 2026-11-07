@@ -577,7 +577,7 @@ $string['noreferentteacheryet'] = "Aucun enseignant référent ne vous a encore 
     . 'Contactez la DEVE.';
 $string['conventionvalidatedpdferror'] = 'La demande a été validée, mais la génération du PDF a échoué : {$a} '
     . 'Vous pourrez retélécharger la convention depuis cette liste une fois le problème résolu.';
-$string['conventionstatus_teacherpending'] = "En attente de l'enseignant référent";
+$string['conventionstatus_teacherpending'] = 'En attente de validation enseignante';
 $string['conventionstatus_exempt'] = 'Sans convention';
 $string['exemptfromconvention'] = 'Dispenser de convention';
 $string['exemptfromconvention_help'] = "Si coché, ce stage ne nécessite aucune convention : son statut de convention passe directement à « Sans convention » et l'auto-évaluation de l'étudiant est immédiatement ouverte, sans attendre de demande ni de signature.";
@@ -590,7 +590,7 @@ $string['conventionteachervalidation'] = 'Demandes de convention à valider';
 $string['conventionteachervalidate'] = 'Valider la demande';
 $string['conventionteachervalidated'] = "La demande de convention a été validée et transmise à la DEVE.";
 $string['conventionteacherpendingnotifsubject'] = 'Convention de stage à valider : {$a}';
-$string['conventionteacherpendingnotifbody'] = 'Un.e étudiant.e que vous encadrez a soumis une demande de '
+$string['conventionteacherpendingnotifbody'] = 'Un.e étudiant.e que vous encadrez, ou en stage sur une thématique dont vous êtes responsable, a soumis une demande de '
     . "convention pour le stage \"{\$a->stage}\", qui attend votre validation avant transmission à la DEVE :\n"
     . "{\$a->url}";
 $string['noconventionteachervalidations'] = "Aucune demande de convention en attente de votre validation.";
@@ -710,7 +710,7 @@ $string['tutorevaluationenabled_help'] = "Si activé, le maître de stage (encad
     . "d'évaluation défini pour la thématique du stage, dès que l'étudiant s'auto-évalue. Sa réponse est "
     . "ensuite affichée à l'enseignant référent et à la DEVE au moment de leur propre évaluation.";
 $string['emailkeyselfeval'] = "Notification d'auto-évaluation (à l'enseignant référent)";
-$string['emailkeyteacherpending'] = "Notification de convention à valider (à l'enseignant référent)";
+$string['emailkeyteacherpending'] = 'Notification de convention à valider (aux enseignants qui valident)';
 $string['emailkeystudentrejected'] = "Notification de convention refusée (à l'étudiant)";
 $string['emailkeyconventionready'] = "Notification de convention prête à télécharger (à l'étudiant)";
 $string['conventionreadynotifsubject'] = 'Votre convention de stage est disponible : {$a}';
@@ -1130,3 +1130,5 @@ $string['conventionvalidationline'] = '{$a->role} : {$a->state}';
 $string['privacy:metadata:stage_entry:conventionthemevalidatedby'] = 'L\'enseignant responsable de la thématique qui a validé la demande de convention.';
 $string['privacy:metadata:stage_convention_detail:siret'] = 'Le numéro SIRET de l\'organisme d\'accueil.';
 $string['stageandconventionpending'] = 'Le stage est enregistré. La demande de convention attend la validation de vos enseignants avant d\'arriver à la DEVE.';
+$string['conventionthemevalidatedby'] = 'Validée par l\'enseignant.e responsable de la thématique';
+$string['conventionthemevalidatetime'] = 'Date de validation du responsable de thématique';

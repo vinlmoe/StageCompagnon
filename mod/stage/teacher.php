@@ -43,6 +43,9 @@ $stage = $DB->get_record('stage', ['id' => $cm->instance], '*', MUST_EXIST);
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/stage:evaluateteacher', $context);
+// Un responsable de thématique désinscrit ne valide plus : une demande qui n'attendait que lui
+// passe à la DEVE (voir stage_release_pending_conventions()).
+stage_release_pending_conventions($stage);
 
 $baseurl = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id]);
 $PAGE->set_url($baseurl);

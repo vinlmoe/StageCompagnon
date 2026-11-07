@@ -291,6 +291,7 @@ function stage_save_convention_teacher_validation_setting($stageid, $require, $v
             ? $validator : STAGE_CONVENTION_VALIDATOR_REFERENT;
     }
     $DB->update_record('stage', $record);
+    stage_release_pending_conventions($DB->get_record('stage', ['id' => $stageid], '*', MUST_EXIST));
 }
 
 /**
@@ -4682,7 +4683,7 @@ function stage_progress_table_head() {
  * @return string HTML des boutons d'action, chaîne vide s'il n'y en a aucun.
  */
 function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, context $context, stdClass $rights) {
-    global $PAGE;
+    global $DB, $PAGE, $USER;
 
     $status = (int) $entry->status;
     $conventionstatus = (int) $entry->conventionstatus;
@@ -4698,7 +4699,13 @@ function stage_render_entry_management_actions(stdClass $entry, stdClass $cm, co
                 ? new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id,
                     'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('conventionteachervalidate', 'mod_stage') =>
-            $rights->assignedteacher && $conventionstatus === STAGE_CONVENTION_TEACHERPENDING
+            $conventionstatus === STAGE_CONVENTION_TEACHERPENDING
+                && stage_convention_user_validations(
+                    $DB->get_record('stage', ['id' => $entry->stageid], '*', MUST_EXIST),
+                    $entry,
+                    $context,
+                    $USER->id
+                ) !== []
                 ? new moodle_url('/mod/stage/convention_teacher_validate.php', ['id' => $cm->id, 'entryid' => $entry->id,
                     'returnurl' => $PAGE->url->out_as_local_url(false)]) : null,
         get_string('requestconvention', 'mod_stage') =>
@@ -5470,7 +5477,7 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
         // retenues, et une question cible ne reçoit jamais deux réponses d'un même stage (l'index
         // unique entryid-questionid ferait échouer le transfert).
         $usedtargets = [];
-        foreach (['student', 'teacher', 'tutor'] as $evaltype) {
+        foreach (array_keys(stage_evallist_fields()) as $evaltype) {
             $targetquestions = [];
             foreach (stage_get_questions($targetthemeid, $evaltype) as $targetquestion) {
                 $targetquestions[stage_normalize_name($targetquestion->name)][] = $targetquestion->id;
@@ -6373,8 +6380,8 @@ function stage_normalize_siret($raw) {
 
 /**
  * Vrai si un numéro SIRET (normalisé) est plausible : 14 chiffres dont la clé de Luhn est juste.
- * Les établissements de La Poste (SIREN 356000000) font exception : la somme de leurs chiffres
- * est un multiple de 5.
+ * Les établissements de La Poste (SIREN 356000000) peuvent faire exception : la somme de leurs
+ * chiffres est alors un multiple de 5 (le siège, lui, suit la clé de Luhn).
  *
  * @param string $siret
  * @return bool
@@ -6383,15 +6390,15 @@ function stage_siret_valid($siret) {
     if (!preg_match('/^\d{14}$/', $siret)) {
         return false;
     }
-    if (strpos($siret, '356000000') === 0) {
-        return array_sum(str_split($siret)) % 5 === 0;
-    }
     $sum = 0;
     foreach (str_split(strrev($siret)) as $index => $digit) {
         $value = (int) $digit * ($index % 2 === 1 ? 2 : 1);
         $sum += $value > 9 ? $value - 9 : $value;
     }
-    return $sum % 10 === 0;
+    if ($sum % 10 === 0) {
+        return true;
+    }
+    return strpos($siret, '356000000') === 0 && array_sum(str_split($siret)) % 5 === 0;
 }
 
 /**
@@ -6550,11 +6557,65 @@ function stage_teacher_validate_convention(stdClass $entry, $byuserid, ?array $f
 }
 
 /**
+ * Responsables d'une thématique qui peuvent encore agir dans l'activité : compte actif et capacité
+ * mod/stage:evaluateteacher (voir stage_is_theme_teacher()). Un responsable désinscrit reste dans
+ * stage_theme_teacher, mais ne doit ni être attendu pour une validation ni recevoir de courriel.
+ *
+ * @param stdClass $stage
+ * @param int $themeid
+ * @return array userid => utilisateur (champs de nom)
+ */
+function stage_get_active_theme_teachers(stdClass $stage, $themeid) {
+    $cm = get_coursemodule_from_instance('stage', $stage->id, 0, false, IGNORE_MISSING);
+    if (!$cm) {
+        return [];
+    }
+    $context = context_module::instance($cm->id);
+    return array_filter(
+        stage_get_theme_teachers($themeid),
+        fn($teacher) => has_capability('mod/stage:evaluateteacher', $context, $teacher->id)
+    );
+}
+
+/**
+ * Transmet à la DEVE les demandes de convention de l'activité qui n'attendent plus aucune
+ * validation : après un changement du paramètre « Qui valide la demande » ou des responsables
+ * d'une thématique, une demande déjà validée par le seul enseignant encore exigé resterait sinon en
+ * attente, sans que personne ne puisse plus agir.
+ *
+ * @param stdClass $stage
+ * @return int Nombre de demandes transmises.
+ */
+function stage_release_pending_conventions(stdClass $stage) {
+    global $DB;
+
+    $released = 0;
+    $pending = $DB->get_records_select(
+        'stage_entry',
+        'stageid = :stageid AND conventionstatus = :pending AND status <> :cancelled',
+        ['stageid' => $stage->id, 'pending' => STAGE_CONVENTION_TEACHERPENDING, 'cancelled' => STAGE_STATUS_ANNULE]
+    );
+    foreach ($pending as $entry) {
+        $hasvalidation = !empty($entry->conventionteachervalidatedby) || !empty($entry->conventionthemevalidatedby);
+        if (!$hasvalidation || stage_convention_missing_validations($stage, $entry)) {
+            continue;
+        }
+        $entry->conventionstatus = STAGE_CONVENTION_REQUESTED;
+        $entry->timemodified = time();
+        if (stage_update_entry_if_convention($entry, ['conventionstatus', 'timemodified'], [STAGE_CONVENTION_TEACHERPENDING])) {
+            $released++;
+        }
+    }
+    return $released;
+}
+
+/**
  * Rôles dont la validation est exigée pour une demande de convention en attente
  * (STAGE_CONVENTION_TEACHERPENDING), selon le paramètre de l'activité (stage->conventionvalidator).
  *
- * Une thématique sans responsable désigné ne peut pas être validée par lui : c'est alors le
- * référent qui valide, pour que la demande ne reste pas bloquée.
+ * Une thématique sans responsable en mesure de valider (aucun désigné, ou plus aucun qui ait la
+ * capacité dans l'activité, après une désinscription par exemple) ne peut pas être validée par
+ * lui : c'est alors le référent qui valide, pour que la demande ne reste pas bloquée.
  *
  * @param stdClass $stage
  * @param stdClass $entry
@@ -6567,7 +6628,7 @@ function stage_convention_required_validators(stdClass $stage, stdClass $entry) 
         $roles[] = STAGE_CONVENTION_VALIDATOR_REFERENT;
     }
     if ($validator === STAGE_CONVENTION_VALIDATOR_THEMETEACHER || $validator === STAGE_CONVENTION_VALIDATOR_BOTH) {
-        if (stage_get_theme_teachers($entry->themeid)) {
+        if (stage_get_active_theme_teachers($stage, $entry->themeid)) {
             $roles[] = STAGE_CONVENTION_VALIDATOR_THEMETEACHER;
         } else if (!in_array(STAGE_CONVENTION_VALIDATOR_REFERENT, $roles, true)) {
             $roles[] = STAGE_CONVENTION_VALIDATOR_REFERENT;
@@ -6737,7 +6798,7 @@ function stage_notify_teacher_convention_pending(stdClass $stage, stdClass $cm, 
         $teachers += stage_get_student_teachers($stage->id, $entry->userid);
     }
     if (in_array(STAGE_CONVENTION_VALIDATOR_THEMETEACHER, $roles, true)) {
-        foreach (array_keys(stage_get_theme_teachers($entry->themeid)) as $teacherid) {
+        foreach (array_keys(stage_get_active_theme_teachers($stage, $entry->themeid)) as $teacherid) {
             if (!isset($teachers[$teacherid]) && ($teacher = core_user::get_user($teacherid))) {
                 $teachers[$teacherid] = $teacher;
             }
@@ -8425,6 +8486,15 @@ function stage_set_theme_teachers($themeid, array $teacherids) {
             'teacherid' => $teacherid,
             'timecreated' => time(),
         ]);
+    }
+
+    // Une demande qui n'attendait plus que la validation d'un responsable retiré passe à la DEVE.
+    $stage = $DB->get_record_sql(
+        'SELECT s.* FROM {stage} s JOIN {stage_theme} t ON t.stageid = s.id WHERE t.id = :themeid',
+        ['themeid' => $themeid]
+    );
+    if ($stage) {
+        stage_release_pending_conventions($stage);
     }
 }
 

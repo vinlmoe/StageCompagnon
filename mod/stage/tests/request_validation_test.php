@@ -40,6 +40,8 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @covers     ::stage_save_request_answers
  * @covers     ::stage_render_request_answers
  * @covers     ::stage_render_convention_validation_status
+ * @covers     ::stage_release_pending_conventions
+ * @covers     ::stage_get_active_theme_teachers
  */
 final class request_validation_test extends \advanced_testcase {
     /**
@@ -196,6 +198,8 @@ final class request_validation_test extends \advanced_testcase {
         $this->assertFalse(stage_siret_valid('7328293200007'));
         $this->assertFalse(stage_siret_valid('7328293200007A'));
         $this->assertTrue(stage_siret_valid('35600000000001'));
+        // Siège de La Poste : clé de Luhn juste, somme des chiffres non multiple de 5.
+        $this->assertTrue(stage_siret_valid('35600000000048'));
         $this->assertSame([], stage_validate_siret_field(['siret' => '']));
         $this->assertArrayHasKey('siret', stage_validate_siret_field(['siret' => '12345678901234']));
     }
@@ -269,5 +273,39 @@ final class request_validation_test extends \advanced_testcase {
         $DB->set_field('stage_entry', 'conventionstatus', STAGE_CONVENTION_REJECTED, ['id' => $entry->id]);
         stage_request_convention($DB->get_record('stage_entry', ['id' => $entry->id]), $entry->conventiontemplateid, true);
         $this->assertNull($DB->get_field('stage_entry', 'conventionthemevalidatedby', ['id' => $entry->id]));
+    }
+
+    /**
+     * Le paramètre passe de « les deux » à « référent » après la validation du référent : la
+     * demande, qui n'attend plus rien, est transmise à la DEVE au lieu de rester bloquée.
+     */
+    public function test_setting_change_releases_pending_request(): void {
+        global $DB;
+        [$stage, , , $referent, , , $entry] = $this->fixture(STAGE_CONVENTION_VALIDATOR_BOTH);
+        $this->assertSame('pending', stage_validate_convention_request($stage, $entry, $referent->id, ['referent']));
+
+        stage_save_convention_teacher_validation_setting($stage->id, true, STAGE_CONVENTION_VALIDATOR_REFERENT);
+
+        $this->assertEquals(STAGE_CONVENTION_REQUESTED, $DB->get_field('stage_entry', 'conventionstatus', ['id' => $entry->id]));
+    }
+
+    /**
+     * Un responsable de thématique qui n'a plus la capacité (désinscrit) n'est plus attendu : le
+     * référent valide à sa place, et une demande qui n'attendait que lui part à la DEVE.
+     */
+    public function test_inactive_theme_teacher_is_not_waited_for(): void {
+        global $DB;
+        [$stage, , , $referent, $themeteacher, $theme, $entry] = $this->fixture(STAGE_CONVENTION_VALIDATOR_BOTH);
+        $this->assertSame('pending', stage_validate_convention_request($stage, $entry, $referent->id, ['referent']));
+
+        $instance = $DB->get_record('enrol', ['courseid' => $stage->course, 'enrol' => 'manual'], '*', MUST_EXIST);
+        enrol_get_plugin('manual')->unenrol_user($instance, $themeteacher->id);
+        accesslib_clear_all_caches_for_unit_testing();
+
+        $this->assertSame([], stage_get_active_theme_teachers($stage, $theme->id));
+        $fresh = $DB->get_record('stage_entry', ['id' => $entry->id]);
+        $this->assertSame(['referent'], stage_convention_required_validators($stage, $fresh));
+        $this->assertSame(1, stage_release_pending_conventions($stage));
+        $this->assertEquals(STAGE_CONVENTION_REQUESTED, $DB->get_field('stage_entry', 'conventionstatus', ['id' => $entry->id]));
     }
 }

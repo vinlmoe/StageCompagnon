@@ -55,16 +55,21 @@ class convention_review_form extends \moodleform {
         $mform->addElement('hidden', 'entryid');
         $mform->setType('entryid', PARAM_INT);
 
-        $referentoptions = [];
-        foreach ($referentteachers as $teacher) {
-            $referentoptions[$teacher->id] = fullname($teacher);
+        // Le responsable de thématique qui valide sans être référent ne voit ni ne modifie les
+        // coordonnées personnelles de l'étudiant, ni le choix du référent (voir entrydetail.php).
+        $hidestudent = !empty($this->_customdata['hidestudentdetails']);
+        if (!$hidestudent) {
+            $referentoptions = [];
+            foreach ($referentteachers as $teacher) {
+                $referentoptions[$teacher->id] = fullname($teacher);
+            }
+            $mform->addElement(
+                'select',
+                'referentteacherid',
+                get_string('conventionreferentteacher', 'mod_stage'),
+                $referentoptions
+            );
         }
-        $mform->addElement(
-            'select',
-            'referentteacherid',
-            get_string('conventionreferentteacher', 'mod_stage'),
-            $referentoptions
-        );
 
         $mform->addElement(
             'select',
@@ -83,18 +88,20 @@ class convention_review_form extends \moodleform {
         // modifiables ici par la DEVE et l'enseignant référent (voir stage_add_period_fields()).
         stage_add_period_fields($this, $mform, count($this->_customdata['periods'] ?? []));
 
-        $mform->addElement('header', 'studentheader', get_string('conventionstudent', 'mod_stage'));
-        $mform->setExpanded('studentheader');
-        $mform->addElement('date_selector', 'studentbirthdate', get_string('conventionbirthdate', 'mod_stage'));
-        $mform->addElement(
-            'text',
-            'studentaddress',
-            get_string('conventionstudentaddress', 'mod_stage'),
-            ['size' => '64']
-        );
-        $mform->setType('studentaddress', PARAM_TEXT);
-        $mform->addElement('text', 'studentphone', get_string('conventionstudentphone', 'mod_stage'));
-        $mform->setType('studentphone', PARAM_TEXT);
+        if (!$hidestudent) {
+            $mform->addElement('header', 'studentheader', get_string('conventionstudent', 'mod_stage'));
+            $mform->setExpanded('studentheader');
+            $mform->addElement('date_selector', 'studentbirthdate', get_string('conventionbirthdate', 'mod_stage'));
+            $mform->addElement(
+                'text',
+                'studentaddress',
+                get_string('conventionstudentaddress', 'mod_stage'),
+                ['size' => '64']
+            );
+            $mform->setType('studentaddress', PARAM_TEXT);
+            $mform->addElement('text', 'studentphone', get_string('conventionstudentphone', 'mod_stage'));
+            $mform->setType('studentphone', PARAM_TEXT);
+        }
 
         $mform->addElement('header', 'hostheader', get_string('conventionhoststructure', 'mod_stage'));
         $mform->setExpanded('hostheader');
@@ -221,6 +228,8 @@ class convention_review_form extends \moodleform {
      */
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
+        // Un SIRET invalide n'est enregistré par aucune action, refus compris.
+        $errors += stage_validate_siret_field($data);
 
         if (!empty($data['validateconvention'])) {
             // Les plages de dates conditionnent les dates du stage et sa convention : elles sont
@@ -235,11 +244,15 @@ class convention_review_form extends \moodleform {
                 $errors[stage_period_error_field($data)] = $perioderror;
             }
             foreach (self::REQUIRED_FIELDS as $field) {
+                // Champ absent du formulaire (masqué au responsable de thématique) : il garde sa
+                // valeur enregistrée, contrôlée par ceux qui le voient.
+                if (!array_key_exists($field, $data)) {
+                    continue;
+                }
                 if ($data[$field] === '' || $data[$field] === null) {
                     $errors[$field] = get_string('required');
                 }
             }
-            $errors += stage_validate_siret_field($data);
         } else if (!empty($data['rejectconvention'])) {
             if (trim((string) $data['rejectcomment']) === '') {
                 $errors['rejectcomment'] = get_string('required');
