@@ -1190,5 +1190,68 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026103101, 'stage');
     }
 
+    if ($oldversion < 2026110700) {
+        // Questionnaire de demande de stage par thématique, SIRET de l'organisme d'accueil, et
+        // validation de la demande par le responsable de la thématique et/ou le référent.
+        $table = new xmldb_table('stage');
+        $field = new xmldb_field(
+            'conventionvalidator',
+            XMLDB_TYPE_CHAR,
+            '20',
+            null,
+            XMLDB_NOTNULL,
+            null,
+            'referent',
+            'conventionrequireteachervalidation'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $table = new xmldb_table('stage_theme');
+        $field = new xmldb_field('requestlistid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'tutorlistid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $table = new xmldb_table('stage_entry');
+        $field = new xmldb_field(
+            'conventionthemevalidatedby',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionteachervalidatetime'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $field = new xmldb_field(
+            'conventionthemevalidatetime',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'conventionthemevalidatedby'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $key = new xmldb_key('conventionthemevalidatedby', XMLDB_KEY_FOREIGN, ['conventionthemevalidatedby'], 'user', ['id']);
+        $dbman->add_key($table, $key);
+
+        $table = new xmldb_table('stage_convention_detail');
+        $field = new xmldb_field('siret', XMLDB_TYPE_CHAR, '14', null, null, null, null, 'gratificationamount');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026110700, 'stage');
+    }
+
     return true;
 }

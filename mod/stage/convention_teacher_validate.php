@@ -47,8 +47,14 @@ $context = context_module::instance($cm->id);
 require_capability('mod/stage:evaluateteacher', $context);
 
 $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
-$assignedids = array_keys(stage_get_assigned_students($stage->id, $USER->id));
-if (!in_array((int) $entry->userid, $assignedids, true)) {
+// Peut décider de la demande l'enseignant référent de l'étudiant ou le responsable de la thématique,
+// selon ce que l'activité exige (voir stage_convention_required_validators()).
+$isreferent = array_key_exists((int) $entry->userid, stage_get_assigned_students($stage->id, $USER->id));
+$isthemeteacher = stage_is_theme_teacher($entry->themeid, $USER->id);
+$requiredroles = stage_convention_required_validators($stage, $entry);
+$canact = ($isreferent && in_array(STAGE_CONVENTION_VALIDATOR_REFERENT, $requiredroles, true))
+    || ($isthemeteacher && in_array(STAGE_CONVENTION_VALIDATOR_THEMETEACHER, $requiredroles, true));
+if (!$canact) {
     throw new moodle_exception('nopermissions', 'error', '', get_string('conventionteachervalidation', 'mod_stage'));
 }
 
@@ -67,6 +73,12 @@ if ((int) $entry->conventionstatus !== STAGE_CONVENTION_TEACHERPENDING) {
 // Un stage annulé ne poursuit pas le circuit de sa convention : il doit d'abord être réinitialisé.
 if ((int) $entry->status === STAGE_STATUS_ANNULE) {
     redirect($backurl, get_string('conventionentrycancelled', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
+}
+// Validations que l'utilisateur peut encore donner : celle qu'il a déjà donnée ne se redonne pas,
+// et la demande attend alors seulement l'autre validation.
+$myroles = stage_convention_user_validations($stage, $entry, $context, $USER->id);
+if (!$myroles) {
+    redirect($backurl, get_string('conventionvalidationalreadygiven', 'mod_stage'), null, \core\output\notification::NOTIFY_INFO);
 }
 
 $referentteachers = stage_get_student_teachers($stage->id, $entry->userid);
@@ -138,6 +150,7 @@ if ($mform->is_cancelled()) {
     $newdetail->leavedays = $newdetail->hasleave ? $data->leavedays : null;
     $newdetail->leavemodalities = $newdetail->hasleave ? $data->leavemodalities : '';
     $newdetail->gratificationamount = $data->gratificationamount;
+    $newdetail->siret = stage_normalize_siret($data->siret ?? '') ?: null;
     // La case de l'étudiant n'est pas éditable ici (voir convention_review_form) : sa valeur est
     // reprise telle quelle depuis la demande initiale, plutôt que la case de l'enseignant référent
     // ci-dessous, propre à ce formulaire.
@@ -147,10 +160,12 @@ if ($mform->is_cancelled()) {
     // l'autre enseignant référent de l'étudiant a pu la valider ou la refuser, ou la DEVE annuler
     // le stage, depuis l'ouverture du formulaire (voir stage_update_entry_if_convention()).
     $teacherid = $USER->id;
-    $applied = stage_run_entry_transition(function () use ($entry, $newdetail, $data, $teacherid) {
+    $outcome = null;
+    $transition = function () use ($stage, $entry, $newdetail, $data, $teacherid, $myroles, &$outcome) {
         $from = [STAGE_CONVENTION_TEACHERPENDING];
         if (!empty($data->validateconvention)) {
-            $applied = stage_teacher_validate_convention($entry, $teacherid, $from);
+            $outcome = stage_validate_convention_request($stage, $entry, $teacherid, $myroles);
+            $applied = $outcome !== false;
         } else if (!empty($data->rejectconvention)) {
             $applied = stage_reject_convention($entry, $teacherid, $data->rejectcomment, $from);
         } else {
@@ -161,7 +176,8 @@ if ($mform->is_cancelled()) {
             stage_save_entry_periods($entry->id, stage_extract_submitted_periods($data));
         }
         return $applied;
-    });
+    };
+    $applied = stage_run_entry_transition($transition);
     if (!$applied) {
         redirect($backurl, get_string('errorentrychanged', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
     }
@@ -169,7 +185,7 @@ if ($mform->is_cancelled()) {
     if (!empty($data->validateconvention)) {
         redirect(
             $backurl,
-            get_string('conventionteachervalidated', 'mod_stage'),
+            get_string($outcome === 'requested' ? 'conventionteachervalidated' : 'conventionvalidationpending', 'mod_stage'),
             null,
             \core\output\notification::NOTIFY_SUCCESS
         );
@@ -195,6 +211,15 @@ $tutorwarning = stage_tutor_email_warning($context, $student, $detail->tutoremai
 if ($tutorwarning !== null) {
     echo $OUTPUT->notification($tutorwarning, \core\output\notification::NOTIFY_WARNING);
 }
+
+// Où en est la demande quand deux validations sont exigées : celle déjà donnée, celle qu'il donne.
+$validations = stage_render_convention_validation_status($stage, $entry);
+if ($validations !== '') {
+    echo $OUTPUT->box($validations, 'generalbox mb-3');
+}
+// Questionnaire de demande : les informations complémentaires sur lesquelles se fonde la décision,
+// avec celles de la convention ci-dessous.
+echo stage_render_request_answers($entry);
 
 $mform->display();
 

@@ -120,6 +120,7 @@ class convention_review_form extends \moodleform {
         $mform->setType('hostphone', PARAM_TEXT);
         $mform->addElement('text', 'hostemail', get_string('conventionhostemail', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostemail', PARAM_TEXT);
+        stage_add_siret_field($mform);
         $mform->addElement('text', 'hostlocation', get_string('conventionhostlocation', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostlocation', PARAM_TEXT);
         $mform->addHelpButton('hostlocation', 'conventionhostlocation', 'mod_stage');
@@ -238,6 +239,7 @@ class convention_review_form extends \moodleform {
                     $errors[$field] = get_string('required');
                 }
             }
+            $errors += stage_validate_siret_field($data);
         } else if (!empty($data['rejectconvention'])) {
             if (trim((string) $data['rejectcomment']) === '') {
                 $errors['rejectcomment'] = get_string('required');

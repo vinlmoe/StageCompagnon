@@ -113,6 +113,7 @@ if ($theme) {
     foreach (
         ['name', 'description', 'mandatory', 'requiredduration', 'minstudyyear', 'maxstudyyear', 'sortorder',
             'visible', 'tutorevaluationenabled', 'reportmode', 'studentlistid', 'teacherlistid', 'tutorlistid',
+            'requestlistid',
         ] as $field
     ) {
         $formdata[$field] = $theme->$field;

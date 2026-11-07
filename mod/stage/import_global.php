@@ -247,7 +247,8 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                 ];
                 $detailfields = ['studentaddress', 'studentphone', 'hostaddress', 'hostrepresentative',
                     'hostrepresentativetitle', 'hostservice', 'hostphone', 'hostemail', 'hostlocation', 'tutorname',
-                    'tutorfunction', 'tutorphone', 'tutoremail', 'othermodality', 'gratificationamount', 'leavemodalities'];
+                    'tutorfunction', 'tutorphone', 'tutoremail', 'othermodality', 'gratificationamount', 'leavemodalities',
+                    'siret'];
                 $detail = ['stagetype' => $choose($raw, 'stagetype', 'conventionstagetype', $stagetypeoptions, 'obligatoire'),
                     'yearsituation' => $choose($raw, 'yearsituation', 'conventionyearsituation', $yearsituationoptions, 'normal'),
                     'studentbirthdate' => $raw->studentbirthdate ?? null,

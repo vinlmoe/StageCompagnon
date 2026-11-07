@@ -275,16 +275,35 @@ function stage_convention_requires_teacher_validation(stdClass $stage) {
  *
  * @param int $stageid
  * @param bool $require
+ * @param string|null $validator Qui valide (STAGE_CONVENTION_VALIDATOR_*), null pour ne pas changer.
  * @return void
  */
-function stage_save_convention_teacher_validation_setting($stageid, $require) {
+function stage_save_convention_teacher_validation_setting($stageid, $require, $validator = null) {
     global $DB;
 
-    $DB->update_record('stage', (object) [
+    $record = (object) [
         'id' => $stageid,
         'conventionrequireteachervalidation' => $require ? 1 : 0,
         'timemodified' => time(),
-    ]);
+    ];
+    if ($validator !== null) {
+        $record->conventionvalidator = array_key_exists($validator, stage_convention_validator_options())
+            ? $validator : STAGE_CONVENTION_VALIDATOR_REFERENT;
+    }
+    $DB->update_record('stage', $record);
+}
+
+/**
+ * Choix proposés pour la validation de la demande de convention avant la DEVE.
+ *
+ * @return array code => libellé
+ */
+function stage_convention_validator_options() {
+    return [
+        STAGE_CONVENTION_VALIDATOR_REFERENT => get_string('conventionvalidator_referent', 'mod_stage'),
+        STAGE_CONVENTION_VALIDATOR_THEMETEACHER => get_string('conventionvalidator_themeteacher', 'mod_stage'),
+        STAGE_CONVENTION_VALIDATOR_BOTH => get_string('conventionvalidator_both', 'mod_stage'),
+    ];
 }
 
 /**
@@ -3200,7 +3219,7 @@ function stage_render_evaluation_text($text, $format = FORMAT_PLAIN) {
  * @return array evaltype => nom du champ de stage_theme
  */
 function stage_evallist_fields() {
-    return ['student' => 'studentlistid', 'teacher' => 'teacherlistid', 'tutor' => 'tutorlistid'];
+    return ['student' => 'studentlistid', 'teacher' => 'teacherlistid', 'tutor' => 'tutorlistid', 'request' => 'requestlistid'];
 }
 
 /**
@@ -6109,9 +6128,10 @@ function stage_convention_entries_where($stageid, $search) {
 }
 
 /**
- * Liste les demandes de convention en attente de validation par un enseignant.e référent.e
- * donné.e (voir stage_convention_requires_teacher_validation()), pour ses seuls étudiants
- * attribués.
+ * Liste les demandes de convention qui attendent la validation d'un enseignant donné : comme
+ * référent de ses étudiants attribués, ou comme responsable de la thématique du stage, selon ce que
+ * l'activité exige (voir stage_convention_required_validators()). Une demande qu'il a déjà validée
+ * à ce titre, et qui attend seulement l'autre validation, n'y figure plus.
  *
  * @param int $stageid
  * @param int $teacherid
@@ -6120,22 +6140,41 @@ function stage_convention_entries_where($stageid, $search) {
 function stage_get_teacher_pending_convention_entries($stageid, $teacherid) {
     global $DB;
 
+    $cm = get_coursemodule_from_instance('stage', $stageid, 0, false, IGNORE_MISSING);
+    if (!$cm) {
+        return [];
+    }
+    $context = context_module::instance($cm->id);
+    $stage = $DB->get_record('stage', ['id' => $stageid], '*', MUST_EXIST);
     $assignedids = array_keys(stage_get_assigned_students($stageid, $teacherid));
-    if (empty($assignedids)) {
+    $themeids = array_keys(stage_get_teacher_themes($stageid, $teacherid));
+    if (empty($assignedids) && empty($themeids)) {
         return [];
     }
 
-    [$insql, $inparams] = $DB->get_in_or_equal($assignedids, SQL_PARAMS_NAMED, 'stud');
-    $params = array_merge($inparams, [
-        'stageid' => $stageid, 'pending' => STAGE_CONVENTION_TEACHERPENDING, 'cancelled' => STAGE_STATUS_ANNULE,
-    ]);
+    $params = ['stageid' => $stageid, 'pending' => STAGE_CONVENTION_TEACHERPENDING, 'cancelled' => STAGE_STATUS_ANNULE];
+    $scope = [];
+    if ($assignedids) {
+        [$insql, $inparams] = $DB->get_in_or_equal($assignedids, SQL_PARAMS_NAMED, 'stud');
+        $scope[] = "userid $insql";
+        $params += $inparams;
+    }
+    if ($themeids) {
+        [$insql, $inparams] = $DB->get_in_or_equal($themeids, SQL_PARAMS_NAMED, 'theme');
+        $scope[] = "themeid $insql";
+        $params += $inparams;
+    }
 
     // Un stage annulé n'attend plus la validation de sa demande de convention.
-    return $DB->get_records_select(
+    $entries = $DB->get_records_select(
         'stage_entry',
-        "stageid = :stageid AND conventionstatus = :pending AND status <> :cancelled AND userid $insql",
+        'stageid = :stageid AND conventionstatus = :pending AND status <> :cancelled AND (' . implode(' OR ', $scope) . ')',
         $params,
         'conventionrequesttime ASC'
+    );
+    return array_filter(
+        $entries,
+        fn($entry) => stage_convention_user_validations($stage, $entry, $context, $teacherid) !== []
     );
 }
 
@@ -6323,6 +6362,65 @@ function stage_get_student_complementary_days($stageid, $userid) {
 }
 
 /**
+ * Numéro SIRET débarrassé de ses espaces et séparateurs (points, tirets), tel qu'il est stocké.
+ *
+ * @param string|null $raw
+ * @return string Chaîne vide si rien n'a été saisi.
+ */
+function stage_normalize_siret($raw) {
+    return preg_replace('/[\s.\-]+/u', '', trim((string) $raw));
+}
+
+/**
+ * Vrai si un numéro SIRET (normalisé) est plausible : 14 chiffres dont la clé de Luhn est juste.
+ * Les établissements de La Poste (SIREN 356000000) font exception : la somme de leurs chiffres
+ * est un multiple de 5.
+ *
+ * @param string $siret
+ * @return bool
+ */
+function stage_siret_valid($siret) {
+    if (!preg_match('/^\d{14}$/', $siret)) {
+        return false;
+    }
+    if (strpos($siret, '356000000') === 0) {
+        return array_sum(str_split($siret)) % 5 === 0;
+    }
+    $sum = 0;
+    foreach (str_split(strrev($siret)) as $index => $digit) {
+        $value = (int) $digit * ($index % 2 === 1 ? 2 : 1);
+        $sum += $value > 9 ? $value - 9 : $value;
+    }
+    return $sum % 10 === 0;
+}
+
+/**
+ * Ajoute le champ SIRET (facultatif) de l'organisme d'accueil à un formulaire de convention.
+ *
+ * @param \MoodleQuickForm $mform
+ * @return void
+ */
+function stage_add_siret_field(\MoodleQuickForm $mform) {
+    $mform->addElement('text', 'siret', get_string('conventionsiret', 'mod_stage'), ['size' => '20']);
+    $mform->setType('siret', PARAM_TEXT);
+    $mform->addHelpButton('siret', 'conventionsiret', 'mod_stage');
+}
+
+/**
+ * Contrôle serveur du champ SIRET d'un formulaire : vide, ou numéro plausible.
+ *
+ * @param array $data Données soumises.
+ * @return array champ => message d'erreur
+ */
+function stage_validate_siret_field(array $data) {
+    $siret = stage_normalize_siret($data['siret'] ?? '');
+    if ($siret !== '' && !stage_siret_valid($siret)) {
+        return ['siret' => get_string('conventionsiretinvalid', 'mod_stage')];
+    }
+    return [];
+}
+
+/**
  * Enregistre (création ou mise à jour) les informations complémentaires de convention d'une
  * saisie, saisies par l'étudiant lors de sa demande.
  *
@@ -6407,14 +6505,16 @@ function stage_request_convention(stdClass $entry, $templateid, $requireteacherv
     // doivent pas s'afficher comme si elles portaient sur celle-ci.
     $entry->conventionteachervalidatedby = null;
     $entry->conventionteachervalidatetime = null;
+    $entry->conventionthemevalidatedby = null;
+    $entry->conventionthemevalidatetime = null;
     $entry->conventionrejectedby = null;
     $entry->conventionrejectcomment = null;
     $entry->conventionrejecttime = null;
     $entry->timemodified = time();
     stage_update_entry_fields($entry, [
         'conventiontemplateid', 'conventionstatus', 'conventionrequesttime', 'conventionteachervalidatedby',
-        'conventionteachervalidatetime', 'conventionrejectedby', 'conventionrejectcomment', 'conventionrejecttime',
-        'timemodified',
+        'conventionteachervalidatetime', 'conventionthemevalidatedby', 'conventionthemevalidatetime',
+        'conventionrejectedby', 'conventionrejectcomment', 'conventionrejecttime', 'timemodified',
     ]);
     stage_trigger_entry_event(\mod_stage\event\convention_requested::class, $entry->id, [
         'teacherpending' => $requireteachervalidation ? 1 : 0,
@@ -6450,8 +6550,180 @@ function stage_teacher_validate_convention(stdClass $entry, $byuserid, ?array $f
 }
 
 /**
- * Envoie un e-mail aux enseignants référents d'un étudiant lorsqu'une demande de convention
- * attend leur validation avant transmission à la DEVE.
+ * Rôles dont la validation est exigée pour une demande de convention en attente
+ * (STAGE_CONVENTION_TEACHERPENDING), selon le paramètre de l'activité (stage->conventionvalidator).
+ *
+ * Une thématique sans responsable désigné ne peut pas être validée par lui : c'est alors le
+ * référent qui valide, pour que la demande ne reste pas bloquée.
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @return string[] Parmi 'referent' et 'themeteacher'.
+ */
+function stage_convention_required_validators(stdClass $stage, stdClass $entry) {
+    $validator = $stage->conventionvalidator ?? STAGE_CONVENTION_VALIDATOR_REFERENT;
+    $roles = [];
+    if ($validator === STAGE_CONVENTION_VALIDATOR_REFERENT || $validator === STAGE_CONVENTION_VALIDATOR_BOTH) {
+        $roles[] = STAGE_CONVENTION_VALIDATOR_REFERENT;
+    }
+    if ($validator === STAGE_CONVENTION_VALIDATOR_THEMETEACHER || $validator === STAGE_CONVENTION_VALIDATOR_BOTH) {
+        if (stage_get_theme_teachers($entry->themeid)) {
+            $roles[] = STAGE_CONVENTION_VALIDATOR_THEMETEACHER;
+        } else if (!in_array(STAGE_CONVENTION_VALIDATOR_REFERENT, $roles, true)) {
+            $roles[] = STAGE_CONVENTION_VALIDATOR_REFERENT;
+        }
+    }
+    return $roles;
+}
+
+/**
+ * Validations encore attendues pour une demande de convention en attente : celles qui sont exigées
+ * et pas encore données.
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @return string[] Parmi 'referent' et 'themeteacher'.
+ */
+function stage_convention_missing_validations(stdClass $stage, stdClass $entry) {
+    $done = [
+        STAGE_CONVENTION_VALIDATOR_REFERENT => !empty($entry->conventionteachervalidatedby),
+        STAGE_CONVENTION_VALIDATOR_THEMETEACHER => !empty($entry->conventionthemevalidatedby),
+    ];
+    return array_values(array_filter(
+        stage_convention_required_validators($stage, $entry),
+        fn($role) => !$done[$role]
+    ));
+}
+
+/**
+ * Validations qu'un utilisateur peut donner sur une demande de convention en attente : comme
+ * référent (enseignant référent attribué à l'étudiant), comme responsable de la thématique, ou les
+ * deux, parmi celles qui sont encore attendues.
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @param context $context Contexte du module.
+ * @param int $userid
+ * @return string[] Parmi 'referent' et 'themeteacher' ; vide si l'utilisateur n'a rien à valider.
+ */
+function stage_convention_user_validations(stdClass $stage, stdClass $entry, context $context, $userid) {
+    if ((int) $entry->conventionstatus !== STAGE_CONVENTION_TEACHERPENDING || (int) $entry->status === STAGE_STATUS_ANNULE) {
+        return [];
+    }
+    $roles = [];
+    foreach (stage_convention_missing_validations($stage, $entry) as $role) {
+        if ($role === STAGE_CONVENTION_VALIDATOR_REFERENT) {
+            if (
+                has_capability('mod/stage:evaluateteacher', $context, $userid)
+                && array_key_exists((int) $entry->userid, stage_get_assigned_students($stage->id, $userid))
+            ) {
+                $roles[] = $role;
+            }
+        } else if (stage_is_theme_teacher($entry->themeid, $userid)) {
+            $roles[] = $role;
+        }
+    }
+    return $roles;
+}
+
+/**
+ * État des validations d'une demande de convention quand plusieurs sont exigées : qui a déjà
+ * validé, et à quel titre ; ce qui reste attendu. Chaîne vide si une seule validation est exigée.
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @return string HTML
+ */
+function stage_render_convention_validation_status(stdClass $stage, stdClass $entry) {
+    $required = stage_convention_required_validators($stage, $entry);
+    if (count($required) < 2) {
+        return '';
+    }
+    $columns = [
+        STAGE_CONVENTION_VALIDATOR_REFERENT => 'conventionteachervalidatedby',
+        STAGE_CONVENTION_VALIDATOR_THEMETEACHER => 'conventionthemevalidatedby',
+    ];
+    $items = [];
+    foreach ($required as $role) {
+        $userid = (int) ($entry->{$columns[$role]} ?? 0);
+        $user = $userid ? core_user::get_user($userid) : null;
+        $items[] = s(get_string('conventionvalidationline', 'mod_stage', (object) [
+            'role' => get_string('conventionvalidationby_' . $role, 'mod_stage'),
+            'state' => $user ? get_string('conventionvalidationdone', 'mod_stage', fullname($user))
+                : get_string('conventionvalidationwaiting', 'mod_stage'),
+        ]));
+    }
+    return html_writer::alist($items);
+}
+
+/**
+ * Valide une demande de convention en attente, au titre des rôles donnés (référent, responsable de
+ * la thématique). La demande passe à la DEVE (STAGE_CONVENTION_REQUESTED) quand toutes les
+ * validations exigées sont réunies ; sinon elle reste en attente de l'autre validation.
+ *
+ * Chaque validation n'est écrite que si la demande est toujours en attente, le stage non annulé et
+ * cette validation pas encore donnée : deux enseignants ne valident pas deux fois au même titre,
+ * et un refus enregistré entre-temps n'est pas effacé (voir stage_update_entry_if()).
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @param int $byuserid
+ * @param string[] $roles Rôles au titre desquels l'utilisateur valide.
+ * @return string|false 'requested' si la demande est transmise à la DEVE, 'pending' si une autre
+ *         validation est encore attendue, false si rien n'a été écrit.
+ */
+function stage_validate_convention_request(stdClass $stage, stdClass $entry, $byuserid, array $roles) {
+    global $DB;
+
+    $columns = [
+        STAGE_CONVENTION_VALIDATOR_REFERENT => ['conventionteachervalidatedby', 'conventionteachervalidatetime'],
+        STAGE_CONVENTION_VALIDATOR_THEMETEACHER => ['conventionthemevalidatedby', 'conventionthemevalidatetime'],
+    ];
+    $roles = array_values(array_intersect(array_keys($columns), $roles));
+    if (!$roles) {
+        return false;
+    }
+
+    $transaction = $DB->start_delegated_transaction();
+    $fields = ['timemodified'];
+    $where = ['conventionstatus = :pending', 'status <> :cancelled'];
+    $entry->timemodified = time();
+    foreach ($roles as $role) {
+        [$byfield, $timefield] = $columns[$role];
+        $entry->$byfield = $byuserid;
+        $entry->$timefield = time();
+        $fields[] = $byfield;
+        $fields[] = $timefield;
+        $where[] = "$byfield IS NULL";
+    }
+    $applied = stage_update_entry_if($entry, $fields, implode(' AND ', $where), [
+        'pending' => STAGE_CONVENTION_TEACHERPENDING, 'cancelled' => STAGE_STATUS_ANNULE,
+    ]);
+    if (!$applied) {
+        $transaction->allow_commit();
+        return false;
+    }
+
+    $fresh = $DB->get_record('stage_entry', ['id' => $entry->id], '*', MUST_EXIST);
+    $outcome = 'pending';
+    if (!stage_convention_missing_validations($stage, $fresh)) {
+        $fresh->conventionstatus = STAGE_CONVENTION_REQUESTED;
+        $fresh->timemodified = time();
+        stage_update_entry_fields($fresh, ['conventionstatus', 'timemodified']);
+        $entry->conventionstatus = STAGE_CONVENTION_REQUESTED;
+        $outcome = 'requested';
+    }
+    stage_trigger_entry_event(\mod_stage\event\convention_teacher_validated::class, $entry->id, [
+        'roles' => implode(',', $roles),
+    ]);
+    $transaction->allow_commit();
+    return $outcome;
+}
+
+/**
+ * Envoie un e-mail aux enseignants dont la validation est exigée lorsqu'une demande de convention
+ * attend avant transmission à la DEVE : les référents de l'étudiant, les responsables de la
+ * thématique, ou les deux (voir stage_convention_required_validators()).
  *
  * @param stdClass $stage
  * @param stdClass $cm Course module.
@@ -6459,7 +6731,18 @@ function stage_teacher_validate_convention(stdClass $entry, $byuserid, ?array $f
  * @return void
  */
 function stage_notify_teacher_convention_pending(stdClass $stage, stdClass $cm, stdClass $entry) {
-    $teachers = stage_get_student_teachers($stage->id, $entry->userid);
+    $roles = stage_convention_required_validators($stage, $entry);
+    $teachers = [];
+    if (in_array(STAGE_CONVENTION_VALIDATOR_REFERENT, $roles, true)) {
+        $teachers += stage_get_student_teachers($stage->id, $entry->userid);
+    }
+    if (in_array(STAGE_CONVENTION_VALIDATOR_THEMETEACHER, $roles, true)) {
+        foreach (array_keys(stage_get_theme_teachers($entry->themeid)) as $teacherid) {
+            if (!isset($teachers[$teacherid]) && ($teacher = core_user::get_user($teacherid))) {
+                $teachers[$teacherid] = $teacher;
+            }
+        }
+    }
     if (empty($teachers)) {
         return;
     }
@@ -7227,6 +7510,8 @@ function stage_evaltype_label($evaltype) {
             return get_string('evaltype_teacher', 'mod_stage');
         case 'tutor':
             return get_string('evaltype_tutor', 'mod_stage');
+        case 'request':
+            return get_string('evaltype_request', 'mod_stage');
         default:
             return $evaltype;
     }
@@ -7612,6 +7897,182 @@ function stage_checklist_check_field($itemid) {
  */
 function stage_checklist_comment_field($itemid) {
     return 'checklistcomment_' . $itemid;
+}
+
+/**
+ * Nom du champ de formulaire d'une question du questionnaire de demande de stage. La thématique
+ * fait partie du nom : une même question peut figurer dans les listes de plusieurs thématiques
+ * proposées ensemble (student_register.php), seule celle de la thématique choisie compte.
+ *
+ * @param int $themeid
+ * @param int $questionid
+ * @return string
+ */
+function stage_request_question_field($themeid, $questionid) {
+    return 'rq_' . (int) $themeid . '_' . (int) $questionid;
+}
+
+/**
+ * Questionnaires de demande de stage des thématiques données (liste d'évaluation de type request
+ * choisie par chacune).
+ *
+ * @param int[] $themeids
+ * @return array themeid => [questionid => stage_question] ; thématiques sans questionnaire omises.
+ */
+function stage_get_request_questions_by_theme(array $themeids) {
+    $bytheme = [];
+    foreach ($themeids as $themeid) {
+        $questions = stage_get_questions($themeid, 'request');
+        if ($questions) {
+            $bytheme[(int) $themeid] = $questions;
+        }
+    }
+    return $bytheme;
+}
+
+/**
+ * Ajoute à un formulaire Moodle les questions du questionnaire de demande de stage. Avec
+ * $themefield, les questions d'une thématique ne s'affichent que si elle est choisie.
+ *
+ * Une note ou un choix se donnent par une liste déroulante, une réponse libre dans une zone de
+ * texte. Les réponses obligatoires sont contrôlées côté serveur (stage_validate_request_answers()).
+ *
+ * @param \MoodleQuickForm $mform
+ * @param array $questionsbytheme themeid => questions (voir stage_get_request_questions_by_theme()).
+ * @param string|null $themefield Champ du formulaire portant la thématique choisie.
+ * @return void
+ */
+function stage_add_request_question_fields(\MoodleQuickForm $mform, array $questionsbytheme, $themefield = null) {
+    if (!$questionsbytheme) {
+        return;
+    }
+    $mform->addElement('header', 'requestquestionsheader', get_string('requestquestionnaire', 'mod_stage'));
+    $mform->setExpanded('requestquestionsheader');
+    $mform->addElement(
+        'static',
+        'requestquestionsintro',
+        '',
+        html_writer::div(get_string('requestquestionnaireintro', 'mod_stage'), 'text-muted')
+    );
+    foreach ($questionsbytheme as $themeid => $questions) {
+        foreach ($questions as $question) {
+            $field = stage_request_question_field($themeid, $question->id);
+            $label = format_string($question->name) . (!empty($question->required) ? ' *' : '');
+            if ($question->qtype === 'rating' || $question->qtype === 'choice') {
+                $values = $question->qtype === 'rating' ? stage_question_rating_values() : stage_question_options($question);
+                $mform->addElement('select', $field, $label, ['' => get_string('choosedots')] + array_combine($values, $values));
+            } else {
+                $mform->addElement('textarea', $field, $label, ['rows' => 3, 'cols' => 60]);
+            }
+            $mform->setType($field, PARAM_TEXT);
+            if ($themefield !== null) {
+                $mform->hideIf($field, $themefield, 'neq', $themeid);
+            }
+        }
+    }
+}
+
+/**
+ * Valeurs initiales des questions du questionnaire de demande (demande refusée à corriger).
+ *
+ * @param int $themeid
+ * @param array $questions
+ * @param array $answers Réponses enregistrées, indexées par questionid (voir stage_get_answers()).
+ * @return array champ => valeur
+ */
+function stage_request_question_form_data($themeid, array $questions, array $answers) {
+    $data = [];
+    foreach ($questions as $question) {
+        if (isset($answers[$question->id])) {
+            $data[stage_request_question_field($themeid, $question->id)] = $answers[$question->id]->answertext;
+        }
+    }
+    return $data;
+}
+
+/**
+ * Réponses au questionnaire de demande d'une thématique, lues dans les données d'un formulaire.
+ *
+ * @param stdClass|array $data
+ * @param int $themeid
+ * @param array $questions
+ * @return array questionid => réponse
+ */
+function stage_extract_request_answers($data, $themeid, array $questions) {
+    $data = (array) $data;
+    $answers = [];
+    foreach ($questions as $question) {
+        $answers[$question->id] = trim((string) ($data[stage_request_question_field($themeid, $question->id)] ?? ''));
+    }
+    return $answers;
+}
+
+/**
+ * Contrôle serveur des réponses au questionnaire de demande : réponses obligatoires présentes,
+ * notes et choix parmi les valeurs proposées.
+ *
+ * @param stdClass|array $data
+ * @param int $themeid
+ * @param array $questions
+ * @return array champ => message d'erreur
+ */
+function stage_validate_request_answers($data, $themeid, array $questions) {
+    $errors = [];
+    $answers = stage_extract_request_answers($data, $themeid, $questions);
+    foreach ($questions as $question) {
+        try {
+            stage_validate_answers([$question->id => $question], [$question->id => $answers[$question->id]]);
+        } catch (moodle_exception $e) {
+            $errors[stage_request_question_field($themeid, $question->id)] = $e->getMessage();
+        }
+    }
+    return $errors;
+}
+
+/**
+ * Enregistre les réponses au questionnaire de demande d'une saisie. Les réponses à un autre
+ * questionnaire de demande (thématique changée en corrigeant une demande refusée) sont retirées :
+ * elles ne portent plus sur le stage demandé.
+ *
+ * @param int $entryid
+ * @param array $questions Questions du questionnaire de la thématique de la saisie.
+ * @param array $answers questionid => réponse (voir stage_extract_request_answers()).
+ * @return void
+ */
+function stage_save_request_answers($entryid, array $questions, array $answers) {
+    global $DB;
+
+    $params = ['entryid' => $entryid, 'evaltype' => 'request'];
+    $keep = '';
+    if ($questions) {
+        [$notinsql, $notinparams] = $DB->get_in_or_equal(array_keys($questions), SQL_PARAMS_NAMED, 'keep', false);
+        $keep = " AND questionid $notinsql";
+        $params += $notinparams;
+    }
+    $DB->delete_records_select(
+        'stage_answer',
+        "entryid = :entryid AND questionid IN (SELECT id FROM {stage_question} WHERE evaltype = :evaltype)$keep",
+        $params
+    );
+    if ($questions) {
+        stage_save_answers($entryid, $questions, $answers);
+    }
+}
+
+/**
+ * Réponses au questionnaire de demande d'une saisie, en lecture seule, pour ceux qui valident la
+ * demande (référent, responsable de la thématique) et la DEVE. Chaîne vide sans questionnaire.
+ *
+ * @param stdClass $entry
+ * @return string HTML
+ */
+function stage_render_request_answers(stdClass $entry) {
+    $questions = stage_get_entry_questions($entry, 'request');
+    if (!$questions) {
+        return '';
+    }
+    return html_writer::tag('h4', get_string('requestquestionnaire', 'mod_stage'), ['class' => 'mt-3'])
+        . stage_render_answers_readonly($questions, stage_get_answers($entry->id));
 }
 
 /**
@@ -8401,6 +8862,7 @@ function stage_build_convention_pdf(stdClass $stage, stdClass $entry, context $c
             'phone' => (string) $detail->hostphone,
             'email' => (string) $detail->hostemail,
             'location' => (string) $detail->hostlocation,
+            'siret' => (string) ($detail->siret ?? ''),
         ],
         'student' => [
             'fullname' => fullname($student),

@@ -59,6 +59,11 @@ class convention_detail {
      */
     public static function add_maxlength_rules(\MoodleQuickForm $mform): void {
         foreach (self::max_lengths() as $name => $length) {
+            // Le SIRET se saisit souvent avec des espaces (« 123 456 789 00012 ») : sa longueur est
+            // contrôlée une fois normalisé (voir stage_siret_valid()).
+            if ($name === 'siret') {
+                continue;
+            }
             if ($mform->elementExists($name)) {
                 $mform->addRule($name, get_string('maximumchars', '', $length), 'maxlength', $length, 'client');
             }

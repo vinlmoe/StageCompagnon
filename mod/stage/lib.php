@@ -71,6 +71,22 @@ define('STAGE_CONVENTION_TEACHERPENDING', 5);
 define('STAGE_CONVENTION_EXEMPT', 6);
 
 /**
+ * Validation de la demande de convention avant la DEVE (stage->conventionvalidator) : par
+ * l'enseignant.e référent.e de l'étudiant.
+ */
+define('STAGE_CONVENTION_VALIDATOR_REFERENT', 'referent');
+/**
+ * Validation de la demande de convention avant la DEVE : par un enseignant responsable de la
+ * thématique du stage (à défaut de responsable désigné, par le référent).
+ */
+define('STAGE_CONVENTION_VALIDATOR_THEMETEACHER', 'themeteacher');
+/**
+ * Validation de la demande de convention avant la DEVE : par le référent ET par un responsable de
+ * la thématique, chacun pour ce qui le concerne.
+ */
+define('STAGE_CONVENTION_VALIDATOR_BOTH', 'both');
+
+/**
  * Rapport de stage : aucun dépôt de document n'est demandé à l'étudiant sur cette thématique.
  */
 define('STAGE_REPORT_NONE', 0);

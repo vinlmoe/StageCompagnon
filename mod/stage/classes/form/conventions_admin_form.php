@@ -58,6 +58,14 @@ class conventions_admin_form extends \moodleform {
             get_string('conventionrequireteachervalidation', 'mod_stage')
         );
         $mform->addHelpButton('conventionrequireteachervalidation', 'conventionrequireteachervalidation', 'mod_stage');
+        $mform->addElement(
+            'select',
+            'conventionvalidator',
+            get_string('conventionvalidator', 'mod_stage'),
+            stage_convention_validator_options()
+        );
+        $mform->addHelpButton('conventionvalidator', 'conventionvalidator', 'mod_stage');
+        $mform->hideIf('conventionvalidator', 'conventionrequireteachervalidation', 'notchecked');
 
         // Établissement d'enseignement.
         $mform->addElement('header', 'establishmenthdr', get_string('conventionestablishment', 'mod_stage'));

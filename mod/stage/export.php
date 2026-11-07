@@ -288,6 +288,7 @@ $headers = [
     get_string('conventionhostservice', 'mod_stage'),
     get_string('conventionhostphone', 'mod_stage'),
     get_string('conventionhostemail', 'mod_stage'),
+    get_string('conventionsiret', 'mod_stage'),
     get_string('conventionhostlocation', 'mod_stage'),
     get_string('conventiontutorname', 'mod_stage'),
     get_string('conventiontutorfunction', 'mod_stage'),
@@ -412,6 +413,7 @@ foreach ($entries as $entry) {
     $sheet->write_string($row, $col++, $detailvalue('hostservice'));
     $sheet->write_string($row, $col++, $detailvalue('hostphone'));
     $sheet->write_string($row, $col++, $detailvalue('hostemail'));
+    $sheet->write_string($row, $col++, $detailvalue('siret'));
     $sheet->write_string($row, $col++, $detailvalue('hostlocation'));
     $sheet->write_string($row, $col++, $detailvalue('tutorname'));
     $sheet->write_string($row, $col++, $detailvalue('tutorfunction'));

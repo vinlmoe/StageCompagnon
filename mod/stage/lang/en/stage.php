@@ -1086,3 +1086,26 @@ $string['deleteentriestypecount'] = 'To confirm, type the number of internships 
 $string['deleteentriesfinal'] = 'Permanently delete the {$a} internships';
 $string['deleteentriesconfirmmismatch'] = 'Nothing was deleted: tick the confirmation box and type exactly the number of internships to delete ({$a}).';
 $string['deleteentriesdone'] = '{$a} internship(s) deleted.';
+
+// Questionnaire de demande de stage, SIRET et validation de la demande (0.6.0).
+$string['evaltype_request'] = 'Internship request questionnaire';
+$string['conventionvalidator'] = 'Who validates the request';
+$string['conventionvalidator_help'] = 'Who validates an agreement request before it reaches the academic office: the student\'s referent teacher, a teacher in charge of the internship theme, or both. They decide on the basis of the agreement information and of the answers to the theme\'s request questionnaire. A theme with no teacher in charge is validated by the referent.';
+$string['conventionvalidator_referent'] = 'Referent teacher';
+$string['conventionvalidator_themeteacher'] = 'Teacher in charge of the theme';
+$string['conventionvalidator_both'] = 'Referent teacher and teacher in charge of the theme';
+$string['conventionsiret'] = 'SIRET number of the host organisation';
+$string['conventionsiret_help'] = 'Optional. The 14-digit SIRET number of the host organisation establishment, as shown on its documents; spaces are allowed.';
+$string['conventionsiretinvalid'] = 'This SIRET number is not valid: 14 digits are expected, with a correct check digit.';
+$string['requestquestionnaire'] = 'Internship request questionnaire';
+$string['requestquestionnaireintro'] = 'Your answers are sent with the agreement request: they help the teachers who validate the request.';
+$string['conventionvalidationalreadygiven'] = 'You have already validated this request; it is waiting for the other validation.';
+$string['conventionvalidationpending'] = 'Your validation has been recorded. The request is waiting for the other validation before being sent to the academic office.';
+$string['conventionvalidationby_referent'] = 'Referent teacher';
+$string['conventionvalidationby_themeteacher'] = 'Teacher in charge of the theme';
+$string['conventionvalidationdone'] = 'validated by {$a}';
+$string['conventionvalidationwaiting'] = 'awaited';
+$string['conventionvalidationline'] = '{$a->role}: {$a->state}';
+$string['privacy:metadata:stage_entry:conventionthemevalidatedby'] = 'The teacher in charge of the theme who validated the agreement request.';
+$string['privacy:metadata:stage_convention_detail:siret'] = 'The SIRET number of the host organisation.';
+$string['stageandconventionpending'] = 'The internship has been registered. The agreement request is waiting for your teachers\' validation before reaching the DEVE.';

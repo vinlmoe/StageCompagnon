@@ -238,7 +238,9 @@ class theme_edit_form extends \moodleform {
         $mform->setExpanded('questionshdr', true);
         $mform->addElement('static', 'evallistsintro', '', get_string('themeevallistsintro', 'mod_stage'));
 
-        $evaltypes = ['student', 'teacher'];
+        // Le questionnaire de demande se remplit avec la demande de convention, avant le stage ; les
+        // autres évaluent le stage une fois fait.
+        $evaltypes = ['request', 'student', 'teacher'];
         if (!empty($customdata['tutorenabled'])) {
             $evaltypes[] = 'tutor';
         }

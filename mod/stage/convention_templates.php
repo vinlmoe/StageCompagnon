@@ -77,6 +77,7 @@ $establishmentinfo = stage_get_establishment_info($stage);
 $formdata = [
     'id' => $cm->id,
     'conventionrequireteachervalidation' => stage_convention_requires_teacher_validation($stage) ? 1 : 0,
+    'conventionvalidator' => $stage->conventionvalidator ?? STAGE_CONVENTION_VALIDATOR_REFERENT,
     'establishmentname' => $establishmentinfo->name,
     'establishmentaddress' => $establishmentinfo->address,
     'establishmentrepresentative' => $establishmentinfo->representative,
@@ -93,7 +94,11 @@ foreach (['logoleft' => 'conventionlogoleft', 'logoright' => 'conventionlogorigh
 $mform->set_data($formdata);
 
 if ($data = $mform->get_data()) {
-    stage_save_convention_teacher_validation_setting($stage->id, !empty($data->conventionrequireteachervalidation));
+    stage_save_convention_teacher_validation_setting(
+        $stage->id,
+        !empty($data->conventionrequireteachervalidation),
+        $data->conventionvalidator ?? null
+    );
     stage_save_establishment_info($stage->id, $data);
     foreach (['logoleft' => 'conventionlogoleft', 'logoright' => 'conventionlogoright'] as $field => $filearea) {
         file_save_draft_area_files($data->$field, $context->id, 'mod_stage', $filearea, 0, $logooptions);

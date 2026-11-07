@@ -67,6 +67,7 @@ class evallist_edit_form extends \moodleform {
             'student' => get_string('evaltype_student', 'mod_stage'),
             'teacher' => get_string('evaltype_teacher', 'mod_stage'),
             'tutor' => get_string('evaltype_tutor', 'mod_stage'),
+            'request' => get_string('evaltype_request', 'mod_stage'),
         ];
         if (!empty($customdata['editing'])) {
             $mform->addElement(

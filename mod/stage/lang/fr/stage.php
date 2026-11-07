@@ -1107,3 +1107,26 @@ $string['deleteentriestypecount'] = 'Pour confirmer, saisissez le nombre de stag
 $string['deleteentriesfinal'] = 'Supprimer définitivement les {$a} stages';
 $string['deleteentriesconfirmmismatch'] = 'Suppression non effectuée : cochez la case de confirmation et saisissez exactement le nombre de stages à supprimer ({$a}).';
 $string['deleteentriesdone'] = '{$a} stage(s) supprimé(s).';
+
+// Questionnaire de demande de stage, SIRET et validation de la demande (0.6.0).
+$string['evaltype_request'] = 'Questionnaire de demande de stage';
+$string['conventionvalidator'] = 'Qui valide la demande';
+$string['conventionvalidator_help'] = 'Qui valide une demande de convention avant qu\'elle n\'arrive à la DEVE : l\'enseignant référent de l\'étudiant, un enseignant responsable de la thématique du stage, ou les deux. La décision se fonde sur les informations de la convention et sur les réponses au questionnaire de demande de la thématique. Une thématique sans responsable est validée par le référent.';
+$string['conventionvalidator_referent'] = 'Enseignant référent';
+$string['conventionvalidator_themeteacher'] = 'Enseignant responsable de la thématique';
+$string['conventionvalidator_both'] = 'Enseignant référent et enseignant responsable de la thématique';
+$string['conventionsiret'] = 'Numéro SIRET de l\'organisme d\'accueil';
+$string['conventionsiret_help'] = 'Facultatif. Le numéro SIRET à 14 chiffres de l\'établissement d\'accueil, tel qu\'il figure sur ses documents ; les espaces sont acceptés.';
+$string['conventionsiretinvalid'] = 'Ce numéro SIRET n\'est pas valide : 14 chiffres sont attendus, avec une clé de contrôle juste.';
+$string['requestquestionnaire'] = 'Questionnaire de demande de stage';
+$string['requestquestionnaireintro'] = 'Vos réponses accompagnent la demande de convention : elles servent aux enseignants qui la valident.';
+$string['conventionvalidationalreadygiven'] = 'Vous avez déjà validé cette demande ; elle attend l\'autre validation.';
+$string['conventionvalidationpending'] = 'Votre validation est enregistrée. La demande attend l\'autre validation avant d\'être transmise à la DEVE.';
+$string['conventionvalidationby_referent'] = 'Enseignant référent';
+$string['conventionvalidationby_themeteacher'] = 'Enseignant responsable de la thématique';
+$string['conventionvalidationdone'] = 'validée par {$a}';
+$string['conventionvalidationwaiting'] = 'attendue';
+$string['conventionvalidationline'] = '{$a->role} : {$a->state}';
+$string['privacy:metadata:stage_entry:conventionthemevalidatedby'] = 'L\'enseignant responsable de la thématique qui a validé la demande de convention.';
+$string['privacy:metadata:stage_convention_detail:siret'] = 'Le numéro SIRET de l\'organisme d\'accueil.';
+$string['stageandconventionpending'] = 'Le stage est enregistré. La demande de convention attend la validation de vos enseignants avant d\'arriver à la DEVE.';

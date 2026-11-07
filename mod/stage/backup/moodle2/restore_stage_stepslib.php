@@ -148,7 +148,7 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         // Les listes d'évaluation sont restaurées après les thématiques : leurs identifiants sont
         // mis de côté et remplacés une fois les listes recréées (voir after_execute()).
         $oldlists = [];
-        foreach (['studentlistid', 'teacherlistid', 'tutorlistid'] as $field) {
+        foreach (['studentlistid', 'teacherlistid', 'tutorlistid', 'requestlistid'] as $field) {
             $oldlists[$field] = (int) ($data->$field ?? 0);
             $data->$field = 0;
         }
@@ -451,7 +451,7 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
 
         foreach (
             ['teacherid', 'deveuserid', 'conventionrejectedby', 'conventionteachervalidatedby',
-                'conventioneditedby', 'conventionsignedby', 'cancelledby'] as $field
+                'conventionthemevalidatedby', 'conventioneditedby', 'conventionsignedby', 'cancelledby'] as $field
         ) {
             $data->$field = empty($data->$field) ? null : ($this->get_mappingid('user', $data->$field) ?: null);
         }

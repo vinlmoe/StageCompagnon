@@ -41,6 +41,13 @@ un stage déjà enregistré, sauf si celui-ci est dispensé de convention. Cette
 demande contourne l'éventuelle validation préalable de l'enseignant référent et
 arrive directement dans la file de traitement DEVE.
 
+Chaque thématique peut proposer un questionnaire de demande de stage, rempli par
+l'étudiant avec sa demande de convention ; le numéro SIRET de l'organisme
+d'accueil peut y être indiqué. Avant la DEVE, la demande peut être validée par
+l'enseignant référent, par un enseignant responsable de la thématique, ou par les
+deux, selon le paramètre de l'activité : ils décident sur la base des
+informations de la convention et des réponses au questionnaire.
+
 La DEVE conserve la possibilité de valider directement un stage sans évaluation
 de l'enseignant référent ni du maître de stage. Un stage annulé doit d'abord être
 réinitialisé. Les réponses obligatoires sont contrôlées côté serveur lorsqu'un

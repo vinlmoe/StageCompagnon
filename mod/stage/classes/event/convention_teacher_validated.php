@@ -36,6 +36,8 @@ class convention_teacher_validated extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe('validated, as referent teacher, the agreement request of');
+        $roles = explode(',', (string) ($this->other['roles'] ?? 'referent'));
+        $labels = array_map(fn($role) => $role === 'themeteacher' ? 'theme teacher' : 'referent teacher', $roles);
+        return $this->describe('validated, as ' . implode(' and ', $labels) . ', the agreement request of');
     }
 }

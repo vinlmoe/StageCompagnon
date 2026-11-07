@@ -88,6 +88,7 @@ class provider implements
             'conventionrejectedby' => 'privacy:metadata:stage_entry:conventionrejectedby',
             'conventionrejectcomment' => 'privacy:metadata:stage_entry:conventionrejectcomment',
             'conventionteachervalidatedby' => 'privacy:metadata:stage_entry:conventionteachervalidatedby',
+            'conventionthemevalidatedby' => 'privacy:metadata:stage_entry:conventionthemevalidatedby',
             'conventioneditedby' => 'privacy:metadata:stage_entry:conventioneditedby',
             'conventionsignedby' => 'privacy:metadata:stage_entry:conventionsignedby',
             'cancelledby' => 'privacy:metadata:stage_entry:cancelledby',
@@ -110,6 +111,7 @@ class provider implements
             'hostphone' => 'privacy:metadata:stage_convention_detail:hostphone',
             'hostemail' => 'privacy:metadata:stage_convention_detail:hostemail',
             'hostaddress' => 'privacy:metadata:stage_convention_detail:hostaddress',
+            'siret' => 'privacy:metadata:stage_convention_detail:siret',
         ], 'privacy:metadata:stage_convention_detail');
 
         $collection->add_database_table('stage_entry_period', [
@@ -178,6 +180,7 @@ class provider implements
             'teacherid' => $userid,
             'deveuserid' => $userid,
             'validatedby' => $userid,
+            'themevalidatedby' => $userid,
             'editedby' => $userid,
             'signedby' => $userid,
             'rejectedby' => $userid,
@@ -194,6 +197,7 @@ class provider implements
                     OR e.teacherid = :teacherid
                     OR e.deveuserid = :deveuserid
                     OR e.conventionteachervalidatedby = :validatedby
+                    OR e.conventionthemevalidatedby = :themevalidatedby
                     OR e.conventioneditedby = :editedby
                     OR e.conventionsignedby = :signedby
                     OR e.conventionrejectedby = :rejectedby
@@ -279,8 +283,8 @@ class provider implements
         $params = ['instanceid' => $context->instanceid, 'modname' => 'stage'];
 
         foreach (
-            ['userid', 'teacherid', 'deveuserid', 'conventionteachervalidatedby', 'conventioneditedby',
-                'conventionsignedby', 'conventionrejectedby', 'cancelledby'] as $field
+            ['userid', 'teacherid', 'deveuserid', 'conventionteachervalidatedby', 'conventionthemevalidatedby',
+                'conventioneditedby', 'conventionsignedby', 'conventionrejectedby', 'cancelledby'] as $field
         ) {
             $userlist->add_from_sql($field, "SELECT e.$field
                                                FROM {course_modules} cm
@@ -501,6 +505,7 @@ class provider implements
                    AND (teacherid = :teacherid
                         OR deveuserid = :deveuserid
                         OR conventionteachervalidatedby = :validatedby
+                        OR conventionthemevalidatedby = :themevalidatedby
                         OR conventioneditedby = :editedby
                         OR conventionsignedby = :signedby
                         OR conventionrejectedby = :rejectedby
@@ -515,6 +520,7 @@ class provider implements
             'teacherid' => $userid,
             'deveuserid' => $userid,
             'validatedby' => $userid,
+            'themevalidatedby' => $userid,
             'editedby' => $userid,
             'signedby' => $userid,
             'rejectedby' => $userid,
@@ -715,6 +721,7 @@ class provider implements
             'teacherid' => ['teachereval', 'teachertime'],
             'deveuserid' => ['devecomment', 'devetime'],
             'conventionteachervalidatedby' => ['conventionteachervalidatetime'],
+            'conventionthemevalidatedby' => ['conventionthemevalidatetime'],
             'conventioneditedby' => ['conventionedittime'],
             'conventionsignedby' => ['conventionsigntime'],
             'conventionrejectedby' => ['conventionrejectcomment', 'conventionrejecttime'],

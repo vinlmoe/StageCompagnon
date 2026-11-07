@@ -148,6 +148,7 @@ if ($mform->is_cancelled()) {
     $newdetail->leavedays = $newdetail->hasleave ? $data->leavedays : null;
     $newdetail->leavemodalities = $newdetail->hasleave ? $data->leavemodalities : '';
     $newdetail->gratificationamount = $data->gratificationamount;
+    $newdetail->siret = stage_normalize_siret($data->siret ?? '') ?: null;
     // Ni l'une ni l'autre de ces deux cases n'est éditable par la DEVE ici (voir
     // convention_review_form, 'withsignatures' ci-dessous étant la seule à sa disposition) :
     // reprises telles quelles depuis la demande initiale et sa validation par l'enseignant référent.
@@ -225,6 +226,9 @@ $tutorwarning = stage_tutor_email_warning($context, $student, $detail->tutoremai
 if ($tutorwarning !== null) {
     echo $OUTPUT->notification($tutorwarning, \core\output\notification::NOTIFY_WARNING);
 }
+
+// Questionnaire de demande et validations déjà données, sur lesquels la DEVE s'appuie aussi.
+echo stage_render_request_answers($entry);
 
 $mform->display();
 

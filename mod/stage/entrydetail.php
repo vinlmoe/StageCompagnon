@@ -197,6 +197,7 @@ if ($detail) {
         get_string('conventionhostservice', 'mod_stage') => s($detail->hostservice),
         get_string('conventionhostphone', 'mod_stage') => s($detail->hostphone),
         get_string('conventionhostemail', 'mod_stage') => s($detail->hostemail),
+        get_string('conventionsiret', 'mod_stage') => s($detail->siret ?? ''),
         get_string('conventionhostlocation', 'mod_stage') => s($detail->hostlocation),
     ]);
 
@@ -234,6 +235,7 @@ if ($objectivelinks !== '') {
     echo $OUTPUT->heading(get_string('themeobjectives', 'mod_stage'), 4);
     echo $objectivelinks;
 }
+echo stage_render_request_answers($entry);
 echo stage_render_entry_checklist_section($stage, $cm, $context, $entry, $PAGE->url);
 
 // 6. Évaluations successives, dans l'ordre du circuit : l'étudiant s'auto-évalue, l'enseignant
