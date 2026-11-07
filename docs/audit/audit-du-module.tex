@@ -1,0 +1,617 @@
+% Audit de mod_stage : revue statique du code (contrôle d'accès, échappement et SQL, circuit du
+% stage et intégrité des données, imports et exports, RGPD et sauvegarde, tests et maintenabilité).
+% Compilation : latexmk -pdf audit-du-module.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref,enumitem}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{url}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z}
+\DeclareUrlCommand\code{\urlstyle{tt}}
+\Urlmuskip=0mu plus 2mu
+\newcommand{\grav}[1]{\textbf{\textcolor{#1}{\textbullet}}}
+\newcommand{\maj}{\grav{orange}}
+\newcommand{\mineure}{\grav{gray}}
+\newcommand{\crit}{\grav{red}}
+\setlist[itemize]{itemsep=2pt,topsep=3pt}
+\title{Audit de \texttt{mod\_stage} : revue du code}
+\author{Sébastien Lefebvre}
+\date{7 novembre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Méthode}
+
+Les deux audits précédents ont mis le module à l'épreuve en situation : test de charge
+(\code{test-de-charge.tex}) puis test de concurrence dans un Moodle réel
+(\code{test-de-concurrence.tex}). Celui-ci est une revue statique du code, telle qu'on la ferait
+avant une mise en production ou une publication dans le répertoire des plugins Moodle. Il porte
+sur la branche \code{main} au commit \code{631e02b} (31~octobre 2026), version
+\code{2026103101} (0.5.1) de \code{mod_stage} et \code{2026100200} (0.2.1) de
+\code{mod_stagesynthesis}.
+
+\begin{itemize}
+  \item \textbf{Périmètre.} Les 55 scripts de page de \code{mod/stage}, \code{locallib.php}
+    (8\,565 lignes, 259 fonctions), \code{lib.php}, les classes (formulaires, importateurs,
+    PDF, événements, tâches, services web, confidentialité), le schéma (\code{install.xml},
+    \code{upgrade.php}), la sauvegarde et la restauration, les gabarits Mustache, les fichiers de
+    langue, les tests, la CI et la documentation ; soit 31\,000 lignes de PHP hors tests et
+    bibliothèque tierce. \code{mod_stagesynthesis} n'est regardé que pour ce qui lui est propre :
+    le cloisonnement des données qu'il agrège, sa sauvegarde et sa confidentialité.
+  \item \textbf{Six axes}, lus indépendamment, chacun sur l'intégralité du périmètre qui le
+    concerne : contrôle d'accès et autorisations ; échappement des sorties, SQL et portabilité ;
+    circuit du stage, calculs et intégrité des données ; imports, exports et PDF ; RGPD,
+    sauvegarde, services web et courriels ; tests, internationalisation, documentation et
+    maintenabilité.
+  \item \textbf{Contrôles automatiques.} \code{php -l} sur les 177 fichiers, \code{phpcs} avec
+    le standard \code{moodle} (\code{moodlehq/moodle-cs}) sur la configuration du dépôt, et un
+    script comparant les fichiers de langue entre eux et avec les appels du code.
+  \item \textbf{Règle de preuve.} Chaque constat est vérifié par lecture du code appelant et des
+    fonctions appelées ; un défaut qu'un helper corrige déjà n'est pas retenu. Les lignes citées
+    sont celles du commit audité. Rien n'a été corrigé : ce rapport propose, la correction est un
+    second temps.
+\end{itemize}
+
+\noindent\textbf{Échelle.} \crit~critique : exposition ou altération de données par un acteur
+non autorisé, ou perte de données, en usage normal ; \maj~majeure : donnée fausse ou perdue,
+décision faussée ou page en erreur dans un cas d'usage réel, mais circonscrit ; \mineure~mineure :
+défense en profondeur, cohérence, maintenabilité.
+
+\section{Synthèse}
+
+\textbf{Aucun constat critique.} Les contrôles d'accès sont présents sur toutes les pages, aucune
+injection SQL ni d'en-tête de courriel n'a été trouvée, la syntaxe et le standard de codage sont
+propres (0 erreur \code{phpcs}), les fichiers de langue sont parfaitement synchronisés (865 clés,
+0 manquante, 0 utilisée sans définition), les 19 tables sont sauvegardées et le fournisseur de
+confidentialité couvre toutes les colonnes d'utilisateur. La suite de tests compte 226 tests
+PHPUnit et 9 scénarios Behat, joués sur trois combinaisons Moodle/PHP/SGBD.
+
+Les constats majeurs se concentrent sur trois familles : des valeurs importées de fichiers qui
+ne sont ni nettoyées ni échappées (une XSS stockée), des cas du circuit du stage où un état ou
+un calcul reste incohérent (réinitialisation, validation en masse, transfert, fuseau horaire,
+durées par année) et des imports qui perdent ou écrasent des données sans le dire.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+& \textbf{Constat} & \textbf{Axe} \\
+\midrule
+\maj & \og Structure\fg{} importée affichée sans échappement : XSS stockée exécutable chez
+  l'étudiant, le référent et la DEVE & Échappement \\
+\maj & Réinitialisation d'un stage : l'évaluation ou le motif de refus de l'enseignant survit &
+  Circuit \\
+\maj & Validation DEVE en masse : les stages refusés sont cochables et validés avec la durée
+  déclarée & Circuit \\
+\maj & Jours effectifs recalculés dans le fuseau du lecteur : effacés par une édition faite dans
+  un autre fuseau & Circuit \\
+\maj & Thématique bornée à plusieurs années : seule la durée de la dernière année compte ;
+  bilan et tableau de bord divergent & Circuit \\
+\maj & Transfert entre promotions : la mobilité d'études n'est pas transférée & Circuit \\
+\maj & Champs texte sans limite de longueur vers des colonnes \code{char(255)} : erreur SQL &
+  Circuit \\
+\maj & Import historique : enseignant évaluateur jamais enregistré & Imports \\
+\maj & Import CSV : première ligne perdue sans en-tête ; lignes incomplètes écartées en silence &
+  Imports \\
+\maj & Réimport StageVet : écrase une évaluation saisie dans Moodle sur un stage SignVet &
+  Imports \\
+\maj & Gabarit PDF illisible par FPDI : échec sans message, fichiers temporaires abandonnés &
+  Imports \\
+\maj & Six pages d'import lisent \code{$_FILES} directement : antivirus et quotas de Moodle
+  contournés & Qualité \\
+\maj & Duplication de cours sans utilisateurs : responsables de thématique perdus & Sauvegarde \\
+\maj & Registre RGPD incomplet (5 colonnes d'utilisateur, représentant de l'organisme) ; jours,
+  référents et responsables déclarés mais jamais exportés & RGPD \\
+\maj & Suivi multi-promotions : une inscription suspendue garde la vue sur ses anciens
+  étudiants & Accès \\
+\maj & Adresse du maître de stage saisie par l'étudiant, invitation automatique : aucun
+  garde-fou technique & Accès \\
+\maj & Aucun test sur \code{export.php}, \code{get_my_stages}, l'accès par jeton aux objectifs,
+  six tables de la restauration & Tests \\
+\maj & Journal des versions arrêté à la 0.5.1 du 3~octobre ; trois points de sauvegarde livrés
+  sous le même numéro & Documentation \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Les mineures (une cinquantaine) sont détaillées axe par axe. Les plus utiles à traiter avec les
+majeures : comptes rendus d'import non échappés, entités HTML dans les PDF, classeurs et
+courriels, langue du destinataire ignorée dans les courriels, jeton du maître de stage sans
+expiration, 40 chaînes de langue orphelines.
+
+\section{Contrôle d'accès et autorisations}
+
+\subsection{Ce qui tient}
+
+Chaque page fait \code{require_login($course, true, $cm)} puis exige la capacité propre à
+l'action : \code{submit} pour l'étudiant, \code{evaluateteacher} pour le référent,
+\code{validatedeve} ou \code{registerstages} pour la DEVE, \code{managethemes},
+\code{manageteachers}, \code{viewall} pour les exports. Un utilisateur qui n'a que
+\code{mod/stage:view} n'atteint aucune donnée d'un autre. Chaque identifiant de saisie, de
+thématique, de gabarit ou de liste est relu avec le filtre \code{stageid = $stage->id} : pas
+d'accès croisé entre activités. Les fichiers sont cherchés par hachage \emph{dans} la zone de la
+saisie ou de la thématique attendue, jamais par hachage global. L'étudiant n'agit que sur ses
+saisies ; le référent passe partout par \code{stage_get_assigned_students()}, et une liste vide
+donne une page vide, pas tout. Toutes les écritures exigent le \code{sesskey}. \code{returnurl}
+est partout en \code{PARAM_LOCALURL}. Les services web font \code{validate_context} puis
+\code{require_capability}, et le service est désactivé par défaut. Le jeton du maître de stage
+fait 256~bits (\code{random_bytes(32)}), sous index unique, créé par écriture conditionnelle,
+révoqué à l'annulation, absent des événements et de la sauvegarde ; il ne donne accès qu'aux
+objectifs de la thématique de sa saisie (\code{theme_objective_file.php}, lignes 45--49).
+
+\subsection{Constats}
+
+\begin{itemize}
+  \item[\maj] \textbf{A1. Suivi multi-promotions : capacité sans inscription active.}
+    \code{mod/stagesynthesis/locallib.php}, lignes 158--200 : le périmètre d'un enseignant est
+    recalculé à chaque affichage depuis l'activité source, mais par \code{has_capability()} seul.
+    Une inscription suspendue ou expirée conserve ses attributions de rôle : la capacité reste
+    vraie alors que \code{require_login()} refuserait l'accès à la source. Scénario : référent dont
+    l'inscription à la promotion N$-$1 a été suspendue en fin d'année ; depuis la synthèse d'un
+    autre cours, il voit encore le pilotage, la liste à évaluer et le détail de ses anciens
+    étudiants, alors que \code{teacher.php} de la source lui est fermé. Correction : exiger aussi
+    \code{is_enrolled($context, $userid, '', true)} et la visibilité du module
+    (\code{info_module::is_user_visible}).
+  \item[\maj] \textbf{A2. Identité du maître de stage.} L'adresse \code{tutoremail} est saisie par
+    l'étudiant (\code{student_register_form.php}, lignes 221--226 ;
+    \code{convention_request_form.php}, 176--181) et l'invitation à jeton part automatiquement
+    (\code{locallib.php}, 6753--6780). Le référent et la DEVE peuvent la corriger à la revue, mais
+    rien ne l'impose. Un étudiant qui donne sa propre adresse rédige l'évaluation du maître de
+    stage, définitive sauf réinitialisation. Correction : à la revue, signaler une adresse
+    appartenant à un compte du cours ou identique à celle de l'étudiant.
+  \item[\mineure] \textbf{A3. Relance du maître de stage ouverte à \code{viewall}.}
+    \code{entrydetail.php}, lignes 49 et 87--95 : \code{resendtutor} crée le jeton et envoie un
+    courriel sous une capacité déclarée en lecture, là où \code{deve.php} exige
+    \code{validatedeve}.
+  \item[\mineure] \textbf{A4. Jeton sans expiration ni révocation après évaluation.}
+    \code{tutor_eval.php} continue d'afficher le nom de l'étudiant, les dates et l'évaluation
+    déposée à quiconque détient le lien, indéfiniment ; le jeton transite en GET (journaux,
+    Referer). Correction : effacer \code{tutortoken} après \code{stage_apply_tutor_eval()} ou
+    n'afficher qu'une confirmation, et refuser un jeton plus vieux qu'un délai.
+  \item[\mineure] \textbf{A5. Minimisation.} \code{entrydetail.php}, lignes 54--57 et 177--199 : le
+    responsable de thématique, dont le besoin porte sur le stage et les rapports, reçoit la
+    convention entière (date de naissance, adresse, téléphone de l'étudiant).
+  \item[\mineure] \textbf{A6. Actions à effet de bord par lien GET.} Protégées par \code{sesskey}
+    et confirmation JavaScript, donc sans risque CSRF, mais rejouables sans la confirmation
+    cliente : \code{register.php:227} (\code{reset}), \code{deve.php:185,193,241},
+    \code{entrydetail.php:297}, \code{themes.php:190,221}, \code{evallists.php:85},
+    \code{convention_templates.php:141}, \code{transfer.php:161} (transfert irréversible).
+    Correction : \code{single_button} POST avec confirmation serveur pour le transfert et les
+    suppressions.
+  \item[\mineure] \textbf{A7. \code{teacher_assign.php}, lignes 36--37} : un \code{studentid}
+    arbitraire est résolu sans \code{is_enrolled()} et son nom complet renvoyé dans l'URL de
+    redirection, ce qui permet d'énumérer les noms de tout compte du site.
+  \item[\mineure] \textbf{A8. Lectures avant \code{require_login()}.}
+    \code{convention_template.php:39-41}, \code{theme_edit.php:41-42},
+    \code{evallist_edit.php:44-47} : un visiteur anonyme distingue, par le message d'erreur, un
+    identifiant existant d'un inexistant.
+  \item[\mineure] \textbf{A9. Service web et thématiques masquées.}
+    \code{register_entries.php:86} appelle \code{stage_get_themes()} sans le filtre de visibilité
+    que les formulaires DEVE appliquent.
+\end{itemize}
+
+\section{Échappement des sorties, SQL et portabilité}
+
+\subsection{Ce qui tient}
+
+Aucune interpolation de valeur utilisateur dans une requête : les tris passent par des cartes
+fermées et \code{stage_sql_order()} ne reçoit que des colonnes constantes ; les recherches
+utilisent \code{sql_like()} avec \code{sql_like_escape()} ; les listes \code{IN} passent par
+\code{get_in_or_equal()} avec des préfixes distincts, découpées par \code{STAGE_SQL_CHUNK} ou
+remplacées par une sous-requête ; la pagination est passée en paramètres, jamais dans le texte
+SQL ; les \code{GROUP BY} sont complets ; \code{sql_compare_text()} sert à comparer les champs
+texte. Rien de propre à MySQL, ce que la CI sur MariaDB confirme. Tous les paramètres sont typés ;
+\code{import_preview} range ses fichiers en JSON (pas d'\code{unserialize}), par utilisateur et
+par activité, en écriture atomique. L'export Excel n'écrit que des cellules typées
+(\code{write_string}) : pas d'injection de formule. Les courriels partent en texte brut par
+\code{email_to_user()}, sujets et noms assainis par PHPMailer. Les PDF n'utilisent que
+\code{Cell} et \code{MultiCell}, jamais \code{writeHTML}. La page du maître de stage échappe
+tout ce qu'elle réaffiche.
+
+\subsection{Constats}
+
+\begin{itemize}
+  \item[\maj] \textbf{B1. XSS stockée par la colonne \og structure\fg{} des imports.} Les
+    formulaires typent \code{structure} en \code{PARAM_TEXT}, mais aucun importateur ne nettoie
+    (\code{csv_importer.php:80} et \code{:737}, \code{historical_importer.php:179},
+    \code{import_global.php:216}), et trois affichages rendent la valeur brute :
+    \code{locallib.php:4905} (tableau \og Mes stages\fg{} du tableau de bord, \code{html_table}),
+    \code{transfer.php:132} et \code{import_stagevet.php:418-421}, où
+    \code{stage_entry_short_description()} alimente \code{html_writer::select()}, qui n'échappe
+    pas ses libellés. Scénario : un \code{<img src=x onerror=...>} dans un export StageVet, un
+    export global ou un CSV remis à la DEVE s'exécute ensuite chez l'étudiant (\code{view.php}),
+    les référents et la DEVE (\code{dashboard.php}, synthèse). Correction : \code{s()} aux trois
+    affichages et \code{clean_param(..., PARAM_TEXT)} sur chaque champ texte lu d'un fichier dans
+    les quatre importateurs.
+  \item[\mineure] \textbf{B2. Comptes rendus d'import non échappés.} \code{import.php:86-89},
+    \code{teachers_import.php:85-88}, \code{import_stagevet.php:353-361, 455-463, 467-470} :
+    courriels, noms et thématiques lus dans le fichier sont injectés dans une
+    \code{notification()}, qui ne purifie pas. \code{study_mobility_import.php:106},
+    \code{import_global.php:300-303} et \code{import_historical.php:337-340} font correctement
+    \code{array_map('s', ...)}.
+  \item[\mineure] \textbf{B3. \code{format_string()} vers des sorties non HTML.} Les entités
+    \code{&amp;} et \code{&#039;} apparaissent littéralement dans la page~1 de la convention
+    (\code{locallib.php:8107}), les classeurs (\code{export.php:347,357,395,509}), les courriels
+    texte (\code{locallib.php:2663-2665, 2698-2701, 6581}) et les noms de fichiers
+    (\code{export.php:49}, \code{export_pdf.php:128}). Correction :
+    \code{format_string($x, true, ['escape' => false])}.
+  \item[\mineure] \textbf{B4. Noms de fichiers sans \code{s()}} dans \code{locallib.php:7096} et
+    \code{:7798} ; non exploitable (\code{PARAM_FILE} à l'envoi), défense en profondeur.
+  \item[\mineure] \textbf{B5. Fichiers temporaires de la convention.} \code{locallib.php:7903}
+    écrit dans \code{sys_get_temp_dir()} et non \code{make_temp_directory('mod_stage')} ; les
+    \code{unlink} (8194--8196) ne sont pas dans un \code{finally} (voir D5).
+\end{itemize}
+
+\section{Circuit du stage, calculs et intégrité des données}
+
+\subsection{Ce qui tient}
+
+Six statuts de stage, huit de convention, et chaque transition passe par les écritures
+conditionnelles introduites après le test de concurrence. \code{upgrade.php} est idempotent et
+complet par rapport à \code{install.xml}, points de sauvegarde croissants, \code{version.php}
+égal au dernier. Un index unique existe partout où le code suppose l'unicité (jeton, triplet
+référent, jours, réponses, check-list, durées). \code{stage_delete_instance()} couvre les 19
+tables ; \code{stage_delete_entries()} purge plages, jours, détail, réponses, check-list et les
+deux zones de fichiers, par paquets ; la suppression d'une thématique, d'un gabarit, d'une liste
+ou d'une question est refusée tant que des saisies ou des réponses en dépendent. Les annulés et
+non validés sont exclus de tous les décomptes, les bornes de plages sont incluses, l'itération
+des jours passe par \code{DateTimeImmutable::modify}, donc sans dérive à l'heure d'été ; les
+chevauchements et les plages de plus de 366 jours sont refusés. Les événements ont une classe de
+base commune, \code{relateduserid} imposé, et relisent le statut en base avant de se déclencher.
+Les tâches planifiées portent leurs marqueurs d'idempotence.
+
+\subsection{Constats}
+
+\begin{itemize}
+  \item[\maj] \textbf{C1. Réinitialisation incomplète.} \code{stage_reset_entry()}
+    (\code{locallib.php:2355-2380}) remet statut, contournement, décision DEVE et durée retenue à
+    zéro, mais laisse \code{teacherid}, \code{teachereval}, \code{teachertime}. Un stage refusé
+    par le référent (motif dans \code{teachereval}) puis réinitialisé affiche \og Évalué par X le
+    \dots\fg{} avec le motif de refus sur un stage \og Enregistré\fg{} (\code{entrydetail.php:
+    243-256}) ; la DEVE revoit cette évaluation périmée dès que le stage repasse en auto-évalué
+    (\code{deve.php:146-152}) ; l'export la sort. Si le référent réévalue ensuite par
+    questionnaire, l'ancien motif reste pour toujours. Correction : remettre les trois champs à
+    \code{null}.
+  \item[\maj] \textbf{C2. Validation en masse des stages refusés.} \code{deve.php:268-283} et
+    \code{336-345} : la liste est filtrée par \code{status < 3}, donc les \og Non validé\fg{}
+    y figurent avec leur case à cocher (seuls les annulés en sont privés). \og Tout
+    sélectionner\fg{} puis \og Valider\fg{} les valide avec la durée déclarée et écrase
+    \code{devecomment} par une chaîne vide, alors que la validation unitaire propose les jours
+    effectifs cochés et que la doc demande une réinitialisation préalable. Correction : exclure
+    \code{status < 0} de la sélection et de la boucle ; retenir le nombre de jours cochés s'il
+    existe, comme en unitaire.
+  \item[\maj] \textbf{C3. Jours effectifs et fuseau horaire.} \code{stage_get_period_days()}
+    (\code{locallib.php:2003-2013}) calcule les minuits dans le fuseau de l'utilisateur
+    \emph{courant} ; \code{stage_set_entry_workdays()} (2040--2078) ne conserve que les jours
+    présents dans ce calcul ; \code{stage_save_entry_periods()} (1795) rejoue
+    \code{stage_set_entry_workdays()} avec les jours existants. Un étudiant en stage à l'étranger
+    avec son fuseau réglé (par exemple \code{America/Montreal}) coche ses jours ; la DEVE, à
+    Paris, modifie la saisie sans toucher aux dates (\code{register.php:306-317}) : aucun jour
+    ne correspond plus, tous sont supprimés en silence. La grille des jours se décale aussi d'un
+    jour selon le lecteur. Correction : normaliser sur le fuseau du site (ou stocker des
+    \code{AAAAMMJJ}) et ne jamais filtrer les jours existants dans un autre fuseau que celui du
+    stockage.
+  \item[\maj] \textbf{C4. Durées par année d'une thématique bornée.}
+    \code{stage_get_student_year_progress()} (\code{locallib.php:745-760}) ne lit, pour une
+    thématique A2--A4, que la durée de l'année finale et la compare au cumul ; les durées propres
+    à A2 et A3, que \code{theme_edit.php} met pourtant en avant, ne sont jamais lues.
+    \code{stage_get_student_progress()} (1013--1035), lui, somme les années où l'étudiant a une
+    saisie. Avec 10/10/10 jours et un seul stage de 10 jours en A2, le bilan de fin de cursus
+    annonce \og objectifs atteints\fg{} (requis 10) ; le tableau de bord étudiant, dès qu'un
+    stage A4 s'ajoute, demande 20. Décision de fin de cursus potentiellement faussée.
+    Correction : requis = somme des durées de la plage, ou refuser la saisie par année quand une
+    plage est définie.
+  \item[\maj] \textbf{C5. Transfert sans la mobilité d'études.}
+    \code{stage_execute_student_transfer()} (\code{locallib.php:5375-5445}) déplace saisies,
+    réponses, check-lists, fichiers, et supprime les attributions source, mais ignore
+    \code{stage_study_mobility} (clé \code{stageid, userid}). Une mobilité validée dans la source
+    met l'étudiant \og en défaut\fg{} de jours à l'étranger dans la cible, et la ligne reste
+    orpheline. Correction : déplacer la ligne, en tenant compte de l'index unique côté cible.
+  \item[\maj] \textbf{C6. Longueur des champs texte.} Aucune règle \code{maxlength} ni troncature
+    sur \code{structure} et \code{country} (\code{deve_entry_form.php:78-94},
+    \code{student_register_form.php:79-86}, \code{register.php:396-399},
+    \code{register_entries.php:45,61}), le nom de thématique (\code{theme_edit_form.php:84}), le
+    nom de gabarit (\code{convention_template_form.php:46}) et les champs d'établissement
+    (\code{conventions_admin_form.php:75}, \code{establishmentphone} en \code{char(64)}). Une
+    raison sociale de 300 caractères collée par un étudiant donne une
+    \code{dml_write_exception} : page d'erreur, rien d'enregistré. Seuls
+    \code{stage_convention_detail} (longueurs lues du schéma) et les imports CSV sont protégés.
+  \item[\mineure] \textbf{C7. Contournement de l'évaluation du maître de stage}
+    (\code{locallib.php:6873-6885}) : \code{update_record} inconditionnel, possible sur un stage
+    annulé ou validé, sans événement.
+  \item[\mineure] \textbf{C8. Redemande de convention après refus} (\code{locallib.php:6192-6208}) :
+    \code{conventionteachervalidatedby} et sa date ne sont pas effacés ; la fiche affiche
+    \og Validée par X\fg{} sur une demande qui attend de nouveau le référent.
+  \item[\mineure] \textbf{C9. Import StageVet sans événement} (\code{csv_importer.php:735-823}) :
+    insertion directe en statut auto-évalué avec \code{tutortime}, sans \code{entry_created} ni
+    les événements d'évaluation ; les journaux ne retrouvent pas ces stages.
+  \item[\mineure] \textbf{C10. Édition DEVE d'une saisie} (\code{locallib.php:1638-1684},
+    \code{register.php:280-317}) : \code{update_record} de l'objet entier lu en début de page,
+    aucun événement pour un changement de thématique, d'année ou de durée après validation, et
+    \code{declaredduration} préremplie par le nombre de jours cochés : toute édition, même d'un
+    autre champ, remplace la durée déclarée.
+  \item[\mineure] \textbf{C11. Invitations du maître de stage}
+    (\code{send_tutor_evaluation_requests.php:95-125}, \code{locallib.php:6649-6695}) : ni
+    \code{cm.visible} ni le compte étudiant (suspendu, désinscrit, supprimé) ne sont testés, alors
+    que la relance de convention le fait (\code{send_convention_reminders.php:85-94}).
+  \item[\mineure] \textbf{C12. Durée retenue} (\code{locallib.php:2231-2256}) : ni bornée par les
+    plages, ni possible à zéro (\code{retainedduration > 0 ? ... : declaredduration}).
+  \item[\mineure] \textbf{C13. Relance de convention non rejouée} après report des plages :
+    \code{conventionremindertime} n'est jamais remis à \code{null} (\code{locallib.php:6476-6515}).
+  \item[\mineure] \textbf{C14. Levée de dispense} possible sur un stage déjà évalué
+    (\code{locallib.php:6160-6190}).
+  \item[\mineure] \textbf{C15. Divers schéma et \code{lib.php}} : \code{install.xml} porte
+    \code{VERSION="20261026"} pour un dernier point \code{2026103101} ;
+    \code{stage_question.themeid} est \code{NOT NULL} avec clé et index mais toujours créé à 0
+    (\code{evallist_edit.php:198}) ; \code{theme_edit.php:184-186} accepte une durée négative ;
+    \code{stage_user_outline()} renvoie \code{time()} ; \code{MOD_PURPOSE_COMMUNICATION} pour une
+    activité d'évaluation.
+\end{itemize}
+
+\section{Imports, exports et PDF}
+
+\subsection{Ce qui tient}
+
+Tous les imports écrivent sous le verrou de l'activité et en transaction, avec relecture des
+doublons sous le verrou : jamais d'import à moitié appliqué. Les en-têtes sont normalisés
+(casse, accents, apostrophes, BOM), les libellés résolus dans toutes les langues installées, les
+homonymes jamais tranchés par le code (correspondance unique ou arbitrage DEVE), les thématiques
+inconnues toujours refusées, les dates strictes (\code{checkdate}, refus des numéros de série
+Excel et des plages inversées). StageVet n'écarte aucune ligne en silence, détecte doublons et
+chevauchements intra-fichier, persiste les arbitrages en JSON et rejoue le même contenu. Les
+prévisualisations sont en JSON, par utilisateur, atomiques, périmées après un jour. Le XLSX est
+lu avec \code{LIBXML_NONET}. L'export Excel lit chaque table rattachée en une requête. Les
+importateurs ont des tests réels, et le PDF de convention est testé avec un vrai gabarit FPDI.
+
+\subsection{Constats}
+
+\begin{itemize}
+  \item[\maj] \textbf{D1. Import historique : enseignant évaluateur perdu.}
+    \code{import_historical.php:235-237} pose \code{teacherid}, \code{teachertime},
+    \code{teachereval} sur l'objet, puis \code{stage_apply_deve_validation()} n'écrit que
+    \code{deveuserid}, \code{devetime}, \code{retainedduration}, \code{status},
+    \code{timemodified} et \code{devecomment} (\code{locallib.php:2231-2260}). L'enseignant est
+    bien ajouté comme référent, mais aucun stage historique n'a d'évaluateur : \og Évalué par\fg{}
+    vide dans l'export global. Correction d'une ligne : \code{stage_update_entry_fields($entry,
+    ['teacherid', 'teachertime', 'teachereval'])} dans la même transaction.
+  \item[\maj] \textbf{D2. Import CSV simple : en-tête et lignes incomplètes.}
+    \code{csv_importer.php:58-65} (et \code{:221} pour les référents) consomme toujours la
+    première ligne comme en-tête, alors que l'aide (\code{lang/fr/stage.php:115,220}) l'annonce
+    facultative : sans en-tête, le premier stage n'est ni créé ni signalé. Ligne 87, une ligne
+    dont le courriel ou la thématique est vide est sautée sans erreur, à l'inverse de la règle de
+    StageVet (522--534). Dans les deux cas le compte rendu annonce \og N importés\fg{} sans dire
+    ce qui manque.
+  \item[\maj] \textbf{D3. Réimport StageVet sur un stage SignVet.}
+    \code{csv_importer.php:1046-1064} : pour un stage \code{SIGNVET}, toute évaluation non vide de
+    l'export remplace l'existante quel que soit le statut, et \code{tutortime} est remis à
+    \code{time()} ; la protection \og conservée\fg{} ne joue que pour les autres stages, et le test
+    (\code{stagevet_evaluations_test.php:236}) ne couvre que ceux-là. Une auto-évaluation saisie
+    dans Moodle ou une réponse du maître de stage par jeton est écrasée au réimport suivant, sans
+    ligne de rapport.
+  \item[\maj] \textbf{D4. Gabarit PDF illisible.} \code{locallib.php:8186} :
+    \code{setSourceFile()} lève une exception FPDI pour un PDF 1.5+ à table de références
+    compressée (Word, Acrobat \og optimisé\fg{}) ou chiffré, sans \code{try/catch} ;
+    \code{convention_template.php} ne tente pas de lire le gabarit à l'envoi. Dans
+    \code{convention.php:143-149} le téléchargement se fait dans un cadre invisible : la DEVE voit
+    \og Téléchargement en cours\fg{} puis rien ; \code{convention_review.php} passe la demande en
+    \og éditée\fg{} sans que le PDF ait été construit. Correction : ouvrir le gabarit avec FPDI à
+    l'enregistrement et refuser le formulaire avec un message ; en génération, encapsuler et
+    renvoyer une erreur lisible.
+  \item[\mineure] \textbf{D5. Fuite de fichiers temporaires} : les copies du gabarit et des logos
+    ne sont supprimées qu'en cas de succès (\code{locallib.php:8194}) ; chaque échec D4 en laisse
+    trois sur disque, hors du répertoire temporaire de Moodle (B5).
+  \item[\mineure] \textbf{D6. Analyse CSV} : \code{declaredduration = (int) trim(...)}
+    (\code{csv_importer.php:83}) accepte \og 12,5\fg{}, \og abc\fg{} ou \og -3\fg{} sans
+    signalement ; UTF-16 non détecté (\code{detect_encoding}, 956) ; \code{parse_date} (1121)
+    produit minuit dans le fuseau de l'importateur, si bien que deux membres de la DEVE de fuseaux
+    différents ne se voient pas en doublon ; fichier chargé entièrement en mémoire sans
+    \code{raise_memory_limit} (\code{import.php:66}, \code{import_stagevet.php:207},
+    \code{teachers_import.php:65}) ; lignes StageVet à thématique inconnue non reprises dans les
+    lignes en attente (585) ; \og 0 stage importé\fg{} affiché après un arbitrage vide (229).
+  \item[\mineure] \textbf{D7. Prévisualisations} : \code{import_preview.php:71} écrit avec le
+    umask par défaut et non \code{$CFG->filepermissions} ; le formulaire de confirmation ne porte
+    pas d'identifiant de prévisualisation (deux onglets du même utilisateur confirment le dernier
+    classeur analysé) ; \code{import_historical.php:172} supprime la prévisualisation avant la
+    transaction.
+  \item[\mineure] \textbf{D8. Lecteur XLSX} (\code{historical_importer.php}) : \code{getFromName()}
+    renvoyant \code{false} donne une \code{ValueError} (403) non attrapée dans
+    \code{study_mobility_import.php:90}, qui n'attrape que \code{moodle_exception} : page d'erreur
+    fatale pour un \code{.docx} renommé ; attribut \code{r} absent, lignes écrasées sur l'index
+    $-1$ (446) ; colonne \og année\fg{} par défaut (221) ; empreinte de doublon sans les dates
+    (\code{import_historical.php:118-121}).
+  \item[\mineure] \textbf{D9. Restauration d'un export global} : deux requêtes par ligne à la
+    prévisualisation (\code{import_global.php:178,266}, soit 60\,000 pour 30\,000 stages) ;
+    exportés mais jamais restaurés : référents de l'étudiant (\code{export.php:436}), responsables
+    de thématique, mode de rapport, feuilles 1 et 3 ; jamais exportés : jours effectifs,
+    check-lists, réponses, fichiers, mobilité d'études ; année \og non précisée\fg{} absente des
+    options (144, un avertissement par ligne) ; oui/non reconnus en français et anglais seulement
+    (55) ; aucune détection de doublon à l'intérieur du classeur (52) ; auto-évaluation convertie
+    en texte (\code{export.php:435}) puis réaffichée en \code{FORMAT_HTML}.
+  \item[\mineure] \textbf{D10. PDF} : \code{'VetAgro Sup'} en dur (\code{convention_pdf.php:96}) ;
+    logo \code{.png} non vérifié (un JPEG renommé fait lever TCPDF au moment de la génération, même
+    chemin invisible que D4) ; autoloader Composer de \code{thirdparty/vendor} non déclaré dans
+    \code{thirdpartylibs.xml}.
+  \item[\mineure] \textbf{D11. Zip des rapports} (\code{locallib.php:7876}) : deux fichiers d'une
+    même saisie dont les noms nettoyés coïncident, le second remplace le premier.
+  \item[\mineure] \textbf{D12. Requêtes par ligne} : \code{stage_get_signed_convention_file()} par
+    saisie dans \code{register.php:215}, \code{conventions.php:136}, \code{teacher.php:309} ;
+    \code{stage_get_answers()} relu quatre fois dans \code{teacher.php} ; une requête par étudiant
+    pour le modèle de mobilité (\code{study_mobility_import.php:67}).
+\end{itemize}
+
+\section{RGPD, sauvegarde, services web et courriels}
+
+\subsection{Ce qui tient}
+
+\code{get_contexts_for_userid()} et \code{get_users_in_context()} couvrent toutes les colonnes
+d'utilisateur du schéma, vérifiées une à une. La suppression distingue l'étudiant (tout est
+effacé, fichiers compris) du personnel (dissociation à \code{null} et effacement de ses textes),
+avec des colonnes déclarées nullables. La sauvegarde embarque les 19 tables, respecte
+\code{userinfo}, annote toutes les colonnes d'utilisateur, exclut volontairement le jeton (pas de
+collision à la restauration sur le même site) et n'applique aucun décalage de dates. Les
+services web valident contexte et capacité, et \code{get_my_stages} ne renvoie que le strict
+nécessaire. Les courriels partent de l'adresse sans réponse, avec des liens absolus, un
+utilisateur factice complet pour le maître de stage et \code{validate_email()} avant envoi.
+\code{mod_stagesynthesis} est un \code{null_provider} exact, et remappe ses liens à la
+restauration, avec test.
+
+\subsection{Constats}
+
+\begin{itemize}
+  \item[\maj] \textbf{E1. Registre des traitements incomplet.} \code{provider.php:69-89} ne
+    déclare pas \code{conventionrejectedby}, \code{conventionteachervalidatedby},
+    \code{conventioneditedby}, \code{conventionsignedby}, \code{cancelledby}
+    (\code{install.xml:216-221}), ni \code{conventionrejectcomment}, \code{tutortoken} et les
+    dates d'étapes ; lignes 91--101, les données nominatives du représentant de l'organisme
+    d'accueil (\code{hostrepresentative}, \code{hostphone}, \code{hostemail},
+    \code{hostaddress}...) ne sont pas déclarées. Le registre généré par Moodle omet qu'un membre
+    de la DEVE est nommément enregistré comme signataire ou annulateur.
+  \item[\maj] \textbf{E2. Tables déclarées mais jamais exportées.} \code{stage_entry_workday}
+    (métadonnées 108--110, aucune lecture dans \code{export_user_data}, 333--417),
+    \code{stage_entry_teacher} et \code{stage_theme_teacher} (ni côté étudiant, ni dans
+    \code{export_staff_data}, 443--505), \code{stage_study_mobility.validatedby} côté DEVE. Un
+    étudiant dont le stage est compté jour par jour reçoit un export sans ses jours.
+  \item[\maj] \textbf{E3. Dissociation du personnel incomplète.} \code{teacher.php:70,104}
+    enregistre l'évaluation du référent dans \code{stage_answer} (questions \code{teacher}),
+    table sans colonne d'auteur ; à la suppression de l'enseignant, \code{provider.php:627-652}
+    efface \code{teachereval} mais laisse ces réponses, contrairement à la politique énoncée aux
+    lignes 53--56. À trancher : les effacer, ou documenter qu'elles appartiennent au dossier de
+    l'étudiant.
+  \item[\maj] \textbf{E4. Duplication sans utilisateurs : responsables de thématique perdus.}
+    \code{stage_theme_teacher} est sauvegardé sans condition
+    (\code{backup_stage_stepslib.php:233-236}, commenté comme du paramétrage), mais
+    \code{process_stage_theme_teacher()} (\code{restore_stage_stepslib.php:177-180}) exige
+    \code{get_mappingid('user')}, vide quand les utilisateurs ne sont pas dans l'archive
+    (duplication d'activité, import de cours). La DEVE qui duplique l'activité pour la promotion
+    suivante ressaisit tous les responsables. Correction : sur le même site, conserver l'id
+    d'origine si le compte existe, comme le fait la restauration de \code{mod_stagesynthesis}.
+  \item[\mineure] \textbf{E5. Export étudiant partiel} (\code{provider.php:336-365}) :
+    \code{conventionrejectcomment}, \code{abroad}, dates d'évaluation et de convention,
+    \code{tutorbypassed} absents ; \code{referentteacherid} exporté comme entier et non comme nom.
+  \item[\mineure] \textbf{E6. Emplacement externe non déclaré} pour le courriel au maître de stage
+    (nom complet de l'étudiant et lien à jeton envoyés hors Moodle) :
+    \code{add_external_location_link}.
+  \item[\mineure] \textbf{E7. Noms de personnes dans le paramétrage} :
+    \code{establishmentrepresentative}, \code{establishmentsignatory} (\code{install.xml:17,21}).
+  \item[\mineure] \textbf{E8. Tests de confidentialité et de restauration} : pas d'export de
+    l'étudiant, pas de jour, check-list ni fichier créés avant suppression, pas de
+    \code{provider_testcase} ; \code{backup_restore_test.php} n'affirme que 12 tables sur 19
+    (manquent \code{stage_theme_duration}, \code{stage_entry_workday},
+    \code{stage_convention_detail}, \code{stage_study_mobility},
+    \code{stage_evallist_question}, \code{stage_email_template}), ni restauration sans
+    utilisateurs (E4), ni utilisateur absent.
+  \item[\mineure] \textbf{E9. Décodage des liens} : \code{stage_theme_checklist.description} et
+    \code{leavemodalities} absents de \code{define_decode_contents}.
+  \item[\mineure] \textbf{E10. Services web} : classes globales \code{\external_api} et
+    \code{externallib.php}, dépréciées depuis Moodle 4.2 (MDL-76583) pour un module qui exige
+    4.3 ; \code{register_entries.php:273-275} écarte en silence un étudiant non inscrit ou une
+    thématique invalide, sans les nommer dans la réponse ; \code{readonlysession} absent sur
+    \code{get_my_stages} ; \code{get_my_stages} sans test.
+  \item[\mineure] \textbf{E11. Courriels} : \code{stage_resolve_email_text()} appelé sans
+    \code{$lang} (\code{locallib.php:2661, 2695, 6250, 6423, 6456, 6537}), donc dans la langue
+    de l'acteur ou du cron, pas du destinataire ; pas de \code{db/messages.php} (préférences de
+    notification et mode numérique contournés) ; corps personnalisé en \code{PARAM_RAW}
+    (\code{notifications_form.php:69-70}) envoyé en texte brut ; étudiant lu sans
+    \code{deleted = 0} (\code{locallib.php:6416, 6449}), d'où un \code{debugging()}.
+\end{itemize}
+
+\section{Tests, internationalisation, documentation et maintenabilité}
+
+\subsection{Ce qui tient}
+
+Fichiers de langue parfaitement synchronisés : 865 clés de chaque côté, 0 manquante, 0 utilisée
+sans définition, 0 décalage de \code{{$a}} ; aucun texte littéral dans les gabarits Mustache.
+Aucune API Moodle dépréciée, aucune syntaxe PHP postérieure à 8.0 (la promesse de
+\code{version.php} est tenue et vérifiée par la matrice CI), PHPDoc sur 100~\% des fonctions,
+contrôlée en CI de façon bloquante. CI exemplaire pour un plugin : \code{phpcs} avec
+avertissements bloquants, bornes basse et haute de Moodle, PostgreSQL et MariaDB, \code{phplint},
+\code{validate}, \code{savepoints}, \code{phpdoc}, \code{mustache}, PHPUnit pour les deux
+modules, Behat sans Selenium, \code{persist-credentials: false}, permissions minimales, et un
+commentaire justifiant chaque choix. 226 tests dans 38 classes, 162 \code{@covers}, tests de
+régression dédiés (concurrence, audit, circuit), générateur complet. \code{progress_cache} est un
+cache de requête, armé et vidé dans un \code{finally}, sans invalidation à gérer.
+\code{thirdpartylibs.xml} déclare exactement FPDI 2.6.8.
+
+\subsection{Constats}
+
+\begin{itemize}
+  \item[\maj] \textbf{F1. Envois de fichiers hors API.} Six pages lisent \code{$_FILES} puis
+    \code{file_get_contents($tmp_name)} (\code{import.php:58}, \code{import_global.php:97},
+    \code{import_historical.php:293}, \code{import_stagevet.php:202},
+    \code{study_mobility_import.php:83}, \code{teachers_import.php:57}). Le contrôle
+    \code{UPLOAD_ERR_OK} + \code{is_uploaded_file()} est correct, mais ce chemin contourne l'API
+    fichiers de Moodle, donc l'analyse antivirus (\code{core\antivirus}) et les quotas. Correction :
+    élément \code{filepicker} de \code{moodleform} et \code{get_file_content()}, factorisés.
+  \item[\maj] \textbf{F2. Zones à risque sans test.} \code{export.php} (566 lignes, export
+    réglementaire) : 0 référence ; \code{promotion_pdf} : 0 ; \code{get_my_stages} : 0 ;
+    \code{theme_objective_file.php}, seul accès à un fichier sans \code{require_login} : 0 ; six
+    tables de la restauration (E8) ; tri, pagination et filtres des listes (\code{stage_sql_order},
+    \code{stage_count_filtered_entries}, \code{stage_get_filtered_entries_page}), c'est-à-dire
+    le SQL écrit à la main qui justifie le job MariaDB : aucun test direct. Au total 107 des 267
+    fonctions de \code{locallib.php} et \code{lib.php} (40~\%) et 30 des 55 pages ne sont nommées
+    dans aucun test. Behat couvre le circuit nominal, les questions notées et l'auto-enregistrement,
+    mais ni import, export, convention PDF, maître de stage, suppression en masse ni transfert.
+  \item[\maj] \textbf{F3. Journal des versions.} La dernière section versionnée de
+    \code{CHANGELOG.md} est \og mod\_stage 0.5.1 --- 2026-10-03\fg{} (ligne 225) ; depuis,
+    trois points de sauvegarde (\code{2026102600}, \code{2026103100}, \code{2026103101}) et
+    quatre commits sur \code{version.php} ont été livrés sous la même chaîne \code{0.5.1},
+    pendant que \og Non publié\fg{} accumule 200 lignes (mobilité d'études, concurrence,
+    performance, Moodle 4.3 minimum). Le fichier contredit sa propre règle (lignes 4--6). De même,
+    \code{mod_stagesynthesis} annonce un nouvel événement et un changement de clé de filtre sans
+    changer de version (\code{2026100200}), et les guides portent \code{\versionstage{0.5.1}}.
+    Correction : publier 0.6.0, vider \og Non publié\fg{}, incrémenter la synthèse.
+  \item[\mineure] \textbf{F4. Chaînes de langue} : 40 clés définies et jamais utilisées, résidus
+    des pages refondues en 0.5.0 (\code{addquestion}, \code{questionsaved},
+    \code{managethemedurations}, \code{availableteachers}, \code{addchecklistitem}...) ; 4
+    chaînes avec HTML dont \code{deleteentrieswarning_export} (\code{lang/en/stage.php:1101}) qui
+    mêle balisage et texte ; dix \code{get_string(...) . ' : ' . $valeur} (typographie française
+    en anglais : \code{entrydetail.php:248,270,284,312}, \code{locallib.php:380,3566,4795},
+    \code{theme_edit.php:262}, \code{evallist_edit.php:222}, \code{convention_template.php:106}) ;
+    les 17 \code{get_description()} des événements sont en français alors que Moodle attend de
+    l'anglais non traduit ; nom du service web en français (\code{services.php:48}) ; langues des
+    gabarits et questions limitées à fr/en par le modèle de données (colonne \code{nameen}) ;
+    \og DEVE\fg{} 21 fois dans la langue anglaise.
+  \item[\mineure] \textbf{F5. Structure du code} : \code{locallib.php} tient 26 groupes
+    fonctionnels identifiables (statuts, thématiques et progression, attributions, verrou et
+    transitions, périodes et jours, circuit, courriels, listes et questions, rendu du détail,
+    filtres et pagination, pilotage, tableau de bord, transfert et import, conventions, relances,
+    maître de stage, fichiers, check-lists, responsables, zip, PDF, suppression) sans un seul
+    séparateur ; \code{stage_print_student_dashboard_content} fait 356 lignes,
+    \code{stage_plan_student_transfer} 197, \code{stage_build_convention_pdf} 175 ; le prologue
+    de page (\code{required_param}, \code{get_coursemodule_from_id}, \code{get_course},
+    \code{get_record}, \code{require_login}, contexte) est copié dans 50 pages ; 680 appels
+    \code{html_writer} contre 6 \code{render_from_template}.
+  \item[\mineure] \textbf{F6. CI et dépôt} : couverture mesurée mais sans seuil ; aucun
+    \code{export-ignore} dans \code{.gitattributes} (une archive embarque tests, docs et CI) ;
+    \code{.gitignore} sans les auxiliaires LaTeX ; actions épinglées par tag et non par
+    empreinte ; pas de détection de code dupliqué.
+  \item[\mineure] \textbf{F7. Documentation} : \code{INSTALL.md} décrit quatre rôles sans
+    tableau capacité par archétype ; la tâche de relance des conventions (6~h~30,
+    \code{db/tasks.php}) n'est documentée nulle part, seules les invitations de 6~h~45 le sont
+    (\code{INSTALL.md:401-402}, \code{README.md:70}).
+\end{itemize}
+
+\section{Ordre de correction proposé}
+
+\begin{enumerate}[itemsep=2pt]
+  \item \textbf{Sécurité et données, un correctif chacun} : B1 (\code{s()} et
+    \code{clean_param} dans les importateurs), B2, D1 (une ligne), C1, C2, C5, F1 (filepicker).
+  \item \textbf{Calculs qui faussent une décision} : C4 (durées par année d'une plage), C3
+    (fuseau des jours effectifs), C6 (\code{maxlength}), D3 (réimport StageVet).
+  \item \textbf{Robustesse des conventions} : D4 et D5 (gabarit vérifié à l'envoi,
+    \code{try/finally}, message d'erreur), D10 (logo), B3 (entités dans PDF et courriels).
+  \item \textbf{RGPD et sauvegarde} : E1, E2, E3 (ou sa documentation), E4, E6 ; tests E8.
+  \item \textbf{Accès} : A1 (inscription active dans la synthèse), A2 (signal à la revue), A3,
+    A4 (expiration du jeton), A6 (POST pour le transfert et les suppressions).
+  \item \textbf{Tests} : F2, dans l'ordre \code{theme_objective_file} par jeton,
+    \code{export.php}, \code{get_my_stages}, restauration des six tables, tri et pagination.
+  \item \textbf{Publication} : F3 (version 0.6.0, journal, guides, synthèse), F4 (chaînes
+    orphelines, descriptions d'événements), F7.
+  \item \textbf{Fond de maintenabilité}, au fil des chantiers : F5 (découpage de
+    \code{locallib.php}, prologue de page), E10 (\code{core_external}), E11
+    (\code{db/messages.php}, langue du destinataire), D9, D12.
+\end{enumerate}
+
+\end{document}
