@@ -182,6 +182,33 @@ function stage_confirm_onclick($message) {
 }
 
 /**
+ * Bouton qui envoie une action en POST, avec la clé de session, et une confirmation facultative.
+ *
+ * Les actions irréversibles (suppression, transfert) ne partent plus d'un lien : un lien rejoué
+ * (historique, préchargement, outil de navigation) déclenchait l'action sans la confirmation.
+ * Leur page de traitement n'accepte en retour qu'une requête POST (data_submitted()).
+ *
+ * @param moodle_url $url Page et paramètres de l'action.
+ * @param string $label
+ * @param string $class Classes du bouton.
+ * @param string|null $confirm Message de confirmation, ou null.
+ * @return string HTML
+ */
+function stage_post_button(moodle_url $url, $label, $class = 'btn btn-sm btn-outline-danger mr-1 mb-1', $confirm = null) {
+    $attributes = ['method' => 'post', 'action' => $url->out_omit_querystring(), 'class' => 'd-inline'];
+    if ($confirm !== null) {
+        $attributes['onsubmit'] = stage_confirm_onclick($confirm);
+    }
+    $out = html_writer::start_tag('form', $attributes);
+    foreach ($url->params() as $name => $value) {
+        $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $name, 'value' => $value]);
+    }
+    $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+    $out .= html_writer::tag('button', $label, ['type' => 'submit', 'class' => $class]);
+    return $out . html_writer::end_tag('form');
+}
+
+/**
  * Message d'information à afficher à la DEVE (convention_review.php) quand une convention papier
  * (cadre de signatures) a été demandée par l'étudiant lors de sa demande (convention_request.php)
  * et/ou par l'enseignant référent lors de sa validation (convention_teacher_validate.php), pour
@@ -1863,12 +1890,18 @@ function stage_save_entry_periods($entryid, array $periods) {
 
     $starts = array_column($records, 'datestart');
     $ends = array_column($records, 'dateend');
-    $DB->update_record('stage_entry', (object) [
+    $previousstart = (int) $DB->get_field('stage_entry', 'datestart', ['id' => $entryid]);
+    $update = (object) [
         'id' => $entryid,
         'datestart' => min($starts),
         'dateend' => max($ends),
         'timemodified' => time(),
-    ]);
+    ];
+    // Stage reporté : la relance de convention, liée à la date de début, doit pouvoir repartir.
+    if ($previousstart !== (int) $update->datestart) {
+        $update->conventionremindertime = null;
+    }
+    $DB->update_record('stage_entry', $update);
     // Une modification des plages ne doit pas laisser compter d'anciens jours hors période.
     $workdays = $DB->get_fieldset_select('stage_entry_workday', 'workdate', 'entryid = ?', [$entryid]);
     stage_set_entry_workdays($entryid, $workdays);
@@ -2806,14 +2839,17 @@ function stage_notify_teachers_selfeval(stdClass $stage, stdClass $cm, stdClass 
     }
 
     $url = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-    $text = stage_resolve_email_text($stage->id, 'selfeval', [
+    $vars = [
         'student' => fullname($student),
         'stage' => stage_plain_string($stage->name),
         'url' => $url->out(false),
-    ]);
+    ];
     $noreply = core_user::get_noreply_user();
 
+    // Chaque destinataire reçoit le texte par défaut dans sa propre langue, pas dans celle de
+    // l'utilisateur ou du cron qui déclenche l'envoi.
     foreach ($teachers as $teacher) {
+        $text = stage_resolve_email_text($stage->id, 'selfeval', $vars, $teacher->lang ?: null);
         email_to_user($teacher, $noreply, $text->subject, $text->body);
     }
 }
@@ -2840,15 +2876,18 @@ function stage_notify_teachers_eval_request(stdClass $stage, stdClass $cm, stdCl
 
     $themename = (string) $DB->get_field('stage_theme', 'name', ['id' => $entry->themeid]);
     $url = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id, 'entryid' => $entry->id]);
-    $text = stage_resolve_email_text($stage->id, 'teacherevalrequest', [
+    $vars = [
         'student' => fullname($student),
         'stage' => stage_plain_string($stage->name),
         'theme' => stage_plain_string($themename),
         'url' => $url->out(false),
-    ]);
+    ];
     $noreply = core_user::get_noreply_user();
 
+    // Chaque destinataire reçoit le texte par défaut dans sa propre langue, pas dans celle de
+    // l'utilisateur ou du cron qui déclenche l'envoi.
     foreach ($teachers as $teacher) {
+        $text = stage_resolve_email_text($stage->id, 'teacherevalrequest', $vars, $teacher->lang ?: null);
         email_to_user($teacher, $noreply, $text->subject, $text->body);
     }
     return count($teachers);
@@ -6332,6 +6371,11 @@ function stage_set_entry_convention_exempt(stdClass $entry, $exempt) {
     if ($status === $newstatus) {
         return;
     }
+    // Lever la dispense d'un stage déjà évalué le laisserait « convention non demandée » alors que
+    // son évaluation est faite, et l'étudiant ne peut plus demander de convention à ce stade.
+    if (!$exempt && (int) $entry->status !== STAGE_STATUS_ENREGISTRE) {
+        return;
+    }
 
     $entry->conventionstatus = $newstatus;
     $entry->timemodified = time();
@@ -6359,8 +6403,19 @@ function stage_request_convention(stdClass $entry, $templateid, $requireteacherv
     $entry->conventionstatus = $requireteachervalidation
         ? STAGE_CONVENTION_TEACHERPENDING : STAGE_CONVENTION_REQUESTED;
     $entry->conventionrequesttime = time();
+    // Une nouvelle demande (après un refus) repart de zéro : les décisions de la précédente ne
+    // doivent pas s'afficher comme si elles portaient sur celle-ci.
+    $entry->conventionteachervalidatedby = null;
+    $entry->conventionteachervalidatetime = null;
+    $entry->conventionrejectedby = null;
+    $entry->conventionrejectcomment = null;
+    $entry->conventionrejecttime = null;
     $entry->timemodified = time();
-    stage_update_entry_fields($entry, ['conventiontemplateid', 'conventionstatus', 'conventionrequesttime', 'timemodified']);
+    stage_update_entry_fields($entry, [
+        'conventiontemplateid', 'conventionstatus', 'conventionrequesttime', 'conventionteachervalidatedby',
+        'conventionteachervalidatetime', 'conventionrejectedby', 'conventionrejectcomment', 'conventionrejecttime',
+        'timemodified',
+    ]);
     stage_trigger_entry_event(\mod_stage\event\convention_requested::class, $entry->id, [
         'teacherpending' => $requireteachervalidation ? 1 : 0,
     ]);
@@ -6410,12 +6465,16 @@ function stage_notify_teacher_convention_pending(stdClass $stage, stdClass $cm, 
     }
 
     $url = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id]);
-    $text = stage_resolve_email_text($stage->id, 'teacherpending', [
+    $vars = [
         'stage' => stage_plain_string($stage->name),
         'url' => $url->out(false),
-    ]);
+    ];
     $noreply = core_user::get_noreply_user();
+
+    // Chaque destinataire reçoit le texte par défaut dans sa propre langue, pas dans celle de
+    // l'utilisateur ou du cron qui déclenche l'envoi.
     foreach ($teachers as $teacher) {
+        $text = stage_resolve_email_text($stage->id, 'teacherpending', $vars, $teacher->lang ?: null);
         email_to_user($teacher, $noreply, $text->subject, $text->body);
     }
 }
@@ -6577,7 +6636,7 @@ function stage_reject_convention(stdClass $entry, $byuserid, $comment, ?array $f
 function stage_notify_student_convention_rejected(stdClass $stage, stdClass $cm, stdClass $entry, $comment) {
     global $DB;
 
-    $student = $DB->get_record('user', ['id' => $entry->userid]);
+    $student = $DB->get_record('user', ['id' => $entry->userid, 'deleted' => 0]);
     if (!$student) {
         return;
     }
@@ -6587,7 +6646,7 @@ function stage_notify_student_convention_rejected(stdClass $stage, stdClass $cm,
         'stage' => stage_plain_string($stage->name),
         'comment' => $comment,
         'url' => $url->out(false),
-    ]);
+    ], $student->lang ?: null);
     email_to_user($student, core_user::get_noreply_user(), $text->subject, $text->body);
 }
 
@@ -6609,7 +6668,7 @@ function stage_notify_student_convention_rejected(stdClass $stage, stdClass $cm,
 function stage_notify_student_convention_ready(stdClass $stage, stdClass $cm, stdClass $entry) {
     global $DB;
 
-    $student = $DB->get_record('user', ['id' => $entry->userid]);
+    $student = $DB->get_record('user', ['id' => $entry->userid, 'deleted' => 0]);
     if (!$student) {
         return false;
     }
@@ -6621,7 +6680,7 @@ function stage_notify_student_convention_ready(stdClass $stage, stdClass $cm, st
         'stage' => stage_plain_string($stage->name),
         'theme' => $theme ? stage_plain_string($theme->name) : '',
         'url' => $url->out(false),
-    ]);
+    ], $student->lang ?: null);
 
     return (bool) email_to_user($student, core_user::get_noreply_user(), $text->subject, $text->body);
 }
@@ -6704,7 +6763,7 @@ function stage_notify_student_convention_reminder(
         'datestart' => userdate($entry->datestart, get_string('strftimedate', 'langconfig')),
         'days' => STAGE_CONVENTION_REMINDER_DAYS,
         'url' => $url->out(false),
-    ]);
+    ], $student->lang ?: null);
 
     if (!email_to_user($student, core_user::get_noreply_user(), $text->subject, $text->body)) {
         return false;
@@ -6734,7 +6793,7 @@ function stage_notify_tutor_evaluation_request(
 ) {
     global $DB;
 
-    $student = $DB->get_record('user', ['id' => $entry->userid]);
+    $student = $DB->get_record('user', ['id' => $entry->userid, 'deleted' => 0]);
     if (!$student) {
         return false;
     }
@@ -7066,17 +7125,22 @@ function stage_resend_tutor_evaluation_request(stdClass $stage, stdClass $cm, st
  * comme telle pour que son absence n'empêche plus la validation finale. Réversible en
  * réinitialisant la saisie (stage_reset_entry), qui remet tutorbypassed à 0.
  *
+ * N'agit que sur un stage encore en cours de circuit (ni annulé, ni refusé, ni validé) : sur un
+ * stage déjà décidé, le contournement n'a plus d'objet.
+ *
  * @param stdClass $entry
- * @return void
+ * @return bool False si le stage n'était plus dans un statut permettant le contournement.
  */
 function stage_bypass_tutor_eval(stdClass $entry) {
-    global $DB;
-
-    $DB->update_record('stage_entry', (object) [
-        'id' => $entry->id,
-        'tutorbypassed' => 1,
-        'timemodified' => time(),
+    $entry->tutorbypassed = 1;
+    $entry->timemodified = time();
+    $applied = stage_update_entry_if($entry, ['tutorbypassed', 'timemodified'], 'status >= :registered AND status < :validated', [
+        'registered' => STAGE_STATUS_ENREGISTRE, 'validated' => STAGE_STATUS_VALIDE_DEVE,
     ]);
+    if ($applied) {
+        stage_trigger_entry_event(\mod_stage\event\entry_tutor_bypassed::class, $entry->id);
+    }
+    return $applied;
 }
 
 /**

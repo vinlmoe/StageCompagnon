@@ -207,7 +207,6 @@ $string['historicalimportdateswarning'] = '{$a->sheet}, ligne {$a->line} : dates
 $string['historicalimportunknownemail'] = '{$a->source} : aucun étudiant inscrit avec l’adresse « {$a->email} ».';
 $string['historicalimportunknownteacher'] = '{$a->source} : enseignant référent « {$a->teacher} » non reconnu ; '
     . 'le stage sera importé sans référent.';
-$string['historicalimportunknowntheme'] = '{$a->source} : thématique Moodle « {$a->theme} » introuvable.';
 $string['historicalimportduplicate'] = '{$a} : stage déjà présent ou répété dans le classeur, ignoré.';
 $string['historicalimportselecteptheme'] = 'Choisissez la thématique Moodle dans laquelle importer les stages EP.';
 $string['historicalimportexpired'] = 'La prévisualisation a expiré. Téléversez et analysez de nouveau le classeur.';
@@ -277,11 +276,8 @@ $string['requiredabroaddays_help'] = "Nombre de jours de stage à l'étranger qu
 $string['abroadtotal'] = 'Mobilité internationale';
 $string['abroadbeforeyear'] = "Année avant laquelle la mobilité est requise";
 $string['abroaddaysrequired'] = 'Jours à l\'étranger requis';
-$string['abroaddaysretained'] = "Jours à l'étranger retenus";
-$string['themeabroaddays_help'] = "Nombre de jours de stage à l'étranger requis pour cette thématique (0 = aucune obligation), cumulés sur l'ensemble des stages effectués sur cette thématique (obligatoires ET complémentaires, contrairement à la durée requise ci-dessus qui exclut les stages complémentaires). Pour une thématique bornée à une plage d'années, vérifié à sa dernière année comme la durée requise.";
 $string['abroadrule'] = 'Règle de mobilité internationale (affichée aux étudiants)';
 $string['abroadrule_help'] = "Texte libre précisant les conditions de mobilité internationale pour cette thématique (ex : pays éligibles, durée minimale continue, organismes partenaires...). Affiché aux étudiants lors de l'enregistrement d'un stage sur cette thématique et dans leur bilan.";
-$string['themeabroadsaved'] = 'Les paramètres de mobilité internationale ont été enregistrés.';
 $string['studymobility'] = "Mobilité d'études";
 $string['studymobilityvalidated'] = "L'étudiant a effectué une mobilité d'études (validée par la DEVE)";
 $string['studymobilitylocation'] = "Lieu de la mobilité d'études";
@@ -303,7 +299,6 @@ $string['studymobilityimportnolocation'] = "Ligne {\$a->line} ({\$a->email}) : l
 $string['studymobilityimportbadvalue'] = "Ligne {\$a->line} ({\$a->email}) : valeur « {\$a->value} » non reconnue dans la colonne « Mobilité d'études » (oui ou non attendu).";
 $string['country'] = 'Pays';
 $string['workdays'] = 'Jours de stage effectifs';
-$string['workdays_help'] = "Cochez, parmi les plages de dates de ce stage, les jours effectivement travaillés. Rappel : la réglementation impose au moins un jour de repos par semaine.";
 $string['restdayrule'] = 'Rappel : au moins un jour de repos est requis chaque semaine.';
 $string['restdaywarning'] = "Attention : au moins une semaine sélectionnée ne comporte aucun jour de repos.";
 $string['periods'] = 'Plages de stage';
@@ -352,7 +347,6 @@ $string['dates'] = 'Dates';
 $string['periodstart'] = 'Début';
 $string['periodend'] = 'Fin';
 $string['addperiod'] = 'Ajouter une plage';
-$string['removeperiod'] = 'Retirer';
 $string['periods_help'] = "Un stage peut comporter plusieurs plages de dates non contiguës (ex : deux séjours séparés). L'étudiant choisira ses jours de stage effectifs parmi ces plages lors de son auto-évaluation.";
 $string['periodsrequired'] = "Renseignez au moins une plage de dates : les dates du stage en sont déduites.";
 $string['periodtoolong'] = 'Une plage ne peut pas dépasser {$a} jours : vérifiez l\'année de ses dates.';
@@ -367,10 +361,7 @@ $string['conventionsignaturedate'] = 'Date : ............................';
 $string['noperiodsdefined'] = "Aucune plage de dates n'a été définie pour ce stage.";
 $string['workdayssaved'] = 'Les jours de stage effectifs ont été enregistrés.';
 $string['totalrequiredduration'] = 'Durée totale requise (jours)';
-$string['managethemedurations'] = 'Durées par année';
 $string['durationperyear'] = 'Par année';
-$string['durationflatignored'] = "Une durée unique de {\$a} jour(s) est définie sur cette thématique (voir sa fiche) : elle est utilisée à la place des durées par année ci-dessous, qui sont ignorées.";
-$string['themedurationssaved'] = 'Durées enregistrées.';
 $string['manageyearrequirements'] = 'Durées totales requises par année';
 $string['yearrequirementssaved'] = 'Durées totales enregistrées.';
 $string['yearrequirements_help'] = "Durée totale de stage obligatoire requise pour chaque année d'étude, toutes thématiques confondues. Les stages complémentaires ne comptent pas dans ce bilan.";
@@ -386,10 +377,6 @@ $string['student'] = 'Étudiant';
 $string['referentteachers'] = 'Enseignants référents';
 $string['currentreferentteachers'] = 'Enseignant(s) référent(s) actuel(s)';
 $string['noreferentteacher'] = 'Aucun';
-$string['availableteachers'] = 'Enseignants disponibles';
-$string['selectedteachers'] = 'Enseignants référents sélectionnés';
-$string['addselected'] = 'Ajouter';
-$string['removeselected'] = 'Retirer';
 
 // Statuses.
 $string['status_enregistre'] = 'Enregistré';
@@ -404,7 +391,6 @@ $string['themetodo'] = 'À compléter';
 // Actions / buttons.
 $string['addtheme'] = 'Ajouter une thématique';
 $string['evalquestions'] = "Questions d'évaluation";
-$string['addquestion'] = 'Ajouter une question';
 $string['evaltype'] = "Formulaire concerné";
 $string['evaltype_student'] = "Auto-évaluation de l'étudiant";
 $string['evaltype_teacher'] = "Évaluation de l'enseignant";
@@ -417,26 +403,10 @@ $string['questionlabel'] = 'Intitulé de la question';
 $string['questionlabelen'] = 'Intitulé de la question (anglais, maître de stage)';
 $string['choiceoptions'] = 'Options du QCM (une par ligne)';
 $string['choiceoptionsen'] = 'Options du QCM en anglais (une par ligne, maître de stage)';
-$string['questionlangen'] = 'Version anglaise';
-$string['questionlangen_help'] = "Si la convention de l'étudiant est en anglais, le maître de stage voit "
-    . "cette version anglaise à la place de la version française. Laissez vide pour utiliser une traduction "
-    . 'automatique littérale de la version française n\'est pas prévue : sans traduction, le texte français '
-    . "sera utilisé par défaut.";
 $string['choiceoptionsrequired'] = 'Veuillez saisir au moins une option, une par ligne.';
 $string['questionrequired'] = 'Réponse obligatoire';
-$string['questionsaved'] = 'La question a été enregistrée.';
-$string['questiondeleted'] = 'La question a été retirée de cette thématique.';
-$string['questionattached'] = 'La question a été associée à cette thématique.';
 $string['noanswer'] = 'Non renseigné';
-$string['noquestionsyet'] = "Aucune question définie pour ce formulaire : un commentaire libre générique sera utilisé.";
-$string['confirmdeletequestion'] = "Retirer cette question de cette thématique ? Si elle n'est utilisée par aucune autre thématique, elle sera supprimée avec les réponses associées.";
-$string['assignedthemes'] = 'Thématiques concernées';
-$string['assignedthemes_help'] = "Sélectionnez une ou plusieurs thématiques : la même question (intitulé, options) sera utilisée pour chacune d'elles, ce qui évite de la recréer.";
-$string['themesrequired'] = 'Veuillez sélectionner au moins une thématique.';
-$string['reusequestion'] = 'Associer';
-$string['selectexistingquestion'] = 'Réutiliser une question existante...';
 $string['savebulkchanges'] = 'Enregistrer les modifications';
-$string['toggle'] = 'Basculer obligatoire';
 $string['evaluate'] = 'Évaluer';
 $string['viewevaluation'] = "Voir l'évaluation";
 $string['validate'] = 'Valider';
@@ -505,7 +475,6 @@ $string['conventionestablishmentemail'] = 'Courriel';
 $string['conventionestablishment_help'] = "Ces informations sont affichées sur la page 1 de toutes les "
     . 'conventions de ce stage. Laissez un champ vide si non applicable ; le nom est "VetAgro Sup" par défaut '
     . 'tant que rien n\'est renseigné ici.';
-$string['conventionestablishmentsaved'] = "Les informations de l'établissement ont été enregistrées.";
 $string['conventionhoststructure'] = "Structure d'accueil";
 $string['conventionhoststructurename'] = 'Structure';
 $string['conventionstudent'] = 'Le/la stagiaire';
@@ -617,7 +586,6 @@ $string['conventionrequireteachervalidation_help'] = "Si activé, une demande de
     . "doit d'abord être validée par l'un de ses enseignants référents avant d'apparaître dans la liste des "
     . "demandes à traiter par la DEVE. L'enseignant peut aussi refuser la demande avec un commentaire, renvoyé "
     . "à l'étudiant pour correction, exactement comme un refus par la DEVE.";
-$string['conventionsettingssaved'] = 'Les paramètres généraux des conventions ont été enregistrés.';
 $string['conventionteachervalidation'] = 'Demandes de convention à valider';
 $string['conventionteachervalidate'] = 'Valider la demande';
 $string['conventionteachervalidated'] = "La demande de convention a été validée et transmise à la DEVE.";
@@ -643,7 +611,6 @@ $string['conventionlogos_help'] = "Ces deux logos (PNG) sont affichés en haut d
     . 'conventions de ce stage : à gauche et à droite.';
 $string['conventionlogoleft'] = 'Logo en haut à gauche';
 $string['conventionlogoright'] = 'Logo en haut à droite';
-$string['conventionlogossaved'] = 'Les logos ont été enregistrés.';
 $string['conventionlang'] = 'Langue de la convention';
 $string['conventionlang_fr'] = 'Français (standard)';
 $string['conventionlang_en'] = 'Anglais';
@@ -715,7 +682,6 @@ $string['noassignedstudents'] = "Aucun étudiant ne vous est attribué pour l'in
 $string['nopendingstages'] = 'Aucun stage en attente de validation.';
 $string['confirmdeletetheme'] = 'Supprimer cette thématique ?';
 $string['totalretained'] = 'Durée totale retenue : {$a} jours';
-$string['totalcomplementary'] = 'Dont stages complémentaires (EP) : {$a} jours (hors décompte)';
 $string['complementarystages'] = 'Stages complémentaires (EP)';
 $string['summary'] = 'Synthèse';
 $string['summaryitem'] = 'Indicateur';
@@ -801,7 +767,6 @@ $string['themeteachers_help'] = "Les enseignants responsables d'une thématique 
     . "faits sur cette thématique (onglet « Stages par thématique ») et aux rapports qui y sont déposés, quels "
     . "que soient les enseignants référents des étudiants concernés. Ils n'évaluent pas les stages : "
     . "l'évaluation reste le rôle de l'enseignant référent de chaque étudiant.";
-$string['themeteacherssaved'] = 'Les enseignants responsables de la thématique ont été enregistrés.';
 $string['themeteacherscount'] = '{$a} enseignant(s)';
 $string['mythemestages'] = 'Stages par thématique';
 $string['nostagesfortheme'] = 'Aucun stage ne correspond à cette thématique.';
@@ -837,7 +802,6 @@ $string['notificationssettings_help'] = "Pour chaque e-mail envoyé par l'activi
     . "sujet et le corps par un texte personnalisé. Laissez les deux champs vides pour revenir au texte par "
     . "défaut. Le texte personnalisé n'est pas une chaîne de langue : utilisez la syntaxe {{variable}} (double "
     . "accolades) pour insérer les variables disponibles, listées sous chaque e-mail.";
-$string['notificationssaved'] = 'Les e-mails personnalisés ont été enregistrés.';
 $string['emailsubject'] = 'Sujet';
 $string['emailbody'] = 'Corps du message';
 $string['emailavailablevars'] = 'Variables disponibles : {$a}';
@@ -858,7 +822,6 @@ $string['themeobjectivefiles'] = "Documents d'objectifs";
 $string['themeobjectivefiles_help'] = "Déposez ici les documents qui définissent les objectifs de "
     . "stage de cette thématique. Ils sont téléchargeables par les étudiants et les enseignants depuis la page "
     . 'de synthèse, et par le maître de stage depuis la page d\'évaluation qu\'il reçoit par courriel.';
-$string['themeobjectivessaved'] = "Les documents d'objectifs ont été enregistrés.";
 $string['themeobjectivefilemissing'] = "Ce document n'existe pas ou n'est plus disponible.";
 $string['themechecklist'] = "Check-list d'objectifs";
 $string['themechecklist_help'] = "Les éléments définis ici sont présentés à l'étudiant lors de sa demande "
@@ -867,16 +830,9 @@ $string['themechecklist_help'] = "Les éléments définis ici sont présentés �
     . "consultable dans son détail et modifiable par la DEVE et l'enseignant référent.";
 $string['themechecklistintro'] = "Cochez les objectifs que votre stage permettra d'atteindre. Pour chaque "
     . 'objectif laissé décoché, expliquez pourquoi dans le champ prévu à cet effet.';
-$string['addchecklistitem'] = 'Ajouter un objectif';
 $string['nochecklistitemsyet'] = "Aucun objectif n'est défini pour cette thématique.";
 $string['checklistitem'] = 'Objectif';
 $string['checklistitemdescription'] = 'Précision';
-$string['checklistitemdescription_help'] = "Texte facultatif affiché sous l'intitulé de l'objectif, pour "
-    . "préciser à l'étudiant ce qui est attendu.";
-$string['checklistitemsaved'] = "L'objectif a été enregistré.";
-$string['checklistitemdeleted'] = "L'objectif a été supprimé.";
-$string['confirmdeletechecklistitem'] = "Supprimer cet objectif ? Les réponses déjà données par les "
-    . 'étudiants seront également supprimées.';
 $string['checklistchecked'] = 'Atteint';
 $string['checklistcomment'] = 'Si non atteint, pourquoi ?';
 $string['checklistcommentrequired'] = 'Expliquez pourquoi cet objectif ne sera pas atteint.';
@@ -1059,8 +1015,6 @@ $string['evallistsaveandreturn'] = 'Enregistrer et revenir';
 $string['evallistquestionsintro'] = "Modifiez les questions directement ci-dessous ; remplissez une ligne vide pour "
     . "en créer une. Une question qui figure aussi dans d'autres listes est modifiée pour toutes.";
 $string['removequestionrow'] = 'Retirer cette question de la liste';
-$string['removequestionrow_help'] = "La question est retirée de cette liste seulement. Si elle ne figure dans aucune "
-    . "autre liste, elle est supprimée avec les réponses déjà enregistrées.";
 $string['questionsharedwithlists'] = 'Figure aussi dans : {$a}';
 $string['evallistquestionhasanswers'] = 'Cette question a déjà des réponses : elle ne peut pas être retirée de la liste.';
 $string['evallistquestionsblocked'] = 'Rien n\'a été enregistré : ces questions ont déjà des réponses et ne peuvent pas être retirées de la liste : {$a}. Les réponses des stages déjà évalués seraient perdues.';
@@ -1118,6 +1072,7 @@ $string['exportratingoutoffive'] = 'Note (sur 5)';
 // Événements (journaux Moodle).
 $string['evententrycreated'] = 'Stage enregistré';
 $string['evententryedited'] = 'Stage modifié';
+$string['evententrytutorbypassed'] = 'Évaluation du maître de stage contournée';
 $string['evententrystudentevaluated'] = 'Auto-évaluation soumise';
 $string['evententryteacherevaluated'] = "Stage évalué par l'enseignant référent";
 $string['evententrytutorevaluated'] = 'Stage évalué par le maître de stage';

@@ -89,7 +89,8 @@ if ($userid && $targetstageid) {
 
     $plan = stage_plan_student_transfer($stage, $targetstage, $userid);
 
-    if ($confirm && empty($plan->blockers) && confirm_sesskey()) {
+    // Irréversible : uniquement sur l'envoi du formulaire de confirmation, jamais sur un lien.
+    if ($confirm && empty($plan->blockers) && data_submitted() && confirm_sesskey()) {
         $count = stage_execute_student_transfer($stage, $context, $targetstage, $targetcontext, $userid, $plan);
         redirect($baseurl, get_string('transferdone', 'mod_stage', (object) [
             'count' => $count,
@@ -158,13 +159,9 @@ if ($userid && $targetstageid) {
             \core\output\notification::NOTIFY_INFO
         );
         $confirmurl = new moodle_url($baseurl, [
-            'userid' => $userid, 'targetstageid' => $targetstageid, 'confirm' => 1, 'sesskey' => sesskey(),
+            'userid' => $userid, 'targetstageid' => $targetstageid, 'confirm' => 1,
         ]);
-        echo html_writer::link(
-            $confirmurl,
-            get_string('transferconfirm', 'mod_stage'),
-            ['class' => 'btn btn-primary mr-2']
-        );
+        echo stage_post_button($confirmurl, get_string('transferconfirm', 'mod_stage'), 'btn btn-primary mr-2');
         echo html_writer::link($baseurl, get_string('cancel'), ['class' => 'btn btn-secondary']);
     }
 

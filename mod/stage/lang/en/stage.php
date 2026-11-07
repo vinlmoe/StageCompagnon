@@ -199,7 +199,6 @@ $string['historicalimportdateswarning'] = '{$a->sheet}, row {$a->line}: dates no
 $string['historicalimportunknownemail'] = '{$a->source}: no enrolled student with email “{$a->email}”.';
 $string['historicalimportunknownteacher'] = '{$a->source}: referent teacher “{$a->teacher}” was not recognised; '
     . 'the internship will be imported without a referent.';
-$string['historicalimportunknowntheme'] = '{$a->source}: Moodle theme “{$a->theme}” not found.';
 $string['historicalimportduplicate'] = '{$a}: internship already present or repeated in the workbook; skipped.';
 $string['historicalimportselecteptheme'] = 'Select the Moodle theme into which EP internships will be imported.';
 $string['historicalimportexpired'] = 'The preview has expired. Upload and analyse the workbook again.';
@@ -268,11 +267,8 @@ $string['requiredabroaddays_help'] = 'Total number of days abroad each student m
 $string['abroadtotal'] = 'International mobility';
 $string['abroadbeforeyear'] = 'Study year before which mobility is required';
 $string['abroaddaysrequired'] = 'Days abroad required';
-$string['abroaddaysretained'] = 'Days abroad retained';
-$string['themeabroaddays_help'] = 'Number of days abroad required for this theme (0 = no requirement), accumulated across all internships done on this theme (both mandatory AND complementary, unlike the required duration above which excludes complementary internships). For a theme bound to a range of years, checked at its last year like the required duration.';
 $string['abroadrule'] = 'International mobility rule (shown to students)';
 $string['abroadrule_help'] = 'Free text describing the international mobility conditions for this theme (e.g. eligible countries, minimum continuous duration, partner organisations...). Shown to students when registering an internship on this theme and in their summary.';
-$string['themeabroadsaved'] = 'The international mobility settings have been saved.';
 $string['studymobility'] = 'Study mobility';
 $string['studymobilityvalidated'] = 'The student completed a study mobility (validated by the DEVE)';
 $string['studymobilitylocation'] = 'Study mobility location';
@@ -294,7 +290,6 @@ $string['studymobilityimportnolocation'] = 'Row {$a->line} ({$a->email}): missin
 $string['studymobilityimportbadvalue'] = 'Row {$a->line} ({$a->email}): value "{$a->value}" not recognised in the "Study mobility" column (yes or no expected).';
 $string['country'] = 'Country';
 $string['workdays'] = 'Actual internship days';
-$string['workdays_help'] = 'Among this internship\'s date ranges, tick the days actually worked. Reminder: regulations require at least one rest day per week.';
 $string['restdayrule'] = 'Reminder: at least one rest day is required each week.';
 $string['restdaywarning'] = 'Warning: at least one selected week has no rest day.';
 $string['periods'] = 'Internship periods';
@@ -343,7 +338,6 @@ $string['dates'] = 'Dates';
 $string['periodstart'] = 'Start';
 $string['periodend'] = 'End';
 $string['addperiod'] = 'Add a period';
-$string['removeperiod'] = 'Remove';
 $string['periods_help'] = 'An internship can have several non-contiguous date ranges (e.g. two separate stays). The student will pick their actual working days among these ranges during their self-evaluation.';
 $string['periodsrequired'] = 'Enter at least one date period: the internship dates are derived from them.';
 $string['periodtoolong'] = 'A period cannot last more than {$a} days: check the year of its dates.';
@@ -358,10 +352,7 @@ $string['conventionsignaturedate'] = 'Date: ............................';
 $string['noperiodsdefined'] = 'No date range has been defined for this internship yet.';
 $string['workdayssaved'] = 'The actual internship days have been saved.';
 $string['totalrequiredduration'] = 'Total required duration (days)';
-$string['managethemedurations'] = 'Durations per year';
 $string['durationperyear'] = 'Per year';
-$string['durationflatignored'] = 'A single duration of {$a} day(s) is set on this theme (see its edit form): it is used instead of the per-year durations below, which are ignored.';
-$string['themedurationssaved'] = 'Durations saved.';
 $string['manageyearrequirements'] = 'Total required durations per year';
 $string['yearrequirementssaved'] = 'Total durations saved.';
 $string['yearrequirements_help'] = 'Total mandatory internship duration required for each study year, across all themes. Complementary internships do not count towards this total.';
@@ -377,10 +368,6 @@ $string['student'] = 'Student';
 $string['referentteachers'] = 'Referent teachers';
 $string['currentreferentteachers'] = 'Current referent teacher(s)';
 $string['noreferentteacher'] = 'None';
-$string['availableteachers'] = 'Available teachers';
-$string['selectedteachers'] = 'Selected referent teachers';
-$string['addselected'] = 'Add';
-$string['removeselected'] = 'Remove';
 
 // Statuses.
 $string['status_enregistre'] = 'Registered';
@@ -395,7 +382,6 @@ $string['themetodo'] = 'To complete';
 // Actions / buttons.
 $string['addtheme'] = 'Add a theme';
 $string['evalquestions'] = 'Evaluation questions';
-$string['addquestion'] = 'Add a question';
 $string['evaltype'] = 'Applies to form';
 $string['evaltype_student'] = 'Student self-assessment';
 $string['evaltype_teacher'] = 'Teacher evaluation';
@@ -408,25 +394,10 @@ $string['questionlabel'] = 'Question label';
 $string['questionlabelen'] = 'Question label (English, workplace tutor)';
 $string['choiceoptions'] = 'Choice options (one per line)';
 $string['choiceoptionsen'] = 'Choice options in English (one per line, workplace tutor)';
-$string['questionlangen'] = 'English version';
-$string['questionlangen_help'] = "If the student's internship agreement is in English, the workplace tutor sees "
-    . 'this English version instead of the French one. Leave empty to fall back to the French text: there is no '
-    . 'automatic translation.';
 $string['choiceoptionsrequired'] = 'Please enter at least one option, one per line.';
 $string['questionrequired'] = 'Answer required';
-$string['questionsaved'] = 'Question saved.';
-$string['questiondeleted'] = 'Question removed from this theme.';
-$string['questionattached'] = 'Question linked to this theme.';
 $string['noanswer'] = 'Not answered';
-$string['noquestionsyet'] = 'No question defined for this form: a generic free comment will be used.';
-$string['confirmdeletequestion'] = 'Remove this question from this theme? If it is not used by any other theme, it will be deleted along with its answers.';
-$string['assignedthemes'] = 'Themes';
-$string['assignedthemes_help'] = 'Select one or more themes: the same question (label, options) will be used for each of them, so you do not have to recreate it.';
-$string['themesrequired'] = 'Please select at least one theme.';
-$string['reusequestion'] = 'Attach';
-$string['selectexistingquestion'] = 'Reuse an existing question...';
 $string['savebulkchanges'] = 'Save changes';
-$string['toggle'] = 'Toggle mandatory';
 $string['evaluate'] = 'Evaluate';
 $string['viewevaluation'] = 'View the evaluation';
 $string['validate'] = 'Validate';
@@ -493,7 +464,6 @@ $string['conventionestablishmentphone'] = 'Phone';
 $string['conventionestablishmentemail'] = 'Email';
 $string['conventionestablishment_help'] = 'This information is displayed on page 1 of every agreement for this '
     . 'internship. Leave a field empty if not applicable; the name defaults to "VetAgro Sup" until set here.';
-$string['conventionestablishmentsaved'] = 'The establishment information has been saved.';
 $string['conventionhoststructure'] = 'Host organisation';
 $string['conventionhoststructurename'] = 'Organisation';
 $string['conventionstudent'] = 'The intern';
@@ -601,7 +571,6 @@ $string['conventionrequireteachervalidation_help'] = 'If enabled, an agreement r
     . 'must first be validated by one of their referent teachers before it appears in the list of requests to '
     . 'process for the DEVE. The teacher can also reject the request with a comment, sent back to the student '
     . 'for correction, exactly like a rejection by the DEVE.';
-$string['conventionsettingssaved'] = 'The general agreement settings have been saved.';
 $string['conventionteachervalidation'] = 'Agreement requests to validate';
 $string['conventionteachervalidate'] = 'Validate the request';
 $string['conventionteachervalidated'] = 'The agreement request has been validated and sent to the DEVE.';
@@ -626,7 +595,6 @@ $string['conventionlogos_help'] = 'These two logos (PNG) are displayed at the to
     . 'agreement for this internship activity: one on the left, one on the right.';
 $string['conventionlogoleft'] = 'Top-left logo';
 $string['conventionlogoright'] = 'Top-right logo';
-$string['conventionlogossaved'] = 'The logos have been saved.';
 $string['conventionlang'] = 'Agreement language';
 $string['conventionlang_fr'] = 'French (standard)';
 $string['conventionlang_en'] = 'English';
@@ -698,7 +666,6 @@ $string['noassignedstudents'] = 'No student assigned to you yet.';
 $string['nopendingstages'] = 'No internship pending validation.';
 $string['confirmdeletetheme'] = 'Delete this theme?';
 $string['totalretained'] = 'Total retained duration: {$a} days';
-$string['totalcomplementary'] = 'Including complementary internships (EP): {$a} days (not counted)';
 $string['complementarystages'] = 'Complementary internships (EP)';
 $string['summary'] = 'Summary';
 $string['summaryitem'] = 'Indicator';
@@ -785,7 +752,6 @@ $string['themeteachers_help'] = 'Teachers responsible for a theme have access to
     . 'on that theme (the "Internships by theme" tab) and to the reports submitted for them, whoever the '
     . 'students\' referent teachers are. They do not evaluate the internships: evaluation remains the role of '
     . 'each student\'s referent teacher.';
-$string['themeteacherssaved'] = 'The teachers responsible for the theme have been saved.';
 $string['themeteacherscount'] = '{$a} teacher(s)';
 $string['mythemestages'] = 'Internships by theme';
 $string['nostagesfortheme'] = 'No internship matches this theme.';
@@ -821,7 +787,6 @@ $string['notificationssettings_help'] = "For each email sent by the activity, yo
     . "and body with custom text. Leave both fields empty to use the default text. Custom text is not a "
     . "language string: use the {{variable}} syntax (double curly braces) to insert the available variables, "
     . "listed under each email.";
-$string['notificationssaved'] = 'The custom emails have been saved.';
 $string['emailsubject'] = 'Subject';
 $string['emailbody'] = 'Message body';
 $string['emailavailablevars'] = 'Available variables: {$a}';
@@ -837,7 +802,6 @@ $string['themeobjectivefiles'] = 'Objective documents';
 $string['themeobjectivefiles_help'] = 'Upload here the documents defining the internship objectives for '
     . 'this theme. Students and teachers can download them from the summary page, and the internship '
     . 'supervisor from the evaluation page they receive by email.';
-$string['themeobjectivessaved'] = 'The objective documents have been saved.';
 $string['themeobjectivefilemissing'] = 'This document does not exist or is no longer available.';
 $string['themechecklist'] = 'Objectives checklist';
 $string['themechecklist_help'] = 'The items defined here are shown to the student when they request their '
@@ -846,16 +810,9 @@ $string['themechecklist_help'] = 'The items defined here are shown to the studen
     . 'internship, visible in its details and editable by the registrar and the supervising teacher.';
 $string['themechecklistintro'] = 'Tick the objectives your internship will allow you to achieve. For each '
     . 'objective left unticked, explain why in the field provided.';
-$string['addchecklistitem'] = 'Add an objective';
 $string['nochecklistitemsyet'] = 'No objective is defined for this theme.';
 $string['checklistitem'] = 'Objective';
 $string['checklistitemdescription'] = 'Details';
-$string['checklistitemdescription_help'] = 'Optional text displayed below the objective, to make clear to '
-    . 'the student what is expected.';
-$string['checklistitemsaved'] = 'The objective has been saved.';
-$string['checklistitemdeleted'] = 'The objective has been deleted.';
-$string['confirmdeletechecklistitem'] = 'Delete this objective? The answers already given by students will '
-    . 'be deleted as well.';
 $string['checklistchecked'] = 'Achievable';
 $string['checklistcomment'] = 'If not, why?';
 $string['checklistcommentrequired'] = 'Explain why this objective will not be achieved.';
@@ -1038,8 +995,6 @@ $string['evallistsaveandreturn'] = 'Save and return';
 $string['evallistquestionsintro'] = 'Edit the questions directly below; fill in a blank row to create one. A question '
     . 'that also belongs to other lists is changed for all of them.';
 $string['removequestionrow'] = 'Remove this question from the list';
-$string['removequestionrow_help'] = 'The question is removed from this list only. If it belongs to no other list, it '
-    . 'is deleted together with the answers already recorded.';
 $string['questionsharedwithlists'] = 'Also in: {$a}';
 $string['evallistquestionhasanswers'] = 'This question already has answers: it cannot be removed from the list.';
 $string['evallistquestionsblocked'] = 'Nothing was saved: these questions already have answers and cannot be removed from the list: {$a}. The answers of internships already evaluated would be lost.';
@@ -1096,6 +1051,7 @@ $string['exportratingoutoffive'] = 'Rating (out of 5)';
 // Events (Moodle logs).
 $string['evententrycreated'] = 'Internship registered';
 $string['evententryedited'] = 'Internship edited';
+$string['evententrytutorbypassed'] = 'Tutor evaluation bypassed';
 $string['evententrystudentevaluated'] = 'Self-evaluation submitted';
 $string['evententryteacherevaluated'] = 'Internship evaluated by referent teacher';
 $string['evententrytutorevaluated'] = 'Internship evaluated by tutor';

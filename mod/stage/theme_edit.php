@@ -39,11 +39,12 @@ $themeid = optional_param('themeid', 0, PARAM_INT);
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
 $stage = $DB->get_record('stage', ['id' => $cm->instance], '*', MUST_EXIST);
-$theme = $themeid ? $DB->get_record('stage_theme', ['id' => $themeid, 'stageid' => $stage->id], '*', MUST_EXIST) : null;
 
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/stage:managethemes', $context);
+
+$theme = $themeid ? $DB->get_record('stage_theme', ['id' => $themeid, 'stageid' => $stage->id], '*', MUST_EXIST) : null;
 
 $listurl = new moodle_url('/mod/stage/themes.php', ['id' => $cm->id]);
 $baseurl = new moodle_url('/mod/stage/theme_edit.php', ['id' => $cm->id, 'themeid' => $themeid]);

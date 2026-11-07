@@ -58,7 +58,7 @@ if ($action === 'edit') {
 
 // Suppression d'un gabarit : refusée tant qu'une demande de convention l'utilise, la convention
 // déjà produite (ou à produire) en dépendant.
-if ($action === 'delete' && $templateid) {
+if ($action === 'delete' && $templateid && data_submitted()) {
     require_sesskey();
     $template = $DB->get_record('stage_convention_template', ['id' => $templateid, 'stageid' => $stage->id], '*', MUST_EXIST);
     if ($DB->record_exists('stage_entry', ['conventiontemplateid' => $template->id])) {
@@ -137,13 +137,13 @@ if (empty($templates)) {
         $usage = $DB->count_records('stage_entry', ['conventiontemplateid' => $template->id]);
         $actions = stage_render_actions([get_string('edit') => $editurl]);
         if (!$usage) {
-            $deleteurl = new moodle_url($baseurl, [
-                'action' => 'delete', 'templateid' => $template->id, 'sesskey' => sesskey(),
-            ]);
-            $actions .= html_writer::link($deleteurl, get_string('delete'), [
-                'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => stage_confirm_onclick(get_string('confirmdeleteconventiontemplate', 'mod_stage')),
-            ]);
+            $deleteurl = new moodle_url($baseurl, ['action' => 'delete', 'templateid' => $template->id]);
+            $actions .= stage_post_button(
+                $deleteurl,
+                get_string('delete'),
+                'btn btn-sm btn-outline-danger mr-1 mb-1',
+                get_string('confirmdeleteconventiontemplate', 'mod_stage')
+            );
         }
         $table->data[] = [
             html_writer::link($editurl, format_string($template->name)),

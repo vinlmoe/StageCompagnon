@@ -47,7 +47,7 @@ $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
 // Suppression d'une thématique.
-if ($action === 'delete' && $themeid) {
+if ($action === 'delete' && $themeid && data_submitted()) {
     require_sesskey();
     $theme = $DB->get_record('stage_theme', ['id' => $themeid, 'stageid' => $stage->id], '*', MUST_EXIST);
     if (!$DB->record_exists('stage_entry', ['themeid' => $theme->id])) {
@@ -218,7 +218,7 @@ if (empty($themes)) {
 
         $deleteurl = new moodle_url(
             '/mod/stage/themes.php',
-            ['id' => $cm->id, 'action' => 'delete', 'themeid' => $theme->id, 'sesskey' => sesskey()]
+            ['id' => $cm->id, 'action' => 'delete', 'themeid' => $theme->id]
         );
 
         // Tous les volets de la thématique (paramètres, durées, enseignants, objectifs, questions)
@@ -227,10 +227,12 @@ if (empty($themes)) {
             [get_string('managetheme', 'mod_stage') => $manageurl],
             'btn btn-sm btn-primary mr-1 mb-1'
         )
-            . html_writer::link($deleteurl, get_string('delete'), [
-                'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => stage_confirm_onclick(get_string('confirmdeletetheme', 'mod_stage')),
-            ]);
+            . stage_post_button(
+                $deleteurl,
+                get_string('delete'),
+                'btn btn-sm btn-outline-danger mr-1 mb-1',
+                get_string('confirmdeletetheme', 'mod_stage')
+            );
 
         $row = [html_writer::link($manageurl, format_string($theme->name)), $minstudyyearselect, $maxstudyyearselect,
             $mandatorycb, $durationlabel, $visible];

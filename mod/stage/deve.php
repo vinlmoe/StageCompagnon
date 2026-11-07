@@ -81,8 +81,10 @@ if ($entryid && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()
 // Contourne l'évaluation du maître de stage (DEVE uniquement) : ne bloque plus la validation.
 if ($entryid && optional_param('bypasstutor', 0, PARAM_INT) && confirm_sesskey()) {
     $entry = $DB->get_record('stage_entry', ['id' => $entryid, 'stageid' => $stage->id], '*', MUST_EXIST);
-    stage_bypass_tutor_eval($entry);
-    redirect($entryurl, get_string('tutorevalbypassed', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    if (stage_bypass_tutor_eval($entry)) {
+        redirect($entryurl, get_string('tutorevalbypassed', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+    }
+    redirect($entryurl, get_string('errorentrychanged', 'mod_stage'), null, \core\output\notification::NOTIFY_WARNING);
 }
 
 // Validation unitaire (formulaire dédié à une saisie).

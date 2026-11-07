@@ -31,7 +31,12 @@ $studentid = required_param('studentid', PARAM_INT);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 require_login($cm->course, true, $cm);
-require_capability('mod/stage:manageteachers', context_module::instance($cm->id));
+$context = context_module::instance($cm->id);
+require_capability('mod/stage:manageteachers', $context);
 
-$student = $DB->get_record('user', ['id' => $studentid], '*', MUST_EXIST);
+// Seul un inscrit du cours est retrouvé : son nom n'est pas révélé pour n'importe quel compte.
+$student = $DB->get_record('user', ['id' => $studentid, 'deleted' => 0]);
+if (!$student || !is_enrolled($context, $student)) {
+    redirect(new moodle_url('/mod/stage/teachers.php', ['id' => $cm->id]));
+}
 redirect(new moodle_url('/mod/stage/teachers.php', ['id' => $cm->id, 'search' => fullname($student)]));
