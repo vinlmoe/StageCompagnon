@@ -37,7 +37,7 @@ class entry_tutor_evaluated extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return "The tutor evaluated, through their token link, the internship #{$this->objectid}"
-            . " of student #{$this->relateduserid}.";
+        return "The tutor evaluated, through their token link, the internship with id '{$this->objectid}'"
+            . " of the student with id '{$this->relateduserid}'.";
     }
 }

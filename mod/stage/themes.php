@@ -136,6 +136,7 @@ $themes = stage_get_themes($stage->id);
 if (empty($themes)) {
     echo $OUTPUT->notification(get_string('nothemesyet', 'mod_stage'), 'info');
 } else {
+    $deleteforms = '';
     echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'bulksave']);
@@ -227,12 +228,14 @@ if (empty($themes)) {
             [get_string('managetheme', 'mod_stage') => $manageurl],
             'btn btn-sm btn-primary mr-1 mb-1'
         )
-            . stage_post_button(
-                $deleteurl,
-                get_string('delete'),
-                'btn btn-sm btn-outline-danger mr-1 mb-1',
-                get_string('confirmdeletetheme', 'mod_stage')
-            );
+            . stage_post_form_button('stage-delete-theme-' . $theme->id, get_string('delete'));
+        // Le tableau est déjà dans le formulaire d'enregistrement en masse : le formulaire de
+        // suppression, qui ne peut pas y être imbriqué, est placé après lui.
+        $deleteforms .= stage_post_form(
+            $deleteurl,
+            'stage-delete-theme-' . $theme->id,
+            get_string('confirmdeletetheme', 'mod_stage')
+        );
 
         $row = [html_writer::link($manageurl, format_string($theme->name)), $minstudyyearselect, $maxstudyyearselect,
             $mandatorycb, $durationlabel, $visible];
@@ -250,6 +253,7 @@ if (empty($themes)) {
         'type' => 'submit', 'value' => get_string('savebulkchanges', 'mod_stage'), 'class' => 'btn btn-primary mt-2',
     ]);
     echo html_writer::end_tag('form');
+    echo $deleteforms;
 }
 
 echo $OUTPUT->footer();

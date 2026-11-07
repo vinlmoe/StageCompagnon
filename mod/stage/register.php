@@ -342,6 +342,11 @@ if ($mode === 'single') {
                 $data->abroad,
                 $data->country ?? ''
             );
+            // stage_update_entry_details() n'écrit que les champs du stage lui-même : la durée
+            // retenue, propre à la décision de la DEVE, est enregistrée à part.
+            if ($editretainedduration) {
+                stage_update_entry_fields($entry, ['retainedduration']);
+            }
             stage_save_entry_periods($entry->id, $periods);
             stage_set_entry_convention_exempt($entry, !empty($data->exemptfromconvention));
             stage_set_entry_stagetype($entry->id, $data->stagetype);

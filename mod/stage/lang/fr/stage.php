@@ -1015,6 +1015,8 @@ $string['evallistsaveandreturn'] = 'Enregistrer et revenir';
 $string['evallistquestionsintro'] = "Modifiez les questions directement ci-dessous ; remplissez une ligne vide pour "
     . "en créer une. Une question qui figure aussi dans d'autres listes est modifiée pour toutes.";
 $string['removequestionrow'] = 'Retirer cette question de la liste';
+$string['removequestionrow_help'] = "La question est retirée de cette liste seulement. Si elle ne figure dans aucune "
+    . "autre liste, elle est supprimée avec les réponses déjà enregistrées.";
 $string['questionsharedwithlists'] = 'Figure aussi dans : {$a}';
 $string['evallistquestionhasanswers'] = 'Cette question a déjà des réponses : elle ne peut pas être retirée de la liste.';
 $string['evallistquestionsblocked'] = 'Rien n\'a été enregistré : ces questions ont déjà des réponses et ne peuvent pas être retirées de la liste : {$a}. Les réponses des stages déjà évalués seraient perdues.';

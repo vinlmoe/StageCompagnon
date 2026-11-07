@@ -182,20 +182,22 @@ function stage_confirm_onclick($message) {
 }
 
 /**
- * Bouton qui envoie une action en POST, avec la clé de session, et une confirmation facultative.
- *
- * Les actions irréversibles (suppression, transfert) ne partent plus d'un lien : un lien rejoué
- * (historique, préchargement, outil de navigation) déclenchait l'action sans la confirmation.
- * Leur page de traitement n'accepte en retour qu'une requête POST (data_submitted()).
+ * Formulaire POST d'une action (paramètres de l'URL et clé de session), avec une confirmation
+ * facultative. Sans $button, il ne contient aucun bouton : il est alors placé hors de tout autre
+ * formulaire et envoyé par un bouton qui le désigne (attribut form, voir stage_post_form_button()),
+ * les formulaires HTML ne pouvant pas s'imbriquer.
  *
  * @param moodle_url $url Page et paramètres de l'action.
- * @param string $label
- * @param string $class Classes du bouton.
+ * @param string|null $formid Identifiant du formulaire, ou null.
  * @param string|null $confirm Message de confirmation, ou null.
+ * @param string $button HTML du bouton à placer dans le formulaire, ou chaîne vide.
  * @return string HTML
  */
-function stage_post_button(moodle_url $url, $label, $class = 'btn btn-sm btn-outline-danger mr-1 mb-1', $confirm = null) {
+function stage_post_form(moodle_url $url, $formid = null, $confirm = null, $button = '') {
     $attributes = ['method' => 'post', 'action' => $url->out_omit_querystring(), 'class' => 'd-inline'];
+    if ($formid !== null) {
+        $attributes['id'] = $formid;
+    }
     if ($confirm !== null) {
         $attributes['onsubmit'] = stage_confirm_onclick($confirm);
     }
@@ -204,8 +206,37 @@ function stage_post_button(moodle_url $url, $label, $class = 'btn btn-sm btn-out
         $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $name, 'value' => $value]);
     }
     $out .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-    $out .= html_writer::tag('button', $label, ['type' => 'submit', 'class' => $class]);
-    return $out . html_writer::end_tag('form');
+    return $out . $button . html_writer::end_tag('form');
+}
+
+/**
+ * Bouton qui envoie un formulaire placé ailleurs dans la page (voir stage_post_form()).
+ *
+ * @param string $formid
+ * @param string $label
+ * @param string $class
+ * @return string HTML
+ */
+function stage_post_form_button($formid, $label, $class = 'btn btn-sm btn-outline-danger mr-1 mb-1') {
+    return html_writer::tag('button', $label, ['type' => 'submit', 'class' => $class, 'form' => $formid]);
+}
+
+/**
+ * Bouton qui envoie une action en POST, avec la clé de session, et une confirmation facultative.
+ *
+ * Les actions irréversibles (suppression, transfert) ne partent plus d'un lien : un lien rejoué
+ * (historique, préchargement, outil de navigation) déclenchait l'action sans la confirmation.
+ * Leur page de traitement n'accepte en retour qu'une requête POST (data_submitted()). À ne pas
+ * placer dans un autre formulaire : voir alors stage_post_form() et stage_post_form_button().
+ *
+ * @param moodle_url $url Page et paramètres de l'action.
+ * @param string $label
+ * @param string $class Classes du bouton.
+ * @param string|null $confirm Message de confirmation, ou null.
+ * @return string HTML
+ */
+function stage_post_button(moodle_url $url, $label, $class = 'btn btn-sm btn-outline-danger mr-1 mb-1', $confirm = null) {
+    return stage_post_form($url, null, $confirm, html_writer::tag('button', $label, ['type' => 'submit', 'class' => $class]));
 }
 
 /**
@@ -505,7 +536,8 @@ function stage_delete_theme_duration($themeid, $studyyear) {
  *
  * Une durée unique prime. Sinon, la durée par année est celle exigée si le stage est fait cette
  * année-là : elle est comptée une fois par année où l'étudiant a un stage sur la thématique. Sans
- * stage, c'est la durée de la première année de la plage, à titre indicatif. Le tableau de bord de
+ * stage, ou si ces années n'ont pas de durée propre, c'est la plus forte durée définie sur la
+ * plage. Le tableau de bord de
  * l'étudiant et le bilan par année utilisent ce même calcul.
  *
  * @param stdClass $theme
@@ -517,13 +549,18 @@ function stage_get_theme_required_duration(stdClass $theme, array $years) {
     if (!empty($theme->requiredduration)) {
         return (int) $theme->requiredduration;
     }
-    $years = array_unique(array_map('intval', $years));
-    if (!$years) {
-        return stage_get_theme_duration($theme->id, $theme->minstudyyear ?: $theme->maxstudyyear);
-    }
     $required = 0;
-    foreach ($years as $year) {
+    foreach (array_unique(array_map('intval', $years)) as $year) {
         $required += stage_get_theme_duration($theme->id, $year);
+    }
+    if ($required > 0) {
+        return $required;
+    }
+    // Aucun stage, ou seulement sur des années sans durée propre : la plus forte durée définie
+    // sur la plage s'applique. Ne rien exiger ferait passer pour atteinte une thématique jamais
+    // faite (plage A2-A4 dont seule A4 a une durée, par exemple).
+    foreach (stage_theme_duration_years($theme->minstudyyear, $theme->maxstudyyear) as $year) {
+        $required = max($required, stage_get_theme_duration($theme->id, $year));
     }
     return $required;
 }
@@ -3092,7 +3129,8 @@ function stage_entry_short_description(stdClass $entry, array $themes) {
         ? userdate($entry->datestart, $dateformat) . ' - ' . userdate($entry->dateend, $dateformat)
         : get_string('historicalimportnodates', 'mod_stage');
     $parts = [
-        isset($themes[$entry->themeid]) ? format_string($themes[$entry->themeid]->name) : '?',
+        // Texte brut (échappé par l'appelant) : format_string() y laisserait ses entités.
+        isset($themes[$entry->themeid]) ? stage_plain_string($themes[$entry->themeid]->name) : '?',
         $dates,
     ];
     if (trim((string) $entry->structure) !== '') {
@@ -8751,6 +8789,9 @@ function stage_check_convention_pdf_prerequisites(stdClass $entry, context $cont
 function stage_convention_template_readable(\stored_file $file) {
     global $CFG;
 
+    // FPDI étend TCPDF, que Moodle ne charge pas d'office : sans pdflib, l'analyse échouait sur
+    // une classe introuvable et tout gabarit passait pour illisible.
+    require_once($CFG->libdir . '/pdflib.php');
     require_once($CFG->dirroot . '/mod/stage/thirdparty/vendor/autoload.php');
     try {
         $fpdi = new \setasign\Fpdi\Tcpdf\Fpdi();

@@ -68,7 +68,7 @@ final class events_test extends \advanced_testcase {
             $this->assertSame($studentid, (int) $event->relateduserid);
             $this->assertSame($cmid, (int) $event->contextinstanceid);
             $this->assertNotEmpty($event->get_name());
-            $this->assertStringContainsString("#{$entry->id}", $event->get_description());
+            $this->assertStringContainsString("internship with id '{$entry->id}'", $event->get_description());
             $this->assertSame($cmid, (int) $event->get_url()->get_param('id'));
             $this->assertSame((int) $entry->id, (int) $event->get_url()->get_param('entryid'));
             $this->assertArrayHasKey('status', $event->other);

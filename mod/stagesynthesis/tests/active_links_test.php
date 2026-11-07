@@ -61,10 +61,14 @@ final class active_links_test extends \advanced_testcase {
     }
 
     /**
-     * Une activité masquée aux enseignants non éditeurs n'entre pas dans leur périmètre.
+     * Une activité visible mais fermée à l'enseignant par une restriction d'accès (date à venir,
+     * sans le droit d'ignorer les restrictions) sort de son périmètre : c'est la visibilité pour
+     * l'utilisateur qui compte, comme à la source, pas seulement celle de l'activité.
      */
-    public function test_activity_not_visible_to_user_leaves_the_scope(): void {
+    public function test_activity_restricted_for_user_leaves_the_scope(): void {
+        global $DB;
         $this->resetAfterTest();
+        set_config('enableavailability', 1);
         $gen = $this->getDataGenerator();
         $course = $gen->create_course();
         $stage = $gen->create_module('stage', ['course' => $course]);
@@ -75,8 +79,17 @@ final class active_links_test extends \advanced_testcase {
         $gen->enrol_user($student->id, $course->id, 'student');
         $gen->get_plugin_generator('mod_stage')->assign_teacher($stage, $student->id, $teacher->id);
         stagesynthesis_set_links($synthesis->id, [$stage->cmid]);
+        $this->assertArrayHasKey((int) $stage->cmid, stagesynthesis_get_active_links($synthesis->id, $teacher->id));
 
-        set_coursemodule_visible($stage->cmid, 0);
+        $teacherrole = $DB->get_field('role', 'id', ['shortname' => 'teacher'], MUST_EXIST);
+        $coursecontext = \context_course::instance($course->id);
+        assign_capability('moodle/course:ignoreavailabilityrestrictions', CAP_PROHIBIT, $teacherrole, $coursecontext->id);
+        assign_capability('moodle/course:viewhiddenactivities', CAP_PROHIBIT, $teacherrole, $coursecontext->id);
+        $DB->set_field('course_modules', 'availability', json_encode([
+            'op' => '&', 'c' => [['type' => 'date', 'd' => '>=', 't' => time() + WEEKSECS]], 'showc' => [true],
+        ]), ['id' => $stage->cmid]);
+        rebuild_course_cache($course->id, true);
+        accesslib_clear_all_caches_for_unit_testing();
 
         $this->assertSame([], stagesynthesis_get_active_links($synthesis->id, $teacher->id));
     }

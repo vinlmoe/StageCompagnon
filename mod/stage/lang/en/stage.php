@@ -995,6 +995,8 @@ $string['evallistsaveandreturn'] = 'Save and return';
 $string['evallistquestionsintro'] = 'Edit the questions directly below; fill in a blank row to create one. A question '
     . 'that also belongs to other lists is changed for all of them.';
 $string['removequestionrow'] = 'Remove this question from the list';
+$string['removequestionrow_help'] = 'The question is removed from this list only. If it belongs to no other list, it '
+    . 'is deleted together with the answers already recorded.';
 $string['questionsharedwithlists'] = 'Also in: {$a}';
 $string['evallistquestionhasanswers'] = 'This question already has answers: it cannot be removed from the list.';
 $string['evallistquestionsblocked'] = 'Nothing was saved: these questions already have answers and cannot be removed from the list: {$a}. The answers of internships already evaluated would be lost.';

@@ -290,6 +290,26 @@ final class audit_corrections_test extends \advanced_testcase {
     }
 
     /**
+     * C4 : une plage dont seule la dernière année a une durée exige toujours cette durée, que
+     * l'étudiant n'ait aucun stage sur la thématique ou seulement un stage d'une autre année.
+     */
+    public function test_ranged_theme_never_requires_zero(): void {
+        [$stage, , $student, , , $generator] = $this->fixture();
+        $theme = $generator->create_theme($stage, [
+            'name' => 'Pluriannuelle', 'mandatory' => 1, 'minstudyyear' => 2, 'maxstudyyear' => 4,
+        ]);
+        stage_set_theme_duration($theme->id, 4, 30);
+        $this->assertSame(30, stage_get_theme_required_duration($theme, []));
+
+        $entry = $generator->create_entry($stage, $student->id, $theme, ['studyyear' => 2, 'declaredduration' => 5]);
+        stage_apply_deve_validation($entry, get_admin()->id, 5);
+        $byyear = stage_get_student_year_progress($stage->id, $student->id);
+        $row = array_values(array_filter($byyear[4]->themes, fn($r) => (int) $r->theme->id === (int) $theme->id))[0];
+        $this->assertSame(30, $row->required);
+        $this->assertFalse($row->done);
+    }
+
+    /**
      * C7 : le contournement du maître de stage est refusé sur un stage annulé, et tracé sinon.
      */
     public function test_tutor_bypass_guarded_and_logged(): void {
@@ -392,7 +412,7 @@ final class audit_corrections_test extends \advanced_testcase {
         $notpdf = $fs->create_file_from_string($record + ['filename' => 'gabarit.pdf'], 'Ceci n\'est pas un PDF');
         $this->assertFalse(stage_convention_template_readable($notpdf));
 
-        require_once($GLOBALS['CFG']->libdir . '/pdflib.php');
+        // Après l'appel ci-dessus, qui doit lui-même charger TCPDF : un gabarit valide est accepté.
         $pdf = new \pdf();
         $pdf->AddPage();
         $pdf->Write(5, 'Articles');
