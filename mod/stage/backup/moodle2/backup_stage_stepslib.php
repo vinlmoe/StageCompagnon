@@ -51,7 +51,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             'name', 'intro', 'introformat',
             'establishmentname', 'establishmentaddress', 'establishmentrepresentative',
             'establishmentrepresentativetitle', 'establishmentphone', 'establishmentemail',
-            'establishmentsignatory', 'conventionrequireteachervalidation', 'tutorevaluationenabled',
+            'establishmentsignatory', 'conventionrequireteachervalidation', 'conventionvalidator', 'tutorevaluationenabled',
             'currentstudyyear', 'requiredabroaddays', 'abroadbeforeyear', 'abroadrule',
             'timecreated', 'timemodified',
         ]);
@@ -60,7 +60,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $theme = new backup_nested_element('theme', ['id'], [
             'name', 'description', 'mandatory', 'requiredduration', 'minstudyyear', 'maxstudyyear',
             'sortorder', 'visible', 'tutorevaluationenabled', 'reportmode',
-            'studentlistid', 'teacherlistid', 'tutorlistid',
+            'studentlistid', 'teacherlistid', 'tutorlistid', 'requestlistid',
             'timecreated', 'timemodified',
         ]);
 
@@ -133,6 +133,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             'conventionrejectedby', 'conventionrejecttime', 'conventionrejectcomment',
             'conventionrequesttime', 'conventionremindertime',
             'conventionteachervalidatedby', 'conventionteachervalidatetime',
+            'conventionthemevalidatedby', 'conventionthemevalidatetime',
             'conventioneditedby', 'conventionedittime',
             'conventionsignedby', 'conventionsigntime',
             'cancelledby', 'canceltime', 'cancelcomment',
@@ -152,7 +153,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             'hostrepresentativetitle', 'hostservice', 'hostphone', 'hostemail', 'hostlocation',
             'tutorname', 'tutorfunction', 'tutorphone', 'tutoremail',
             'nightpresence', 'sundaypresence', 'holidaypresence', 'homebased', 'othermodality',
-            'hasleave', 'leavedays', 'leavemodalities', 'gratificationamount',
+            'hasleave', 'leavedays', 'leavemodalities', 'gratificationamount', 'siret',
             'paperrequestedbystudent', 'paperrequestedbyteacher', 'timecreated', 'timemodified',
         ]);
 
@@ -257,6 +258,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $entry->annotate_ids('user', 'deveuserid');
         $entry->annotate_ids('user', 'conventionrejectedby');
         $entry->annotate_ids('user', 'conventionteachervalidatedby');
+        $entry->annotate_ids('user', 'conventionthemevalidatedby');
         $entry->annotate_ids('user', 'conventioneditedby');
         $entry->annotate_ids('user', 'conventionsignedby');
         $entry->annotate_ids('user', 'cancelledby');

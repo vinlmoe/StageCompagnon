@@ -37,6 +37,6 @@ class entry_reset extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe('réinitialisé');
+        return $this->describe('reset');
     }
 }

@@ -36,7 +36,7 @@ class convention_exemption_changed extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        $action = !empty($this->other['exempt']) ? 'dispensé de convention' : 'levé la dispense de convention pour';
+        $action = !empty($this->other['exempt']) ? 'exempted from an agreement' : 'lifted the agreement exemption of';
         return $this->describe($action);
     }
 }

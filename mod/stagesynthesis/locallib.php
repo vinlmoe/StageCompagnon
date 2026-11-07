@@ -147,7 +147,8 @@ function stagesynthesis_set_links($synthesisid, array $stagecmids) {
  * Détermine, pour l'utilisateur donné, le sous-ensemble des activités liées sur lesquelles il est
  * effectivement enseignant référent d'au moins un étudiant : une activité liée n'entre dans le
  * périmètre que si l'utilisateur a toujours la capacité mod/stage:evaluateteacher sur l'instance
- * d'origine (retrait de rôle, promotion archivée...) et qu'au moins un étudiant lui est attribué.
+ * d'origine (retrait de rôle, promotion archivée...), qu'il peut toujours y accéder (inscription
+ * active, activité visible pour lui) et qu'au moins un étudiant lui est attribué.
  * La synthèse ne fait ainsi que refléter les droits déjà accordés dans chaque cours, elle n'en
  * accorde aucun de plus.
  *
@@ -177,6 +178,22 @@ function stagesynthesis_get_active_links($synthesisid, $userid) {
         }
 
         if (!has_capability('mod/stage:evaluateteacher', $context, $userid)) {
+            continue;
+        }
+        // La capacité seule ne suffit pas : une inscription suspendue ou expirée garde ses rôles.
+        // L'activité doit rester accessible comme elle le serait à la source (require_login()) :
+        // accès au cours, puis visibilité de l'activité pour l'utilisateur (restrictions d'accès
+        // comprises).
+        try {
+            $course = get_course($cm->course);
+            if (!can_access_course($course, $userid, '', true)) {
+                continue;
+            }
+            $modinfo = get_fast_modinfo($course, $userid);
+            if (!$modinfo->get_cm($cm->id)->uservisible) {
+                continue;
+            }
+        } catch (Exception $e) {
             continue;
         }
 

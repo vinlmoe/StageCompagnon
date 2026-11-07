@@ -99,7 +99,22 @@ class send_tutor_evaluation_requests extends \core\task\scheduled_task {
             }
             $stage = $stages[$entry->stageid];
             $cm = $cms[$entry->stageid];
-            if (!$stage || !$cm) {
+            // Activité masquée : rien ne part tant qu'elle n'est pas rouverte.
+            if (!$stage || !$cm || empty($cm->visible)) {
+                continue;
+            }
+
+            // Étudiant introuvable ou supprimé : l'invitation ne pourra jamais partir, elle est marquée
+            // en échec (la DEVE peut relancer à la main) au lieu d'être relue à chaque passage.
+            $student = $DB->get_record('user', ['id' => $entry->userid], 'id, deleted, suspended');
+            if (!$student || !empty($student->deleted)) {
+                stage_mark_tutor_request_failed($entry);
+                $failed++;
+                continue;
+            }
+            // Étudiant suspendu ou désinscrit (transfert, abandon) : son maître de stage n'est pas
+            // sollicité. Rien n'est marqué : s'il est réinscrit, l'invitation partira.
+            if (!empty($student->suspended) || !is_enrolled(\context_module::instance($cm->id), $student->id, '', true)) {
                 continue;
             }
 

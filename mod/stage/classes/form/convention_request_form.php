@@ -157,6 +157,7 @@ class convention_request_form extends \moodleform {
         $mform->addElement('text', 'hostemail', get_string('conventionhostemail', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostemail', PARAM_TEXT);
         $mform->addRule('hostemail', null, 'required', null, 'client');
+        stage_add_siret_field($mform);
         $mform->addElement('text', 'hostlocation', get_string('conventionhostlocation', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostlocation', PARAM_TEXT);
         $mform->addHelpButton('hostlocation', 'conventionhostlocation', 'mod_stage');
@@ -219,6 +220,13 @@ class convention_request_form extends \moodleform {
         // consultable et corrigeable ensuite par la DEVE et l'enseignant référent.
         stage_add_checklist_fields($mform, [$this->_customdata['themeid'] => $this->_customdata['checklistitems']]);
 
+        // Questionnaire de demande de la thématique : il accompagne la demande, et ceux qui la
+        // valident avant la DEVE s'appuient sur lui (voir stage_render_request_answers()).
+        $requestquestions = $this->_customdata['requestquestions'] ?? [];
+        if ($requestquestions) {
+            stage_add_request_question_fields($mform, [$this->_customdata['themeid'] => $requestquestions]);
+        }
+
         // Longueurs de la table : une valeur trop longue est signalée ici plutôt que de faire
         // échouer l'enregistrement de la demande (voir \mod_stage\local\convention_detail).
         \mod_stage\local\convention_detail::add_maxlength_rules($mform);
@@ -252,6 +260,12 @@ class convention_request_form extends \moodleform {
 
         // Un objectif laissé décoché doit être justifié : c'est la raison d'être du champ libre.
         $errors += stage_validate_checklist($data, $this->_customdata['checklistitems']);
+        $errors += stage_validate_siret_field($data);
+        $errors += stage_validate_request_answers(
+            $data,
+            $this->_customdata['themeid'],
+            $this->_customdata['requestquestions'] ?? []
+        );
 
         return $errors;
     }

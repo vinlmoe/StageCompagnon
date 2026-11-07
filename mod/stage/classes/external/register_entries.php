@@ -83,7 +83,8 @@ class register_entries extends \external_api {
 
         $stage = $DB->get_record('stage', ['id' => $cm->instance], '*', MUST_EXIST);
         $enrolled = array_flip(array_keys(stage_get_enrolled_students($context)));
-        $validthemeids = array_flip(array_keys(stage_get_themes($stage->id)));
+        // Thématiques actives seulement, comme dans les formulaires de la DEVE.
+        $validthemeids = array_flip(array_keys(stage_get_themes($stage->id, true)));
         // Contrôle des doublons et création sous le verrou d'enregistrement de l'activité : deux
         // appels simultanés avec le même lot ne doivent pas créer deux fois les mêmes stages.
         $lock = stage_get_activity_lock($stage->id);

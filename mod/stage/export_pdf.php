@@ -81,7 +81,7 @@ $uptodaterows = array_filter($report->rows, function ($row) {
 
 $data = [
     'title' => get_string('promotionreport', 'mod_stage'),
-    'subtitle' => format_string($course->fullname) . ' - ' . format_string($stage->name),
+    'subtitle' => stage_plain_string($course->fullname) . ' - ' . stage_plain_string($stage->name),
     'generatedon' => get_string(
         'promotiongeneratedon',
         'mod_stage',
@@ -125,5 +125,5 @@ $data = [
 $pdf = new \mod_stage\pdf\promotion_pdf('L', 'mm', 'A4', true, 'UTF-8', false);
 $pdf->generate($data);
 
-$filename = clean_filename(format_string($course->shortname) . '_' . format_string($stage->name) . '_bilan.pdf');
+$filename = clean_filename(stage_plain_string($course->shortname) . '_' . stage_plain_string($stage->name) . '_bilan.pdf');
 $pdf->Output($filename, 'D');

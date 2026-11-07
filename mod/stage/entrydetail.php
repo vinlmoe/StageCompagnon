@@ -55,6 +55,12 @@ $isthemeteacher = stage_is_theme_teacher($entry->themeid, $USER->id);
 if (!$isdeve && !$isassignedteacher && !$isthemeteacher) {
     throw new moodle_exception('nopermissions', 'error', '', get_string('viewdetails', 'mod_stage'));
 }
+// Relancer le maître de stage crée son jeton et envoie un courriel : c'est une écriture, réservée
+// à la DEVE qui valide les stages (comme dans deve.php), pas à la seule capacité de consultation.
+$canresendtutor = has_capability('mod/stage:validatedeve', $context);
+// Les coordonnées personnelles de l'étudiant ne servent qu'à la DEVE et à son référent : le
+// responsable de la thématique, qui suit le stage et ses rapports, ne les voit pas.
+$canseestudentdetails = $isdeve || $isassignedteacher;
 
 $student = $DB->get_record('user', ['id' => $entry->userid], '*', MUST_EXIST);
 $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
@@ -63,7 +69,8 @@ $theme = $DB->get_record('stage_theme', ['id' => $entry->themeid]);
 // refus de convention...), pour affichage de leur nom plutôt que de leur seul id.
 $refuserids = array_unique(array_filter([
     $entry->teacherid, $entry->deveuserid, $entry->cancelledby, $entry->conventionrejectedby,
-    $entry->conventionteachervalidatedby, $entry->conventioneditedby, $entry->conventionsignedby,
+    $entry->conventionteachervalidatedby, $entry->conventionthemevalidatedby, $entry->conventioneditedby,
+    $entry->conventionsignedby,
 ]));
 $refusers = $refuserids ? $DB->get_records_list('user', 'id', $refuserids) : [];
 $userlabel = function ($userid) use ($refusers) {
@@ -84,7 +91,7 @@ $PAGE->set_context($context);
 // Relance du courriel au maître de stage, à la demande de la DEVE : mêmes modalités que sur la
 // page de validation (deve.php), mais accessible directement depuis cette vue de détail plutôt que
 // de devoir passer par l'écran de validation.
-if ($isdeve && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()) {
+if ($canresendtutor && optional_param('resendtutor', 0, PARAM_INT) && confirm_sesskey()) {
     $sent = stage_resend_tutor_evaluation_request($stage, $cm, $entry);
     redirect(
         $baseurl,
@@ -145,6 +152,9 @@ $conventionrows = [
     get_string('conventionvalidatedby', 'mod_stage') => !empty($entry->conventionteachervalidatedby)
         ? $userlabel($entry->conventionteachervalidatedby) . ' - '
             . userdate($entry->conventionteachervalidatetime, $datetimeformat) : null,
+    get_string('conventionthemevalidatedby', 'mod_stage') => !empty($entry->conventionthemevalidatedby)
+        ? $userlabel($entry->conventionthemevalidatedby) . ' - '
+            . userdate($entry->conventionthemevalidatetime, $datetimeformat) : null,
     get_string('conventioneditedby', 'mod_stage') => !empty($entry->conventioneditedby)
         ? $userlabel($entry->conventioneditedby) . ' - ' . userdate($entry->conventionedittime, $datetimeformat) : null,
     get_string('conventionsignedby', 'mod_stage') => !empty($entry->conventionsignedby)
@@ -175,12 +185,14 @@ if ($detail) {
         get_string('conventiontutoremail', 'mod_stage') => s($detail->tutoremail),
     ]);
 
-    echo stage_render_detail_section(get_string('conventionstudent', 'mod_stage'), [
-        get_string('conventionbirthdate', 'mod_stage') => $detail->studentbirthdate
-            ? userdate($detail->studentbirthdate, $dateformat) : null,
-        get_string('conventionstudentaddress', 'mod_stage') => s($detail->studentaddress),
-        get_string('conventionstudentphone', 'mod_stage') => s($detail->studentphone),
-    ]);
+    if ($canseestudentdetails) {
+        echo stage_render_detail_section(get_string('conventionstudent', 'mod_stage'), [
+            get_string('conventionbirthdate', 'mod_stage') => $detail->studentbirthdate
+                ? userdate($detail->studentbirthdate, $dateformat) : null,
+            get_string('conventionstudentaddress', 'mod_stage') => s($detail->studentaddress),
+            get_string('conventionstudentphone', 'mod_stage') => s($detail->studentphone),
+        ]);
+    }
 
     echo stage_render_detail_section(get_string('conventionhoststructure', 'mod_stage'), [
         get_string('conventionhostaddress', 'mod_stage') => s($detail->hostaddress),
@@ -189,6 +201,7 @@ if ($detail) {
         get_string('conventionhostservice', 'mod_stage') => s($detail->hostservice),
         get_string('conventionhostphone', 'mod_stage') => s($detail->hostphone),
         get_string('conventionhostemail', 'mod_stage') => s($detail->hostemail),
+        get_string('conventionsiret', 'mod_stage') => s($detail->siret ?? ''),
         get_string('conventionhostlocation', 'mod_stage') => s($detail->hostlocation),
     ]);
 
@@ -226,6 +239,7 @@ if ($objectivelinks !== '') {
     echo $OUTPUT->heading(get_string('themeobjectives', 'mod_stage'), 4);
     echo $objectivelinks;
 }
+echo stage_render_request_answers($entry);
 echo stage_render_entry_checklist_section($stage, $cm, $context, $entry, $PAGE->url);
 
 // 6. Évaluations successives, dans l'ordre du circuit : l'étudiant s'auto-évalue, l'enseignant
@@ -278,7 +292,7 @@ if (stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tuto
 
         // Coordonnées du maître de stage et relance manuelle du courriel d'invitation, réservées à
         // la DEVE : les enseignants n'ont pas à connaître cette adresse ni à déclencher l'envoi.
-        if ($isdeve && empty($entry->tutortime) && empty($entry->tutorbypassed) && $detail && !empty($detail->tutoremail)) {
+        if ($canresendtutor && empty($entry->tutortime) && empty($entry->tutorbypassed) && $detail && !empty($detail->tutoremail)) {
             echo html_writer::tag(
                 'p',
                 html_writer::tag('strong', get_string('conventiontutoremail', 'mod_stage') . ' : ') . s($detail->tutoremail)

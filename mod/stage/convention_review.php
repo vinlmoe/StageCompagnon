@@ -148,6 +148,7 @@ if ($mform->is_cancelled()) {
     $newdetail->leavedays = $newdetail->hasleave ? $data->leavedays : null;
     $newdetail->leavemodalities = $newdetail->hasleave ? $data->leavemodalities : '';
     $newdetail->gratificationamount = $data->gratificationamount;
+    $newdetail->siret = stage_normalize_siret($data->siret ?? '') ?: null;
     // Ni l'une ni l'autre de ces deux cases n'est éditable par la DEVE ici (voir
     // convention_review_form, 'withsignatures' ci-dessous étant la seule à sa disposition) :
     // reprises telles quelles depuis la demande initiale et sa validation par l'enseignant référent.
@@ -221,6 +222,17 @@ echo $OUTPUT->heading(get_string('conventionreview', 'mod_stage'));
 echo html_writer::link($backurl, get_string('back'));
 
 echo $OUTPUT->box(get_string('conventionreviewfor', 'mod_stage', fullname($student)), 'generalbox mb-3');
+$tutorwarning = stage_tutor_email_warning($context, $student, $detail->tutoremail ?? null);
+if ($tutorwarning !== null) {
+    echo $OUTPUT->notification($tutorwarning, \core\output\notification::NOTIFY_WARNING);
+}
+
+// Validations données avant la DEVE et questionnaire de demande, sur lesquels elle s'appuie aussi.
+$validations = stage_render_convention_validation_status($stage, $entry);
+if ($validations !== '') {
+    echo $OUTPUT->box($validations, 'generalbox mb-3');
+}
+echo stage_render_request_answers($entry);
 
 $mform->display();
 

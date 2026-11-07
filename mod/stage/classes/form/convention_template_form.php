@@ -46,6 +46,7 @@ class convention_template_form extends \moodleform {
         $mform->addElement('text', 'name', get_string('conventiontemplatename', 'mod_stage'), ['size' => '64']);
         $mform->setType('name', PARAM_TEXT);
         $mform->addRule('name', null, 'required', null, 'client');
+        $mform->addRule('name', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
 
         $mform->addElement('select', 'lang', get_string('conventionlang', 'mod_stage'), stage_convention_lang_options());
         $mform->setDefault('lang', 'fr');
@@ -61,8 +62,9 @@ class convention_template_form extends \moodleform {
     }
 
     /**
-     * Validation serveur : un PDF est obligatoire à la création d'un gabarit. La vérification
-     * est faite ici car une règle "required" côté client n'est pas fiable sur un filemanager.
+     * Validation serveur : un PDF est obligatoire à la création d'un gabarit, et il doit être
+     * lisible par FPDI. La vérification est faite ici car une règle "required" côté client n'est
+     * pas fiable sur un filemanager.
      *
      * @param array $data
      * @param array $files
@@ -73,20 +75,20 @@ class convention_template_form extends \moodleform {
 
         $errors = parent::validation($data, $files);
 
-        if (empty($this->_customdata['editing'])) {
-            $draftitemid = $data['templatefile'] ?? 0;
-            $fs = get_file_storage();
-            $usercontext = \context_user::instance($USER->id);
-            $hasfile = false;
-            foreach ($fs->get_area_files($usercontext->id, 'user', 'draft', $draftitemid) as $file) {
-                if (!$file->is_directory()) {
-                    $hasfile = true;
-                    break;
-                }
+        $draftitemid = $data['templatefile'] ?? 0;
+        $fs = get_file_storage();
+        $usercontext = \context_user::instance($USER->id);
+        $hasfile = false;
+        foreach ($fs->get_area_files($usercontext->id, 'user', 'draft', $draftitemid, 'id', false) as $file) {
+            $hasfile = true;
+            // Un PDF que FPDI ne sait pas lire est refusé dès l'envoi : sinon chaque convention
+            // générée à partir de lui échouait, sans message (voir stage_convention_template_readable()).
+            if (!stage_convention_template_readable($file)) {
+                $errors['templatefile'] = get_string('conventiontemplateunreadable', 'mod_stage');
             }
-            if (!$hasfile) {
-                $errors['templatefile'] = get_string('conventiontemplatefilerequired', 'mod_stage');
-            }
+        }
+        if (!$hasfile && empty($this->_customdata['editing'])) {
+            $errors['templatefile'] = get_string('conventiontemplatefilerequired', 'mod_stage');
         }
 
         return $errors;

@@ -117,6 +117,7 @@ $existingperiods = $existingentry ? array_values(stage_get_or_seed_entry_periods
 // formulaire, toutes sont chargées, et le formulaire ne montre que celle de la thématique
 // sélectionnée (voir stage_add_checklist_fields()).
 $checklistsbytheme = stage_get_theme_checklists(array_keys($themes));
+$requestquestionsbytheme = stage_get_request_questions_by_theme(array_keys($themes));
 
 $mform = new student_register_form($baseurl, [
     'themes' => $themes,
@@ -129,6 +130,7 @@ $mform = new student_register_form($baseurl, [
     'excludeentryid' => $entryid,
     'periods' => $existingperiods,
     'checklistsbytheme' => $checklistsbytheme,
+    'requestquestionsbytheme' => $requestquestionsbytheme,
 ]);
 
 if ($existingentry) {
@@ -158,6 +160,16 @@ if ($existingentry) {
         stage_checklist_form_data(
             $checklistsbytheme[(int) $existingentry->themeid] ?? [],
             stage_get_entry_checklist($existingentry->id)
+        ) as $field => $value
+    ) {
+        $formdata->$field = $value;
+    }
+    $existingtheme = (int) $existingentry->themeid;
+    foreach (
+        stage_request_question_form_data(
+            $existingtheme,
+            $requestquestionsbytheme[$existingtheme] ?? [],
+            stage_get_answers($existingentry->id)
         ) as $field => $value
     ) {
         $formdata->$field = $value;
@@ -264,9 +276,17 @@ if ($mform->is_cancelled()) {
             $detail->leavedays = $detail->hasleave ? $data->leavedays : null;
             $detail->leavemodalities = $detail->hasleave ? $data->leavemodalities : '';
             $detail->gratificationamount = $data->gratificationamount;
+            $detail->siret = stage_normalize_siret($data->siret ?? '') ?: null;
             $detail->paperrequestedbystudent = !empty($data->paperrequestedbystudent) ? 1 : 0;
             stage_save_convention_detail($entry->id, $detail);
             stage_save_entry_periods($entry->id, $periods);
+
+            $requestquestions = $requestquestionsbytheme[(int) $data->themeid] ?? [];
+            stage_save_request_answers(
+                $entry->id,
+                $requestquestions,
+                stage_extract_request_answers($data, (int) $data->themeid, $requestquestions)
+            );
 
             // Check-list d'objectifs de la thématique retenue : elle accompagne la demande sans figurer
             // dans la convention, et reste corrigeable ensuite par la DEVE et l'enseignant référent.
@@ -291,7 +311,8 @@ if ($mform->is_cancelled()) {
 
     redirect(
         $viewurl,
-        get_string($existingentry ? 'conventionrequested' : 'stageandconventionregistered', 'mod_stage'),
+        get_string($existingentry ? 'conventionrequested'
+            : ($requireteachervalidation ? 'stageandconventionpending' : 'stageandconventionregistered'), 'mod_stage'),
         null,
         \core\output\notification::NOTIFY_SUCCESS
     );

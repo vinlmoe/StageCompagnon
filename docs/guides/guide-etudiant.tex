@@ -6,8 +6,8 @@
 \newcommand{\titreguide}{Guide étudiant}
 \newcommand{\versionguide}{1.1}
 \newcommand{\dateguide}{25 octobre 2026}
-\newcommand{\versionstage}{0.5.1}
-\newcommand{\versionsynthese}{0.2.1}
+\newcommand{\versionstage}{0.6.0}
+\newcommand{\versionsynthese}{0.2.2}
 
 \usepackage{guide-commun}
 
@@ -27,6 +27,7 @@
 \midrule
 1.0 & 16 octobre 2026 & Première version. \\
 1.1 & 25 octobre 2026 & Captures d'écran refaites après le passage des listes et tableaux aux gabarits Mustache. \\
+1.2 & 7 novembre 2026 & Questionnaire de demande de stage de la thématique ; numéro SIRET de l'organisme d'accueil ; validation par vos enseignants avant la DEVE. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -120,12 +121,21 @@ l'adresse de l'organisme. Le formulaire demande :
   \item les plages de dates (plusieurs si le stage est en plusieurs fois) ;
   \item vos coordonnées, l'organisme d'accueil et le \textbf{tuteur}
         (maître de stage). Vérifiez son courriel : il recevra le lien
-        d'évaluation ;
+        d'évaluation. Le \textbf{numéro SIRET} de l'organisme est facultatif ;
+        s'il est indiqué, il doit compter 14~chiffres (les espaces sont acceptés) ;
   \item les modalités particulières, la gratification, les congés ;
   \item la \textbf{check-list d'objectifs} de la thématique : cochez les
         objectifs que le stage permettra d'atteindre et justifiez chaque objectif
-        non coché.
+        non coché ;
+  \item le \textbf{questionnaire de demande de stage}, si la thématique en a un :
+        vos réponses accompagnent la demande et servent aux enseignants qui la
+        valident. Les questions suivies d'un astérisque sont obligatoires.
 \end{itemize}
+
+Selon le paramétrage de la promotion, la demande est d'abord validée par votre
+enseignant référent, par l'enseignant responsable de la thématique, ou par les
+deux, avant d'arriver à la DEVE. Elle reste alors \og En attente de validation
+enseignante\fg{} jusqu'à la dernière validation.
 
 Cochez \bouton{Convention papier} si un exemplaire à signer à la main est
 nécessaire.
@@ -138,7 +148,7 @@ nécessaire.
 \textbf{Statut de convention} & \textbf{Signification} \\
 \midrule
 \statut{Non demandée} & Aucune demande déposée. \\
-\statut{En attente de l'enseignant référent} & Votre référent doit valider la demande. \\
+\statut{En attente de validation enseignante} & Votre référent, le responsable de la thématique ou les deux doivent valider la demande. \\
 \statut{Demandée} & La scolarité traite la demande. \\
 \statut{Refusée} & À corriger : voir le motif reçu par courriel. \\
 \statut{Éditée} & Convention prête : à télécharger, faire signer et rapporter. \\

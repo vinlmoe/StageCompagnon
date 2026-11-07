@@ -57,7 +57,7 @@ require_capability('mod/stage:viewall', $context);
 core_php_time_limit::raise();
 raise_memory_limit(MEMORY_HUGE);
 
-$filename = clean_filename(format_string($course->shortname) . '_' . format_string($stage->name) . '_stages.xlsx');
+$filename = clean_filename(stage_plain_string($course->shortname) . '_' . stage_plain_string($stage->name) . '_stages.xlsx');
 
 $workbook = new MoodleExcelWorkbook('-');
 $workbook->send($filename);
@@ -196,7 +196,8 @@ $actorids = [];
 foreach ($entries as $entry) {
     foreach (
         [$entry->teacherid, $entry->deveuserid, $entry->cancelledby, $entry->conventionrejectedby,
-            $entry->conventionteachervalidatedby, $entry->conventioneditedby, $entry->conventionsignedby] as $actorid
+            $entry->conventionteachervalidatedby, $entry->conventionthemevalidatedby, $entry->conventioneditedby,
+            $entry->conventionsignedby] as $actorid
     ) {
         if (!empty($actorid)) {
             $actorids[(int) $actorid] = (int) $actorid;
@@ -271,6 +272,8 @@ $headers = [
     get_string('conventionrequesttime', 'mod_stage'),
     get_string('conventionteachervalidatedby', 'mod_stage'),
     get_string('conventionteachervalidatetime', 'mod_stage'),
+    get_string('conventionthemevalidatedby', 'mod_stage'),
+    get_string('conventionthemevalidatetime', 'mod_stage'),
     get_string('conventioneditedby', 'mod_stage'),
     get_string('conventionedittime', 'mod_stage'),
     get_string('conventionsignedby', 'mod_stage'),
@@ -288,6 +291,7 @@ $headers = [
     get_string('conventionhostservice', 'mod_stage'),
     get_string('conventionhostphone', 'mod_stage'),
     get_string('conventionhostemail', 'mod_stage'),
+    get_string('conventionsiret', 'mod_stage'),
     get_string('conventionhostlocation', 'mod_stage'),
     get_string('conventiontutorname', 'mod_stage'),
     get_string('conventiontutorfunction', 'mod_stage'),
@@ -369,7 +373,7 @@ foreach ($entries as $entry) {
     $sheet->write_string($row, $col++, stage_studyyear_label($entry->studyyear));
     $sheet->write_string($row, $col++, $detail !== null
         ? ($yearsituationoptions[$detail->yearsituation] ?? $detail->yearsituation) : '');
-    $sheet->write_string($row, $col++, $theme ? format_string($theme->name) : '');
+    $sheet->write_string($row, $col++, $theme ? stage_plain_string($theme->name) : '');
     $sheet->write_string($row, $col++, $yesno($theme && $theme->mandatory));
     $sheet->write_string($row, $col++, $theme ? ($themeteachers[$theme->id] ?? '') : '');
 
@@ -390,11 +394,13 @@ foreach ($entries as $entry) {
     $sheet->write_string($row, $col++, stage_status_label($entry->status));
 
     $sheet->write_string($row, $col++, stage_convention_status_label($entry->conventionstatus));
-    $sheet->write_string($row, $col++, $template ? format_string($template->name) : '');
+    $sheet->write_string($row, $col++, $template ? stage_plain_string($template->name) : '');
     $sheet->write_string($row, $col++, $detail !== null ? $actorname($detail->referentteacherid) : '');
     $writedate($sheet, $row, $col++, $entry->conventionrequesttime);
     $sheet->write_string($row, $col++, $actorname($entry->conventionteachervalidatedby));
     $writedate($sheet, $row, $col++, $entry->conventionteachervalidatetime);
+    $sheet->write_string($row, $col++, $actorname($entry->conventionthemevalidatedby));
+    $writedate($sheet, $row, $col++, $entry->conventionthemevalidatetime);
     $sheet->write_string($row, $col++, $actorname($entry->conventioneditedby));
     $writedate($sheet, $row, $col++, $entry->conventionedittime);
     $sheet->write_string($row, $col++, $actorname($entry->conventionsignedby));
@@ -412,6 +418,7 @@ foreach ($entries as $entry) {
     $sheet->write_string($row, $col++, $detailvalue('hostservice'));
     $sheet->write_string($row, $col++, $detailvalue('hostphone'));
     $sheet->write_string($row, $col++, $detailvalue('hostemail'));
+    $sheet->write_string($row, $col++, $detailvalue('siret'));
     $sheet->write_string($row, $col++, $detailvalue('hostlocation'));
     $sheet->write_string($row, $col++, $detailvalue('tutorname'));
     $sheet->write_string($row, $col++, $detailvalue('tutorfunction'));
@@ -508,7 +515,7 @@ if (!empty($entryids)) {
         $israting = $answer->qtype === 'rating' && in_array($answertext, stage_question_rating_values(), true);
         $lines[$answer->entryid][] = [
             'evaltype' => $answer->evaltype,
-            'label' => format_string($answer->questionname),
+            'label' => stage_plain_string($answer->questionname),
             'answer' => $israting ? $answertext . '/5' : (string) $answer->answertext,
             'score' => $israting ? (float) $answertext : null,
         ];
@@ -549,7 +556,7 @@ if (!empty($entryids)) {
             $col = 0;
             $sheet->write_number($row, $col++, (int) $entry->id);
             $sheet->write_string($row, $col++, $student ? fullname($student) : '');
-            $sheet->write_string($row, $col++, $theme ? format_string($theme->name) : '');
+            $sheet->write_string($row, $col++, $theme ? stage_plain_string($theme->name) : '');
             $writedate($sheet, $row, $col++, $entry->datestart);
             $writedate($sheet, $row, $col++, $entry->dateend);
             $sheet->write_string($row, $col++, stage_evaltype_label($line['evaltype']));

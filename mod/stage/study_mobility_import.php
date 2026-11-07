@@ -80,15 +80,17 @@ $results = null;
 $uploaderror = null;
 
 if (data_submitted() && confirm_sesskey()) {
-    $upload = $_FILES['xlsxfile'] ?? null;
-    if (empty($upload) || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
-        $uploaderror = get_string('importerrorupload', 'mod_stage');
-    } else {
+    [$uploadpath, $uploaderror] = stage_get_uploaded_file('xlsxfile');
+    if ($uploadpath) {
         try {
-            $records = study_mobility_importer::read($upload['tmp_name']);
+            $records = study_mobility_importer::read($uploadpath);
             $results = study_mobility_importer::import($stage, $context, $records, $USER->id);
         } catch (moodle_exception $e) {
             $uploaderror = $e->getMessage();
+        } catch (Throwable $e) {
+            // Un fichier qui n'est pas un classeur (document renommé en .xlsx) ne doit pas finir en
+            // erreur fatale.
+            $uploaderror = get_string('historicalimportinvalidfile', 'mod_stage');
         }
     }
 }

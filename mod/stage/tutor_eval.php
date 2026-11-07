@@ -110,6 +110,15 @@ if ($logoleft || $logoright) {
 
 echo $OUTPUT->heading(get_string_manager()->get_string('tutorevalpagetitle', 'mod_stage', null, $lang));
 
+// Évaluation déposée : le lien ne sert plus qu'à le confirmer. Ni le nom de l'étudiant, ni les
+// dates, ni l'évaluation ne sont réaffichés : le lien reste valable sans limite de temps et peut
+// avoir circulé (courriel transféré, boîte partagée).
+if (!empty($entry->tutortime)) {
+    echo $OUTPUT->notification(get_string_manager()->get_string('tutorevalalreadysubmitted', 'mod_stage', null, $lang), 'success');
+    echo $OUTPUT->footer();
+    exit;
+}
+
 $periods = stage_get_or_seed_entry_periods($entry);
 $dateformat = get_string_manager()->get_string('strftimedate', 'langconfig', null, $lang);
 $periodlabels = array_map(function ($period) use ($dateformat) {
@@ -138,19 +147,6 @@ $objectivelinks = stage_render_theme_objective_links($context, $entry->themeid, 
 if ($objectivelinks !== '') {
     echo $OUTPUT->heading(get_string_manager()->get_string('themeobjectives', 'mod_stage', null, $lang), 4);
     echo $objectivelinks;
-}
-
-if (!empty($entry->tutortime)) {
-    echo $OUTPUT->notification(get_string_manager()->get_string('tutorevalalreadysubmitted', 'mod_stage', null, $lang), 'success');
-    echo stage_render_evaluation(
-        stage_get_entry_questions($entry, 'tutor'),
-        stage_get_answers($entry->id),
-        $entry->tutoreval,
-        FORMAT_PLAIN,
-        $lang
-    );
-    echo $OUTPUT->footer();
-    exit;
 }
 
 echo html_writer::tag('p', get_string_manager()->get_string('tutorevalintro', 'mod_stage', (object) [

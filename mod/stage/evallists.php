@@ -46,7 +46,7 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('evallists', '
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
-if ($action === 'delete' && $listid) {
+if ($action === 'delete' && $listid && data_submitted()) {
     require_sesskey();
     $list = $DB->get_record('stage_evallist', ['id' => $listid, 'stageid' => $stage->id], '*', MUST_EXIST);
     // Une liste dont les questions ont déjà reçu des réponses n'est pas supprimée : ces réponses
@@ -82,7 +82,7 @@ if (empty($lists)) {
     ];
     foreach ($lists as $list) {
         $editurl = new moodle_url('/mod/stage/evallist_edit.php', ['id' => $cm->id, 'listid' => $list->id]);
-        $deleteurl = new moodle_url($baseurl, ['action' => 'delete', 'listid' => $list->id, 'sesskey' => sesskey()]);
+        $deleteurl = new moodle_url($baseurl, ['action' => 'delete', 'listid' => $list->id]);
         $themes = array_map(
             fn($theme) => html_writer::link(
                 new moodle_url('/mod/stage/theme_edit.php', ['id' => $cm->id, 'themeid' => $theme->id], 'id_questionshdr'),
@@ -92,10 +92,12 @@ if (empty($lists)) {
         );
         $actions = stage_render_actions([get_string('edit') => $editurl]);
         if (!stage_count_evallist_exclusive_answers($list->id)) {
-            $actions .= html_writer::link($deleteurl, get_string('delete'), [
-                'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => stage_confirm_onclick(get_string('confirmdeleteevallist', 'mod_stage')),
-            ]);
+            $actions .= stage_post_button(
+                $deleteurl,
+                get_string('delete'),
+                'btn btn-sm btn-outline-danger mr-1 mb-1',
+                get_string('confirmdeleteevallist', 'mod_stage')
+            );
         }
         $table->data[] = [
             html_writer::link($editurl, format_string($list->name)),

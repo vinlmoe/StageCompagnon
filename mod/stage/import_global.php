@@ -94,12 +94,10 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
     core_php_time_limit::raise();
     raise_memory_limit(MEMORY_HUGE);
     import_preview::delete('global', $stage->id);
-    $upload = $_FILES['xlsxfile'] ?? null;
-    if (!$upload || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
-        $error = get_string('importerrorupload', 'mod_stage');
-    } else {
+    [$uploadpath, $error] = stage_get_uploaded_file('xlsxfile');
+    if ($uploadpath) {
         try {
-            $parsed = global_export_importer::read($upload['tmp_name']);
+            $parsed = global_export_importer::read($uploadpath);
             $students = [];
             foreach (stage_get_enrolled_students($context) as $student) {
                 $students[$normal($student->email)] = $student;
@@ -239,6 +237,8 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     'conventionrequesttime' => $raw->conventionrequesttime ?? null,
                     'conventionteachervalidatedby' => $personid('conventionteachervalidatedby', 'conventionteachervalidatedby'),
                     'conventionteachervalidatetime' => $raw->conventionteachervalidatetime ?? null,
+                    'conventionthemevalidatedby' => $personid('conventionthemevalidatedby', 'conventionthemevalidatedby'),
+                    'conventionthemevalidatetime' => $raw->conventionthemevalidatetime ?? null,
                     'conventioneditedby' => $personid('conventioneditedby', 'conventioneditedby'),
                     'conventionedittime' => $raw->conventionedittime ?? null,
                     'conventionsignedby' => $personid('conventionsignedby', 'conventionsignedby'),
@@ -249,7 +249,8 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                 ];
                 $detailfields = ['studentaddress', 'studentphone', 'hostaddress', 'hostrepresentative',
                     'hostrepresentativetitle', 'hostservice', 'hostphone', 'hostemail', 'hostlocation', 'tutorname',
-                    'tutorfunction', 'tutorphone', 'tutoremail', 'othermodality', 'gratificationamount', 'leavemodalities'];
+                    'tutorfunction', 'tutorphone', 'tutoremail', 'othermodality', 'gratificationamount', 'leavemodalities',
+                    'siret'];
                 $detail = ['stagetype' => $choose($raw, 'stagetype', 'conventionstagetype', $stagetypeoptions, 'obligatoire'),
                     'yearsituation' => $choose($raw, 'yearsituation', 'conventionyearsituation', $yearsituationoptions, 'normal'),
                     'studentbirthdate' => $raw->studentbirthdate ?? null,
@@ -259,6 +260,11 @@ if (data_submitted() && optional_param('previewimport', 0, PARAM_INT) && confirm
                     'hasleave' => $yes($raw->hasleave ?? ''), 'leavedays' => (int) ($raw->leavedays ?? 0)];
                 foreach ($detailfields as $field) {
                     $detail[$field] = $raw->$field ?? '';
+                }
+                // SIRET tel qu'il est stocké : sans espaces, et seulement s'il est plausible.
+                $detail['siret'] = stage_normalize_siret($detail['siret']);
+                if ($detail['siret'] !== '' && !stage_siret_valid($detail['siret'])) {
+                    $detail['siret'] = '';
                 }
                 // Stage déjà enregistré qui pourrait être le même sous une autre forme (autre
                 // thématique aux mêmes dates, stage sans dates d'un suivi historique) : signalé, et

@@ -37,7 +37,7 @@ class convention_requested extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        $pending = !empty($this->other['teacherpending']) ? ", en attente de validation de l'enseignant référent," : '';
-        return $this->describe("demandé la convention{$pending} pour");
+        $pending = !empty($this->other['teacherpending']) ? ', pending referent teacher validation,' : '';
+        return $this->describe("requested the agreement{$pending} of");
     }
 }

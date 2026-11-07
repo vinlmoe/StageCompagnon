@@ -67,6 +67,9 @@ class global_export_importer {
                     }
                 }
                 $entry->stageid = $stageid;
+                // Champs affichés tels quels dans plusieurs tableaux : nettoyés comme à la saisie.
+                $entry->structure = stage_clean_entry_text($entry->structure ?? '');
+                $entry->country = stage_clean_entry_text($entry->country ?? '');
                 $entry->timecreated = $entry->timecreated ?: time();
                 $entry->timemodified = $entry->timemodified ?: $entry->timecreated;
                 $entryid = $DB->insert_record('stage_entry', $entry);
@@ -129,7 +132,8 @@ class global_export_importer {
                     ['datestart', 'dateend', 'studentbirthdate', 'teachertime', 'tutortime', 'tutorrequesttime',
                         'conventionremindertime', 'devetime',
                         'canceltime', 'timecreated', 'timemodified', 'conventionrequesttime',
-                        'conventionteachervalidatetime', 'conventionedittime', 'conventionsigntime',
+                        'conventionteachervalidatetime', 'conventionthemevalidatetime', 'conventionedittime',
+                        'conventionsigntime',
                         'conventionrejecttime'] as $field
                 ) {
                     $record->$field = self::date($record->$field ?? '');
@@ -173,6 +177,8 @@ class global_export_importer {
             'conventionrequesttime' => 'conventionrequesttime',
             'conventionteachervalidatedby' => 'conventionteachervalidatedby',
             'conventionteachervalidatetime' => 'conventionteachervalidatetime',
+            'conventionthemevalidatedby' => 'conventionthemevalidatedby',
+            'conventionthemevalidatetime' => 'conventionthemevalidatetime',
             'conventioneditedby' => 'conventioneditedby', 'conventionedittime' => 'conventionedittime',
             'conventionsignedby' => 'conventionsignedby', 'conventionsigntime' => 'conventionsigntime',
             'conventionrejectedby' => 'conventionrejectedby', 'conventionrejecttime' => 'conventionrejecttime',
@@ -180,7 +186,7 @@ class global_export_importer {
             'studentaddress' => 'conventionstudentaddress', 'studentphone' => 'conventionstudentphone',
             'hostaddress' => 'conventionhostaddress', 'hostrepresentative' => 'conventionhostrepresentative',
             'hostrepresentativetitle' => 'conventionhostrepresentativetitle', 'hostservice' => 'conventionhostservice',
-            'hostphone' => 'conventionhostphone', 'hostemail' => 'conventionhostemail',
+            'hostphone' => 'conventionhostphone', 'hostemail' => 'conventionhostemail', 'siret' => 'conventionsiret',
             'hostlocation' => 'conventionhostlocation', 'tutorname' => 'conventiontutorname',
             'tutorfunction' => 'conventiontutorfunction', 'tutorphone' => 'conventiontutorphone',
             'tutoremail' => 'conventiontutoremail', 'nightpresence' => 'conventionnightpresence',
@@ -220,6 +226,8 @@ class global_export_importer {
             'conventionrequesttime' => ['date de demande de convention', 'agreement request date'],
             'conventionteachervalidatedby' => ['demande de convention validee par', 'agreement request validated by'],
             'conventionteachervalidatetime' => ['date de validation de la demande', 'agreement request validation date'],
+            'conventionthemevalidatedby' => ['demande validee par le responsable', 'request validated by theme teacher'],
+            'conventionthemevalidatetime' => ['date de validation du responsable', 'theme teacher validation date'],
             'conventioneditedby' => ['convention editee par', 'agreement edited by'],
             'conventionedittime' => ['date d edition de la convention', 'agreement editing date'],
             'conventionsignedby' => ['convention signee par', 'agreement signed by'],
@@ -235,6 +243,7 @@ class global_export_importer {
             'hostrepresentativetitle' => ['qualite du representant', 'host representative title'],
             'hostservice' => ['service d accueil', 'host service'], 'hostphone' => ['telephone de l organisme', 'host phone'],
             'hostemail' => ['courriel de l organisme', 'host email'], 'hostlocation' => ['lieu du stage', 'internship location'],
+            'siret' => ['siret', 'numero siret'],
             'tutorname' => ['maitre de stage', 'workplace tutor'],
             'tutorfunction' => ['fonction du maitre de stage', 'workplace tutor function'],
             'tutorphone' => ['telephone du maitre de stage', 'workplace tutor phone'],

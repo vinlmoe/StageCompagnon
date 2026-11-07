@@ -79,11 +79,13 @@ class student_register_form extends \moodleform {
         $mform->addElement('text', 'structure', get_string('structure', 'mod_stage'), ['size' => '64']);
         $mform->setType('structure', PARAM_TEXT);
         $mform->addRule('structure', null, 'required', null, 'client');
+        $mform->addRule('structure', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
 
         $mform->addElement('advcheckbox', 'abroad', get_string('abroad', 'mod_stage'));
 
         $mform->addElement('text', 'country', get_string('country', 'mod_stage'), ['size' => '32']);
         $mform->setType('country', PARAM_TEXT);
+        $mform->addRule('country', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
         $mform->hideIf('country', 'abroad', 'notchecked');
 
         $mform->addElement('text', 'declaredduration', get_string('declaredduration', 'mod_stage'));
@@ -202,6 +204,7 @@ class student_register_form extends \moodleform {
         $mform->addElement('text', 'hostemail', get_string('conventionhostemail', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostemail', PARAM_TEXT);
         $mform->addRule('hostemail', null, 'required', null, 'client');
+        stage_add_siret_field($mform);
         $mform->addElement('text', 'hostlocation', get_string('conventionhostlocation', 'mod_stage'), ['size' => '64']);
         $mform->setType('hostlocation', PARAM_TEXT);
         $mform->addHelpButton('hostlocation', 'conventionhostlocation', 'mod_stage');
@@ -263,6 +266,8 @@ class student_register_form extends \moodleform {
         // éléments de toutes les thématiques proposées sont ajoutés, et seuls ceux de la
         // thématique sélectionnée restent visibles (voir stage_add_checklist_fields()).
         stage_add_checklist_fields($mform, $this->_customdata['checklistsbytheme'], 'themeid');
+        // Questionnaire de demande de chaque thématique, affiché selon la thématique choisie.
+        stage_add_request_question_fields($mform, $this->_customdata['requestquestionsbytheme'] ?? [], 'themeid');
 
         $submitlabel = !empty($this->_customdata['editing'])
             ? get_string('requestconvention', 'mod_stage') : get_string('registerstageandconvention', 'mod_stage');
@@ -320,6 +325,13 @@ class student_register_form extends \moodleform {
         $errors += stage_validate_checklist(
             $data,
             $this->_customdata['checklistsbytheme'][(int) $data['themeid']] ?? []
+        );
+        $errors += stage_validate_siret_field($data);
+        // Même chose pour le questionnaire de demande : seul celui de la thématique retenue compte.
+        $errors += stage_validate_request_answers(
+            $data,
+            (int) $data['themeid'],
+            $this->_customdata['requestquestionsbytheme'][(int) $data['themeid']] ?? []
         );
 
         return $errors;

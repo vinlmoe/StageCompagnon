@@ -42,6 +42,11 @@ $preseteval = optional_param('evaltype', '', PARAM_ALPHA);
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
 $stage = $DB->get_record('stage', ['id' => $cm->instance], '*', MUST_EXIST);
+
+require_login($course, true, $cm);
+$context = context_module::instance($cm->id);
+require_capability('mod/stage:managethemes', $context);
+
 $list = $listid ? $DB->get_record('stage_evallist', ['id' => $listid, 'stageid' => $stage->id], '*', MUST_EXIST) : null;
 $fortheme = (!$list && $forthemeid)
     ? $DB->get_record('stage_theme', ['id' => $forthemeid, 'stageid' => $stage->id], '*', MUST_EXIST)
@@ -49,10 +54,6 @@ $fortheme = (!$list && $forthemeid)
 if (!array_key_exists($preseteval, stage_evallist_fields())) {
     $preseteval = '';
 }
-
-require_login($course, true, $cm);
-$context = context_module::instance($cm->id);
-require_capability('mod/stage:managethemes', $context);
 
 $indexurl = new moodle_url('/mod/stage/evallists.php', ['id' => $cm->id]);
 $returnurl = $returnurlparam !== '' ? new moodle_url($returnurlparam) : $indexurl;

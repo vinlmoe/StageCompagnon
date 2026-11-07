@@ -43,6 +43,9 @@ $stage = $DB->get_record('stage', ['id' => $cm->instance], '*', MUST_EXIST);
 require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/stage:evaluateteacher', $context);
+// Un responsable de thématique désinscrit ne valide plus : une demande qui n'attendait que lui
+// passe à la DEVE (voir stage_release_pending_conventions()).
+stage_release_pending_conventions($stage);
 
 $baseurl = new moodle_url('/mod/stage/teacher.php', ['id' => $cm->id]);
 $PAGE->set_url($baseurl);
@@ -225,12 +228,14 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('teachervalidation', 'mod_stage'));
 echo html_writer::link(new moodle_url('/mod/stage/view.php', ['id' => $cm->id]), get_string('back'));
 
-if (empty($assignedids)) {
+// Demandes de convention en attente de validation (voir stage_convention_required_validators()),
+// avant transmission à la DEVE : celles des étudiants attribués, et celles des thématiques dont
+// l'enseignant est responsable quand l'activité demande leur validation. Un responsable de
+// thématique sans étudiant attribué voit donc lui aussi cette section.
+$pendingconventions = stage_get_teacher_pending_convention_entries($stage->id, $USER->id);
+if (empty($assignedids) && empty($pendingconventions)) {
     echo $OUTPUT->notification(get_string('noassignedstudents', 'mod_stage'), 'info');
 } else {
-    // Demandes de convention en attente de validation (voir
-    // stage_convention_requires_teacher_validation()), avant transmission à la DEVE.
-    $pendingconventions = stage_get_teacher_pending_convention_entries($stage->id, $USER->id);
     echo $OUTPUT->heading(get_string('conventionteachervalidation', 'mod_stage'), 4);
     if (empty($pendingconventions)) {
         echo $OUTPUT->notification(get_string('noconventionteachervalidations', 'mod_stage'), 'info');
@@ -265,7 +270,9 @@ if (empty($assignedids)) {
         }
         echo html_writer::table($pendingtable);
     }
+}
 
+if (!empty($assignedids)) {
     // Titre distinct de celui de la page (« Validation enseignant »), qui était repris tel quel
     // et laissait croire à une répétition de la section précédente.
     echo $OUTPUT->heading(get_string('stagestoevaluate', 'mod_stage'), 4);

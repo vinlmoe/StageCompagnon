@@ -36,6 +36,6 @@ class convention_rejected extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe('refusé la demande de convention pour');
+        return $this->describe('rejected the agreement request of');
     }
 }

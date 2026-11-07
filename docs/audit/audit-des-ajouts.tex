@@ -1,0 +1,254 @@
+% Audit des ajouts à mod_stage : corrections du premier audit, questionnaire de demande de stage,
+% SIRET et validation de la demande par le référent ou le responsable de la thématique.
+% Compilation : latexmk -pdf audit-des-ajouts.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref,enumitem}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{url}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z}
+\DeclareUrlCommand\code{\urlstyle{tt}}
+\Urlmuskip=0mu plus 2mu
+\newcommand{\grav}[1]{\textbf{\textcolor{#1}{\textbullet}}}
+\newcommand{\maj}{\grav{orange}}
+\newcommand{\mineure}{\grav{gray}}
+\newcommand{\crit}{\grav{red}}
+\setlist[itemize]{itemsep=2pt,topsep=3pt}
+\newcommand{\ok}{\textcolor{teal}{\textbf{corrigé}}}
+\newcommand{\partiel}{\textcolor{orange}{\textbf{en partie}}}
+\newcommand{\non}{\textcolor{gray}{\textbf{non traité}}}
+\title{Audit des ajouts à \texttt{mod\_stage}}
+\author{Sébastien Lefebvre}
+\date{7 novembre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Objet et méthode}
+
+Ce rapport fait suite à l'audit du code (\code{audit-du-module.tex}). Il couvre tout ce qui a été
+ajouté depuis le commit \code{631e02b} sur la branche \code{ccr-62a5efc4-2fregj} :
+
+\begin{itemize}
+  \item les corrections du premier audit (commits \code{9c64315} et \code{817c714}) ;
+  \item une fonctionnalité nouvelle (commit \code{2a7da10}) : un questionnaire de demande de stage par
+    thématique, le numéro SIRET de l'organisme d'accueil, et la validation de la demande par
+    l'enseignant référent, le responsable de la thématique, ou les deux ;
+  \item les corrections issues du présent audit (commits \code{aa62f30} et \code{11e399b}).
+\end{itemize}
+
+\noindent Après ces ajouts, \code{mod_stage} est en version~0.6.0 (\code{2026110700}) et
+\code{mod_stagesynthesis} en version~0.2.2 (\code{2026110700}).
+
+\begin{itemize}
+  \item \textbf{Deux revues indépendantes}, conduites sans connaître les conclusions de l'auteur
+    des changements. La première a porté sur la nouvelle fonctionnalité : accès, logique, formulaires, schéma,
+    sauvegarde, RGPD, courriels et tests. La seconde a recherché les régressions introduites par les
+    corrections et vérifié, assertion par assertion, que les tests nouveaux et anciens passeraient.
+  \item \textbf{Contrôles automatiques} : \code{php -l} sur tous les fichiers modifiés et
+    \code{phpcs} avec le standard \code{moodle}. Les deux sont propres après correction.
+  \item \textbf{Limite} : PHPUnit et Behat n'ont pas pu être exécutés ici. Le montage d'un Moodle
+    local, qui aurait téléchargé et exécuté du code externe, a été refusé par la politique de la
+    session. Les tests ont donc été relus, pas joués : la CI de GitHub (PostgreSQL, MariaDB,
+    Behat) doit les jouer avant toute fusion.
+\end{itemize}
+
+\noindent\textbf{Échelle} : celle du premier rapport. \crit~critique, \maj~majeure,
+\mineure~mineure.
+
+\section{Synthèse}
+
+Les deux revues ont trouvé \textbf{un défaut critique, huit majeurs et treize mineurs}. Tous ont
+été corrigés, sauf un point qui relève d'une décision fonctionnelle (section~\ref{sec:decision}).
+Le défaut critique était une régression des corrections : la vérification des gabarits de
+convention ne chargeait pas TCPDF, si bien que tout gabarit passait pour illisible et qu'aucune
+convention ne pouvait plus être générée. Le test qui devait le couvrir chargeait lui-même la
+bibliothèque, ce qui masquait le défaut.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+& \textbf{Constat} & \textbf{État} \\
+\midrule
+\crit & Gabarits PDF toujours refusés (TCPDF non chargé) : plus aucune convention générable & \ok \\
+\maj & Demande bloquée quand le paramètre ou les responsables changent après une validation & \ok \\
+\maj & Responsable de thématique désinscrit : toujours attendu, demandes bloquées, courriels envoyés & \ok \\
+\maj & Responsable de thématique : voit et modifie l'adresse, le téléphone et la date de naissance de l'étudiant & \ok \\
+\maj & Durée retenue corrigée par la DEVE non enregistrée & \ok \\
+\maj & Thématique bornée dont seule la dernière année a une durée : requis nul, thématique « atteinte » & \ok \\
+\maj & Page des thématiques : formulaires imbriqués, enregistrement en masse cassé, suppression sans confirmation & \ok \\
+\maj & Deux tests d'événements cassés par les descriptions en anglais & \ok \\
+\maj & Deux tests de la tâche d'invitation cassés ; étudiant introuvable relu sans fin & \ok \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Nouvelle fonctionnalité}
+
+\subsection{Ce qui a été construit}
+
+\begin{itemize}
+  \item \textbf{Questionnaire de demande de stage.} C'est un quatrième type de liste
+    d'évaluation (\code{request}), que la thématique choisit (\code{stage_theme.requestlistid})
+    comme ses autres formulaires. L'étudiant y répond en même temps qu'il demande sa convention,
+    que ce soit depuis la demande seule ou à l'enregistrement du stage. Les réponses obligatoires
+    et les valeurs des notes et des choix sont contrôlées côté serveur. Les réponses sont
+    présentées à ceux qui valident, à la DEVE (revue de la convention) et dans le détail du stage.
+    Si l'étudiant change de thématique en corrigeant une demande refusée, les réponses à l'ancien
+    questionnaire sont retirées.
+  \item \textbf{SIRET.} Le champ est facultatif (\code{stage_convention_detail.siret}). Les espaces
+    et les points sont acceptés à la saisie ; le numéro est stocké sur 14 chiffres. La clé de Luhn
+    est vérifiée, avec l'exception des établissements de La Poste. Le SIRET figure dans la demande,
+    dans la revue, dans le détail du stage et sur la première page de la convention PDF. Il est
+    exporté et restauré avec l'export global.
+  \item \textbf{Validation avant la DEVE.} Le paramètre \og Qui valide la demande\fg{}
+    (\code{stage.conventionvalidator}) vaut \code{referent}, \code{themeteacher} ou \code{both}.
+    Il n'agit que si la validation préalable est activée. Chaque validation est enregistrée à part
+    (\code{conventionteachervalidatedby} et \code{conventionthemevalidatedby}, avec leur date).
+    La demande passe à la DEVE quand toutes les validations exigées sont réunies ; un refus
+    l'arrête aussitôt. Un responsable de thématique sans étudiant attribué voit les demandes de sa
+    thématique sur la page de validation enseignante, et chaque validateur concerné reçoit un
+    courriel. Une thématique sans responsable actif est validée par le référent.
+  \item \textbf{Écritures conditionnelles.} Une validation n'est écrite que si la demande est
+    toujours en attente, si le stage n'est pas annulé et si cette validation n'a pas encore été
+    donnée. Le mécanisme est celui du test de concurrence (\code{stage_update_entry_if()}) : deux
+    validateurs simultanés sont sérialisés, et un refus intercalé n'est pas effacé.
+  \item \textbf{Schéma.} L'étape de mise à jour \code{2026110700} ajoute quatre champs et une clé.
+    Ils sont pris en compte dans la sauvegarde et la restauration (remappage de l'utilisateur et
+    de la liste), dans le fournisseur RGPD (métadonnées, contextes, export, dissociation) et dans
+    les journaux (l'événement de validation précise à quel titre).
+  \item \textbf{Tests.} Neuf tests PHPUnit (\code{request_validation_test.php}) et deux scénarios
+    Behat (\code{request_validation.feature}). Le premier scénario suit une demande de bout en
+    bout : l'étudiant répond, un SIRET invalide est refusé, le responsable valide, la DEVE reçoit
+    la demande. Le second fait valider successivement le référent puis le responsable.
+\end{itemize}
+
+\subsection{Constats et corrections}
+
+\begin{itemize}
+  \item[\maj] \textbf{Demande bloquée.} En mode \og les deux\fg{}, le référent valide, puis la DEVE
+    repasse le paramètre à \og référent\fg{} ou retire le responsable. Plus aucune validation
+    n'était attendue, mais la demande restait en attente, sans que personne puisse agir.
+    \emph{Correction} : \code{stage_release_pending_conventions()} transmet à la DEVE les demandes
+    qui n'attendent plus rien. Elle est appelée à l'enregistrement du paramètre, au changement des
+    responsables, et à l'ouverture des pages de validation et des conventions.
+  \item[\maj] \textbf{Responsable désinscrit.} Sa ligne de responsabilité subsiste. Il restait
+    exigé alors qu'il ne pouvait plus valider, et il était relancé par courriel. \emph{Correction} :
+    seuls les responsables qui ont encore la capacité dans l'activité comptent
+    (\code{stage_get_active_theme_teachers()}), pour la règle comme pour les courriels.
+  \item[\maj] \textbf{Coordonnées de l'étudiant.} Le formulaire de validation montrait au
+    responsable de thématique l'adresse, le téléphone et la date de naissance de l'étudiant, et les
+    rendait modifiables. Le détail du stage les lui masque pourtant. \emph{Correction} : pour un
+    validateur qui n'est pas le référent, ces champs, le choix du référent et la case \og convention
+    papier\fg{} du référent sont absents du formulaire et conservés tels quels à l'enregistrement.
+  \item[\mineure] Siège de La Poste refusé ; SIRET contrôlé seulement sur \og Valider\fg{} et jamais à
+    l'import global ; bouton \og Valider la demande\fg{} proposé à un référent qui n'avait rien à
+    valider ; validation du responsable absente de l'export global et du détail du stage ; réponses
+    au questionnaire supprimées au transfert entre promotions ; libellés et courriels qui ne
+    parlaient que du référent ; commentaire inexact dans la revue DEVE. \emph{Tous corrigés}.
+\end{itemize}
+
+\subsection{Décision à prendre}
+\label{sec:decision}
+
+En mode \og les deux\fg{}, un enseignant qui est à la fois le référent de l'étudiant et le
+responsable de la thématique donne les deux validations d'un seul geste. La demande initiale
+(\og l'enseignant responsable de la thématique et/ou l'enseignant référent\fg{}) ne tranche pas. Le
+comportement retenu considère que la même personne peut valider à ses deux titres. Si deux personnes
+distinctes sont voulues, il suffit de limiter à un rôle par utilisateur dans
+\code{stage_convention_user_validations()}.
+
+\section{Corrections du premier audit}
+
+\subsection{Régressions trouvées et corrigées}
+
+\begin{itemize}
+  \item[\crit] \textbf{Gabarits refusés.} \code{stage_convention_template_readable()} instanciait
+    FPDI, qui étend TCPDF, sans charger \code{lib/pdflib.php}. L'erreur était attrapée et la fonction
+    répondait toujours \og illisible\fg{} : tout gabarit était refusé à l'envoi, et toute génération
+    s'arrêtait. \emph{Correction} : chargement de la bibliothèque dans la fonction, et retrait du
+    \code{require_once} qui masquait le défaut dans le test.
+  \item[\maj] \textbf{Durée retenue.} L'édition DEVE d'un stage validé n'écrit plus que la liste
+    fermée des champs du stage (correction C10). La durée retenue, posée sur l'objet, n'était plus
+    enregistrée. \emph{Correction} : elle est écrite à part.
+  \item[\maj] \textbf{Thématique bornée.} La durée requise d'une thématique bornée à plusieurs années
+    est désormais la somme des durées des années où l'étudiant a fait ses stages (correction C4).
+    Si ces années n'avaient pas de durée propre, ou s'il n'y avait aucun stage, le requis tombait à
+    zéro : la thématique passait pour atteinte. \emph{Correction} : repli sur la plus forte durée
+    définie sur la plage, avec un test du cas.
+  \item[\maj] \textbf{Formulaires imbriqués.} Le bouton de suppression en POST (correction A6) avait
+    été placé dans le tableau des thématiques, déjà enfermé dans le formulaire d'enregistrement en
+    masse. \emph{Correction} : les formulaires de suppression sont placés après le tableau, et chaque
+    bouton les désigne par l'attribut \code{form}.
+  \item[\maj] \textbf{Tests cassés.} Les assertions sur le texte des descriptions d'événements, passées en anglais,
+    ont été mises à jour. Le test de la tâche d'invitation inscrit désormais son étudiant au cours. La tâche
+    marque en échec, au lieu de l'ignorer, l'invitation d'un étudiant introuvable ou supprimé.
+  \item[\mineure] Chaîne d'aide \og Retirer cette question\fg{} supprimée à tort parmi les 40 chaînes
+    orphelines, car elle est utilisée dynamiquement : rétablie. Noms de thématique doublement échappés dans les
+    doublons probables : corrigé. Test de la synthèse qui ne prouvait pas le contrôle de visibilité :
+    réécrit avec une restriction d'accès.
+\end{itemize}
+
+\subsection{Bilan par constat du premier audit}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+\textbf{Constats} & \textbf{Traitement} & \textbf{État} \\
+\midrule
+B1--B3, B5 & Nettoyage et échappement, comptes rendus, entités hors HTML, fichiers temporaires & \ok \\
+B4 & Noms de fichiers sans \code{s()} (non exploitable) & \non \\
+C1--C8, C11, C13, C14 & Circuit, calculs, fuseau, transfert, longueurs, contournement, redemande, invitations, relance, dispense & \ok \\
+C9 & Événements à l'import StageVet & \non \\
+C10 & Écriture des seuls champs du formulaire et événement d'édition ; durée déclarée préremplie par les jours cochés & \partiel \\
+C12, C15 & Durée retenue non bornée ; version de \code{install.xml} corrigée, autres points non & \partiel \\
+D1--D5, D8 & Imports, StageVet, gabarit et logos, temporaires, classeurs invalides & \ok \\
+D6 & Durée non entière et lignes incomplètes signalées ; UTF-16, fuseau de \code{parse_date}, mémoire : non & \partiel \\
+D7, D11, D12 & Prévisualisations, collisions du zip, requêtes par ligne & \non \\
+D9 & SIRET et validation du responsable ajoutés à l'aller-retour ; référents et réponses toujours absents & \partiel \\
+D10 & Logo vérifié ; nom d'établissement par défaut conservé (choix de l'école) & \partiel \\
+E1--E6, E9 & Registre, exports, dissociation, restauration des responsables, décodage des liens & \ok \\
+E7, E10 & Noms dans le paramétrage ; API \code{core_external}, \code{readonlysession} & \non \\
+E8 & Tests RGPD, restauration et \code{get_my_stages} en partie ajoutés & \partiel \\
+E11 & Langue du destinataire et comptes supprimés ; \code{db/messages.php} et corps en \code{PARAM_RAW} : non & \partiel \\
+A1--A5, A7--A9 & Accès, jeton après évaluation, minimisation, énumération, lectures avant connexion & \ok \\
+A6 & Suppressions et transfert en POST ; réinitialisation et contournement DEVE restent des liens avec \code{sesskey} & \partiel \\
+F1, F3, F7 & Antivirus, publication 0.6.0, documentation & \ok \\
+F2, F4, F6 & Tests ajoutés, chaînes orphelines et événements en anglais, \code{.gitignore} ; \og ~:~\fg{} concaténés, seuil de couverture : non & \partiel \\
+F5 & Découpage de \code{locallib.php} & \non \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent Les points non traités sont des mineures de maintenabilité ou de confort. Aucun ne
+présente de risque pour les données. Ils restent à planifier, dans l'ordre du premier rapport.
+
+\section{Ce qui tient}
+
+\begin{itemize}
+  \item Le contrôle d'accès de la nouvelle fonctionnalité. Un responsable d'une autre thématique
+    est refusé, tout comme un référent quand seul le responsable est exigé. Une même validation ne
+    peut pas être donnée deux fois, et une demande annulée ou refusée ne se valide plus.
+  \item La concurrence : validations sérialisées, sans écrasement d'un refus.
+  \item La concordance du schéma, de l'étape de mise à jour, de la sauvegarde, de la restauration
+    et du fournisseur RGPD pour les quatre champs ajoutés.
+  \item La majorité des corrections du premier audit, vérifiées une à une par la seconde revue,
+    notamment l'échappement, le circuit, le fuseau des jours effectifs, l'antivirus, le RGPD et les
+    accès.
+  \item Les fichiers de langue : 850 clés de chaque côté, chacune définie en français et en anglais.
+    Le code de style Moodle (\code{phpcs}) est respecté sans écart.
+\end{itemize}
+
+\section{Suite}
+
+\begin{enumerate}[itemsep=2pt]
+  \item Faire jouer la CI (PHPUnit sur PostgreSQL et MariaDB, Behat) sur la branche, et corriger ce
+    qu'elle révélerait.
+  \item Trancher la question de la section~\ref{sec:decision}.
+  \item Planifier les mineures non traitées du premier audit.
+\end{enumerate}
+
+\end{document}

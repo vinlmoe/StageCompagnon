@@ -37,7 +37,7 @@ class entry_rejected extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        $role = ($this->other['role'] ?? '') === 'teacher' ? 'enseignant référent' : 'DEVE';
-        return $this->describe("marqué non validé, en tant que {$role},");
+        $role = ($this->other['role'] ?? '') === 'teacher' ? 'referent teacher' : 'academic office';
+        return $this->describe("marked as not validated, as {$role},");
     }
 }

@@ -148,7 +148,7 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         // Les listes d'évaluation sont restaurées après les thématiques : leurs identifiants sont
         // mis de côté et remplacés une fois les listes recréées (voir after_execute()).
         $oldlists = [];
-        foreach (['studentlistid', 'teacherlistid', 'tutorlistid'] as $field) {
+        foreach (['studentlistid', 'teacherlistid', 'tutorlistid', 'requestlistid'] as $field) {
             $oldlists[$field] = (int) ($data->$field ?? 0);
             $data->$field = 0;
         }
@@ -163,8 +163,11 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
     }
 
     /**
-     * Restaure un enseignant responsable de thématique. La ligne est écartée si le compte n'est
-     * pas présent dans la sauvegarde (restauration sans les utilisateurs).
+     * Restaure un enseignant responsable de thématique.
+     *
+     * Le responsable relève du paramétrage : il est sauvegardé même sans les utilisateurs
+     * (duplication d'activité, import de cours). Le compte n'étant alors pas dans l'archive, il
+     * est repris tel quel sur le même site s'il existe encore ; ailleurs, la ligne est écartée.
      *
      * @param array $data
      */
@@ -175,6 +178,12 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         unset($data->id);
 
         $teacherid = $this->get_mappingid('user', $data->teacherid);
+        if (
+            !$teacherid && $this->task->is_samesite()
+            && $DB->record_exists('user', ['id' => $data->teacherid, 'deleted' => 0])
+        ) {
+            $teacherid = (int) $data->teacherid;
+        }
         if (!$teacherid) {
             return;
         }
@@ -442,7 +451,7 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
 
         foreach (
             ['teacherid', 'deveuserid', 'conventionrejectedby', 'conventionteachervalidatedby',
-                'conventioneditedby', 'conventionsignedby', 'cancelledby'] as $field
+                'conventionthemevalidatedby', 'conventioneditedby', 'conventionsignedby', 'cancelledby'] as $field
         ) {
             $data->$field = empty($data->$field) ? null : ($this->get_mappingid('user', $data->$field) ?: null);
         }

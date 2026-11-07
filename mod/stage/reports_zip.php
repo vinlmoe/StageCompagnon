@@ -59,5 +59,5 @@ stage_send_reports_zip(
     $context,
     $entries,
     stage_get_entry_users($entries),
-    get_string('reportszipname', 'mod_stage', format_string($theme->name))
+    get_string('reportszipname', 'mod_stage', stage_plain_string($theme->name))
 );

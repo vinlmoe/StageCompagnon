@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/stage/db" VERSION="20261026" COMMENT="XMLDB file for module mod_stage"
+<XMLDB PATH="mod/stage/db" VERSION="20261107" COMMENT="XMLDB file for module mod_stage"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -22,6 +22,8 @@
             COMMENT="Nom de la personne ayant délégation de signature du chef d'établissement, affiché dans le cadre de signatures de la convention imprimée"/>
         <FIELD NAME="conventionrequireteachervalidation" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"
             COMMENT="Si 1, une demande de convention doit être validée par l'enseignant.e référent.e avant d'être visible par la DEVE (voir STAGE_CONVENTION_TEACHERPENDING)"/>
+        <FIELD NAME="conventionvalidator" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="referent" SEQUENCE="false"
+            COMMENT="Qui valide la demande avant la DEVE, si conventionrequireteachervalidation : referent, themeteacher (responsable de la thématique) ou both (les deux)"/>
         <FIELD NAME="tutorevaluationenabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"
             COMMENT="Si 1, le maître de stage est invité par courriel (lien à jeton, sans compte Moodle) à répondre au questionnaire d'évaluation de la thématique (evaltype 'tutor'), affiché à l'enseignant référent et à la DEVE lors de leur propre évaluation"/>
         <FIELD NAME="currentstudyyear" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0"
@@ -64,6 +66,8 @@
             COMMENT="Liste d'évaluation de l'enseignant référent, 0 = commentaire libre"/>
         <FIELD NAME="tutorlistid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
             COMMENT="Liste d'évaluation du maître de stage, 0 = commentaire libre"/>
+        <FIELD NAME="requestlistid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Questionnaire rempli par l'étudiant avec sa demande de convention (liste d'évaluation de type request), 0 = aucun"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
@@ -191,6 +195,9 @@
         <FIELD NAME="conventionteachervalidatedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
             COMMENT="Enseignant référent ayant validé la demande de convention avant transmission à la DEVE"/>
         <FIELD NAME="conventionteachervalidatetime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="conventionthemevalidatedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Enseignant responsable de la thématique ayant validé la demande de convention avant transmission à la DEVE"/>
+        <FIELD NAME="conventionthemevalidatetime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="conventioneditedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
             COMMENT="Utilisateur DEVE ayant passe la convention au stade editee"/>
         <FIELD NAME="conventionedittime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
@@ -217,6 +224,8 @@
         <KEY NAME="conventionsignedby" TYPE="foreign" FIELDS="conventionsignedby" REFTABLE="user" REFFIELDS="id"/>
         <KEY NAME="cancelledby" TYPE="foreign" FIELDS="cancelledby" REFTABLE="user" REFFIELDS="id"/>
         <KEY NAME="conventionteachervalidatedby" TYPE="foreign" FIELDS="conventionteachervalidatedby"
+            REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="conventionthemevalidatedby" TYPE="foreign" FIELDS="conventionthemevalidatedby"
             REFTABLE="user" REFFIELDS="id"/>
         <KEY NAME="conventionrejectedby" TYPE="foreign" FIELDS="conventionrejectedby" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
@@ -296,6 +305,8 @@
         <FIELD NAME="leavemodalities" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="gratificationamount" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false"
             COMMENT="Montant mensuel de la gratification, en euros (art. 5.13)"/>
+        <FIELD NAME="siret" TYPE="char" LENGTH="14" NOTNULL="false" SEQUENCE="false"
+            COMMENT="Numéro SIRET de l'organisme d'accueil (facultatif), 14 chiffres sans espace"/>
         <FIELD NAME="paperrequestedbystudent" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
             COMMENT="Convention papier (cadre de signatures) demandée par l'étudiant lors de sa demande de convention"/>
         <FIELD NAME="paperrequestedbyteacher" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"

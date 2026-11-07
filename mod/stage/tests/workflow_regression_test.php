@@ -50,6 +50,8 @@ final class workflow_regression_test extends \advanced_testcase {
         ]);
         $cm = get_coursemodule_from_instance('stage', $stage->id);
         $student = $this->getDataGenerator()->create_user();
+        // Inscrit : la tâche planifiée ne sollicite pas le maître de stage d'un étudiant désinscrit.
+        $this->getDataGenerator()->enrol_user($student->id, $course->id, 'student');
         $generator = $this->getDataGenerator()->get_plugin_generator('mod_stage');
         $theme = $generator->create_theme($stage, ['tutorevaluationenabled' => 1]);
         // Convention signée : c'est elle qui fait du stage un stage engagé, que le maître de

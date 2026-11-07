@@ -148,6 +148,10 @@ class convention_pdf extends \pdf {
         $this->field_row($this->str('conventionhostservice'), $stagedata['host']['service']);
         $this->field_row($this->str('conventionhostphone'), $stagedata['host']['phone']);
         $this->field_row($this->str('conventionhostemail'), $stagedata['host']['email']);
+        // Facultatif : la ligne n'apparaît que si le numéro est connu.
+        if (($stagedata['host']['siret'] ?? '') !== '') {
+            $this->field_row($this->str('conventionsiret'), $stagedata['host']['siret']);
+        }
         $this->field_row($this->str('conventionhostlocation'), $stagedata['host']['location']);
         $this->Ln(3);
 

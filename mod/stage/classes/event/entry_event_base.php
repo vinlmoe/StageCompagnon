@@ -105,13 +105,14 @@ abstract class entry_event_base extends \core\event\base {
     }
 
     /**
-     * Phrase type des descriptions : « L'utilisateur #n a <action> le stage #m de l'étudiant #p. »
+     * Phrase type des descriptions, en anglais comme le veut Moodle pour les journaux :
+     * « The user with id 'n' has <action> the internship with id 'm' of the student with id 'p'. »
      *
-     * @param string $action Verbe et compléments, à l'accompli.
+     * @param string $action Verbe au participe passé et compléments, en anglais.
      * @return string
      */
     protected function describe($action) {
-        return "L'utilisateur #{$this->userid} a {$action} le stage #{$this->objectid}"
-            . " de l'étudiant #{$this->relateduserid}.";
+        return "The user with id '{$this->userid}' has {$action} the internship with id '{$this->objectid}'"
+            . " of the student with id '{$this->relateduserid}'.";
     }
 }

@@ -36,6 +36,6 @@ class convention_edited extends entry_event_base {
      * @return string
      */
     public function get_description() {
-        return $this->describe('édité la convention pour');
+        return $this->describe('edited the agreement of');
     }
 }

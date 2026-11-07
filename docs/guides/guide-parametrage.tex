@@ -6,8 +6,8 @@
 \newcommand{\titreguide}{Guide de paramétrage et de gestion}
 \newcommand{\versionguide}{1.7}
 \newcommand{\dateguide}{31 octobre 2026}
-\newcommand{\versionstage}{0.5.1}
-\newcommand{\versionsynthese}{0.2.1}
+\newcommand{\versionstage}{0.6.0}
+\newcommand{\versionsynthese}{0.2.2}
 
 \usepackage{guide-commun}
 
@@ -33,6 +33,7 @@
 1.5 & 26 octobre 2026 & Prérequis : Moodle~4.3 ; mobilité d'études et son import Excel ; suppression de stages en lot ; import d'un ancien suivi Excel et restauration d'un export global ; stages à l'étranger dans l'import historique. \\
 1.6 & 31 octobre 2026 & Export StageVet : référent de la convention repris du tuteur de l'export ou, à défaut, de l'enseignant référent de l'étudiant ; correspondance des tuteurs non reconnus. \\
 1.7 & 31 octobre 2026 & Questions notées de 1 à 5 dans les listes d'évaluation ; la réinitialisation d'un stage annule la décision de la DEVE. \\
+1.8 & 7 novembre 2026 & Questionnaire de demande de stage par thématique ; SIRET de l'organisme d'accueil ; validation de la demande par le référent, le responsable de la thématique ou les deux. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -246,8 +247,17 @@ justifié.
 \capture[0.85\linewidth]{05d_theme_objectives}{Documents d'objectifs.}
 \capture[0.85\linewidth]{05e_theme_checklist}{Check-list d'objectifs.}
 
-\paragraph{Listes d'évaluation.} Une liste par formulaire : étudiant, référent,
-maître de stage. Sans liste, le formulaire se limite à un commentaire libre.
+\paragraph{Listes d'évaluation.} Une liste par formulaire : questionnaire de
+demande de stage, étudiant, référent, maître de stage. Sans liste, le formulaire
+se limite à un commentaire libre ; sans questionnaire de demande, la demande de
+convention n'en comporte pas.
+
+\paragraph{Questionnaire de demande de stage.} L'étudiant y répond en même temps
+qu'il demande sa convention : motivation, activités prévues, encadrement, tout ce
+que la thématique juge utile pour accepter le stage. Les réponses obligatoires
+sont contrôlées. Ceux qui valident la demande (section~\ref{sec:conventions}) les
+lisent à côté des informations de la convention ; la DEVE les retrouve à la
+génération et dans le détail du stage.
 
 \capture[0.85\linewidth]{05f_theme_lists}{Choix des listes d'évaluation.}
 
@@ -318,7 +328,18 @@ utilisé ne peut plus être supprimé.
 \capture[0.85\linewidth]{10_convention_template}{Fiche d'un gabarit.}
 
 L'option \bouton{Exiger la validation de l'enseignant.e référent.e avant
-transmission à la DEVE} fait passer chaque demande étudiante par le référent.
+transmission à la DEVE} fait passer chaque demande étudiante par une validation
+pédagogique. Le choix \bouton{Qui valide la demande} précise par qui :
+\begin{itemize}
+  \item \textbf{l'enseignant référent} de l'étudiant (par défaut) ;
+  \item \textbf{l'enseignant responsable de la thématique}, désigné dans la fiche
+    de la thématique (section~\ref{sec:themeteachers}) ; une thématique sans
+    responsable est validée par le référent ;
+  \item \textbf{les deux} : chacun valide à son titre, et la demande n'arrive à
+    la DEVE qu'une fois les deux validations données. Un refus l'arrête aussitôt.
+\end{itemize}
+Les enseignants concernés reçoivent un courriel et décident sur la base des
+informations de la convention et des réponses au questionnaire de demande.
 
 \capture[0.85\linewidth]{09b_templates_settings}{Validation par le référent.}
 
@@ -445,7 +466,7 @@ de toutes les promotions. Il ne stocke aucune donnée.
 \midrule
 1 & Stage enregistré & DEVE ou étudiant & Non demandée \\
 2 & Demande de convention & Étudiant ou DEVE & Demandée \\
-3 & Validation de la demande (si activée) & Référent & En attente de l'enseignant référent \\
+3 & Validation de la demande (si activée) & Référent et/ou responsable de la thématique & En attente de validation enseignante \\
 4 & Génération du PDF & DEVE & Éditée \\
 5 & Retour de la convention signée & DEVE & Signée \\
 6 & Invitation du maître de stage, dès le 1\textsuperscript{er} jour & Tâche automatique & \\
@@ -584,6 +605,7 @@ Exportez d'abord les stages en Excel ; le fichier permet de les restaurer.
 Chaque stage supprimé laisse une trace dans les journaux Moodle de l'activité.
 
 \subsection{Enseignants responsables de thématique}
+\label{sec:themeteachers}
 
 Un enseignant responsable d'une thématique (§\ref{sec:thematiques}) dispose de
 la page \chemin{Stages par thématique} : tous les stages de la thématique et les

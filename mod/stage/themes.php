@@ -47,7 +47,7 @@ $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
 // Suppression d'une thématique.
-if ($action === 'delete' && $themeid) {
+if ($action === 'delete' && $themeid && data_submitted()) {
     require_sesskey();
     $theme = $DB->get_record('stage_theme', ['id' => $themeid, 'stageid' => $stage->id], '*', MUST_EXIST);
     if (!$DB->record_exists('stage_entry', ['themeid' => $theme->id])) {
@@ -136,6 +136,7 @@ $themes = stage_get_themes($stage->id);
 if (empty($themes)) {
     echo $OUTPUT->notification(get_string('nothemesyet', 'mod_stage'), 'info');
 } else {
+    $deleteforms = '';
     echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'bulksave']);
@@ -218,7 +219,7 @@ if (empty($themes)) {
 
         $deleteurl = new moodle_url(
             '/mod/stage/themes.php',
-            ['id' => $cm->id, 'action' => 'delete', 'themeid' => $theme->id, 'sesskey' => sesskey()]
+            ['id' => $cm->id, 'action' => 'delete', 'themeid' => $theme->id]
         );
 
         // Tous les volets de la thématique (paramètres, durées, enseignants, objectifs, questions)
@@ -227,10 +228,14 @@ if (empty($themes)) {
             [get_string('managetheme', 'mod_stage') => $manageurl],
             'btn btn-sm btn-primary mr-1 mb-1'
         )
-            . html_writer::link($deleteurl, get_string('delete'), [
-                'class' => 'btn btn-sm btn-outline-danger mr-1 mb-1',
-                'onclick' => stage_confirm_onclick(get_string('confirmdeletetheme', 'mod_stage')),
-            ]);
+            . stage_post_form_button('stage-delete-theme-' . $theme->id, get_string('delete'));
+        // Le tableau est déjà dans le formulaire d'enregistrement en masse : le formulaire de
+        // suppression, qui ne peut pas y être imbriqué, est placé après lui.
+        $deleteforms .= stage_post_form(
+            $deleteurl,
+            'stage-delete-theme-' . $theme->id,
+            get_string('confirmdeletetheme', 'mod_stage')
+        );
 
         $row = [html_writer::link($manageurl, format_string($theme->name)), $minstudyyearselect, $maxstudyyearselect,
             $mandatorycb, $durationlabel, $visible];
@@ -248,6 +253,7 @@ if (empty($themes)) {
         'type' => 'submit', 'value' => get_string('savebulkchanges', 'mod_stage'), 'class' => 'btn btn-primary mt-2',
     ]);
     echo html_writer::end_tag('form');
+    echo $deleteforms;
 }
 
 echo $OUTPUT->footer();

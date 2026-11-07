@@ -71,6 +71,12 @@ class behat_mod_stage_generator extends behat_generator_base {
                 'required' => ['stage', 'list', 'evaltype', 'name'],
                 'switchids' => ['stage' => 'stageid'],
             ],
+            'theme teachers' => [
+                'singular' => 'theme teacher',
+                'datagenerator' => 'theme_teacher',
+                'required' => ['stage', 'theme', 'teacher'],
+                'switchids' => ['stage' => 'stageid', 'teacher' => 'teacherid'],
+            ],
             'convention templates' => [
                 'singular' => 'convention template',
                 'datagenerator' => 'convention_template',
@@ -214,6 +220,20 @@ class behat_mod_stage_generator extends behat_generator_base {
      */
     protected function process_teacher_assignment(array $data): void {
         $this->componentdatagenerator->assign_teacher($data['stageid'], $data['studentid'], $data['teacherid']);
+    }
+
+    /**
+     * Désigne un enseignant responsable d'une thématique (par son nom).
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function process_theme_teacher(array $data): void {
+        global $DB;
+
+        $theme = $DB->get_record('stage_theme', ['stageid' => $data['stageid'], 'name' => $data['theme']], '*', MUST_EXIST);
+        $existing = array_keys(stage_get_theme_teachers($theme->id));
+        stage_set_theme_teachers($theme->id, array_merge($existing, [(int) $data['teacherid']]));
     }
 
     /**

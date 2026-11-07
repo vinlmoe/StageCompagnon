@@ -7,6 +7,12 @@ changements. À tenir à jour à chaque modification de `version.php`.
 
 ## Non publié
 
+## mod_stage 0.6.0 et mod_stagesynthesis 0.2.2 — 2026-11-07
+
+Version technique `2026110700` pour `mod_stage` (étape de mise à jour : quatre champs) et
+`2026110700` pour `mod_stagesynthesis`. Les entrées accumulées depuis la 0.5.1 sous la mention
+« Non publié » sont rattachées à cette version.
+
 ### Dépôt
 - Ajout du texte de la licence (`LICENSE`, GNU GPL v3), de cet historique et de `.editorconfig`.
 - `.DS_Store` retiré du suivi Git.
@@ -35,6 +41,44 @@ changements. À tenir à jour à chaque modification de `version.php`.
   « communication » (orange, la couleur d'origine du module).
 
 ### mod_stage
+- Questionnaire de demande de stage par thématique : une liste d'évaluation de type
+  « Questionnaire de demande de stage », choisie par la thématique, est remplie par l'étudiant
+  avec sa demande de convention (et lors de l'enregistrement du stage par l'étudiant). Réponses
+  obligatoires contrôlées côté serveur ; réponses présentées aux validateurs, à la DEVE et dans le
+  détail du stage ; celles d'une thématique abandonnée sont retirées.
+- Numéro SIRET de l'organisme d'accueil, facultatif, dans la demande, la revue et la convention
+  PDF : espaces acceptés, 14 chiffres et clé de Luhn vérifiés (exception de La Poste). Exporté et
+  restauré avec l'export global.
+- Validation de la demande de convention avant la DEVE par l'enseignant référent, un enseignant
+  responsable de la thématique, ou les deux (paramètre « Qui valide la demande »). Chaque
+  validation est enregistrée à part ; la demande passe à la DEVE quand toutes sont réunies. Un
+  responsable de thématique sans étudiant attribué voit les demandes à valider. Courriel aux
+  validateurs concernés ; événement Moodle précisant le titre de la validation.
+- Corrections de l'audit du code (`docs/audit/audit-du-module.tex`) :
+  - sécurité : structure et pays nettoyés et bornés à l'enregistrement, quelle qu'en soit la
+    source, et échappés à l'affichage ; comptes rendus d'import échappés ; envois de fichiers
+    d'import analysés par l'antivirus de Moodle ; suppressions et transfert en POST seulement ;
+    relance du maître de stage réservée à la DEVE ; coordonnées de l'étudiant masquées au
+    responsable de thématique ; lien du maître de stage réduit à une confirmation après
+    évaluation ; alerte quand l'adresse du maître de stage est celle de l'étudiant ou d'un
+    inscrit ; suivi multi-promotions réservé aux inscriptions actives ;
+  - circuit : la réinitialisation efface l'avis de l'enseignant ; la validation en masse écarte
+    les stages refusés et retient les jours cochés ; le transfert emporte la mobilité d'études ;
+    jours effectifs dans le fuseau du site ; durées par année d'une thématique bornée calculées
+    comme au tableau de bord ; contournement du maître de stage gardé et tracé ; nouvelle demande
+    de convention sans les décisions de la précédente ; dispense conservée sur un stage évalué ;
+    relance de convention rejouée après report ; champs bornés à la taille de leurs colonnes ;
+  - imports : en-tête du CSV facultative, lignes incomplètes et durées non entières signalées ;
+    évaluateur conservé à l'import historique ; évaluations saisies dans l'activité préservées au
+    réimport StageVet ; classeurs invalides refusés proprement ;
+  - conventions : gabarit et logos vérifiés à l'envoi et avant génération, message clair pour un
+    PDF illisible, fichiers temporaires toujours supprimés ; noms sans entités HTML dans les PDF,
+    classeurs, courriels et noms de fichiers ; courriels dans la langue du destinataire ;
+  - RGPD et sauvegarde : registre complété, jours effectifs, référents et responsabilités
+    exportés, réponses de l'enseignant effacées avec son compte ; responsables de thématique
+    conservés à la duplication d'une activité ;
+  - événements : édition d'un stage et contournement du maître de stage journalisés ;
+    descriptions en anglais ; 40 chaînes de langue inutilisées supprimées.
 - Accès simultanés (test de concurrence, `docs/audit/test-de-concurrence.tex`) :
   - circuit du stage : l'auto-évaluation, l'avis ou le refus de l'enseignant référent et
     l'évaluation du maître de stage ne sont plus écrits que si le stage est toujours dans l'état
@@ -204,6 +248,9 @@ changements. À tenir à jour à chaque modification de `version.php`.
   l'import sont conservées dans un fichier temporaire au lieu de la session.
 
 ### mod_stagesynthesis
+- Une activité liée n'entre dans le périmètre d'un enseignant que s'il peut toujours y accéder :
+  inscription active et activité visible pour lui. Une inscription suspendue ou expirée gardait
+  la vue sur ses anciens étudiants.
 - Événement Moodle de consultation de l'activité.
 - La clé du filtre de thématique combiné s'écrit `stagecmid-themeid` (au lieu de `:`) et est
   lue en `PARAM_ALPHANUMEXT`. Seuls les liens de filtre mis en favori avant ce changement sont

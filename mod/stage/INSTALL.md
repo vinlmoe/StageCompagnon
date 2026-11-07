@@ -47,6 +47,20 @@ La DEVE correspond directement au rôle Moodle standard « Enseignant »
 (`editingteacher`). Les autres enseignants utilisent le rôle « Enseignant non
 éditeur » (`teacher`). Aucun rôle Moodle « DEVE » spécifique ne doit être créé.
 
+Capacités définies par le module, et archétypes qui les reçoivent par défaut :
+
+| Capacité | Objet | Archétypes |
+|---|---|---|
+| `mod/stage:addinstance` | Ajouter l'activité à un cours | `editingteacher`, `manager` |
+| `mod/stage:view` | Voir l'activité | `student`, `teacher`, `editingteacher`, `manager` |
+| `mod/stage:submit` | Demander une convention, s'auto-évaluer | `student` |
+| `mod/stage:evaluateteacher` | Évaluer en référent, valider une demande, suivre une thématique | `teacher`, `editingteacher` |
+| `mod/stage:registerstages` | Enregistrer, importer, transférer, supprimer des stages ; traiter les conventions | `editingteacher`, `manager` |
+| `mod/stage:managethemes` | Thématiques, listes d'évaluation, gabarits, courriels | `editingteacher`, `manager` |
+| `mod/stage:validatedeve` | Validation finale, mobilités, relance du maître de stage | `editingteacher`, `manager` |
+| `mod/stage:viewall` | Consulter et exporter tous les stages | `editingteacher`, `manager` |
+| `mod/stage:manageteachers` | Attribuer les enseignants référents | `editingteacher`, `manager` |
+
 ### Navigation
 
 La DEVE et les enseignants référents arrivent directement sur le **tableau de
@@ -107,8 +121,9 @@ Depuis **Administration > Gérer les thématiques** :
 ### Listes d'évaluation
 
 **Administration > Listes d'évaluation** regroupe les questionnaires de
-l'activité. Une liste a un nom et un formulaire de destination (étudiant,
-enseignant référent ou maître de stage), fixé à sa création ; elle s'édite sur
+l'activité. Une liste a un nom et un formulaire de destination (questionnaire de demande
+de stage, étudiant, enseignant référent ou maître de stage), fixé à sa
+création ; elle s'édite sur
 sa propre page : questions à choix multiples ou à commentaire libre, modifiées
 directement dans la page (une ligne vide crée une question), version anglaise
 pour les questions du maître de stage, et reprise de questions d'autres listes
@@ -117,6 +132,13 @@ question peut figurer dans plusieurs listes : sa modification vaut alors pour
 toutes, ce que la page signale. Retirer d'une liste une question qui ne figure
 dans aucune autre la supprime avec ses réponses ; une liste dont les questions
 ont déjà reçu des réponses ne peut pas être supprimée.
+
+Le **questionnaire de demande de stage** est rempli par l'étudiant avec sa
+demande de convention, avant le stage : il complète les informations de la
+convention par celles que la thématique juge utiles pour accepter le stage
+(motivation, activités prévues, encadrement...). Ses réponses obligatoires sont
+contrôlées côté serveur ; elles sont présentées à ceux qui valident la demande
+(voir § 7), à la DEVE et dans le détail du stage.
 
 À la mise à jour du plugin, les questions déjà rattachées aux thématiques sont
 regroupées en listes (une par thématique et par formulaire, partagée entre les
@@ -333,7 +355,10 @@ demandes étudiantes. Le même formulaire couvre :
 langue et gabarit, enseignant référent (choisi parmi ceux qui lui sont
 attribués — son courriel est repris automatiquement de son compte), situation
 et type de stage, coordonnées de l'étudiant, organisme d'accueil, tuteur,
-modalités particulières, gratification et congés. Si la thématique retenue a une
+modalités particulières, gratification et congés, ainsi que le numéro SIRET de
+l'organisme d'accueil (facultatif ; 14 chiffres, espaces acceptés, clé de
+contrôle vérifiée). Si la thématique a un questionnaire de demande (voir § 4),
+il fait partie du formulaire. Si la thématique retenue a une
 check-list d'objectifs (voir § 4), elle est présentée en fin de formulaire :
 chaque élément laissé décoché doit être justifié dans son champ libre.
 
@@ -342,14 +367,23 @@ uniquement s'il diffère de l'adresse de l'organisme. Un rappel indique que la
 demande doit être déposée au moins deux semaines avant le stage, quatre pour un
 stage à l'étranger.
 
-### Validation par l'enseignant référent (optionnelle)
+### Validation par l'enseignant référent ou le responsable de la thématique (optionnelle)
 
 Si l'option est activée, la demande passe d'abord au statut **En attente de
-l'enseignant référent** et n'est pas encore visible par la DEVE. Les référents
-de l'étudiant reçoivent un courriel et retrouvent la demande en tête de leur
-page de validation. Ils disposent du formulaire complet, éditable, et peuvent
-la valider (transmission à la DEVE) ou la refuser avec un motif renvoyé à
-l'étudiant.
+validation enseignante** et n'est pas encore visible par la DEVE. Le paramètre
+**Qui valide la demande** fixe qui doit l'accepter : l'enseignant référent de
+l'étudiant (par défaut), un enseignant responsable de la thématique, ou les
+deux. Une thématique sans responsable désigné est validée par le référent.
+
+Les enseignants concernés reçoivent un courriel et retrouvent la demande en tête
+de leur page de validation, y compris un responsable de thématique qui n'a aucun
+étudiant attribué. Ils disposent du formulaire complet de la convention,
+éditable, et des réponses au questionnaire de demande de la thématique : c'est
+sur ces deux bases qu'ils décident. Chacun peut valider ou refuser avec un motif
+renvoyé à l'étudiant. Quand les deux validations sont exigées, la première est
+enregistrée et la demande attend la seconde ; la page indique laquelle est déjà
+donnée. La demande passe à la DEVE quand toutes les validations exigées sont
+réunies ; un refus, lui, l'arrête aussitôt.
 
 ### Traitement par la DEVE
 
@@ -399,7 +433,9 @@ une fois (les e-mails déjà personnalisés sont signalés et ouverts) :
   reçoit un courriel contenant un lien à jeton unique vers un questionnaire
   d'évaluation. L'envoi ne dépend pas de l'auto-évaluation de l'étudiant : la
   tâche planifiée « Envoi des invitations à évaluer le stage aux maîtres de
-  stage » (chaque jour à 6 h 45) l'envoie une seule fois, à partir du premier
+  stage » (chaque jour à 6 h 45 ; une autre tâche relance, chaque jour à 6 h 30,
+  les étudiants dont le stage commence dans quelques jours sans convention
+  signée, une seule fois par stage) l'envoie une seule fois, à partir du premier
   jour du stage, si la convention est signée (ici ou sur StageVet) ou le stage
   dispensé, si la thématique autorise l'évaluation par le maître de stage, si
   son courriel figure dans la demande de convention et si le stage n'est encore

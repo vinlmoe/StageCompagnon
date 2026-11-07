@@ -199,12 +199,9 @@ if ($resolvereferents && confirm_sesskey()) {
 } else if (data_submitted() && optional_param('importfile', 0, PARAM_INT) && confirm_sesskey()) {
     \mod_stage\local\import_preview::delete('stagevet', $stage->id);
     $pending = [];
-    $upload = $_FILES['csvfile'] ?? null;
-
-    if (empty($upload) || $upload['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($upload['tmp_name'])) {
-        $uploaderror = get_string('importerrorupload', 'mod_stage');
-    } else {
-        $content = file_get_contents($upload['tmp_name']);
+    [$uploadpath, $uploaderror] = stage_get_uploaded_file('csvfile');
+    if ($uploadpath) {
+        $content = file_get_contents($uploadpath);
         $import = \mod_stage\local\csv_importer::stagevet($stage, $context, $content);
         $results = $import['results'];
         $uploaderror = $import['error'];
@@ -360,7 +357,7 @@ if ($results) {
             $lines = [];
             foreach ($results->unknownstudents as $name => $linenums) {
                 $lines[] = get_string('importstagevetreportline', 'mod_stage', (object) [
-                    'value' => $name, 'lines' => implode(', ', $linenums),
+                    'value' => s($name), 'lines' => implode(', ', $linenums),
                 ]);
             }
             echo $OUTPUT->notification(
@@ -428,7 +425,8 @@ if ($results) {
             // Par défaut, le rattachement au premier stage approchant : c'est le plus probable.
             $options = [];
             foreach ($duplicate->candidates as $entryid => $description) {
-                $options[$entryid] = get_string('importstagevetduplicateattach', 'mod_stage', $description);
+                // Texte brut (voir stage_entry_short_description()) : html_writer::select() n'échappe pas les libellés.
+                $options[$entryid] = s(get_string('importstagevetduplicateattach', 'mod_stage', $description));
             }
             $options['new'] = get_string('importstagevetduplicatenew', 'mod_stage');
             $options['skip'] = get_string('importstagevetresolveskip', 'mod_stage');
@@ -466,7 +464,7 @@ if ($results) {
         $lines = [];
         foreach ($results->unknownthemes as $name => $linenums) {
             $lines[] = get_string('importstagevetreportline', 'mod_stage', (object) [
-                'value' => $name, 'lines' => implode(', ', $linenums),
+                'value' => s($name), 'lines' => implode(', ', $linenums),
             ]);
         }
         echo $OUTPUT->notification(
@@ -477,7 +475,7 @@ if ($results) {
 
     if (!empty($results->errors)) {
         echo $OUTPUT->notification(
-            implode(html_writer::empty_tag('br'), $results->errors),
+            implode(html_writer::empty_tag('br'), array_map('s', $results->errors)),
             \core\output\notification::NOTIFY_WARNING
         );
     }
