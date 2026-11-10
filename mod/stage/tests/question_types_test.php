@@ -41,6 +41,8 @@ require_once($CFG->dirroot . '/mod/stage/classes/form/evallist_edit_form.php');
  * @covers     ::stage_extract_request_answers
  * @covers     ::stage_request_question_form_data
  * @covers     ::stage_save_answers
+ * @covers     ::stage_question_type_change_allowed
+ * @covers     ::stage_question_param_type
  */
 final class question_types_test extends \advanced_testcase {
     /**
@@ -149,6 +151,7 @@ final class question_types_test extends \advanced_testcase {
             stage_validate_answers([$number], [$number->id => $value]);
         }
         $this->assert_refused($number, 'douze');
+        $this->assert_refused($number, '1e999');
 
         $date = $this->question('date');
         stage_validate_answers([$date], [$date->id => '2024-02-29']);
@@ -165,6 +168,44 @@ final class question_types_test extends \advanced_testcase {
         foreach (['checkbox', 'yesno', 'number', 'date', 'shorttext'] as $qtype) {
             stage_validate_answers([$this->question($qtype, 0, 'A')], [21 => '']);
         }
+    }
+
+    /**
+     * Une valeur qui n'est pas une chaîne (tableau falsifié lu comme invalide) est refusée comme
+     * réponse invalide, pas comme réponse manquante.
+     */
+    public function test_non_string_answer_is_invalid(): void {
+        $question = $this->question('yesno', 0);
+        try {
+            stage_validate_answers([$question], [$question->id => null]);
+            $this->fail('Une réponse non textuelle aurait dû être refusée.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('errorinvalidanswer', $e->errorcode);
+        }
+    }
+
+    /**
+     * Types fermés lus sans nettoyage (une option « <b>Urgences</b> » reste choisissable), textes
+     * libres nettoyés ; changements de type permis seulement s'ils gardent les réponses lisibles.
+     */
+    public function test_param_types_and_type_changes(): void {
+        foreach (['choice', 'checkbox', 'yesno', 'rating', 'number', 'date'] as $qtype) {
+            $this->assertSame(PARAM_RAW, stage_question_param_type($qtype));
+        }
+        $this->assertSame(PARAM_TEXT, stage_question_param_type('text'));
+        $this->assertSame(PARAM_TEXT, stage_question_param_type('shorttext'));
+        $this->assertSame(PARAM_TEXT, stage_question_param_type('inconnu'));
+
+        $checkbox = $this->question('checkbox', 1, "Chirurgie\n<b>Urgences</b>");
+        stage_validate_answers([$checkbox], [$checkbox->id => '<b>Urgences</b>']);
+
+        $this->assertTrue(stage_question_type_change_allowed('choice', 'checkbox'));
+        $this->assertTrue(stage_question_type_change_allowed('shorttext', 'text'));
+        $this->assertTrue(stage_question_type_change_allowed('rating', 'number'));
+        $this->assertTrue(stage_question_type_change_allowed('date', 'date'));
+        $this->assertFalse(stage_question_type_change_allowed('checkbox', 'choice'));
+        $this->assertFalse(stage_question_type_change_allowed('text', 'shorttext'));
+        $this->assertFalse(stage_question_type_change_allowed('text', 'yesno'));
     }
 
     /**

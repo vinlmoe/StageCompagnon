@@ -330,7 +330,7 @@ $string['transfernoentries'] = 'This student has no internship in this activity:
 $string['transfernotenrolled'] = 'The student is not enrolled on course "{$a}". Enrol them first: without an enrolment, their internships would not appear on any dashboard in the destination.';
 $string['transferunmatchedthemes'] = 'These themes do not exist in the destination activity: {$a}. Create them there first (with exactly the same name), or use "Import from another course": without them, the internships concerned would lose their theme and distort the student record.';
 $string['transferunmatchedtemplates'] = 'These agreement templates do not exist in the destination activity: {$a}. The internships concerned will be transferred without a template: their already signed agreement remains available, but regenerating its PDF will require choosing one again.';
-$string['transferdroppedanswers'] = '{$a} evaluation answer(s) will be deleted: the matching questions do not exist in the destination themes.';
+$string['transferdroppedanswers'] = '{$a} evaluation answer(s) will be deleted: the matching questions do not exist in the destination themes, or are of a type that does not accept these answers.';
 $string['transferreferentteachers'] = 'The referent teacher assignment ({$a}) is not transferred: it belongs to the course. Remember to assign a referent teacher to the student in the destination course.';
 $string['rejectstageheading'] = 'Reject the entry';
 $string['rejectstageheading_help'] = 'Sends the entry back to the student for correction. The reason below is passed on to them: it is required.';
@@ -1016,6 +1016,7 @@ $string['removequestionrow_help'] = 'The question is removed from this list only
     . 'is deleted together with the answers already recorded.';
 $string['questionsharedwithlists'] = 'Also in: {$a}';
 $string['evallistquestionhasanswers'] = 'This question already has answers: it cannot be removed from the list.';
+$string['evallistqtypeblocked'] = 'Nothing was saved: these questions already have answers that their new type would make unreadable: {$a}. Only changes from single choice to checkboxes, from short text to free comment and from rating to number are allowed; otherwise, create a new question.';
 $string['evallistquestionsblocked'] = 'Nothing was saved: these questions already have answers and cannot be removed from the list: {$a}. The answers of internships already evaluated would be lost.';
 $string['evallistsaved'] = 'Evaluation list saved.';
 $string['evallistadd'] = 'Create an evaluation list';

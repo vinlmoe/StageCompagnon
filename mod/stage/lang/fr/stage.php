@@ -339,7 +339,7 @@ $string['transfernoentries'] = "Cet étudiant n'a aucun stage dans cette activit
 $string['transfernotenrolled'] = "L'étudiant n'est pas inscrit au cours « {\$a} ». Inscrivez-le d'abord : sans inscription, ses stages n'apparaîtraient dans aucun tableau de bord de la destination.";
 $string['transferunmatchedthemes'] = "Ces thématiques n'existent pas dans l'activité de destination : {\$a}. Créez-les-y d'abord (avec exactement le même nom), ou utilisez « Importer depuis un autre cours » : sans elles, les stages concernés perdraient leur rattachement et fausseraient le bilan de l'étudiant.";
 $string['transferunmatchedtemplates'] = "Ces gabarits de convention n'existent pas dans l'activité de destination : {\$a}. Les stages concernés seront transférés sans gabarit : leur convention déjà signée reste disponible, mais sa regénération en PDF nécessitera d'en rechoisir un.";
-$string['transferdroppedanswers'] = "{\$a} réponse(s) d'évaluation seront supprimées : les questions correspondantes n'existent pas dans les thématiques de destination.";
+$string['transferdroppedanswers'] = "{\$a} réponse(s) d'évaluation seront supprimées : les questions correspondantes n'existent pas dans les thématiques de destination, ou sont d'un type qui n'accepte pas ces réponses.";
 $string['transferreferentteachers'] = "L'attribution des enseignants référents ({\$a}) n'est pas transférée : elle est propre au cours. Pensez à attribuer un enseignant référent à l'étudiant dans le cours de destination.";
 $string['rejectstageheading'] = 'Refuser la saisie';
 $string['rejectstageheading_help'] = "Renvoie la saisie à l'étudiant pour correction. Le motif ci-dessous lui est transmis : il est obligatoire.";
@@ -1036,6 +1036,7 @@ $string['removequestionrow_help'] = "La question est retirée de cette liste seu
     . "autre liste, elle est supprimée avec les réponses déjà enregistrées.";
 $string['questionsharedwithlists'] = 'Figure aussi dans : {$a}';
 $string['evallistquestionhasanswers'] = 'Cette question a déjà des réponses : elle ne peut pas être retirée de la liste.';
+$string['evallistqtypeblocked'] = 'Rien n\'a été enregistré : ces questions ont déjà des réponses, que leur nouveau type rendrait illisibles : {$a}. Seuls les passages du choix unique aux cases à cocher, du texte court au commentaire libre et de la note au nombre sont permis ; sinon, créez une nouvelle question.';
 $string['evallistquestionsblocked'] = 'Rien n\'a été enregistré : ces questions ont déjà des réponses et ne peuvent pas être retirées de la liste : {$a}. Les réponses des stages déjà évalués seraient perdues.';
 $string['evallistsaved'] = "La liste d'évaluation a été enregistrée.";
 $string['evallistadd'] = "Créer une liste d'évaluation";

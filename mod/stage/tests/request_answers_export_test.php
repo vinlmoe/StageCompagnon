@@ -109,9 +109,17 @@ final class request_answers_export_test extends \advanced_testcase {
         $this->assertSame(get_string('yes'), $rowa['q' . $yesno->id]);
         $this->assertSame(3.5, $rowa['q' . $removed->id]);
 
+        $this->assertSame(userdate($entrya->datestart, '%Y-%m-%d', 99, false), $rowa['datestart']);
+
         $this->assertSame((int) $entryb->id, $rowb['entryid']);
         $this->assertSame('Curiosité', $rowb['q' . $motivation->id]);
         $this->assertSame('', $rowb['q' . $rating->id]);
         $this->assertSame(array_keys($export['columns']), array_keys($rowb));
+
+        // Sans le courriel (responsable de thématique) : ni colonne ni valeur.
+        $export = stage_get_request_answers_export($theme, $entries, false);
+        $this->assertArrayNotHasKey('email', $export['columns']);
+        $this->assertArrayNotHasKey('email', $export['rows'][0]);
+        $this->assertSame(array_keys($export['columns']), array_keys($export['rows'][0]));
     }
 }
