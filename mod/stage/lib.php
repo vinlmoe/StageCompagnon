@@ -36,6 +36,8 @@ define('STAGE_STATUS_NON_VALIDE', -1);
 define('STAGE_STATUS_ANNULE', -2);
 /** Nombre de lignes par page pour les listes paginées (DEVE / enseignant référent). */
 define('STAGE_LIST_PERPAGE', 40);
+/** Longueur maximale d'une réponse à une question de type « shorttext » (texte court). */
+define('STAGE_QUESTION_SHORTTEXT_MAXLENGTH', 255);
 
 /** Convention de stage : refusée par la DEVE avec commentaire, à corriger par l'étudiant. */
 define('STAGE_CONVENTION_REJECTED', -1);

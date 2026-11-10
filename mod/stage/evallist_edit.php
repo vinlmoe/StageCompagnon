@@ -175,7 +175,7 @@ if ($data && !$blockeddeletions) {
             'evaltype' => $list->evaltype,
             'qtype' => $qtype,
             'name' => $name,
-            'options' => $qtype === 'choice' ? ($data->questionoptions[$i] ?? null) : null,
+            'options' => stage_question_type_has_options($qtype) ? ($data->questionoptions[$i] ?? null) : null,
             'required' => !empty($data->questionrequired[$i]) ? 1 : 0,
             'sortorder' => (int) ($data->questionsortorder[$i] ?? 0),
             'timemodified' => $now,
@@ -184,7 +184,7 @@ if ($data && !$blockeddeletions) {
         // champs ; ailleurs, elle n'est pas touchée.
         if ($list->evaltype === 'tutor') {
             $question->nameen = $data->questionnameen[$i] ?? null;
-            $question->optionsen = $qtype === 'choice' ? ($data->questionoptionsen[$i] ?? null) : null;
+            $question->optionsen = stage_question_type_has_options($qtype) ? ($data->questionoptionsen[$i] ?? null) : null;
         }
         if ($questionid && isset($existing[$questionid])) {
             if ($delete) {

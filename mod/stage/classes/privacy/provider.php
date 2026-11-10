@@ -432,7 +432,7 @@ class provider implements
                         $question = $DB->get_record('stage_question', ['id' => $answer->questionid]);
                         $rows[] = (object) [
                             'question' => $question ? $question->name : '',
-                            'answer' => $answer->answertext,
+                            'answer' => $question ? stage_format_answer($question, $answer->answertext) : $answer->answertext,
                         ];
                     }
                     writer::with_context($context)->export_data(

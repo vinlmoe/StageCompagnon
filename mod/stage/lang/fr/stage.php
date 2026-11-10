@@ -395,10 +395,27 @@ $string['evaltype'] = "Formulaire concerné";
 $string['evaltype_student'] = "Auto-évaluation de l'étudiant";
 $string['evaltype_teacher'] = "Évaluation de l'enseignant";
 $string['qtype'] = 'Type de question';
-$string['qtype_choice'] = 'Choix multiples';
+$string['qtype_checkbox'] = 'Cases à cocher (plusieurs réponses)';
+$string['qtype_choice'] = 'Choix multiples (une seule réponse)';
+$string['qtype_date'] = 'Date';
+$string['qtype_help'] = 'Forme de la réponse attendue :
+
+* **Choix multiples (une seule réponse)** : une option parmi celles saisies ci-dessous, une par ligne ;
+* **Cases à cocher (plusieurs réponses)** : une ou plusieurs options parmi celles saisies ci-dessous ;
+* **Oui / Non** : l\'une des deux réponses ;
+* **Note (de 1 à 5)** : une note, affichée en étoiles ;
+* **Nombre** : une valeur numérique (la virgule décimale est acceptée) ;
+* **Date** : une date du calendrier ;
+* **Texte court (une ligne)** : au plus 255 caractères ;
+* **Commentaire libre** : un texte sur plusieurs lignes.
+
+Dans l\'export Excel (feuille des réponses), la note sur 5, le nombre et le oui/non (1 ou 0) sont aussi écrits dans des colonnes numériques.';
+$string['qtype_number'] = 'Nombre';
 $string['qtype_rating'] = 'Note (de 1 à 5)';
 $string['qtype_rating_scale'] = '1 = très insuffisant, 5 = excellent';
+$string['qtype_shorttext'] = 'Texte court (une ligne)';
 $string['qtype_text'] = 'Commentaire libre';
+$string['qtype_yesno'] = 'Oui / Non';
 $string['questionlabel'] = 'Intitulé de la question';
 $string['questionlabelen'] = 'Intitulé de la question (anglais, maître de stage)';
 $string['choiceoptions'] = 'Options du QCM (une par ligne)';
@@ -914,7 +931,7 @@ $string['conventionentrycancelled'] = 'Ce stage est annulé : sa convention ne p
 $string['errorentrychanged'] = 'Ce stage a changé entre-temps (évalué, validé, refusé ou annulé par un autre intervenant) : votre saisie n\'a pas été enregistrée. Vérifiez son état avant de recommencer.';
 $string['errornegativeduration'] = 'La durée ne peut pas être négative.';
 $string['errorrequiredanswer'] = 'Une réponse est obligatoire pour la question : {$a}';
-$string['errorinvalidanswer'] = 'Choisissez une réponse proposée pour la question : {$a}';
+$string['errorinvalidanswer'] = 'Réponse non valide pour la question : {$a} (choisissez une réponse proposée, ou saisissez un nombre, une date ou un texte court selon la question).';
 $string['privacy:metadata:stage_entry:tutorrequestfailtime'] = "La date de l'échec de l'invitation automatique du maître de stage.";
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = "La date du dernier envoi de l'invitation au maître de stage.";
 
@@ -1069,6 +1086,7 @@ $string['historicalimportduplicateswarning'] = "{\$a} ligne(s) ressemblent à un
     . "ou même thématique sans dates). Elles ne seront importées que si vous cochez « Importer quand même ».";
 $string['historicalimportduplicatesskipped'] = '{$a} doublon(s) probable(s) non importé(s).';
 $string['importduplicatessincepreview'] = '{$a} stage(s) enregistré(s) entre-temps, depuis la prévisualisation, non importé(s) : relancez la prévisualisation pour les arbitrer.';
+$string['exportnumericvalue'] = 'Valeur numérique';
 $string['exportratingoutoffive'] = 'Note (sur 5)';
 
 // Événements (journaux Moodle).

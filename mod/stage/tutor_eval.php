@@ -75,9 +75,7 @@ $submitted = [];
 $submittedcomment = '';
 $submiterror = null;
 if (empty($entry->tutortime) && data_submitted() && confirm_sesskey()) {
-    foreach ($questions as $question) {
-        $submitted[$question->id] = optional_param('q_' . $question->id, '', PARAM_TEXT);
-    }
+    $submitted = stage_read_submitted_answers($questions);
     $submittedcomment = optional_param('tutoreval', '', PARAM_TEXT);
     $submiterror = stage_submit_tutor_eval($entry, $questions, $submitted, $submittedcomment, $lang);
     if ($submiterror === null) {

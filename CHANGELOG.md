@@ -7,6 +7,21 @@ changements. À tenir à jour à chaque modification de `version.php`.
 
 ## Non publié
 
+### mod_stage
+- Listes d'évaluation : cinq nouveaux types de question, en plus des choix multiples, des notes
+  de 1 à 5 et des commentaires libres. *Cases à cocher* (plusieurs options parmi celles saisies,
+  enregistrées une par ligne), *Oui / Non*, *Nombre* (virgule décimale acceptée), *Date*
+  (enregistrée au format AAAA-MM-JJ) et *Texte court* (une ligne, 255 caractères au plus). Ils
+  sont proposés dans tous les questionnaires (étudiant, enseignant, maître de stage, demande de
+  stage), contrôlés côté serveur et affichés en clair en lecture seule. Le type « Choix
+  multiples » est rebaptisé « Choix multiples (une seule réponse) » et une aide décrit chaque
+  type. Les options ne sont demandées que pour les choix et les cases à cocher.
+- Export Excel, feuille des réponses : la réponse est écrite en clair (« Oui »/« Non », date mise
+  en forme, cases cochées séparées par « ; ») ; deux colonnes sont ajoutées en fin de ligne,
+  *Valeur numérique* (le nombre, ou 1/0 pour un oui/non) et *Type de question*. Les colonnes
+  existantes gardent leur place. L'export des données personnelles écrit lui aussi les réponses
+  en clair.
+
 ## mod_stage 0.6.0 et mod_stagesynthesis 0.2.2 — 2026-11-07
 
 Version technique `2026110700` pour `mod_stage` (étape de mise à jour : quatre champs) et

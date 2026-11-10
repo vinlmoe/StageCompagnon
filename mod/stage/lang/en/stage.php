@@ -386,10 +386,27 @@ $string['evaltype'] = 'Applies to form';
 $string['evaltype_student'] = 'Student self-assessment';
 $string['evaltype_teacher'] = 'Teacher evaluation';
 $string['qtype'] = 'Question type';
-$string['qtype_choice'] = 'Multiple choice';
+$string['qtype_checkbox'] = 'Checkboxes (several answers)';
+$string['qtype_choice'] = 'Multiple choice (single answer)';
+$string['qtype_date'] = 'Date';
+$string['qtype_help'] = 'Expected form of the answer:
+
+* **Multiple choice (single answer)**: one of the options entered below, one per line;
+* **Checkboxes (several answers)**: one or more of the options entered below;
+* **Yes / No**: one of the two answers;
+* **Rating (1 to 5)**: a rating, shown as stars;
+* **Number**: a numeric value (a decimal comma is accepted);
+* **Date**: a calendar date;
+* **Short text (one line)**: at most 255 characters;
+* **Free comment**: a text over several lines.
+
+In the Excel export (answers sheet), the rating out of 5, the number and the yes/no answer (1 or 0) are also written to numeric columns.';
+$string['qtype_number'] = 'Number';
 $string['qtype_rating'] = 'Rating (1 to 5)';
 $string['qtype_rating_scale'] = '1 = very poor, 5 = excellent';
+$string['qtype_shorttext'] = 'Short text (one line)';
 $string['qtype_text'] = 'Free comment';
+$string['qtype_yesno'] = 'Yes / No';
 $string['questionlabel'] = 'Question label';
 $string['questionlabelen'] = 'Question label (English, workplace tutor)';
 $string['choiceoptions'] = 'Choice options (one per line)';
@@ -894,7 +911,7 @@ $string['conventionentrycancelled'] = 'This internship is cancelled: its agreeme
 $string['errorentrychanged'] = 'This internship was changed in the meantime (evaluated, validated, rejected or cancelled by someone else): your input was not saved. Check its current state before trying again.';
 $string['errornegativeduration'] = 'The duration cannot be negative.';
 $string['errorrequiredanswer'] = 'An answer is required for this question: {$a}';
-$string['errorinvalidanswer'] = 'Select one of the available answers for this question: {$a}';
+$string['errorinvalidanswer'] = 'Invalid answer for this question: {$a} (select one of the available answers, or enter a number, a date or a short text as the question requires).';
 $string['privacy:metadata:stage_entry:tutorrequestfailtime'] = 'The date the automatic tutor evaluation invitation failed.';
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = 'The date the tutor evaluation invitation was last sent.';
 $string['viewthemeobjectives'] = 'Objectives';
@@ -1048,6 +1065,7 @@ $string['historicalimportduplicateswarning'] = '{$a} line(s) look like an intern
     . 'or same theme without dates). They will only be imported if you tick "Import anyway".';
 $string['historicalimportduplicatesskipped'] = '{$a} probable duplicate(s) not imported.';
 $string['importduplicatessincepreview'] = '{$a} internship(s) recorded in the meantime, since the preview, not imported: preview the file again to review them.';
+$string['exportnumericvalue'] = 'Numeric value';
 $string['exportratingoutoffive'] = 'Rating (out of 5)';
 
 // Events (Moodle logs).

@@ -138,13 +138,18 @@ class evallist_edit_form extends \moodleform {
             $mform->createElement('text', 'questionsortorder', get_string('sortorder', 'mod_stage'), ['size' => 4]),
             $mform->createElement('advcheckbox', 'questiondelete', get_string('removequestionrow', 'mod_stage')),
         ];
+        // Les options ne s'affichent que pour les types qui en proposent (choix, cases à cocher).
+        $nooptions = array_values(array_filter(
+            array_keys($qtypeoptions),
+            fn($qtype) => !stage_question_type_has_options($qtype)
+        ));
         $options = [
             'questionid' => ['type' => PARAM_INT],
-            'questionqtype' => ['default' => 'text'],
+            'questionqtype' => ['default' => 'text', 'helpbutton' => ['qtype', 'mod_stage']],
             'questionname' => ['type' => PARAM_TEXT],
-            'questionoptions' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'neq', 'choice']],
+            'questionoptions' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'in', $nooptions]],
             'questionnameen' => ['type' => PARAM_TEXT],
-            'questionoptionsen' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'neq', 'choice']],
+            'questionoptionsen' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'in', $nooptions]],
             'questionrequired' => ['default' => 1],
             'questionsortorder' => ['type' => PARAM_INT, 'default' => 0],
             'questiondelete' => ['helpbutton' => ['removequestionrow', 'mod_stage']],
@@ -203,7 +208,8 @@ class evallist_edit_form extends \moodleform {
                 }
                 continue;
             }
-            if (($data['questionqtype'][$i] ?? '') === 'choice' && trim((string) ($data['questionoptions'][$i] ?? '')) === '') {
+            $qtype = (string) ($data['questionqtype'][$i] ?? '');
+            if (stage_question_type_has_options($qtype) && trim((string) ($data['questionoptions'][$i] ?? '')) === '') {
                 $errors["questionoptions[$i]"] = get_string('choiceoptionsrequired', 'mod_stage');
             }
         }

@@ -487,6 +487,8 @@ $headers = [
     get_string('questionlabel', 'mod_stage'),
     get_string('answer', 'mod_stage'),
     get_string('exportratingoutoffive', 'mod_stage'),
+    get_string('exportnumericvalue', 'mod_stage'),
+    get_string('qtype', 'mod_stage'),
 ];
 foreach ($headers as $col => $header) {
     $sheet->write_string(0, $col, $header, $headerformat);
@@ -507,17 +509,21 @@ if (!empty($entryids)) {
     // Réponses aux questionnaires de l'activité, puis notes des évaluations textuelles (celles
     // importées de StageVet : une ligne « libellé : N/5 » par item, voir
     // stage_parse_evaluation_text()), pour que toutes les notes se filtrent et se comptent au
-    // même endroit. La colonne numérique reste vide pour une réponse sans note.
+    // même endroit. La colonne de la note reste vide pour une réponse sans note ; celle de la
+    // valeur numérique porte le nombre d'une question « nombre » et 1 ou 0 pour un oui/non (voir
+    // stage_answer_export_values()). La réponse elle-même est écrite en clair : « Oui », date mise
+    // en forme, cases cochées séparées par « ; ».
+    $qtypes = stage_question_types();
     $lines = [];
     foreach ($answerrecords as $answer) {
-        // Question notée de 1 à 5 : la note va aussi dans la colonne numérique.
-        $answertext = trim((string) $answer->answertext);
-        $israting = $answer->qtype === 'rating' && in_array($answertext, stage_question_rating_values(), true);
+        $values = stage_answer_export_values($answer, $answer->answertext);
         $lines[$answer->entryid][] = [
             'evaltype' => $answer->evaltype,
             'label' => stage_plain_string($answer->questionname),
-            'answer' => $israting ? $answertext . '/5' : (string) $answer->answertext,
-            'score' => $israting ? (float) $answertext : null,
+            'answer' => $values['answer'],
+            'score' => $values['score'],
+            'number' => $values['number'],
+            'qtype' => $qtypes[$answer->qtype] ?? $qtypes['text'],
         ];
     }
     foreach ($entryids as $entryid) {
@@ -541,6 +547,8 @@ if (!empty($entryids)) {
                         'answer' => $score === null ? get_string('ratingnotprovided', 'mod_stage')
                             : format_float($score, floor($score) == $score ? 0 : 1, true, true) . '/5',
                         'score' => $score,
+                        'number' => null,
+                        'qtype' => $qtypes['rating'],
                     ];
                 }
             }
@@ -565,6 +573,12 @@ if (!empty($entryids)) {
             if ($line['score'] !== null) {
                 $sheet->write_number($row, $col, $line['score']);
             }
+            $col++;
+            if ($line['number'] !== null) {
+                $sheet->write_number($row, $col, $line['number']);
+            }
+            $col++;
+            $sheet->write_string($row, $col, $line['qtype']);
             $row++;
         }
     }
