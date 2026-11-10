@@ -4,8 +4,8 @@
 
 % Version du guide : à mettre à jour à chaque modification, avec une ligne dans l'historique.
 \newcommand{\titreguide}{Guide de paramétrage et de gestion}
-\newcommand{\versionguide}{1.7}
-\newcommand{\dateguide}{31 octobre 2026}
+\newcommand{\versionguide}{1.9}
+\newcommand{\dateguide}{10 novembre 2026}
 \newcommand{\versionstage}{0.6.0}
 \newcommand{\versionsynthese}{0.2.2}
 
@@ -34,6 +34,7 @@
 1.6 & 31 octobre 2026 & Export StageVet : référent de la convention repris du tuteur de l'export ou, à défaut, de l'enseignant référent de l'étudiant ; correspondance des tuteurs non reconnus. \\
 1.7 & 31 octobre 2026 & Questions notées de 1 à 5 dans les listes d'évaluation ; la réinitialisation d'un stage annule la décision de la DEVE. \\
 1.8 & 7 novembre 2026 & Questionnaire de demande de stage par thématique ; SIRET de l'organisme d'accueil ; validation de la demande par le référent, le responsable de la thématique ou les deux. \\
+1.9 & 10 novembre 2026 & Huit types de question (cases à cocher, oui/non, nombre, date, texte court) ; changement de type d'une question déjà répondue ; export par thématique des réponses au questionnaire pré-stage ; check-list des prérequis. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -302,17 +303,36 @@ numéro, sans bloquer les autres.
 \subsection{Listes d'évaluation}
 
 \chemin{Administration > Listes d'évaluation}. Le formulaire de destination
-d'une liste est fixé à sa création. Questions à choix multiples (une option par
-ligne), notées de 1 à 5 (affichées en étoiles, la note figurant aussi dans
-l'export Excel) ou en texte libre ; une ligne vide ajoute une question. Les
-questions du maître de stage ont une version anglaise.
+d'une liste est fixé à sa création. Une ligne vide ajoute une question. Les
+questions du maître de stage ont une version anglaise. Huit types de question
+sont proposés (bouton d'aide à côté du type) :
+
+\begin{itemize}
+  \item \textbf{Choix multiples (une seule réponse)} et \textbf{Cases à cocher
+        (plusieurs réponses)} : options saisies une par ligne ;
+  \item \textbf{Oui / Non} ;
+  \item \textbf{Note (de 1 à 5)}, affichée en étoiles ;
+  \item \textbf{Nombre} (la virgule décimale est acceptée) et \textbf{Date} ;
+  \item \textbf{Texte court} (une ligne, 255~caractères au plus) et
+        \textbf{Commentaire libre}.
+\end{itemize}
+
+Dans l'export Excel, la réponse est écrite en clair (\og Oui\fg{}, date, cases
+cochées séparées par \og ;\fg{}) ; la note, le nombre et le oui/non (1 ou 0)
+figurent aussi dans des colonnes numériques.
 
 \capture{07_evallists}{Listes d'évaluation.}
 \capture{08_evallist_edit}{Liste destinée au maître de stage.}
+\capture{80_evallist_types}{Questionnaire pré-stage : un type par question.}
+\capture{81_qtype_help}{Aide sur les types de question.}
 
 \begin{attention}
 Une question partagée entre plusieurs listes se modifie partout. Retirer une
-question présente dans aucune autre liste la supprime avec ses réponses.
+question présente dans aucune autre liste la supprime avec ses réponses. Une
+question qui a déjà des réponses ne change de type que si ces réponses restent
+lisibles : du choix unique aux cases à cocher, du texte court au commentaire
+libre, de la note au nombre. Pour tout autre changement, créez une nouvelle
+question.
 \end{attention}
 
 \subsection{Conventions}
@@ -544,6 +564,7 @@ peut aussi ignorer cette évaluation pour qu'elle ne bloque plus la validation.
 
 \capture{44_entrydetail}{Détail d'une saisie : convention, auto-évaluation et
 évaluation du maître de stage.}
+\capture{84_entrydetail_answers}{Réponses en clair : cases cochées en liste, nombre, oui/non.}
 
 \paragraph{Validation finale.} \chemin{Validation DEVE} liste les stages par
 étape. Pour chacun : jours effectifs, durée retenue, commentaire, puis
@@ -612,6 +633,15 @@ la page \chemin{Stages par thématique} : tous les stages de la thématique et l
 rapports déposés, téléchargeables un par un ou en archive ZIP.
 
 \capture{46_theme_stages}{Stages d'une thématique, vus par son enseignante responsable.}
+
+Quand la thématique a un questionnaire de demande (pré-stage), la même page
+propose \bouton{Télécharger} les réponses, au format choisi (Excel, CSV,
+ODS\ldots) : une ligne par stage, une colonne par question, pour les stages
+affichés (recherche et étape comprises). Le courriel des étudiants n'y figure
+que pour la DEVE.
+
+\capture{86_theme_stages_export}{Export des réponses au questionnaire pré-stage.}
+\capture{87_request_export}{Réponses exportées : une ligne par stage, une colonne par question.}
 
 % ===========================================================================
 \section{Cas 3 : fin d'année, bilan et diplomation}

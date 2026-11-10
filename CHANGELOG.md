@@ -33,6 +33,22 @@ changements. À tenir à jour à chaque modification de `version.php`.
   justification « Si non rempli, pourquoi ? »), en français et en anglais, ainsi que dans les
   guides et la documentation. Les documents déposés par thématique restent des documents
   d'objectifs.
+- Audit de ces ajouts (`docs/audit/audit-types-de-question.tex`), relecture et tests dans un Moodle
+  réel (68 scénarios, montée en charge de 16 à 64 clients, 20 700 demandes). Corrections :
+  - les réponses à liste fermée ou à format strict ne sont plus nettoyées par `PARAM_TEXT` : une
+    option contenant une balise ou « < » redevient choisissable ;
+  - une question déjà répondue ne change de type que vers un type compatible (choix unique vers
+    cases à cocher, texte court vers commentaire, note vers nombre) ;
+  - le transfert entre promotions ne rattache plus une réponse à une question de type incompatible ;
+  - export pré-stage : Excel écrit en flux, cellules typées (nombres numériques, textes jamais
+    lus comme formules), 20 700 lignes en 3,5 s au lieu d'une erreur mémoire ; stages lus par
+    paquets ; courriel réservé à la DEVE ; dates au format AAAA-MM-JJ ; valeurs échappées en
+    HTML et PDF ; formules neutralisées sous Moodle 4.3 ; format inconnu refusé ;
+  - nombre infini refusé, tableau falsifié signalé comme réponse invalide, oui/non dans la langue
+    de l'utilisateur et sur sa propre ligne, date du formulaire de demande grégorienne, texte
+    court borné côté navigateur.
+- Guides : captures des nouveautés (`demo_questions.php`, `plan_questions.json`) et texte sur
+  les types de question, l'export pré-stage et la check-list des prérequis.
 
 ## mod_stage 0.6.0 et mod_stagesynthesis 0.2.2 — 2026-11-07
 

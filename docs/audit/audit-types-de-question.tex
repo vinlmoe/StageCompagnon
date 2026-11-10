@@ -1,0 +1,232 @@
+% Audit des ajouts à mod_stage : types de question des listes d'évaluation, export par thématique
+% du questionnaire pré-stage, check-list des prérequis. Relecture, scénarios et montée en charge
+% dans un Moodle réel.
+% Compilation : latexmk -pdf audit-types-de-question.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref,enumitem}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{url}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z}
+\DeclareUrlCommand\code{\urlstyle{tt}}
+\Urlmuskip=0mu plus 2mu
+\newcommand{\grav}[1]{\textbf{\textcolor{#1}{\textbullet}}}
+\newcommand{\maj}{\grav{orange}}
+\newcommand{\mineure}{\grav{gray}}
+\setlist[itemize]{itemsep=2pt,topsep=3pt}
+\newcommand{\ok}{\textcolor{teal}{\textbf{corrigé}}}
+\newcommand{\non}{\textcolor{gray}{\textbf{non traité}}}
+\title{Audit des types de question et de l'export pré-stage de \texttt{mod\_stage}}
+\author{Sébastien Lefebvre}
+\date{10 novembre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Objet et méthode}
+
+L'audit couvre trois ajouts au module :
+\begin{itemize}
+  \item cinq types de question dans les listes d'évaluation, en plus des choix, notes et
+    commentaires : cases à cocher, oui/non, nombre, date et texte court ;
+  \item l'export, par thématique, des réponses au questionnaire de demande (pré-stage) ;
+  \item la check-list de la demande de convention, qui parle de prérequis et non plus d'objectifs.
+\end{itemize}
+
+Il combine deux approches.
+\begin{enumerate}
+  \item \textbf{Relecture indépendante} du code ajouté et du code qui l'appelle : cas limites,
+    sécurité, performance, cohérence avec la sauvegarde, l'import entre cours et le transfert entre
+    promotions, compatibilité avec Moodle~4.3 et PHP~8.0.
+  \item \textbf{Tests dans un Moodle réel} : Moodle~4.5 (\code{MOODLE_405_STABLE}), PHP~8.3,
+    PostgreSQL~16, serveur web intégré de PHP avec 16~processus.
+    \begin{itemize}
+      \item 68 scénarios fonctionnels joués par HTTP, chacun dans la session de son acteur ;
+      \item un contrôle des invariants en base : forme de chaque réponse selon son type, doublons,
+        réponses obligatoires vides ;
+      \item trois vagues de montée en charge, de 16, 32 et 64 clients simultanés ;
+      \item une mesure en volume, 20\,700 demandes sur une même thématique.
+    \end{itemize}
+\end{enumerate}
+
+Les scripts sont dans \code{docs/audit/questions/}, les résultats bruts dans son sous-dossier
+\code{logs/}.
+
+\section{Synthèse}
+
+Aucun problème critique. Les tests ont révélé quatre défauts que la relecture n'avait pas vus, dont
+deux qui n'apparaissent qu'en volume ou à l'exécution. La relecture en a relevé deux majeurs et neuf
+mineurs. Tous sont corrigés sauf trois, signalés comme tels. Après correction, les 68 scénarios
+passent, et les invariants tiennent après les trois vagues : 22\,400 réponses, toutes de forme
+valide, sans doublon.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+& \textbf{Constat} & \textbf{Suite} \\
+\midrule
+\maj & Une option contenant une balise ou un \og <\fg{} ne peut pas être choisie (tests) & \ok \\
+\maj & Export pré-stage Excel : erreur 500 au-delà de quelques milliers de lignes (volume) & \ok \\
+\maj & Changer le type d'une question déjà répondue rend ses réponses illisibles (relecture) & \ok \\
+\maj & Transfert entre promotions : réponses rattachées à une question de type incompatible (relecture) & \ok \\
+\mineure & Export pré-stage Excel : notes et nombres écrits en texte (tests) & \ok \\
+\mineure & Boutons oui/non collés à l'intitulé (captures) & \ok \\
+\mineure & Format d'export inconnu : exception de programmation (tests) & \ok \\
+\mineure & Neuf points de la relecture (§\ref{sec:mineures}) & \ok{} (8), \non{} (1) \\
+\mineure & Retirer une option d'une liste déjà répondue invalide ces réponses & \non \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Défauts révélés par les tests}
+
+\paragraph{\maj{} Options contenant une balise ou un chevron.} Les réponses étaient lues avec
+\code{PARAM_TEXT}, qui retire les balises. Une option « \texttt{<b>Urgences</b>} », ou
+« \texttt{Poids < 5 kg} », arrivait tronquée et ne correspondait plus à aucune option : la réponse
+était refusée, et le formulaire ne pouvait pas être envoyé. Le défaut existait déjà pour les choix
+multiples. Les réponses à liste fermée ou à format strict (choix, cases, oui/non, note, nombre,
+date) sont désormais lues telles quelles, puis contrôlées par liste blanche
+(\code{stage_question_param_type()}). Les textes libres restent nettoyés.
+
+\paragraph{\maj{} Export pré-stage Excel en volume.} Le classeur était construit en mémoire
+(\code{MoodleExcelWorkbook}). Avec 20\,700 lignes, la page dépassait la limite de 256~Mo et
+renvoyait une erreur 500 au bout de 23~s. Il est maintenant écrit en flux avec OpenSpout, la
+bibliothèque qu'utilise Moodle pour ses propres exports : 3,5~s pour 20\,700 lignes, sans
+mémoire supplémentaire.
+
+\paragraph{\mineure{} Nombres en texte.} L'API d'export de Moodle (\code{dataformat}) convertit
+toute valeur en texte pour neutraliser les formules : une note y devenait « 3 » en texte. Avec
+l'écriture en flux, chaque cellule est typée. Les nombres sont des cellules numériques, et les
+textes des cellules texte, jamais lues comme des formules, même quand elles commencent par
+« = ». Un scénario vérifie l'absence de formule dans le classeur.
+
+\paragraph{\mineure{} Autres.}
+\begin{itemize}
+  \item Les boutons oui/non suivaient l'intitulé sur la même ligne. Ils sont maintenant sur leur
+    propre ligne, comme les notes.
+  \item Un format d'export inconnu (\code{dataformat=inconnu}) levait une exception de
+    programmation. Il est maintenant refusé par un message d'erreur.
+\end{itemize}
+
+\section{Défauts relevés par la relecture}
+
+\paragraph{\maj{} Changement de type d'une question déjà répondue.} Seule la suppression
+vérifiait l'existence de réponses. Un commentaire passé en oui/non, ou des cases à cocher passées
+en choix unique, laissaient des réponses illisibles, y compris dans les autres thématiques qui
+partagent la question. Ces réponses pouvaient même être perdues à la ressaisie. Une question
+répondue ne change plus de type que vers un type qui accepte ses réponses : du choix unique aux
+cases à cocher, du texte court au commentaire, de la note au nombre. Rien n'est enregistré
+sinon, et la DEVE en est avertie. Deux scénarios vérifient le refus et la conversion permise.
+
+\paragraph{\maj{} Transfert entre promotions.} Les questions étaient rapprochées sur leur seul
+nom. Une réponse à des cases à cocher pouvait ainsi être rattachée à une question à choix unique
+de même nom dans la promotion cible. Le rapprochement exige maintenant un type compatible.
+Sinon, la réponse est comptée parmi les réponses abandonnées et annoncée dans l'aperçu du
+transfert (\code{transfer.php} du banc).
+
+\subsection{Points mineurs}\label{sec:mineures}
+
+\begin{itemize}
+  \item Export par thématique : stages lus par paquets de 1\,000, au lieu d'une liste \code{IN}
+    qui dépasserait les limites de SQL Server et d'Oracle. \ok
+  \item Accès à l'export : \code{mod/stage:view} exigé ; courriel des étudiants réservé à la DEVE,
+    puisqu'aucune page ne le montre au responsable de thématique. \ok
+  \item Date du formulaire de demande : calculée dans le calendrier grégorien, quel que soit le
+    calendrier choisi par l'utilisateur. \ok
+  \item Nombre : « 1e999 » (infini) refusé. La virgule reste lue comme séparateur décimal : c'est
+    l'usage français, au prix d'une ambiguïté sur « 1,000 ». \non
+  \item Tableau envoyé à la place d'une valeur (formulaire falsifié) : réponse invalide signalée,
+    et non plus une erreur de programmation. \ok
+  \item Libellés oui/non dans la langue de l'utilisateur ; l'anglais n'est forcé que pour le
+    maître de stage dont la convention est en anglais. \ok
+  \item Texte court du formulaire de demande : longueur bornée aussi côté navigateur. \ok
+  \item Dates de l'export par thématique au format AAAA-MM-JJ, qui se trie. \ok
+  \item Formats HTML et PDF de l'export : valeurs échappées. Formats tableur : formules
+    neutralisées par le module si la version de Moodle ne le fait pas (4.3). \ok
+\end{itemize}
+
+\paragraph{Non traité.} Le formulaire d'une liste nettoie ses options (\code{PARAM_TEXT}). Une
+option retirée ou modifiée, ou une option contenant une balise et réenregistrée, invalide les
+réponses déjà données. Ce comportement est antérieur aux nouveaux types. Il mériterait le même
+contrôle que les changements de type.
+
+\section{Montée en charge}
+
+Pour chaque stage, un client enchaîne quatre actions :
+\begin{enumerate}
+  \item auto-évaluation de l'étudiant (envoyée deux fois en même temps pour un stage sur dix,
+    comme un double clic) ;
+  \item avis de l'enseignant référent ;
+  \item évaluation du maître de stage par son lien ;
+  \item demande de convention avec le questionnaire pré-stage.
+\end{enumerate}
+Chaque questionnaire contient les huit types. Pendant toute la vague, deux comptes DEVE
+téléchargent en boucle l'export général et l'export pré-stage. Le débogage est désactivé, comme en
+production. Temps en secondes, médiane / 95\textsuperscript{e} centile.
+
+\begin{center}
+\small
+\begin{tabular}{@{}l r r r@{}}
+\toprule
+\textbf{Action} & \textbf{16 clients} & \textbf{32 clients} & \textbf{64 clients} \\
+\midrule
+Auto-évaluation (8 questions) & 0,45 / 0,77 & 0,83 / 1,24 & 1,55 / 1,99 \\
+Avis de l'enseignant & 0,42 / 0,75 & 0,83 / 1,27 & 1,62 / 2,12 \\
+Maître de stage, envoi & 0,25 / 0,49 & 0,58 / 0,99 & 1,25 / 1,80 \\
+Demande de convention, envoi & 0,53 / 0,85 & 0,84 / 1,32 & 1,89 / 2,45 \\
+Export pré-stage CSV & 0,21 / 0,47 & 0,07 / 0,57 & 0,09 / 0,91 \\
+Export général & 45 & 41 & 48 \\
+\midrule
+Durée de la vague (200 stages) & 29~s & 54~s & 60~s \\
+Erreurs & 0 & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item Aucune erreur, aucune réponse dupliquée. Les doubles clics n'ont produit qu'une
+    auto-évaluation chacun : 700 événements pour 700 stages.
+  \item Les temps croissent linéairement avec le nombre de clients, ce qui est attendu avec
+    16~processus PHP.
+  \item Quelques requêtes isolées attendent 52 à 58~s, le temps d'un export général. C'est un
+    artefact du serveur intégré de PHP : il traite à la suite les connexions qu'un processus a
+    acceptées. Un serveur de production (PHP-FPM) répartit les requêtes.
+\end{itemize}
+
+\paragraph{Volume.} Avec 20\,700 demandes sur une même thématique, chacune avec ses huit
+réponses, l'export pré-stage prend 2,2~s en CSV et 3,5~s en Excel. Le calcul du tableau
+représente 1,9~s et 67~requêtes. La liste des stages de la thématique reste à 0,1~s.
+
+\section{Constats hors du périmètre}
+
+Ces deux points sont antérieurs aux ajouts audités. Ils sont signalés sans être corrigés.
+
+\begin{itemize}
+  \item \textbf{Export général lent.} Pour 1\,400 stages, l'export Excel général prend 16~s hors
+    charge, et 41 à 57~s pendant les vagues. Le temps se passe dans l'écriture cellule par
+    cellule de la feuille « Stages » (11,5~s pour 20~requêtes SQL), car la bibliothèque Excel de
+    Moodle construit tout le classeur en mémoire. Les ajouts audités n'y comptent que pour 4~\%
+    (16,1~s contre 16,7~s, mesurés avec l'ancienne version de la page). Sur une activité de
+    10\,000 stages, l'export approcherait les deux minutes. L'écriture en flux, adoptée pour
+    l'export pré-stage, en serait le remède.
+  \item \textbf{Liste falsifiée dans la demande de convention.} Une valeur absente d'une liste
+    déroulante (par exemple la situation de l'étudiant) n'est pas refusée par le formulaire : elle
+    disparaît des données et provoque une erreur d'écriture en base au lieu d'un message. Seul un
+    formulaire falsifié peut la déclencher.
+\end{itemize}
+
+\section{Limites}
+
+\begin{itemize}
+  \item Les tests unitaires PHPUnit ont été écrits ou mis à jour, mais pas exécutés : l'installation
+    de leurs dépendances n'a pas été permise dans l'environnement de test. Ils tourneront dans
+    l'intégration continue du dépôt. Les fonctions qu'ils couvrent ont été exercées par les
+    scénarios HTTP et par des scripts en ligne de commande dans le Moodle réel.
+  \item Le pack de langue français officiel n'était pas disponible ; les chaînes du cœur de Moodle
+    sont en anglais dans les tests et en français minimal dans les captures.
+  \item La compatibilité avec Moodle~4.3 a été vérifiée par lecture seulement.
+\end{itemize}
+
+\end{document}
