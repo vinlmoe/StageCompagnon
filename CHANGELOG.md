@@ -21,6 +21,13 @@ changements. À tenir à jour à chaque modification de `version.php`.
   *Valeur numérique* (le nombre, ou 1/0 pour un oui/non) et *Type de question*. Les colonnes
   existantes gardent leur place. L'export des données personnelles écrit lui aussi les réponses
   en clair.
+- Questionnaire de demande (pré-stage) : nouvel export par thématique, depuis la liste des
+  stages de la thématique (`theme_stages.php`), au format choisi (Excel, CSV, ODS…). Une ligne
+  par stage ayant répondu, une colonne par question (y compris celles retirées depuis de la
+  liste), précédées du n° de stage, de l'étudiant, de son courriel, des dates et des statuts du
+  stage et de la convention ; notes et nombres en valeur numérique. L'export suit les filtres de
+  la liste (recherche, statut) et est ouvert à la DEVE et aux responsables de la thématique
+  (`request_answers_export.php`).
 
 ## mod_stage 0.6.0 et mod_stagesynthesis 0.2.2 — 2026-11-07
 

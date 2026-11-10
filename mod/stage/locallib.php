@@ -8495,6 +8495,125 @@ function stage_render_request_answers(stdClass $entry) {
 }
 
 /**
+ * Indique si l'export des réponses au questionnaire de demande d'une thématique a un objet : la
+ * thématique propose un questionnaire de demande, ou des stages y ont déjà répondu (questionnaire
+ * retiré depuis).
+ *
+ * @param stdClass $theme
+ * @return bool
+ */
+function stage_theme_has_request_answers(stdClass $theme) {
+    global $DB;
+
+    if (stage_get_questions($theme->id, 'request')) {
+        return true;
+    }
+    return $DB->record_exists_sql(
+        "SELECT 1
+           FROM {stage_answer} a
+           JOIN {stage_question} q ON q.id = a.questionid
+           JOIN {stage_entry} e ON e.id = a.entryid
+          WHERE e.themeid = :themeid AND q.evaltype = :evaltype",
+        ['themeid' => $theme->id, 'evaltype' => 'request']
+    );
+}
+
+/**
+ * Tableau des réponses au questionnaire de demande (pré-stage) d'une thématique, pour
+ * request_answers_export.php : une ligne par stage ayant répondu au questionnaire, une colonne par
+ * question, précédées de quoi identifier le stage (n°, étudiant, courriel, dates, statuts).
+ *
+ * Les questions sont celles de la liste que la thématique propose aujourd'hui, dans leur ordre,
+ * suivies de celles auxquelles des stages ont répondu et que cette liste ne contient plus (voir
+ * stage_get_entry_questions()). Une note sur 5 et un nombre sont écrits en valeur numérique, les
+ * autres réponses en clair (voir stage_answer_export_values()).
+ *
+ * @param stdClass $theme
+ * @param array $entries Stages de la thématique (voir stage_get_filtered_entries()), dans l'ordre voulu.
+ * @return array ['columns' => clé => libellé, 'rows' => liste de tableaux clé => valeur]
+ */
+function stage_get_request_answers_export(stdClass $theme, array $entries) {
+    global $DB;
+
+    $questions = stage_get_questions($theme->id, 'request');
+    $answers = [];
+    if ($entries) {
+        [$insql, $params] = $DB->get_in_or_equal(array_keys($entries), SQL_PARAMS_NAMED, 'entry');
+        $params['evaltype'] = 'request';
+        $records = $DB->get_recordset_sql(
+            "SELECT a.id, a.entryid, a.questionid, a.answertext
+               FROM {stage_answer} a
+               JOIN {stage_question} q ON q.id = a.questionid
+              WHERE a.entryid $insql AND q.evaltype = :evaltype",
+            $params
+        );
+        foreach ($records as $record) {
+            $answers[$record->entryid][$record->questionid] = $record->answertext;
+        }
+        $records->close();
+
+        // Questions retirées de la liste depuis que des stages y ont répondu.
+        $answered = [];
+        foreach ($answers as $entryanswers) {
+            $answered += array_fill_keys(array_keys($entryanswers), true);
+        }
+        $missing = array_diff_key($answered, $questions);
+        if ($missing) {
+            $questions += $DB->get_records_list('stage_question', 'id', array_keys($missing), 'sortorder ASC, id ASC');
+        }
+    }
+
+    $columns = [
+        'entryid' => get_string('exportentryid', 'mod_stage'),
+        'student' => get_string('student', 'mod_stage'),
+        'email' => get_string('email'),
+        'datestart' => get_string('datestart', 'mod_stage'),
+        'dateend' => get_string('dateend', 'mod_stage'),
+        'status' => get_string('status', 'mod_stage'),
+        'conventionstatus' => get_string('conventionstatus', 'mod_stage'),
+    ];
+    foreach ($questions as $question) {
+        $columns['q' . $question->id] = stage_plain_string($question->name);
+    }
+
+    $students = stage_get_entry_users($entries);
+    $dateformat = get_string('strftimedatefullshort', 'langconfig');
+    $rows = [];
+    foreach ($entries as $entry) {
+        if (empty($answers[$entry->id])) {
+            continue;
+        }
+        $student = $students[$entry->userid] ?? null;
+        $row = [
+            'entryid' => (int) $entry->id,
+            'student' => $student ? fullname($student) : '',
+            'email' => $student ? (string) $student->email : '',
+            'datestart' => !empty($entry->datestart) ? userdate($entry->datestart, $dateformat) : '',
+            'dateend' => !empty($entry->dateend) ? userdate($entry->dateend, $dateformat) : '',
+            'status' => stage_status_label($entry->status),
+            'conventionstatus' => stage_convention_status_label($entry->conventionstatus ?? 0),
+        ];
+        foreach ($questions as $question) {
+            $value = '';
+            if (isset($answers[$entry->id][$question->id])) {
+                $values = stage_answer_export_values($question, $answers[$entry->id][$question->id]);
+                if ($values['score'] !== null) {
+                    $value = $values['score'];
+                } else if ($question->qtype === 'number' && $values['number'] !== null) {
+                    $value = $values['number'];
+                } else {
+                    $value = $values['answer'];
+                }
+            }
+            $row['q' . $question->id] = $value;
+        }
+        $rows[] = $row;
+    }
+
+    return ['columns' => $columns, 'rows' => $rows];
+}
+
+/**
  * Ajoute à un formulaire la section « Objectifs de stage » : une case à cocher par élément de
  * check-list, suivie du champ libre à remplir lorsque l'élément n'est pas coché.
  *
