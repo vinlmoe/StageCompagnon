@@ -242,7 +242,7 @@ function stage_delete_instance($id) {
         $DB->delete_records_select('stage_theme_teacher', "themeid $insql", $inparams);
         // Durées par année d'étude : rattachées à la thématique, elles doivent disparaître avec elle.
         $DB->delete_records_select('stage_theme_duration', "themeid $insql", $inparams);
-        // Check-list d'objectifs : idem. Les réponses des étudiants sont parties avec les saisies
+        // Check-list des prérequis : idem. Les réponses des étudiants sont parties avec les saisies
         // ci-dessus (stage_delete_entries()), les éléments eux-mêmes restent à supprimer.
         $DB->delete_records_select('stage_theme_checklist', "themeid $insql", $inparams);
     }

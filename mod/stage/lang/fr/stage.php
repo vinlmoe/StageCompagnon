@@ -831,30 +831,30 @@ $string['conventiondetails'] = 'Détail de la convention';
 // Objectifs de stage (documents et check-list par thématique).
 $string['themeobjectives'] = 'Objectifs de stage';
 $string['viewthemeobjectives'] = 'Objectifs';
-$string['transferunmatchedchecklist'] = '{$a} réponse(s) à la check-list ne peuvent pas être transférées : ajoutez dans la thématique cible des objectifs correspondants avec des noms uniques.';
+$string['transferunmatchedchecklist'] = '{$a} réponse(s) à la check-list ne peuvent pas être transférées : ajoutez dans la thématique cible des prérequis correspondants avec des noms uniques.';
 $string['transferblocked'] = 'Le transfert est bloqué. Vérifiez les correspondances dans la promotion cible.';
 $string['nothemeobjectivefiles'] = "Aucun document d'objectifs n'a encore été déposé pour cette thématique.";
-$string['themeobjectivespreviewintro'] = 'Voici les objectifs de cette thématique. Vous renseignerez cette check-list lors de votre demande de convention.';
+$string['themeobjectivespreviewintro'] = 'Voici les prérequis de cette thématique. Vous renseignerez cette check-list lors de votre demande de convention.';
 $string['themeobjectivefiles'] = "Documents d'objectifs";
 $string['themeobjectivefiles_help'] = "Déposez ici les documents qui définissent les objectifs de "
     . "stage de cette thématique. Ils sont téléchargeables par les étudiants et les enseignants depuis la page "
     . 'de synthèse, et par le maître de stage depuis la page d\'évaluation qu\'il reçoit par courriel.';
 $string['themeobjectivefilemissing'] = "Ce document n'existe pas ou n'est plus disponible.";
-$string['themechecklist'] = "Check-list d'objectifs";
+$string['themechecklist'] = 'Check-list des prérequis';
 $string['themechecklist_help'] = "Les éléments définis ici sont présentés à l'étudiant lors de sa demande "
-    . "de convention : il coche ceux que son stage permettra d'atteindre et justifie dans un champ libre ceux "
+    . "de convention : il coche ceux qu'il remplit et justifie dans un champ libre ceux "
     . "qu'il laisse décochés. La check-list ne figure pas dans la convention ; elle reste attachée au stage, "
     . "consultable dans son détail et modifiable par la DEVE et l'enseignant référent.";
-$string['themechecklistintro'] = "Cochez les objectifs que votre stage permettra d'atteindre. Pour chaque "
-    . 'objectif laissé décoché, expliquez pourquoi dans le champ prévu à cet effet.';
-$string['nochecklistitemsyet'] = "Aucun objectif n'est défini pour cette thématique.";
-$string['checklistitem'] = 'Objectif';
+$string['themechecklistintro'] = 'Cochez les prérequis que vous remplissez. Pour chaque prérequis '
+    . 'laissé décoché, expliquez pourquoi dans le champ prévu à cet effet.';
+$string['nochecklistitemsyet'] = "Aucun prérequis n'est défini pour cette thématique.";
+$string['checklistitem'] = 'Prérequis';
 $string['checklistitemdescription'] = 'Précision';
-$string['checklistchecked'] = 'Atteint';
-$string['checklistcomment'] = 'Si non atteint, pourquoi ?';
-$string['checklistcommentrequired'] = 'Expliquez pourquoi cet objectif ne sera pas atteint.';
+$string['checklistchecked'] = 'Rempli';
+$string['checklistcomment'] = 'Si non rempli, pourquoi ?';
+$string['checklistcommentrequired'] = "Expliquez pourquoi ce prérequis n'est pas rempli.";
 $string['checklistnotanswered'] = 'Non renseigné';
-$string['checklistsaved'] = "La check-list d'objectifs a été enregistrée.";
+$string['checklistsaved'] = 'La check-list des prérequis a été enregistrée.';
 $string['editchecklist'] = "Modifier la check-list";
 
 $string['privacy:metadata:core_files'] = 'Fichiers rattachés à un stage : la convention signée et le rapport de stage.';
@@ -921,10 +921,10 @@ $string['privacy:metadata:stage_study_mobility:timemodified'] = "Date de la vali
 $string['privacy:metadata:stage_theme_teacher'] = 'Les enseignants responsables de chaque thématique de stage.';
 $string['privacy:metadata:stage_theme_teacher:themeid'] = 'La thématique de stage.';
 $string['privacy:metadata:stage_theme_teacher:teacherid'] = 'L\'enseignant responsable de la thématique.';
-$string['privacy:metadata:stage_entry_checklist'] = "Les réponses de l'étudiant à la check-list d'objectifs de sa thématique de stage.";
-$string['privacy:metadata:stage_entry_checklist:itemid'] = "L'objectif auquel il est répondu.";
-$string['privacy:metadata:stage_entry_checklist:checked'] = "Si l'objectif est annoncé comme atteignable.";
-$string['privacy:metadata:stage_entry_checklist:explanation'] = "La justification apportée lorsque l'objectif n'est pas coché.";
+$string['privacy:metadata:stage_entry_checklist'] = "Les réponses de l'étudiant à la check-list des prérequis de sa thématique de stage.";
+$string['privacy:metadata:stage_entry_checklist:itemid'] = 'Le prérequis auquel il est répondu.';
+$string['privacy:metadata:stage_entry_checklist:checked'] = 'Si le prérequis est déclaré rempli.';
+$string['privacy:metadata:stage_entry_checklist:explanation'] = "La justification apportée lorsque le prérequis n'est pas coché.";
 $string['errorrejectreasonrequired'] = 'Indiquez le motif de la non-validation : il est communiqué à l\'étudiant.';
 $string['errorvalidatecancelled'] = 'Réinitialisez le stage annulé avant de le valider.';
 $string['conventionentrycancelled'] = 'Ce stage est annulé : sa convention ne peut plus être traitée. Il doit d\'abord être réinitialisé par la DEVE.';
@@ -944,8 +944,8 @@ $string['savethemeandreturn'] = 'Enregistrer et revenir à la liste';
 $string['themegeneral'] = 'Paramètres généraux';
 $string['themedurationssection'] = 'Durée requise';
 $string['requireddurationforyear'] = 'Durée requise - {$a}';
-$string['deletechecklistrow'] = 'Supprimer cet objectif (et les réponses des étudiants)';
-$string['addchecklistrows'] = 'Ajouter {no} objectif(s)';
+$string['deletechecklistrow'] = 'Supprimer ce prérequis (et les réponses des étudiants)';
+$string['addchecklistrows'] = 'Ajouter {no} prérequis';
 $string['newquestionrow'] = 'Nouvelle question (laisser vide pour ignorer)';
 $string['addquestionrows'] = 'Ajouter {no} question(s)';
 $string['attachquestions'] = "Réutiliser des questions d'autres thématiques";

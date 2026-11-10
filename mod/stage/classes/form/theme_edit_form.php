@@ -23,7 +23,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 /**
  * Formulaire unique de gestion d'une thématique (DEVE) : paramètres généraux, durées requises par
- * année, enseignants responsables, documents et check-list d'objectifs, choix des listes
+ * année, enseignants responsables, documents et check-list des prérequis, choix des listes
  * d'évaluation (éditées à part, voir evallists.php).
  * Il remplace la navigation entre cinq pages distinctes par une seule page, enregistrée en une
  * fois (voir theme_edit.php).

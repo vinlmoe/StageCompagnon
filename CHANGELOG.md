@@ -28,6 +28,11 @@ changements. À tenir à jour à chaque modification de `version.php`.
   stage et de la convention ; notes et nombres en valeur numérique. L'export suit les filtres de
   la liste (recherche, statut) et est ouvert à la DEVE et aux responsables de la thématique
   (`request_answers_export.php`).
+- Check-list de la demande de convention (pré-stage) : elle parle désormais de *prérequis* et
+  non plus d'*objectifs* (« Check-list des prérequis », colonnes « Prérequis » et « Rempli »,
+  justification « Si non rempli, pourquoi ? »), en français et en anglais, ainsi que dans les
+  guides et la documentation. Les documents déposés par thématique restent des documents
+  d'objectifs.
 
 ## mod_stage 0.6.0 et mod_stagesynthesis 0.2.2 — 2026-11-07
 

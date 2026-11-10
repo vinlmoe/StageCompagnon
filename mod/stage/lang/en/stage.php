@@ -820,21 +820,21 @@ $string['themeobjectivefiles_help'] = 'Upload here the documents defining the in
     . 'this theme. Students and teachers can download them from the summary page, and the internship '
     . 'supervisor from the evaluation page they receive by email.';
 $string['themeobjectivefilemissing'] = 'This document does not exist or is no longer available.';
-$string['themechecklist'] = 'Objectives checklist';
+$string['themechecklist'] = 'Prerequisites checklist';
 $string['themechecklist_help'] = 'The items defined here are shown to the student when they request their '
-    . 'agreement: they tick the ones their internship will allow them to achieve and explain, in a free text '
+    . 'agreement: they tick the ones they meet and explain, in a free text '
     . 'field, each item left unticked. The checklist is not part of the agreement; it stays attached to the '
     . 'internship, visible in its details and editable by the registrar and the supervising teacher.';
-$string['themechecklistintro'] = 'Tick the objectives your internship will allow you to achieve. For each '
-    . 'objective left unticked, explain why in the field provided.';
-$string['nochecklistitemsyet'] = 'No objective is defined for this theme.';
-$string['checklistitem'] = 'Objective';
+$string['themechecklistintro'] = 'Tick the prerequisites you meet. For each prerequisite left unticked, '
+    . 'explain why in the field provided.';
+$string['nochecklistitemsyet'] = 'No prerequisite is defined for this theme.';
+$string['checklistitem'] = 'Prerequisite';
 $string['checklistitemdescription'] = 'Details';
-$string['checklistchecked'] = 'Achievable';
-$string['checklistcomment'] = 'If not, why?';
-$string['checklistcommentrequired'] = 'Explain why this objective will not be achieved.';
+$string['checklistchecked'] = 'Met';
+$string['checklistcomment'] = 'If not met, why?';
+$string['checklistcommentrequired'] = 'Explain why this prerequisite is not met.';
 $string['checklistnotanswered'] = 'Not answered';
-$string['checklistsaved'] = 'The objectives checklist has been saved.';
+$string['checklistsaved'] = 'The prerequisites checklist has been saved.';
 $string['editchecklist'] = 'Edit the checklist';
 
 $string['privacy:metadata:core_files'] = 'Files attached to an internship: the signed agreement and the internship report.';
@@ -901,10 +901,10 @@ $string['privacy:metadata:stage_study_mobility:timemodified'] = 'Date the study 
 $string['privacy:metadata:stage_theme_teacher'] = 'Which teachers are responsible for which internship themes.';
 $string['privacy:metadata:stage_theme_teacher:themeid'] = 'The internship theme.';
 $string['privacy:metadata:stage_theme_teacher:teacherid'] = 'The teacher responsible for the theme.';
-$string['privacy:metadata:stage_entry_checklist'] = 'The answers given by the student to the objectives checklist of their internship theme.';
-$string['privacy:metadata:stage_entry_checklist:itemid'] = 'The objective being answered.';
-$string['privacy:metadata:stage_entry_checklist:checked'] = 'Whether the objective is reported as achievable.';
-$string['privacy:metadata:stage_entry_checklist:explanation'] = 'The explanation given when the objective is not ticked.';
+$string['privacy:metadata:stage_entry_checklist'] = 'The answers given by the student to the prerequisites checklist of their internship theme.';
+$string['privacy:metadata:stage_entry_checklist:itemid'] = 'The prerequisite being answered.';
+$string['privacy:metadata:stage_entry_checklist:checked'] = 'Whether the prerequisite is reported as met.';
+$string['privacy:metadata:stage_entry_checklist:explanation'] = 'The explanation given when the prerequisite is not ticked.';
 $string['errorrejectreasonrequired'] = 'Give the reason why the internship is not validated: it is passed on to the student.';
 $string['errorvalidatecancelled'] = 'Reset the cancelled internship before validating it.';
 $string['conventionentrycancelled'] = 'This internship is cancelled: its agreement can no longer be processed. The administration office must reset it first.';
@@ -915,10 +915,10 @@ $string['errorinvalidanswer'] = 'Invalid answer for this question: {$a} (select 
 $string['privacy:metadata:stage_entry:tutorrequestfailtime'] = 'The date the automatic tutor evaluation invitation failed.';
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = 'The date the tutor evaluation invitation was last sent.';
 $string['viewthemeobjectives'] = 'Objectives';
-$string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be transferred: add matching objectives with unique names to the target theme.';
+$string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be transferred: add matching prerequisites with unique names to the target theme.';
 $string['transferblocked'] = 'The transfer is blocked. Check the mappings in the target activity.';
 $string['nothemeobjectivefiles'] = 'No objectives documents have been uploaded for this theme yet.';
-$string['themeobjectivespreviewintro'] = 'These are the objectives for this theme. You will complete this checklist when requesting your internship agreement.';
+$string['themeobjectivespreviewintro'] = 'These are the prerequisites for this theme. You will complete this checklist when requesting your internship agreement.';
 
 // Single theme management page (theme_edit.php).
 $string['managetheme'] = 'Manage theme';
@@ -929,8 +929,8 @@ $string['savethemeandreturn'] = 'Save and return to the list';
 $string['themegeneral'] = 'General settings';
 $string['themedurationssection'] = 'Required duration';
 $string['requireddurationforyear'] = 'Required duration - {$a}';
-$string['deletechecklistrow'] = 'Delete this objective (and the students\' answers)';
-$string['addchecklistrows'] = 'Add {no} objective(s)';
+$string['deletechecklistrow'] = 'Delete this prerequisite (and the students\' answers)';
+$string['addchecklistrows'] = 'Add {no} prerequisite(s)';
 $string['newquestionrow'] = 'New question (leave empty to ignore)';
 $string['addquestionrows'] = 'Add {no} question(s)';
 $string['attachquestions'] = 'Reuse questions from other themes';

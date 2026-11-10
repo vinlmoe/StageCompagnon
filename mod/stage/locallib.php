@@ -1804,7 +1804,7 @@ function stage_update_entry_details(
 ) {
     global $DB;
 
-    // Les réponses à la check-list d'objectifs appartiennent à la thématique : en changer laisse
+    // Les réponses à la check-list des prérequis appartiennent à la thématique : en changer laisse
     // sinon des réponses à des objectifs d'une autre thématique, invisibles et qui bloqueraient un
     // transfert ultérieur (« objectifs sans correspondance »).
     if ((int) $entry->themeid !== (int) $themeid) {
@@ -8107,7 +8107,7 @@ function stage_render_theme_objectives_section(context $context, stdClass $cm, a
 }
 
 /**
- * Éléments de la check-list d'objectifs d'une thématique, dans l'ordre d'affichage.
+ * Éléments de la check-list des prérequis d'une thématique, dans l'ordre d'affichage.
  *
  * @param int $themeid
  * @return array id => enregistrement stage_theme_checklist.
@@ -8179,7 +8179,7 @@ function stage_delete_theme_checklist($themeid) {
 }
 
 /**
- * Réponses données à la check-list d'objectifs pour une saisie de stage.
+ * Réponses données à la check-list des prérequis pour une saisie de stage.
  *
  * @param int $entryid
  * @return array itemid => enregistrement stage_entry_checklist.
@@ -8197,7 +8197,7 @@ function stage_get_entry_checklist($entryid) {
 }
 
 /**
- * Enregistre les réponses à la check-list d'objectifs d'une saisie.
+ * Enregistre les réponses à la check-list des prérequis d'une saisie.
  *
  * Les réponses portant sur des éléments qui ne font plus partie de la check-list attendue sont
  * supprimées : c'est le cas lorsque l'étudiant change la thématique de son stage avant que sa
@@ -8753,7 +8753,7 @@ function stage_validate_checklist(array $data, array $items) {
 }
 
 /**
- * Rend la check-list d'objectifs d'une saisie en lecture seule (détail d'une saisie).
+ * Rend la check-list des prérequis d'une saisie en lecture seule (détail d'une saisie).
  *
  * Un élément sans réponse enregistrée est présenté comme non renseigné plutôt que comme non
  * atteint : la DEVE peut avoir ajouté l'objectif après la demande de convention, ou avoir changé
@@ -8800,7 +8800,7 @@ function stage_render_entry_checklist(array $items, array $responses) {
 }
 
 /**
- * Section « Check-list d'objectifs » des pages qui portent sur une saisie précise (détail,
+ * Section « Check-list des prérequis » des pages qui portent sur une saisie précise (détail,
  * validation de la convention par l'enseignant référent, revue de la convention par la DEVE) :
  * les réponses de l'étudiant en lecture seule, suivies du bouton de correction pour ceux qui y
  * ont droit.
@@ -8845,7 +8845,7 @@ function stage_render_entry_checklist_section(
 }
 
 /**
- * Qui peut modifier la check-list d'objectifs d'une saisie après coup : la DEVE et l'enseignant
+ * Qui peut modifier la check-list des prérequis d'une saisie après coup : la DEVE et l'enseignant
  * référent de l'étudiant, et eux seuls. L'étudiant la renseigne lors de sa demande de convention
  * et ne la reprend plus ensuite ; l'enseignant responsable de la thématique, qui accède pourtant
  * au détail de la saisie, n'a pas à la corriger.

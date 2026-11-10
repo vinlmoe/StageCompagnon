@@ -144,19 +144,19 @@ contrôlées côté serveur ; elles sont présentées à ceux qui valident la de
 regroupées en listes (une par thématique et par formulaire, partagée entre les
 thématiques qui avaient exactement les mêmes questions), sans perte de réponse.
 
-### Objectifs de stage
+### Objectifs et prérequis de stage
 
 Depuis **Gérer les thématiques > Gérer la thématique**, chaque thématique reçoit
-ses objectifs, en deux volets complémentaires :
+ses objectifs et ses prérequis, en deux volets complémentaires :
 
 - **Documents d'objectifs** : un ou plusieurs fichiers décrivant ce qui est
   attendu du stage. Ils sont téléchargeables par l'étudiant et les enseignants
   depuis la page de synthèse (« Mes stages » pour l'étudiant, situation
   détaillée d'un étudiant pour la DEVE et l'enseignant référent), et par le
   maître de stage depuis la page d'évaluation qu'il ouvre avec son jeton.
-- **Check-list d'objectifs** : une liste d'éléments que l'étudiant renseigne au
-  moment de sa demande de convention. Pour chaque élément, il coche l'objectif
-  que son stage permettra d'atteindre, ou laisse la case décochée et explique
+- **Check-list des prérequis** : une liste de prérequis que l'étudiant renseigne
+  au moment de sa demande de convention. Pour chaque prérequis, il coche la case
+  s'il le remplit, ou la laisse décochée et explique
   pourquoi dans le champ libre qui l'accompagne — cette explication est alors
   obligatoire.
 
@@ -359,7 +359,7 @@ modalités particulières, gratification et congés, ainsi que le numéro SIRET 
 l'organisme d'accueil (facultatif ; 14 chiffres, espaces acceptés, clé de
 contrôle vérifiée). Si la thématique a un questionnaire de demande (voir § 4),
 il fait partie du formulaire. Si la thématique retenue a une
-check-list d'objectifs (voir § 4), elle est présentée en fin de formulaire :
+check-list des prérequis (voir § 4), elle est présentée en fin de formulaire :
 chaque élément laissé décoché doit être justifié dans son champ libre.
 
 Tous les champs sont obligatoires à l'exception du lieu du stage, à renseigner
@@ -504,7 +504,7 @@ et de suppression de données.
 **Ce qui est déclaré** : les stages (`stage_entry`) et leurs évaluations, le
 détail de convention (date de naissance, adresse et téléphone de l'étudiant,
 coordonnées du maître de stage), les périodes et jours ouvrés, les réponses aux
-questionnaires et à la check-list d'objectifs, les attributions de référent, les
+questionnaires et à la check-list des prérequis, les attributions de référent, les
 responsabilités de thématique, et les fichiers joints (convention signée,
 rapport de stage). Les documents d'objectifs, rattachés à une thématique et non
 à une personne, ne contiennent aucune donnée personnelle et ne sont donc pas
@@ -515,7 +515,7 @@ apparaît :
 
 | Personne supprimée | Effet |
 |---|---|
-| Étudiant (propriétaire de la saisie) | Suppression intégrale de ses stages et de tout ce qui en dépend : auto-évaluation, évaluations du référent et du maître de stage, détail de convention, périodes, jours ouvrés, réponses aux questionnaires et à la check-list d'objectifs, attributions de référent, convention signée et rapport. |
+| Étudiant (propriétaire de la saisie) | Suppression intégrale de ses stages et de tout ce qui en dépend : auto-évaluation, évaluations du référent et du maître de stage, détail de convention, périodes, jours ouvrés, réponses aux questionnaires et à la check-list des prérequis, attributions de référent, convention signée et rapport. |
 | Personnel (référent, responsable de thématique, DEVE) | Le stage appartient à l'étudiant et **survit**. Seules les références à la personne supprimée sont dissociées, et les textes dont elle est l'auteur (appréciation, commentaire DEVE, motif de refus ou d'annulation) effacés avec elles. |
 
 Une même personne relevant des deux rôles subit les deux traitements : ses
@@ -546,7 +546,7 @@ modèles de courriels, les logos de convention.
 
 **Sauvegardé seulement si les données utilisateur sont demandées** : les stages
 et tout ce qui s'y rattache (plages de dates, jours retenus, complément de
-convention, réponses aux questions et à la check-list d'objectifs), les
+convention, réponses aux questions et à la check-list des prérequis), les
 attributions d'enseignant référent, les conventions signées et les rapports
 déposés.
 

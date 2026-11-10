@@ -22,7 +22,7 @@ require_once($CFG->libdir . '/formslib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 /**
- * Formulaire de correction de la check-list d'objectifs d'une saisie de stage, réservé à la DEVE
+ * Formulaire de correction de la check-list des prérequis d'une saisie de stage, réservé à la DEVE
  * et à l'enseignant référent de l'étudiant (voir stage_can_edit_entry_checklist()) : mêmes champs
  * que ceux renseignés par l'étudiant lors de sa demande de convention, la thématique étant ici
  * déjà fixée par la saisie.
