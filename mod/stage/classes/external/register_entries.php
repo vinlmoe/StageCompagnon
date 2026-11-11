@@ -18,7 +18,6 @@ namespace mod_stage\external;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 /**
@@ -29,36 +28,36 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class register_entries extends \external_api {
+class register_entries extends \core_external\external_api {
     /**
      * Parameters definition.
      *
-     * @return \external_function_parameters
+     * @return \core_external\external_function_parameters
      */
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'cmid' => new \external_value(PARAM_INT, "Id du module d'activité stage"),
-            'entries' => new \external_multiple_structure(
-                new \external_single_structure([
-                    'userid' => new \external_value(PARAM_INT, "Id de l'étudiant"),
-                    'themeid' => new \external_value(PARAM_INT, 'Id de la thématique'),
-                    'structure' => new \external_value(PARAM_TEXT, "Structure d'accueil", VALUE_DEFAULT, ''),
-                    'datestart' => new \external_value(PARAM_INT, 'Date de début (timestamp)', VALUE_DEFAULT, 0),
-                    'dateend' => new \external_value(PARAM_INT, 'Date de fin (timestamp)', VALUE_DEFAULT, 0),
-                    'declaredduration' => new \external_value(PARAM_INT, 'Durée déclarée en jours'),
-                    'studyyear' => new \external_value(
+        return new \core_external\external_function_parameters([
+            'cmid' => new \core_external\external_value(PARAM_INT, "Id du module d'activité stage"),
+            'entries' => new \core_external\external_multiple_structure(
+                new \core_external\external_single_structure([
+                    'userid' => new \core_external\external_value(PARAM_INT, "Id de l'étudiant"),
+                    'themeid' => new \core_external\external_value(PARAM_INT, 'Id de la thématique'),
+                    'structure' => new \core_external\external_value(PARAM_TEXT, "Structure d'accueil", VALUE_DEFAULT, ''),
+                    'datestart' => new \core_external\external_value(PARAM_INT, 'Date de début (timestamp)', VALUE_DEFAULT, 0),
+                    'dateend' => new \core_external\external_value(PARAM_INT, 'Date de fin (timestamp)', VALUE_DEFAULT, 0),
+                    'declaredduration' => new \core_external\external_value(PARAM_INT, 'Durée déclarée en jours'),
+                    'studyyear' => new \core_external\external_value(
                         PARAM_INT,
                         "Année d'étude à laquelle ce stage est rattaché (0 = non spécifiée)",
                         VALUE_DEFAULT,
                         0
                     ),
-                    'abroad' => new \external_value(
+                    'abroad' => new \core_external\external_value(
                         PARAM_INT,
                         "Stage effectué à l'étranger (0 ou 1)",
                         VALUE_DEFAULT,
                         0
                     ),
-                    'country' => new \external_value(PARAM_TEXT, "Pays du stage, si abroad", VALUE_DEFAULT, ''),
+                    'country' => new \core_external\external_value(PARAM_TEXT, "Pays du stage, si abroad", VALUE_DEFAULT, ''),
                 ])
             ),
         ]);
@@ -159,14 +158,16 @@ class register_entries extends \external_api {
     /**
      * Return value definition.
      *
-     * @return \external_single_structure
+     * @return \core_external\external_single_structure
      */
     public static function execute_returns() {
-        return new \external_single_structure([
-            'createdentryids' => new \external_multiple_structure(new \external_value(PARAM_INT, 'Id de saisie créée')),
-            'createdcount' => new \external_value(PARAM_INT, 'Nombre de stages créés'),
-            'duplicateuserids' => new \external_multiple_structure(
-                new \external_value(PARAM_INT, 'Id étudiant écarté (stage déjà existant sur cette thématique)')
+        return new \core_external\external_single_structure([
+            'createdentryids' => new \core_external\external_multiple_structure(
+                new \core_external\external_value(PARAM_INT, 'Id de saisie créée')
+            ),
+            'createdcount' => new \core_external\external_value(PARAM_INT, 'Nombre de stages créés'),
+            'duplicateuserids' => new \core_external\external_multiple_structure(
+                new \core_external\external_value(PARAM_INT, 'Id étudiant écarté (stage déjà existant sur cette thématique)')
             ),
         ]);
     }

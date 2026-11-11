@@ -35,6 +35,14 @@ changements. À tenir à jour à chaque modification de `version.php`.
   cellule). Les dates s'affichent désormais au format jj/mm/aaaa, que l'ancien export demandait
   sans l'obtenir (elles apparaissaient avec l'heure), et les textes sur plusieurs lignes sont
   renvoyés à la ligne dans leur cellule.
+- Listes d'évaluation : réenregistrer une liste ne retire plus les balises de ses options
+  (« <b>Urgences</b> » devenait « Urgences », et les réponses déjà données ne correspondaient plus
+  à aucune option) ; les options sont échappées dans les listes déroulantes du questionnaire de
+  demande.
+- Questionnaire de demande : les réponses texte sont de nouveau débarrassées des espaces en début
+  et en fin, comme avant l'arrivée des types de question.
+- Services web `get_my_stages` et `register_entries` : classes `core_external` au lieu de
+  `lib/externallib.php`.
 - Check-list de la demande de convention (pré-stage) : elle parle désormais de *prérequis* et
   non plus d'*objectifs* (« Check-list des prérequis », colonnes « Prérequis » et « Rempli »,
   justification « Si non rempli, pourquoi ? »), en français et en anglais, ainsi que dans les

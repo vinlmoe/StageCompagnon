@@ -43,6 +43,7 @@ require_once($CFG->dirroot . '/mod/stage/classes/form/evallist_edit_form.php');
  * @covers     ::stage_save_answers
  * @covers     ::stage_question_type_change_allowed
  * @covers     ::stage_question_param_type
+ * @covers     ::stage_add_request_question_fields
  */
 final class question_types_test extends \advanced_testcase {
     /**
@@ -65,13 +66,15 @@ final class question_types_test extends \advanced_testcase {
      *
      * @param \stdClass $question
      * @param string $value
+     * @param string $errorcode Erreur attendue : réponse invalide, ou manquante pour une réponse
+     *                          vide à une question obligatoire.
      */
-    private function assert_refused(\stdClass $question, string $value): void {
+    private function assert_refused(\stdClass $question, string $value, string $errorcode = 'errorinvalidanswer'): void {
         try {
             stage_validate_answers([$question], [$question->id => $value]);
             $this->fail("La réponse « $value » aurait dû être refusée ({$question->qtype}).");
         } catch (\moodle_exception $e) {
-            $this->assertSame('errorinvalidanswer', $e->errorcode);
+            $this->assertSame($errorcode, $e->errorcode);
         }
     }
 
@@ -139,7 +142,7 @@ final class question_types_test extends \advanced_testcase {
         $checkbox = $this->question('checkbox', 1, "Chirurgie\nMédecine\nImagerie");
         stage_validate_answers([$checkbox], [$checkbox->id => "Chirurgie\nImagerie"]);
         $this->assert_refused($checkbox, "Chirurgie\nDentisterie");
-        $this->assert_refused($checkbox, '');
+        $this->assert_refused($checkbox, '', 'errorrequiredanswer');
 
         $yesno = $this->question('yesno');
         stage_validate_answers([$yesno], [$yesno->id => 'yes']);
@@ -321,6 +324,34 @@ final class question_types_test extends \advanced_testcase {
         $this->assertSame('', $answers[32]);
         $errors = stage_validate_request_answers([stage_request_question_field(5, 31) => []], 5, $questions);
         $this->assertArrayHasKey(stage_request_question_field(5, 31), $errors);
+    }
+
+    /**
+     * Les options d'une question gardent leurs balises quand la liste est réenregistrée, et sont
+     * échappées dans les listes déroulantes du questionnaire de demande.
+     */
+    public function test_options_keep_markup(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $form = new \mod_stage\form\evallist_edit_form(null, ['editing' => true, 'evaltype' => 'student']);
+        $mform = (fn() => $this->_form)->call($form);
+        $this->assertSame(PARAM_RAW, $mform->_types['questionoptions[0]']);
+        $this->assertSame(PARAM_RAW, $mform->_types['questionoptionsen[0]']);
+
+        $choice = (object) ['id' => 41, 'qtype' => 'choice', 'name' => 'C', 'options' => "<b>Urgences</b>\nAutre",
+            'required' => 1];
+        $checkbox = (object) ['id' => 42, 'qtype' => 'checkbox', 'name' => 'K', 'options' => "<i>A</i>\nB", 'required' => 1];
+        $request = new \MoodleQuickForm('request', 'post', '');
+        stage_add_request_question_fields($request, [5 => [41 => $choice, 42 => $checkbox]]);
+        $options = $request->getElement(stage_request_question_field(5, 41))->_options;
+        $this->assertSame('<b>Urgences</b>', $options[1]['attr']['value']);
+        $this->assertSame('&lt;b&gt;Urgences&lt;/b&gt;', $options[1]['text']);
+        $options = $request->getElement(stage_request_question_field(5, 42))->_options;
+        $this->assertSame('<i>A</i>', $options[0]['attr']['value']);
+        $this->assertSame('&lt;i&gt;A&lt;/i&gt;', $options[0]['text']);
+        $this->assertSame([], stage_validate_request_answers([stage_request_question_field(5, 41) => '<b>Urgences</b>',
+            stage_request_question_field(5, 42) => ['<i>A</i>']], 5, [41 => $choice, 42 => $checkbox]));
     }
 
     /**

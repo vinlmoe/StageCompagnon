@@ -8397,11 +8397,14 @@ function stage_add_request_question_fields(\MoodleQuickForm $mform, array $quest
             $field = stage_request_question_field($themeid, $question->id);
             $label = format_string($question->name) . (!empty($question->required) ? ' *' : '');
             if ($question->qtype === 'rating' || $question->qtype === 'choice') {
+                // Libellés échappés : le gabarit des listes déroulantes les affiche tels quels, et une
+                // option peut contenir une balise (« <b>Urgences</b> »).
                 $values = $question->qtype === 'rating' ? stage_question_rating_values() : stage_question_options($question);
-                $mform->addElement('select', $field, $label, ['' => get_string('choosedots')] + array_combine($values, $values));
+                $mform->addElement('select', $field, $label, ['' => get_string('choosedots')]
+                    + array_combine($values, array_map('s', $values)));
             } else if ($question->qtype === 'checkbox') {
                 $values = stage_question_options($question);
-                $mform->addElement('select', $field, $label, array_combine($values, $values))->setMultiple(true);
+                $mform->addElement('select', $field, $label, array_combine($values, array_map('s', $values)))->setMultiple(true);
             } else if ($question->qtype === 'yesno') {
                 $mform->addElement('select', $field, $label, ['' => get_string('choosedots')] + stage_question_yesno_values());
             } else if ($question->qtype === 'date') {
@@ -8484,7 +8487,10 @@ function stage_extract_request_answers($data, $themeid, array $questions) {
                 $value = '';
             }
         }
-        $answers[$question->id] = stage_normalize_answer($question, $value);
+        $answer = stage_normalize_answer($question, $value);
+        // Les commentaires libres des évaluations gardent leurs espaces ; ceux de la demande de
+        // stage, comme avant l'arrivée des types de question, en sont débarrassés aux extrémités.
+        $answers[$question->id] = $question->qtype === 'text' ? trim($answer) : $answer;
     }
     return $answers;
 }
@@ -8620,7 +8626,6 @@ function stage_get_request_answers_export(stdClass $theme, array $entries, $incl
         $records->close();
     }
     if ($answers) {
-
         // Questions retirées de la liste depuis que des stages y ont répondu.
         $answered = [];
         foreach ($answers as $entryanswers) {

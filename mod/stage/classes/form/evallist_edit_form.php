@@ -147,9 +147,13 @@ class evallist_edit_form extends \moodleform {
             'questionid' => ['type' => PARAM_INT],
             'questionqtype' => ['default' => 'text', 'helpbutton' => ['qtype', 'mod_stage']],
             'questionname' => ['type' => PARAM_TEXT],
-            'questionoptions' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'in', $nooptions]],
+            // Options gardées telles quelles : PARAM_TEXT retirerait les balises d'une option comme
+            // « <b>Urgences</b> » à chaque enregistrement de la liste, et les réponses déjà données
+            // ne correspondraient plus à aucune option. Elles sont échappées à chaque affichage
+            // (voir stage_render_question_fields() et stage_add_request_question_fields()).
+            'questionoptions' => ['type' => PARAM_RAW, 'hideif' => ['questionqtype', 'in', $nooptions]],
             'questionnameen' => ['type' => PARAM_TEXT],
-            'questionoptionsen' => ['type' => PARAM_TEXT, 'hideif' => ['questionqtype', 'in', $nooptions]],
+            'questionoptionsen' => ['type' => PARAM_RAW, 'hideif' => ['questionqtype', 'in', $nooptions]],
             'questionrequired' => ['default' => 1],
             'questionsortorder' => ['type' => PARAM_INT, 'default' => 0],
             'questiondelete' => ['helpbutton' => ['removequestionrow', 'mod_stage']],
