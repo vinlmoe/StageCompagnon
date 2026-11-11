@@ -128,6 +128,66 @@ Deux différences de présentation subsistent ; aucune ne touche une valeur.
     cellules dont le texte contient un saut de ligne (adresses, commentaires, évaluations).
 \end{itemize}
 
+\section{Scénarios, montée en charge et tests unitaires}
+
+\paragraph{Scénarios.} Les 68 scénarios de \code{scenarios.py} réussissent, dont les six contrôles
+de l'export général (colonnes, réponses présentes, nombres, oui/non, cases, notes). Résultat :
+\code{logs/scenarios-flux.txt}.
+
+\paragraph{Montée en charge.} Les trois vagues de l'audit sont rejouées dans le même ordre :
+site neuf de 700 étudiants (\code{setup.php 700}, 1\,400 stages), puis 16, 32 et 64 clients sur
+200 stages chacune, serveur à 16 processus, deux comptes DEVE qui téléchargent en boucle l'export
+général et l'export pré-stage. Résultats : \code{logs/load-flux-*.json}, à comparer à
+\code{logs/load-*.json} de l'audit.
+
+\begin{center}
+\begin{tabular}{@{}rrrrrr@{}}
+  \toprule
+  & \multicolumn{2}{c}{Export général, médiane} & \multicolumn{2}{c}{Export général, max.} & \\
+  \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+  Clients & audit & en flux & audit & en flux & Erreurs \\
+  \midrule
+  16 & 45,1~s & 6,8~s & 45,1~s & 10,7~s & 0 \\
+  32 & 41,4~s & 13,2~s & 52,0~s & 14,0~s & 0 \\
+  64 & 47,5~s & 14,2~s & 57,3~s & 18,8~s & 0 \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Pendant les vagues, les 11 exports généraux ont pris de 2,8 à 18~s côté serveur, avec un pic de
+mémoire de 36~Mo. Aucune erreur sur les 3\,809 actions des trois vagues ; l'état final est celui
+de l'audit (200 stages évalués par vague, 6\,400 réponses) et \code{check.php} ne trouve aucune
+réponse invalide ni aucun doublon parmi les 19\,200 réponses. Les autres actions ont des médianes
+de 10 à 34~\% plus élevées que dans l'audit, sur une autre machine ; les vagues durent moins
+longtemps à 32 et 64 clients (33,5 et 36,8~s contre 54,2 et 60,4~s), plus à 16 (34,7~s contre 29,4~s). Quelques maxima isolés atteignent 14 à 20~s (évaluation
+de l'enseignant ou du maître de stage à 32 et 64 clients), quand un export occupe l'un des 16
+processus du serveur ; l'audit en avait relevé de 52 à 58~s.
+
+\paragraph{Ordre des opérations.} Une première série, jouée sur le site des scénarios, a vu
+l'action « étudiant » refusée pour 91 à 115 stages sur 200. Les scénarios réenregistrent une liste
+d'évaluation par \code{evallist_edit.php}, dont le formulaire lit les options en
+\code{PARAM_TEXT} : l'option \code{<b>Urgences</b>} y devient \code{Urgences}, alors que le client
+de charge envoie toujours le texte d'origine. Ce défaut, antérieur et sans lien avec l'export,
+est signalé sans être corrigé : réenregistrer une liste retire les balises de ses options, et les
+réponses déjà enregistrées avec la balise ne correspondent alors plus à aucune option.
+
+\paragraph{Tests unitaires.} PHPUnit, sur le même Moodle~4.5 : \code{mod_stagesynthesis}
+réussit (8~tests) ; \code{mod_stage} compte 275~tests, dont 5 échecs et 1 erreur. Aucun de ces
+tests n'inclut \code{export.php}. Ils proviennent de tests écrits avant l'audit et jamais exécutés
+jusqu'ici :
+\begin{itemize}
+  \item \code{audit_corrections_test::test_get_my_stages_returns_own_entries_only} : charge
+    \code{externallib.php}, ce qui impose un processus isolé ;
+  \item \code{audit_corrections_test::test_workdays_survive_edit_from_other_timezone} : attend
+    \code{02/03/2026} alors que \code{userdate()} retire le zéro du jour (\code{2/03/2026}) ;
+  \item \code{admin_forms_test} et \code{convention_ready_notification_test} : un faux PDF
+    (\code{\%PDF-1.4}) est désormais refusé comme illisible par le contrôle du gabarit ;
+  \item \code{question_types_test::test_answers_are_checked} : une réponse vide à une question
+    obligatoire est refusée comme manquante (\code{errorrequiredanswer}), non comme invalide ;
+  \item \code{request_validation_test::test_request_questionnaire_answers} : la réponse à une
+    question « texte » n'est pas débarrassée de ses espaces (\code{' Urgences '}).
+\end{itemize}
+
 \section{Limites}
 
 \begin{itemize}
@@ -137,9 +197,10 @@ Deux différences de présentation subsistent ; aucune ne touche une valeur.
   \item La mémoire reste proportionnelle au nombre de stages : les saisies, leurs conventions et
     le bilan de promotion sont toujours chargés en une fois. La limite de mémoire relevée de la
     page est conservée.
-  \item La montée en charge de l'audit (16 à 64 clients) n'a pas été rejouée : les mesures sont
-    faites avec un seul client. La compatibilité avec Moodle~4.3 a été vérifiée pour OpenSpout
-    seulement, sur un Moodle~4.5 ; la page n'emploie pas de syntaxe postérieure à PHP~8.0.
+  \item La compatibilité avec Moodle~4.3 a été vérifiée pour OpenSpout seulement, sur un
+    Moodle~4.5 ; la page n'emploie pas de syntaxe postérieure à PHP~8.0.
+  \item Le serveur de test est le serveur intégré de PHP, comme pour l'audit ; un serveur de
+    production (PHP-FPM) répartit autrement les requêtes longues.
 \end{itemize}
 
 \end{document}

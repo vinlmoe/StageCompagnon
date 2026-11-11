@@ -56,6 +56,11 @@ python3 export_compare.py avant.xlsx apres.xlsx
 
 ## Montée en charge
 
+À jouer sur un site neuf, pas sur celui des scénarios : `scenarios.py` réenregistre une liste
+d'évaluation, ce qui retire la balise de l'option `<b>Urgences</b>` alors que `site.json` garde le
+texte d'origine (les envois de l'étudiant sont alors refusés). Résultats de l'export en flux :
+`logs/load-flux-*.json`, `logs/scenarios-flux.txt`, `logs/check-flux.txt`.
+
 - `load.py site.json <threads> <premier> <nombre>` : pour chaque stage, auto-évaluation (doublée
   pour un stage sur dix), avis de l'enseignant, évaluation du maître de stage, demande de
   convention ; deux comptes DEVE téléchargent en boucle l'export général et l'export pré-stage.
