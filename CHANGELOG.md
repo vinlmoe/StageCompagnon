@@ -28,6 +28,13 @@ changements. À tenir à jour à chaque modification de `version.php`.
   stage et de la convention ; notes et nombres en valeur numérique. L'export suit les filtres de
   la liste (recherche, statut) et est ouvert à la DEVE et aux responsables de la thématique
   (`request_answers_export.php`).
+- Export Excel général (`export.php`) : le classeur est écrit en flux par OpenSpout au lieu d'être
+  construit en mémoire par la bibliothèque Excel de Moodle. Pour 3 000 stages, l'export passe de
+  78 s à 7,6 s et son pic de mémoire de 554 Mo à 69 Mo ; pour 8 000 stages, de 166 s à 15 s et de
+  1 089 Mo à 116 Mo. Feuilles, colonnes, ordre et valeurs sont inchangés (comparaison cellule par
+  cellule). Les dates s'affichent désormais au format jj/mm/aaaa, que l'ancien export demandait
+  sans l'obtenir (elles apparaissaient avec l'heure), et les textes sur plusieurs lignes sont
+  renvoyés à la ligne dans leur cellule.
 - Check-list de la demande de convention (pré-stage) : elle parle désormais de *prérequis* et
   non plus d'*objectifs* (« Check-list des prérequis », colonnes « Prérequis » et « Rempli »,
   justification « Si non rempli, pourquoi ? »), en français et en anglais, ainsi que dans les
