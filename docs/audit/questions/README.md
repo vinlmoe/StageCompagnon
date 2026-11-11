@@ -30,6 +30,30 @@ PHP_CLI_SERVER_WORKERS=16 php -d max_input_vars=5000 -d memory_limit=256M -S loc
 - `check.php site.json` : invariants (forme de chaque réponse selon son type, doublons, réponses
   obligatoires vides).
 
+## Export général
+
+Comparaison de l'ancienne version de `export.php` (MoodleExcelWorkbook) et de la version en flux
+(OpenSpout). L'ancienne version est copiée dans `mod/stage/export_old.php` du Moodle de test ; le
+serveur est lancé avec `-d auto_prepend_file=export_prepend.php` et `EXPORT_BENCH_LOG` désignant
+le fichier où chaque requête consigne sa durée et son pic de mémoire. Résultats : `logs/export.txt`.
+
+- `export_data.php site.json` : complète les stages de `setup.php` pour que chaque colonne des
+  trois feuilles porte une valeur (réponses des huit types, détail de convention, étapes datées,
+  plages multiples, rapports déposés, évaluations StageVet notées, textes commençant par = + - @,
+  date de naissance avant 1970).
+- `export_bench.py site.json <page> <n> <classeur.xlsx>` : télécharge `n` fois l'export ; durée,
+  mémoire, taille ; garde le dernier classeur.
+- `export_compare.py avant.xlsx après.xlsx` : compare feuilles, valeurs et types cellule par
+  cellule, puis liste les écarts de format.
+
+```bash
+EXPORT_BENCH_LOG=$PWD/export.log php -d max_input_vars=5000 -d auto_prepend_file=$PWD/export_prepend.php -S localhost:8080 -t moodle
+php setup.php 1500 && php export_data.php site-<tag>.json
+python3 export_bench.py site-<tag>.json export_old.php 3 avant.xlsx
+python3 export_bench.py site-<tag>.json export.php 3 apres.xlsx
+python3 export_compare.py avant.xlsx apres.xlsx
+```
+
 ## Montée en charge
 
 - `load.py site.json <threads> <premier> <nombre>` : pour chaque stage, auto-évaluation (doublée

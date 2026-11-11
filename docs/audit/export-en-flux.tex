@@ -1,0 +1,145 @@
+% Réécriture en flux de l'export Excel général de mod_stage (export.php) : méthode, équivalence
+% du classeur produit, durée et mémoire avant et après.
+% Compilation : latexmk -pdf export-en-flux.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref,enumitem}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{url}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z}
+\DeclareUrlCommand\code{\urlstyle{tt}}
+\Urlmuskip=0mu plus 2mu
+\setlist[itemize]{itemsep=2pt,topsep=3pt}
+\title{Export Excel général de \texttt{mod\_stage} : écriture en flux}
+\author{Sébastien Lefebvre}
+\date{11 novembre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Objet}
+
+L'audit des types de question (\code{audit-types-de-question.tex}) signalait la lenteur de l'export
+Excel général, hors de son périmètre : 16~s pour 1\,400 stages hors charge, dont 11,5~s dans la
+feuille « Stages » pour 20~requêtes SQL, et 41 à 57~s pendant la montée en charge. Le temps se
+passait dans la bibliothèque Excel de Moodle (\code{MoodleExcelWorkbook}, sur PhpSpreadsheet), qui
+construit tout le classeur en mémoire et applique un style à chaque cellule écrite.
+
+La page \code{export.php} écrit désormais le classeur en flux avec OpenSpout, livré par Moodle
+depuis la version~4.3, comme la branche Excel de l'export pré-stage
+(\code{request_answers_export.php}). Les trois feuilles, leurs colonnes, l'ordre des lignes et les
+valeurs sont conservés.
+
+\section{Ce qui change dans la page}
+
+\begin{itemize}
+  \item \textbf{Écriture.} Chaque ligne est envoyée au navigateur dès qu'elle est prête
+    (\code{\OpenSpout\Writer\XLSX\Writer}, une feuille par
+    \code{addNewSheetAndMakeItCurrent()}), avec un dossier temporaire propre à la requête
+    (\code{make_request_directory()}). La session est libérée avant l'envoi
+    (\code{\core\session\manager::write_close()}) : un long export ne bloque plus les autres
+    onglets de l'utilisateur.
+  \item \textbf{Cellules typées.} Nombres en \code{NumericCell}, textes en \code{StringCell},
+    dates en \code{DateTimeCell}, jamais de \code{FormulaCell}. Les formats de
+    \code{MoodleExcelWorksheet} sont repris : texte (\code{@}) pour les textes, général pour les
+    nombres, en-têtes en gras. Le format texte est porté par la ligne plutôt que par chaque
+    cellule : OpenSpout fusionne à chaque cellule son style avec celui de sa ligne, ce qui
+    triplait le temps d'écriture des textes.
+  \item \textbf{Dates.} La date et l'heure sont celles du fuseau de l'utilisateur, comme avec
+    \code{write_date()}. Une étape qui n'a pas eu lieu reste une cellule de texte vide.
+  \item \textbf{Protection des formules.} Sous Moodle~4.5, \code{write_string()} préfixe d'une
+    apostrophe les textes commençant par \code{=}, \code{+}, \code{-} ou \code{@}
+    (\code{\core\dataformat::escape_spreadsheet_formula()}). La page fait de même lorsque cette
+    méthode existe, et ne le fait pas sous Moodle~4.3, qui ne la connaît pas. Les valeurs restent
+    donc celles de l'ancien export sur chaque version. La restauration
+    (\code{global_export_importer}) retire ce préfixe.
+  \item \textbf{Réponses lues en flux.} La feuille « Réponses aux questionnaires » lit les
+    réponses par un \textit{recordset}, stage après stage, avec la même requête et le même tri.
+    Les notes des évaluations textuelles importées de StageVet sont calculées d'avance et
+    intercalées par numéro de stage, comme le faisait le tri final de l'ancienne version. Le nom
+    de l'étudiant, la thématique et l'intitulé de chaque question ne sont mis en forme qu'une fois.
+\end{itemize}
+
+\section{Méthode}
+
+Moodle~4.5 (\code{MOODLE_405_STABLE}), PHP~8.3, PostgreSQL~16, serveur web intégré de PHP, un
+seul client. L'ancienne page est copiée sous \code{export_old.php} dans le Moodle de test, pour
+comparer les deux versions sur les mêmes données. Les scripts sont dans
+\code{docs/audit/questions/}, les résultats bruts dans \code{logs/export.txt}.
+
+\begin{itemize}
+  \item \code{setup.php 1500}, puis \code{export_data.php} : 3\,000 stages. Chaque colonne des
+    trois feuilles porte une valeur : réponses des huit types de question, dont une sur dix hors
+    de la forme attendue ; détail de convention complet ; étapes datées ; deux plages pour un
+    stage sur cinq ; rapports déposés ; validations et annulations ; évaluations StageVet notées,
+    dont certaines sur des stages sans aucune réponse ; textes commençant par \code{=}, \code{+},
+    \code{-} ou \code{@} ; dates de naissance antérieures à 1970.
+  \item \code{volume.php} ajoute ensuite 5\,000 demandes de stage avec leurs réponses : 8\,000
+    stages en tout.
+  \item \code{export_bench.py} télécharge l'export par HTTP, dans la session d'un compte DEVE. Le
+    serveur consigne la durée et le pic de mémoire PHP de chaque requête
+    (\code{export_prepend.php}).
+  \item \code{export_compare.py} compare les deux classeurs avec openpyxl, cellule par cellule :
+    noms et ordre des feuilles, valeur et type de chaque cellule (texte, nombre, date), puis format
+    de nombre et gras. Une cellule vide et un texte vide sont tenus pour égaux, de même qu'un
+    nombre écrit \code{1} ou \code{1.0} : le format xlsx n'a qu'un type numérique.
+\end{itemize}
+
+\section{Résultats}
+
+\begin{center}
+\begin{tabular}{@{}lrrrr@{}}
+  \toprule
+  & \multicolumn{2}{c}{Durée} & \multicolumn{2}{c}{Pic de mémoire} \\
+  \cmidrule(lr){2-3}\cmidrule(l){4-5}
+  Stages (réponses) & avant & après & avant & après \\
+  \midrule
+  3\,000 (46\,200) & 77,8~s & 7,6~s & 554~Mo & 69~Mo \\
+  8\,000 (86\,200) & 166,4~s & 15,4~s & 1\,089~Mo & 116~Mo \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Durées : meilleure de trois exécutions, sauf l'ancienne version à 8\,000 stages (une seule).
+L'export est dix fois plus rapide et occupe huit à neuf fois moins de mémoire. La nouvelle version
+fait 58~requêtes en tout.
+
+\paragraph{Équivalence.} Les classeurs ont les mêmes feuilles et les mêmes valeurs : 767\,599
+cellules comparées à 3\,000 stages, 1\,602\,599 à 8\,000, sans écart. Le même résultat est obtenu en
+substituant au banc l'OpenSpout~4.15 de Moodle~4.3. La restauration
+(\code{global_export_importer::read()}) relit les deux classeurs à l'identique : 3\,000
+enregistrements, aucun avertissement.
+
+\paragraph{Où passe le temps.} À 3\,000 stages, sur 7,6~s : 0,3~s pour le bilan de promotion,
+1,0~s pour la feuille « Stages », 0,5~s pour la requête des réponses et les notes textuelles,
+3,1~s pour la feuille « Réponses » (47\,000 lignes) et 3,0~s pour la compression du fichier
+(44~Mo de XML). Il reste donc de l'ordre de 60~µs par ligne de réponse dans OpenSpout lui-même.
+
+\section{Écarts de présentation}
+
+Deux différences de présentation subsistent ; aucune ne touche une valeur.
+\begin{itemize}
+  \item \textbf{Format des dates.} L'ancien export demandait le format \code{dd/mm/yyyy}, mais
+    \code{MoodleExcelFormat} l'ignorait en silence (il n'accepte qu'une liste de formats
+    prédéfinis) : les dates s'affichaient avec l'heure, au format \code{m/d/yy h:mm}. Elles
+    s'affichent désormais en jj/mm/aaaa ; l'heure reste dans la valeur.
+  \item \textbf{Retour à la ligne.} OpenSpout active le renvoi à la ligne automatique dans les
+    cellules dont le texte contient un saut de ligne (adresses, commentaires, évaluations).
+\end{itemize}
+
+\section{Limites}
+
+\begin{itemize}
+  \item Le classeur étant envoyé au fil de l'eau, une erreur survenant après le début de l'envoi
+    donne un fichier tronqué plutôt qu'une page d'erreur. L'export pré-stage a le même
+    comportement.
+  \item La mémoire reste proportionnelle au nombre de stages : les saisies, leurs conventions et
+    le bilan de promotion sont toujours chargés en une fois. La limite de mémoire relevée de la
+    page est conservée.
+  \item La montée en charge de l'audit (16 à 64 clients) n'a pas été rejouée : les mesures sont
+    faites avec un seul client. La compatibilité avec Moodle~4.3 a été vérifiée pour OpenSpout
+    seulement, sur un Moodle~4.5 ; la page n'emploie pas de syntaxe postérieure à PHP~8.0.
+\end{itemize}
+
+\end{document}
