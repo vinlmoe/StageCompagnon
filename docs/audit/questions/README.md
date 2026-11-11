@@ -56,9 +56,9 @@ python3 export_compare.py avant.xlsx apres.xlsx
 
 ## Montée en charge
 
-À jouer sur un site neuf, pas sur celui des scénarios : `scenarios.py` réenregistre une liste
-d'évaluation, ce qui retire la balise de l'option `<b>Urgences</b>` alors que `site.json` garde le
-texte d'origine (les envois de l'étudiant sont alors refusés). Résultats de l'export en flux :
+Le site des scénarios convient aussi depuis que réenregistrer une liste garde les balises de ses
+options (avant, l'option `<b>Urgences</b>` y devenait `Urgences` et les envois de l'étudiant
+étaient refusés). Résultats de l'export en flux :
 `logs/load-flux-*.json`, `logs/scenarios-flux.txt`, `logs/check-flux.txt`.
 
 - `load.py site.json <threads> <premier> <nombre>` : pour chaque stage, auto-évaluation (doublée

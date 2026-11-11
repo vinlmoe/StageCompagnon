@@ -165,27 +165,39 @@ processus du serveur ; l'audit en avait relevé de 52 à 58~s.
 
 \paragraph{Ordre des opérations.} Une première série, jouée sur le site des scénarios, a vu
 l'action « étudiant » refusée pour 91 à 115 stages sur 200. Les scénarios réenregistrent une liste
-d'évaluation par \code{evallist_edit.php}, dont le formulaire lit les options en
-\code{PARAM_TEXT} : l'option \code{<b>Urgences</b>} y devient \code{Urgences}, alors que le client
-de charge envoie toujours le texte d'origine. Ce défaut, antérieur et sans lien avec l'export,
-est signalé sans être corrigé : réenregistrer une liste retire les balises de ses options, et les
-réponses déjà enregistrées avec la balise ne correspondent alors plus à aucune option.
+d'évaluation par \code{evallist_edit.php}, dont le formulaire lisait les options en
+\code{PARAM_TEXT} : l'option \code{<b>Urgences</b>} y devenait \code{Urgences}, alors que le client
+de charge envoie le texte d'origine. Le défaut, antérieur à l'export, touchait aussi les vrais
+utilisateurs : réenregistrer une liste retirait les balises de ses options, et les réponses déjà
+enregistrées avec la balise ne correspondaient plus à aucune option. Il est corrigé
+(section~\ref{sec:corrections}) ; scénarios puis vague de 64~clients sur le même site ne donnent
+plus aucune erreur.
 
 \paragraph{Tests unitaires.} PHPUnit, sur le même Moodle~4.5 : \code{mod_stagesynthesis}
-réussit (8~tests) ; \code{mod_stage} compte 275~tests, dont 5 échecs et 1 erreur. Aucun de ces
-tests n'inclut \code{export.php}. Ils proviennent de tests écrits avant l'audit et jamais exécutés
-jusqu'ici :
+réussit (8~tests). \code{mod_stage} comptait 275~tests, dont 5 échecs et 1 erreur, dans des tests
+écrits avant l'audit et jamais exécutés jusque-là ; aucun n'inclut \code{export.php}. Après les
+corrections ci-dessous, les 276~tests réussissent (1\,653~assertions).
+
+\section{Corrections}\label{sec:corrections}
+
 \begin{itemize}
-  \item \code{audit_corrections_test::test_get_my_stages_returns_own_entries_only} : charge
-    \code{externallib.php}, ce qui impose un processus isolé ;
-  \item \code{audit_corrections_test::test_workdays_survive_edit_from_other_timezone} : attend
-    \code{02/03/2026} alors que \code{userdate()} retire le zéro du jour (\code{2/03/2026}) ;
-  \item \code{admin_forms_test} et \code{convention_ready_notification_test} : un faux PDF
-    (\code{\%PDF-1.4}) est désormais refusé comme illisible par le contrôle du gabarit ;
-  \item \code{question_types_test::test_answers_are_checked} : une réponse vide à une question
-    obligatoire est refusée comme manquante (\code{errorrequiredanswer}), non comme invalide ;
-  \item \code{request_validation_test::test_request_questionnaire_answers} : la réponse à une
-    question « texte » n'est pas débarrassée de ses espaces (\code{' Urgences '}).
+  \item \textbf{Options des listes d'évaluation.} Le formulaire des listes les lit désormais en
+    \code{PARAM_RAW}, comme les réponses des questions à choix : elles sont enregistrées telles
+    que saisies. Le seul affichage qui ne les échappait pas, la liste déroulante du questionnaire
+    de demande (le gabarit Moodle y écrit le libellé sans échappement), les passe maintenant par
+    \code{s()}. Un test vérifie le type des champs et l'échappement.
+  \item \textbf{Réponses texte de la demande de stage.} Les espaces aux extrémités sont de nouveau
+    retirés, comme avant l'arrivée des types de question ; les commentaires des évaluations
+    gardent les leurs. C'est le comportement que vérifiait
+    \code{request_validation_test} (\code{' Urgences '} enregistré \code{Urgences}).
+  \item \textbf{Services web.} \code{get_my_stages} et \code{register_entries} emploient les
+    classes \code{core_external} (Moodle~4.2 et suivants) au lieu d'inclure
+    \code{lib/externallib.php}, que Moodle interdit dans un test non isolé.
+  \item \textbf{Tests mis à jour.} Une réponse vide à une question obligatoire est refusée comme
+    manquante (\code{errorrequiredanswer}), ce qu'elle a toujours été ; les gabarits de convention
+    des tests sont de vrais PDF d'une page produits par TCPDF, et non une simple entête
+    \texttt{\%PDF-1.4} que le contrôle de lisibilité refuse ; la date comparée est écrite sans
+    retrait du zéro du jour (\code{userdate()} avec \texttt{\$fixday} à faux).
 \end{itemize}
 
 \section{Limites}
