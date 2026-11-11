@@ -32,6 +32,9 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class convention_request_form extends \moodleform {
+    /** @var string[] Listes déroulantes obligatoires, dont la valeur doit figurer parmi les options. */
+    const SELECT_FIELDS = ['conventionlang', 'conventiontemplateid', 'referentteacherid', 'yearsituation', 'stagetype'];
+
     /**
      * Defines the form fields.
      */
@@ -235,8 +238,9 @@ class convention_request_form extends \moodleform {
     }
 
     /**
-     * Validation serveur : les plages de dates doivent être cohérentes (au moins une, sans
-     * chevauchement), et le gabarit sélectionné doit être dans la langue choisie.
+     * Validation serveur : chaque liste déroulante a une valeur parmi ses options, les plages de
+     * dates doivent être cohérentes (au moins une, sans chevauchement), et le gabarit sélectionné
+     * doit être dans la langue choisie.
      *
      * @param array $data
      * @param array $files
@@ -252,10 +256,16 @@ class convention_request_form extends \moodleform {
             $errors[stage_period_error_field($data)] = $perioderror;
         }
 
-        $templates = $this->_customdata['templates'];
-        $template = $templates[$data['conventiontemplateid']] ?? null;
-        if (!$template || $template->lang !== $data['conventionlang']) {
-            $errors['conventiontemplateid'] = get_string('conventiontemplatelangmismatch', 'mod_stage');
+        // Une valeur hors liste (formulaire falsifié) disparaît des données exportées : elle est
+        // signalée sur son champ plutôt que de faire échouer l'enregistrement de la demande.
+        $errors += stage_validate_select_fields($this->_form, $data, self::SELECT_FIELDS);
+
+        if (!isset($errors['conventionlang']) && !isset($errors['conventiontemplateid'])) {
+            $templates = $this->_customdata['templates'];
+            $template = $templates[$data['conventiontemplateid']] ?? null;
+            if (!$template || $template->lang !== $data['conventionlang']) {
+                $errors['conventiontemplateid'] = get_string('conventiontemplatelangmismatch', 'mod_stage');
+            }
         }
 
         // Un objectif laissé décoché doit être justifié : c'est la raison d'être du champ libre.
