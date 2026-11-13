@@ -20,6 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
+require_once($CFG->libdir . '/pdflib.php');
 
 /**
  * Tests du courriel annonçant à l'étudiant que sa convention est téléchargeable, envoyé lorsque
@@ -145,7 +146,7 @@ final class convention_ready_notification_test extends \advanced_testcase {
         get_file_storage()->create_file_from_string([
             'contextid' => $context->id, 'component' => 'mod_stage', 'filearea' => 'conventiontemplate',
             'itemid' => $templateid, 'filepath' => '/', 'filename' => 'gabarit.pdf',
-        ], '%PDF-1.4');
+        ], $this->template_pdf());
         $entry->conventiontemplateid = $templateid;
         $DB->set_field('stage_entry', 'conventiontemplateid', $templateid, ['id' => $entry->id]);
 
@@ -173,5 +174,18 @@ final class convention_ready_notification_test extends \advanced_testcase {
         $this->assertFalse(stage_notify_student_convention_ready($stage, $cm, $entry));
         $this->assertCount(0, $sink->get_messages());
         $sink->close();
+    }
+
+    /**
+     * Contenu d'un PDF d'une page, lisible par FPDI comme un vrai gabarit de convention : un
+     * simple « %PDF-1.4 » est refusé par stage_convention_template_readable().
+     *
+     * @return string
+     */
+    private function template_pdf(): string {
+        $pdf = new \pdf();
+        $pdf->AddPage();
+        $pdf->Write(10, 'Articles');
+        return $pdf->Output('', 'S');
     }
 }

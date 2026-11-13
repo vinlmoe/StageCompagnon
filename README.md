@@ -55,7 +55,7 @@ réinitialisé. Les réponses obligatoires sont contrôlées côté serveur lors
 
 Dans le bilan des thématiques obligatoires, le bouton **Objectifs** de chaque
 ligne ouvre une page réunissant les documents à télécharger et la check-list
-des objectifs. Cette consultation est disponible même avant l'enregistrement
+des prérequis. Cette consultation est disponible même avant l'enregistrement
 d'un stage ; la check-list est renseignée lors de la demande de convention.
 
 Les transferts entre promotions remappent les réponses aux évaluations et aux

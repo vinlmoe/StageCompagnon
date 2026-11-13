@@ -16,7 +16,7 @@
 
 /**
  * Gestion d'une thématique de stage par la DEVE, en une seule page : paramètres généraux, durées
- * requises par année, enseignants responsables, documents et check-list d'objectifs, choix des
+ * requises par année, enseignants responsables, documents et check-list des prérequis, choix des
  * listes d'évaluation (éditées sur leur propre page, evallist_edit.php). Tout s'enregistre en
  * une fois ; un sélecteur permet de passer directement d'une
  * thématique à l'autre sans repasser par la liste.
@@ -197,7 +197,7 @@ if ($data = $mform->get_data()) {
             stage_set_theme_teachers($savedthemeid, $teacherids);
         }
 
-        // Check-list d'objectifs.
+        // Check-list des prérequis.
         $existingitems = [];
         foreach ($checklist as $item) {
             $existingitems[(int) $item->id] = $item;

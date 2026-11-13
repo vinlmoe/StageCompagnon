@@ -113,7 +113,7 @@ foreach ([$s2030, $s2031] as $s) {
         'requiredduration' => 10, 'tutorevaluationenabled' => 1, 'reportmode' => 0, 'sortorder' => 5,
         'description' => 'Services vétérinaires, abattoirs, laboratoires, hygiène alimentaire.']);
     stage_set_theme_teachers($t['production']->id, [$u['jbernard']->id]);
-    foreach (['Réaliser un examen clinique complet', 'Assister à une chirurgie de convenance', 'Participer aux consultations vaccinales'] as $i => $item) {
+    foreach (['Vaccination antirabique à jour', 'Assurance responsabilité civile professionnelle', 'Formation à la radioprotection suivie'] as $i => $item) {
         $sgen->create_checklist_item($t['compagnie'], ['name' => $item, 'sortorder' => $i + 1]);
     }
     $fs = get_file_storage();

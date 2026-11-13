@@ -19,6 +19,13 @@ Camille Leroy, Léa Moreau, Thomas Petit…), les thématiques, listes d'évalua
 stages et demandes de convention que montrent les guides. Mot de passe de tous les comptes :
 `Demo-2026!`. Il n'est pas prévu pour être rejoué sur un site déjà peuplé.
 
+Pour les captures des types de question, du questionnaire pré-stage et de la check-list des
+prérequis, compléter ensuite le site (identifiants affichés à la fin) :
+
+```bash
+php docs/guides/captures/demo_questions.php /chemin/vers/moodle/config.php
+```
+
 Sans accès à `download.moodle.org`, `lang-fr-minimal/` fournit les quelques chaînes de
 l'habillage Moodle (navigation, boutons de formulaire, sélecteur de fichiers) qui apparaissent
 dans les captures : copier le dossier sous `moodledata/lang/fr`, puis `php admin/cli/cfg.php
@@ -33,6 +40,14 @@ playwright && npx playwright install chromium`).
 ```bash
 cd docs/guides/captures
 MOODLE_URL=http://localhost:8001 node shot.js plan.json ../images
+```
+
+Captures des nouveautés (après `demo_questions.php`), dont l'export pré-stage au format HTML, servi
+en téléchargement et photographié à part :
+
+```bash
+MOODLE_URL=http://localhost:8001 node shot.js plan_questions.json ../images
+MOODLE_URL=http://localhost:8001 node export_shot.js 1 2 ../images/87_request_export.png
 ```
 
 `plan.json` décrit chaque capture : compte, URL, actions préalables (déplier les sections,

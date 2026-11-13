@@ -48,7 +48,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * - **l'étudiant**, propriétaire de la saisie (stage_entry.userid) : toutes ses données de stage
  *   lui sont rattachées, et la suppression les efface intégralement (stages, auto-évaluation,
  *   évaluations enseignant et maître de stage, détail de convention, périodes, jours ouvrés,
- *   réponses aux questionnaires et à la check-list d'objectifs, convention signée et rapport de
+ *   réponses aux questionnaires et à la check-list des prérequis, convention signée et rapport de
  *   stage) ;
  * - **le personnel** (enseignant référent, responsable de thématique, DEVE), simplement *cité*
  *   dans la saisie d'un étudiant : sa suppression ne doit pas emporter le stage de l'étudiant,
@@ -432,7 +432,7 @@ class provider implements
                         $question = $DB->get_record('stage_question', ['id' => $answer->questionid]);
                         $rows[] = (object) [
                             'question' => $question ? $question->name : '',
-                            'answer' => $answer->answertext,
+                            'answer' => $question ? stage_format_answer($question, $answer->answertext) : $answer->answertext,
                         ];
                     }
                     writer::with_context($context)->export_data(

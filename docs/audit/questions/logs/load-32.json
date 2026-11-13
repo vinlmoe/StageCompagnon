@@ -1,0 +1,85 @@
+{
+ "threads": 32,
+ "entries": 200,
+ "wall_s": 54.2,
+ "actions": {
+  "étudiant": {
+   "n": 200,
+   "p50": 0.827,
+   "p95": 1.236,
+   "max": 1.529,
+   "errors": 0,
+   "examples": []
+  },
+  "enseignant": {
+   "n": 200,
+   "p50": 0.825,
+   "p95": 1.267,
+   "max": 4.166,
+   "errors": 0,
+   "examples": []
+  },
+  "maître de stage (page)": {
+   "n": 200,
+   "p50": 0.295,
+   "p95": 0.579,
+   "max": 0.782,
+   "errors": 0,
+   "examples": []
+  },
+  "maître de stage (envoi)": {
+   "n": 200,
+   "p50": 0.578,
+   "p95": 0.992,
+   "max": 4.845,
+   "errors": 0,
+   "examples": []
+  },
+  "demande (page)": {
+   "n": 200,
+   "p50": 0.601,
+   "p95": 1.059,
+   "max": 52.021,
+   "errors": 0,
+   "examples": []
+  },
+  "demande (envoi)": {
+   "n": 200,
+   "p50": 0.84,
+   "p95": 1.317,
+   "max": 1.754,
+   "errors": 0,
+   "examples": []
+  },
+  "export pré-stage Excel": {
+   "n": 37,
+   "p50": 0.796,
+   "p95": 3.839,
+   "max": 5.183,
+   "errors": 0,
+   "examples": []
+  },
+  "export pré-stage CSV": {
+   "n": 36,
+   "p50": 0.072,
+   "p95": 0.57,
+   "max": 0.755,
+   "errors": 0,
+   "examples": []
+  },
+  "export général": {
+   "n": 2,
+   "p50": 41.373,
+   "p95": 30.699,
+   "max": 52.048,
+   "errors": 0,
+   "examples": []
+  }
+ },
+ "final": {
+  "statuts": "2|200",
+  "maître de stage évalué": "200",
+  "demandes": "1|200",
+  "réponses": "6400"
+ }
+}

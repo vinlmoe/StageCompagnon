@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Consultation des documents et de la check-list d'objectifs d'une thématique.
+ * Consultation des documents et de la check-list des prérequis d'une thématique.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre

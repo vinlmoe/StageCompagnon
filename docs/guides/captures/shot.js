@@ -15,11 +15,16 @@ const out = process.argv[3] || 'shots';
     if (sessions[user]) return sessions[user];
     const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 }, deviceScaleFactor: 1.5, locale: 'fr-FR' });
     const page = await ctx.newPage();
-    await page.goto(base + '/login/index.php');
-    await page.fill('#username', user);
-    await page.fill('#password', 'Demo-2026!');
-    await page.click('#loginbtn');
-    await page.waitForLoadState('networkidle');
+    // Connexion reprise si la page de connexion revient (jeton de connexion expiré quand le
+    // serveur de test répond lentement à la première requête).
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await page.goto(base + '/login/index.php', { waitUntil: 'networkidle' });
+      if (!(await page.locator('#username').count())) break;
+      await page.fill('#username', user);
+      await page.fill('#password', 'Demo-2026!');
+      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle' }), page.click('#loginbtn')]);
+      if (!page.url().includes('/login/')) break;
+    }
     await page.addStyleTag({ content: '.drawer-toggles, .drawer-toggler { display: none !important; }' });
     sessions[user] = page;
     return page;
@@ -52,7 +57,7 @@ const out = process.argv[3] || 'shots';
       const toLoc = step.to ? page.locator(step.to).first() : page.locator(step.bottom || '#region-main').first();
       const bot = await toLoc.boundingBox();
       const scrollY = await page.evaluate(() => window.scrollY);
-      const y = step.from ? Math.max(0, top.y + scrollY - 16) : 0;
+      const y = step.from ? Math.max(0, top.y + scrollY - (step.pad ?? 16)) : 0;
       const end = step.to ? (bot.y + scrollY - 12) : (bot.y + bot.height + scrollY + 24);
       const height = Math.min(end - y, step.maxheight || 4000);
       await page.screenshot({ path: file, fullPage: true, clip: { x: 0, y, width: 1366, height } });

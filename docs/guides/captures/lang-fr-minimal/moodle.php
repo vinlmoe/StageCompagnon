@@ -30,6 +30,7 @@ $string['edit'] = 'Modifier';
 $string['editmode'] = 'Mode édition';
 $string['editsettings'] = 'Modifier les paramètres';
 $string['email'] = 'Adresse de courriel';
+$string['enable'] = 'Activer';
 $string['error'] = 'Erreur';
 $string['expandall'] = 'Tout déplier';
 $string['file'] = 'Fichier';

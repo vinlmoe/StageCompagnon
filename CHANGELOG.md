@@ -7,6 +7,64 @@ changements. À tenir à jour à chaque modification de `version.php`.
 
 ## Non publié
 
+### mod_stage
+- Listes d'évaluation : cinq nouveaux types de question, en plus des choix multiples, des notes
+  de 1 à 5 et des commentaires libres. *Cases à cocher* (plusieurs options parmi celles saisies,
+  enregistrées une par ligne), *Oui / Non*, *Nombre* (virgule décimale acceptée), *Date*
+  (enregistrée au format AAAA-MM-JJ) et *Texte court* (une ligne, 255 caractères au plus). Ils
+  sont proposés dans tous les questionnaires (étudiant, enseignant, maître de stage, demande de
+  stage), contrôlés côté serveur et affichés en clair en lecture seule. Le type « Choix
+  multiples » est rebaptisé « Choix multiples (une seule réponse) » et une aide décrit chaque
+  type. Les options ne sont demandées que pour les choix et les cases à cocher.
+- Export Excel, feuille des réponses : la réponse est écrite en clair (« Oui »/« Non », date mise
+  en forme, cases cochées séparées par « ; ») ; deux colonnes sont ajoutées en fin de ligne,
+  *Valeur numérique* (le nombre, ou 1/0 pour un oui/non) et *Type de question*. Les colonnes
+  existantes gardent leur place. L'export des données personnelles écrit lui aussi les réponses
+  en clair.
+- Questionnaire de demande (pré-stage) : nouvel export par thématique, depuis la liste des
+  stages de la thématique (`theme_stages.php`), au format choisi (Excel, CSV, ODS…). Une ligne
+  par stage ayant répondu, une colonne par question (y compris celles retirées depuis de la
+  liste), précédées du n° de stage, de l'étudiant, de son courriel, des dates et des statuts du
+  stage et de la convention ; notes et nombres en valeur numérique. L'export suit les filtres de
+  la liste (recherche, statut) et est ouvert à la DEVE et aux responsables de la thématique
+  (`request_answers_export.php`).
+- Export Excel général (`export.php`) : le classeur est écrit en flux par OpenSpout au lieu d'être
+  construit en mémoire par la bibliothèque Excel de Moodle. Pour 3 000 stages, l'export passe de
+  78 s à 7,6 s et son pic de mémoire de 554 Mo à 69 Mo ; pour 8 000 stages, de 166 s à 15 s et de
+  1 089 Mo à 116 Mo. Feuilles, colonnes, ordre et valeurs sont inchangés (comparaison cellule par
+  cellule). Les dates s'affichent désormais au format jj/mm/aaaa, que l'ancien export demandait
+  sans l'obtenir (elles apparaissaient avec l'heure), et les textes sur plusieurs lignes sont
+  renvoyés à la ligne dans leur cellule.
+- Listes d'évaluation : réenregistrer une liste ne retire plus les balises de ses options
+  (« <b>Urgences</b> » devenait « Urgences », et les réponses déjà données ne correspondaient plus
+  à aucune option) ; les options sont échappées dans les listes déroulantes du questionnaire de
+  demande.
+- Questionnaire de demande : les réponses texte sont de nouveau débarrassées des espaces en début
+  et en fin, comme avant l'arrivée des types de question.
+- Services web `get_my_stages` et `register_entries` : classes `core_external` au lieu de
+  `lib/externallib.php`.
+- Check-list de la demande de convention (pré-stage) : elle parle désormais de *prérequis* et
+  non plus d'*objectifs* (« Check-list des prérequis », colonnes « Prérequis » et « Rempli »,
+  justification « Si non rempli, pourquoi ? »), en français et en anglais, ainsi que dans les
+  guides et la documentation. Les documents déposés par thématique restent des documents
+  d'objectifs.
+- Audit de ces ajouts (`docs/audit/audit-types-de-question.tex`), relecture et tests dans un Moodle
+  réel (68 scénarios, montée en charge de 16 à 64 clients, 20 700 demandes). Corrections :
+  - les réponses à liste fermée ou à format strict ne sont plus nettoyées par `PARAM_TEXT` : une
+    option contenant une balise ou « < » redevient choisissable ;
+  - une question déjà répondue ne change de type que vers un type compatible (choix unique vers
+    cases à cocher, texte court vers commentaire, note vers nombre) ;
+  - le transfert entre promotions ne rattache plus une réponse à une question de type incompatible ;
+  - export pré-stage : Excel écrit en flux, cellules typées (nombres numériques, textes jamais
+    lus comme formules), 20 700 lignes en 3,5 s au lieu d'une erreur mémoire ; stages lus par
+    paquets ; courriel réservé à la DEVE ; dates au format AAAA-MM-JJ ; valeurs échappées en
+    HTML et PDF ; formules neutralisées sous Moodle 4.3 ; format inconnu refusé ;
+  - nombre infini refusé, tableau falsifié signalé comme réponse invalide, oui/non dans la langue
+    de l'utilisateur et sur sa propre ligne, date du formulaire de demande grégorienne, texte
+    court borné côté navigateur.
+- Guides : captures des nouveautés (`demo_questions.php`, `plan_questions.json`) et texte sur
+  les types de question, l'export pré-stage et la check-list des prérequis.
+
 ## mod_stage 0.6.0 et mod_stagesynthesis 0.2.2 — 2026-11-07
 
 Version technique `2026110700` pour `mod_stage` (étape de mise à jour : quatre champs) et

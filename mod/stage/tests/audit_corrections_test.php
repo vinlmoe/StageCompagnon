@@ -257,7 +257,8 @@ final class audit_corrections_test extends \advanced_testcase {
         $saved = stage_get_entry_workdays($entry->id);
         $this->assertCount(5, $saved);
         $this->assertSame(stage_normalize_day($montreal[0]), $saved[0]);
-        $this->assertSame('02/03/2026', userdate($saved[0], '%d/%m/%Y', 'Europe/Paris'));
+        // Sans fixday, pour garder le zéro du jour quelle que soit la configuration du site.
+        $this->assertSame('02/03/2026', userdate($saved[0], '%d/%m/%Y', 'Europe/Paris', false));
     }
 
     /**
@@ -462,7 +463,7 @@ final class audit_corrections_test extends \advanced_testcase {
         $generator->create_entry($stage, $other->id, $theme);
 
         $this->setUser($student);
-        $result = \external_api::clean_returnvalue(
+        $result = \core_external\external_api::clean_returnvalue(
             external\get_my_stages::execute_returns(),
             external\get_my_stages::execute($stage->cmid)
         );

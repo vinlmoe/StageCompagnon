@@ -201,7 +201,7 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
     }
 
     /**
-     * Restaure un élément de la check-list d'objectifs d'une thématique.
+     * Restaure un élément de la check-list des prérequis d'une thématique.
      *
      * @param array $data
      */
@@ -531,7 +531,7 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
     }
 
     /**
-     * Restaure une réponse à un élément de la check-list d'objectifs. La ligne est écartée si
+     * Restaure une réponse à un élément de la check-list des prérequis. La ligne est écartée si
      * l'objectif lui-même n'a pas été restauré (thématique absente de la sauvegarde).
      *
      * @param array $data

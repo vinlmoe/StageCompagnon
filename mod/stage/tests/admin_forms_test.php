@@ -20,6 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
+require_once($CFG->libdir . '/pdflib.php');
 require_once($CFG->dirroot . '/mod/stage/classes/form/conventions_admin_form.php');
 require_once($CFG->dirroot . '/mod/stage/classes/form/convention_template_form.php');
 require_once($CFG->dirroot . '/mod/stage/classes/form/notifications_form.php');
@@ -78,7 +79,7 @@ final class admin_forms_test extends \advanced_testcase {
             'itemid' => $draftitemid,
             'filepath' => '/',
             'filename' => 'g.pdf',
-        ], '%PDF-1.4');
+        ], $this->template_pdf());
         $this->assertSame([], $new->validation(['name' => 'A', 'templatefile' => $draftitemid], []));
 
         $existing = new \mod_stage\form\convention_template_form(null, ['editing' => true]);
@@ -110,5 +111,18 @@ final class admin_forms_test extends \advanced_testcase {
             $this->assertTrue($mform->elementExists('subject_' . $key), $key);
             $this->assertTrue($mform->elementExists('body_' . $key), $key);
         }
+    }
+
+    /**
+     * Contenu d'un PDF d'une page, lisible par FPDI comme un vrai gabarit de convention : un
+     * simple « %PDF-1.4 » est refusé par stage_convention_template_readable().
+     *
+     * @return string
+     */
+    private function template_pdf(): string {
+        $pdf = new \pdf();
+        $pdf->AddPage();
+        $pdf->Write(10, 'Articles');
+        return $pdf->Output('', 'S');
     }
 }

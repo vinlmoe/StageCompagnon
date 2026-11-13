@@ -1,0 +1,33 @@
+Export général (export.php) : ancienne version (MoodleExcelWorkbook) contre version en flux
+(OpenSpout). Moodle 4.5, PHP 8.3, PostgreSQL 16, serveur intégré de PHP, un seul client.
+Durée côté client et côté serveur, pic de mémoire PHP (memory_get_peak_usage(true), consigné par
+export_prepend.php). Le classeur des deux versions est comparé par export_compare.py.
+
+Site : setup.php 1500 puis export_data.php (3 000 stages, 46 200 réponses).
+$ python3 export_bench.py site-2.json export_old.php 3 old.xlsx
+export_old.php : meilleur 77.76 s, médiane 78.48 s, pic 554.2 Mo, 2634728 octets
+$ python3 export_bench.py site-2.json export.php 3 new.xlsx
+export.php : meilleur 7.63 s, médiane 7.76 s, pic 68.7 Mo, 2839958 octets
+$ python3 export_compare.py old.xlsx new.xlsx
+767599 cellules comparées, feuilles ['Cohort report', 'Internships', 'Questionnaire answers']
+format Internships colonne 13 : 'm/d/yy h:mm' -> 'dd/mm/yyyy' (3000 cellules)
+... (même écart pour les 17 colonnes de dates de « Stages » et les 2 de « Réponses »)
+0 écart(s) de valeur
+Même classeur produit avec l'OpenSpout 4.15 de Moodle 4.3 (lib/openspout substitué) :
+export.php : meilleur 7.94 s, pic 68.7 Mo ; 0 écart(s) de valeur.
+global_export_importer::read() sur les deux classeurs : 3 000 enregistrements, 0 avertissement,
+résultats identiques.
+
+Site : volume.php site-2.json 5000 en plus (8 000 stages, 86 200 réponses).
+$ python3 export_bench.py site-2.json export_old.php 1 old8k.xlsx
+export_old.php : meilleur 166.4 s, médiane 166.4 s, pic 1089.4 Mo, 5093165 octets
+$ python3 export_bench.py site-2.json export.php 3 new8k.xlsx
+export.php : meilleur 15.43 s, médiane 15.73 s, pic 116 Mo, 5429960 octets
+$ python3 export_compare.py old8k.xlsx new8k.xlsx
+1602599 cellules comparées, feuilles ['Cohort report', 'Internships', 'Questionnaire answers']
+0 écart(s) de valeur
+
+Répartition du temps de la version en flux, 3 000 stages (points de mesure dans la page) :
+bilan de promotion 0,3 s ; données des stages 0,06 s ; feuille « Stages » 1,0 s ; requête et
+notes textuelles 0,5 s ; feuille « Réponses » 3,1 s ; fermeture et compression du zip 3,0 s.
+58 requêtes en tout.

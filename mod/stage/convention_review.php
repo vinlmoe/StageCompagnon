@@ -236,7 +236,7 @@ echo stage_render_request_answers($entry);
 
 $mform->display();
 
-// Check-list d'objectifs renseignée par l'étudiant avec sa demande : elle ne fait pas partie de la
+// Check-list des prérequis renseignée par l'étudiant avec sa demande : elle ne fait pas partie de la
 // convention, mais c'est ici qu'elle est utile, avant de la valider. La correction se fait sur sa
 // propre page (entry_checklist.php), qui ramène ensuite ici.
 echo stage_render_entry_checklist_section($stage, $cm, $context, $entry, $PAGE->url);

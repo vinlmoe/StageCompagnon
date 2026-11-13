@@ -57,7 +57,7 @@ class mod_stage_generator extends testing_module_generator {
     }
 
     /**
-     * Crée un élément de la check-list d'objectifs d'une thématique.
+     * Crée un élément de la check-list des prérequis d'une thématique.
      *
      * @param stdClass|int $theme Thématique (ou son id).
      * @param array $record Champs à surcharger : name, description, sortorder.
