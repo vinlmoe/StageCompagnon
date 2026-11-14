@@ -41,6 +41,11 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class student_register_form extends \moodleform {
+    /** @var string[] Listes déroulantes obligatoires, dont la valeur doit figurer parmi les options. */
+    const SELECT_FIELDS = [
+        'themeid', 'studyyear', 'conventionlang', 'conventiontemplateid', 'referentteacherid', 'yearsituation', 'stagetype',
+    ];
+
     /**
      * Defines the form fields.
      */
@@ -279,9 +284,9 @@ class student_register_form extends \moodleform {
     }
 
     /**
-     * Validation serveur : vérifie la cohérence des plages de dates, refuse un doublon (même
-     * thématique et mêmes dates pour l'étudiant connecté) et vérifie que le gabarit sélectionné
-     * est dans la langue choisie.
+     * Validation serveur : vérifie que chaque liste déroulante a une valeur parmi ses options et
+     * la cohérence des plages de dates, refuse un doublon (même thématique et mêmes dates pour
+     * l'étudiant connecté) et vérifie que le gabarit sélectionné est dans la langue choisie.
      *
      * @param array $data
      * @param array $files
@@ -289,6 +294,14 @@ class student_register_form extends \moodleform {
      */
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
+
+        // Une valeur hors liste (formulaire falsifié) disparaît des données exportées : elle est
+        // signalée sur son champ plutôt que de faire échouer l'enregistrement. Sans thématique
+        // valide, ni le contrôle de doublon ni la check-list n'ont d'objet.
+        $errors += stage_validate_select_fields($this->_form, $data, self::SELECT_FIELDS);
+        if (isset($errors['themeid'])) {
+            return $errors;
+        }
 
         // Les dates du stage étant déduites des plages, leur cohérence conditionne tout le reste :
         // le contrôle de doublon ci-dessous s'appuie sur elles.
@@ -314,10 +327,12 @@ class student_register_form extends \moodleform {
             $errors['themeid'] = get_string('errorduplicateentry', 'mod_stage');
         }
 
-        $templates = $this->_customdata['templates'];
-        $template = $templates[$data['conventiontemplateid']] ?? null;
-        if (!$template || $template->lang !== $data['conventionlang']) {
-            $errors['conventiontemplateid'] = get_string('conventiontemplatelangmismatch', 'mod_stage');
+        if (!isset($errors['conventionlang']) && !isset($errors['conventiontemplateid'])) {
+            $templates = $this->_customdata['templates'];
+            $template = $templates[$data['conventiontemplateid']] ?? null;
+            if (!$template || $template->lang !== $data['conventionlang']) {
+                $errors['conventiontemplateid'] = get_string('conventiontemplatelangmismatch', 'mod_stage');
+            }
         }
 
         // Seule la check-list de la thématique retenue est contrôlée : les champs des autres
