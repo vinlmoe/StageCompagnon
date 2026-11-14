@@ -1,0 +1,70 @@
+ok    formulaire étudiant affiché sans erreur
+ok    options échappées dans le formulaire
+ok    étudiant, choix inconnu : refusé
+ok    étudiant, case inconnue : refusé
+ok    étudiant, cases requises vides : refusé
+ok    étudiant, oui/non inconnu : refusé
+ok    étudiant, oui/non en tableau : refusé
+ok    étudiant, note 6 : refusé
+ok    étudiant, nombre en lettres : refusé
+ok    étudiant, date inexistante : refusé
+ok    étudiant, date au format français : refusé
+ok    étudiant, texte court de 300 car. : refusé
+ok    étudiant, réponses valides enregistrées sous leur forme normalisée
+ok    détail DEVE sans erreur
+ok    détail : texte libre échappé
+ok    détail : oui/non en clair
+ok    détail : cases cochées en liste
+ok    enseignant, réponses enregistrées
+ok    maître de stage (fr) : options dans sa langue
+ok    maître de stage (fr) : réponses enregistrées
+ok    maître de stage (en) : options dans sa langue
+ok    maître de stage (en) : réponses enregistrées
+ok    formulaire de demande affiché sans erreur
+ok    demande : cases à cocher en liste multiple
+ok    demande : sélecteur de date
+ok    demande : réponses enregistrées sous leur forme normalisée
+ok    demande : check-list des prérequis enregistrée
+ok    demande invalide : refusée, rien d'enregistré
+ok    demande invalide : erreurs affichées sur les champs
+ok    demande avec « = » en tête : enregistrée
+ok    demande refusée : cases reprises
+ok    demande refusée : date reprise
+ok    nouvelle liste : formulaire sans erreur, huit types proposés
+ok    liste : cases à cocher sans option refusées
+ok    liste : options gardées pour les cases, retirées pour la date
+ok    export général : 11 colonnes, dont valeur numérique et type
+ok    export général : réponses du premier stage présentes
+ok    export général : nombre en colonne numérique
+ok    export général : oui/non en clair et 1/0
+ok    export général : cases séparées par « ; »
+ok    export général : note en colonne de note
+ok    export pré-stage (excel) : téléchargé (0.04 s)
+ok    export pré-stage : une ligne par demande déposée
+ok    export pré-stage Excel : « = » écrit en texte, pas en formule
+ok    export pré-stage : nombre et note numériques
+ok    export pré-stage : date mise en forme
+ok    export pré-stage (csv) : téléchargé (0.03 s)
+ok    export pré-stage CSV : formule neutralisée
+ok    export pré-stage CSV : cases cochées dans une seule cellule
+ok    export pré-stage (ods) : téléchargé (0.03 s)
+ok    export pré-stage ODS : contenu lisible
+ok    export pré-stage (json) : téléchargé (0.02 s)
+ok    export pré-stage (html) : téléchargé (0.03 s)
+ok    export pré-stage : filtre de recherche appliqué
+ok    export pré-stage : format inconnu refusé proprement
+ok    export pré-stage : accès t14_1 autorisé
+ok    export pré-stage : accès t14_2 refusé
+ok    export pré-stage : accès s14_6 refusé
+ok    bouton d'export sur la liste des stages de la thématique
+ok    liste de la thématique Q sans erreur
+ok    changement de type incompatible refusé
+ok    changement de type compatible permis (choix -> cases)
+ok    nombre 1e999 refusé
+ok    tableau falsifié : réponse invalide signalée
+ok    export pré-stage : courriel absent pour t14_1
+ok    export pré-stage : courriel présent pour deve14_1
+ok    export pré-stage HTML : options échappées
+ok    export pré-stage : dates au format AAAA-MM-JJ
+
+0 échec(s)

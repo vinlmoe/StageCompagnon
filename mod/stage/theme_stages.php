@@ -151,6 +151,18 @@ if (stage_filtered_entries_have_reports($context, $stage->id, $filters)) {
     );
 }
 
+// Export des réponses au questionnaire de demande (pré-stage), pour les stages de la liste telle
+// que filtrée, dans le format choisi : proposé dès que la thématique a un questionnaire de demande
+// ou que des stages y ont répondu.
+if (stage_theme_has_request_answers($theme)) {
+    echo $OUTPUT->download_dataformat_selector(
+        get_string('requestanswersexport', 'mod_stage'),
+        new moodle_url('/mod/stage/request_answers_export.php'),
+        'dataformat',
+        ['id' => $cm->id, 'themeid' => $themeid, 'search' => $search, 'status' => $filterstatus]
+    );
+}
+
 $table = new html_table();
 $table->head = [
     stage_sort_header(get_string('student', 'mod_stage'), 'student', $listurl, $tsort, $tdir),

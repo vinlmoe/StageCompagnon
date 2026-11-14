@@ -105,7 +105,7 @@ if (empty($referentteachers)) {
 }
 
 $periods = array_values(stage_get_or_seed_entry_periods($entry));
-// Check-list d'objectifs de la thématique du stage : la thématique est déjà fixée par la saisie,
+// Check-list des prérequis de la thématique du stage : la thématique est déjà fixée par la saisie,
 // seuls ses éléments sont donc proposés.
 $checklistitems = stage_get_theme_checklist($entry->themeid);
 $requestquestions = stage_get_questions($entry->themeid, 'request');

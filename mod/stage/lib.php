@@ -36,6 +36,8 @@ define('STAGE_STATUS_NON_VALIDE', -1);
 define('STAGE_STATUS_ANNULE', -2);
 /** Nombre de lignes par page pour les listes paginées (DEVE / enseignant référent). */
 define('STAGE_LIST_PERPAGE', 40);
+/** Longueur maximale d'une réponse à une question de type « shorttext » (texte court). */
+define('STAGE_QUESTION_SHORTTEXT_MAXLENGTH', 255);
 
 /** Convention de stage : refusée par la DEVE avec commentaire, à corriger par l'étudiant. */
 define('STAGE_CONVENTION_REJECTED', -1);
@@ -240,7 +242,7 @@ function stage_delete_instance($id) {
         $DB->delete_records_select('stage_theme_teacher', "themeid $insql", $inparams);
         // Durées par année d'étude : rattachées à la thématique, elles doivent disparaître avec elle.
         $DB->delete_records_select('stage_theme_duration', "themeid $insql", $inparams);
-        // Check-list d'objectifs : idem. Les réponses des étudiants sont parties avec les saisies
+        // Check-list des prérequis : idem. Les réponses des étudiants sont parties avec les saisies
         // ci-dessus (stage_delete_entries()), les éléments eux-mêmes restent à supprimer.
         $DB->delete_records_select('stage_theme_checklist', "themeid $insql", $inparams);
     }

@@ -113,7 +113,7 @@ if (empty($referentteachers)) {
 
 $existingperiods = $existingentry ? array_values(stage_get_or_seed_entry_periods($existingentry)) : [];
 
-// Check-list d'objectifs de chaque thématique proposée : la thématique se choisissant dans ce
+// Check-list des prérequis de chaque thématique proposée : la thématique se choisissant dans ce
 // formulaire, toutes sont chargées, et le formulaire ne montre que celle de la thématique
 // sélectionnée (voir stage_add_checklist_fields()).
 $checklistsbytheme = stage_get_theme_checklists(array_keys($themes));
@@ -288,7 +288,7 @@ if ($mform->is_cancelled()) {
                 stage_extract_request_answers($data, (int) $data->themeid, $requestquestions)
             );
 
-            // Check-list d'objectifs de la thématique retenue : elle accompagne la demande sans figurer
+            // Check-list des prérequis de la thématique retenue : elle accompagne la demande sans figurer
             // dans la convention, et reste corrigeable ensuite par la DEVE et l'enseignant référent.
             $checklistitems = $checklistsbytheme[(int) $data->themeid] ?? [];
             stage_save_entry_checklist(

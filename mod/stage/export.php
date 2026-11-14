@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Export au format Excel (xlsx), pour la DEVE, en deux feuilles :
+ * Export au format Excel (xlsx), pour la DEVE, en trois feuilles :
  *
  * - « Bilan de promotion » : une ligne par étudiant inscrit, avec la validation de l'année
  *   d'étude courante et des précédentes, les étudiants en défaut en tête (voir
@@ -32,13 +32,20 @@
  *
  * Le bilan destiné à être imprimé ou diffusé est produit en PDF par export_pdf.php.
  *
+ * Le classeur est écrit en flux par OpenSpout, ligne après ligne, plutôt que construit en mémoire
+ * par MoodleExcelWorkbook (PhpSpreadsheet) : celui-ci crée un objet et applique un style pour
+ * chaque cellule, ce qui coûtait plus d'une minute et plus de 500 Mo pour quelques milliers de
+ * stages, quand les requêtes en base ne prennent qu'une fraction de seconde. Les cellules sont
+ * typées comme le faisait MoodleExcelWorksheet : nombres en cellules numériques, dates en cellules
+ * date au format jj/mm/aaaa, textes en cellules texte (jamais en formules), protégés comme le fait
+ * write_string() lorsque la version de Moodle le fait.
+ *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 require(__DIR__ . '/../../config.php');
-require_once($CFG->libdir . '/excellib.class.php');
 require_once($CFG->dirroot . '/mod/stage/lib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
@@ -59,18 +66,70 @@ raise_memory_limit(MEMORY_HUGE);
 
 $filename = clean_filename(stage_plain_string($course->shortname) . '_' . stage_plain_string($stage->name) . '_stages.xlsx');
 
-$workbook = new MoodleExcelWorkbook('-');
-$workbook->send($filename);
+// Mêmes formats que MoodleExcelWorksheet : format « texte » pour les textes, général pour les
+// nombres, jj/mm/aaaa pour les dates, en-têtes en gras. Le format texte est porté par la ligne
+// plutôt que par chaque cellule : OpenSpout fusionne le style d'une cellule avec celui de sa
+// ligne, à chaque cellule, ce qui triplait le temps d'écriture. Seuls les nombres et les dates,
+// minoritaires, portent leur propre style.
+$textstyle = (new \OpenSpout\Common\Entity\Style\Style())->setFormat('@');
+$headerstyle = (new \OpenSpout\Common\Entity\Style\Style())->setFontBold()->setFormat('@');
+$numberstyle = (new \OpenSpout\Common\Entity\Style\Style())->setFormat('General');
+$datestyle = (new \OpenSpout\Common\Entity\Style\Style())->setFormat('dd/mm/yyyy');
+$usertimezone = core_date::get_user_timezone_object();
+// Protection des textes commençant par = + - ou @, appliquée par write_string() dans les versions
+// de Moodle qui la connaissent : la restauration de l'export (global_export_importer) la retire.
+$escapeformula = method_exists(\core\dataformat::class, 'escape_spreadsheet_formula');
 
-$headerformat = new MoodleExcelFormat(['bold' => 1]);
-$dateformat = new MoodleExcelFormat(['num_format' => 'dd/mm/yyyy']);
+$textcell = function ($value) use ($escapeformula) {
+    $value = (string) $value;
+    if ($escapeformula) {
+        $value = (string) \core\dataformat::escape_spreadsheet_formula($value);
+    }
+    return new \OpenSpout\Common\Entity\Cell\StringCell($value, null);
+};
+$numbercell = function ($value) use ($numberstyle) {
+    return new \OpenSpout\Common\Entity\Cell\NumericCell($value, $numberstyle);
+};
+// Date au format du tableur, vide si l'étape n'a pas eu lieu : une cellule vide se filtre et se
+// trie, contrairement à un « - » ou à un horodatage à 0 affiché comme 01/01/1970. Comme
+// write_date(), la date et l'heure sont celles du fuseau de l'utilisateur ; le format jj/mm/aaaa
+// est celui que demandait l'ancien export, que MoodleExcelFormat ignorait (il n'accepte que
+// quelques formats prédéfinis : les dates s'affichaient avec l'heure, au format m/d/yy h:mm).
+$datecell = function ($timestamp) use ($textcell, $datestyle, $usertimezone) {
+    if (empty($timestamp)) {
+        return $textcell('');
+    }
+    $datetime = (new DateTimeImmutable('@' . (int) $timestamp))->setTimezone($usertimezone);
+    return new \OpenSpout\Common\Entity\Cell\DateTimeCell($datetime, $datestyle);
+};
+// Cellule laissée vierge (ni valeur ni format), comme une cellule où l'ancien export n'écrivait
+// rien : le format général l'emporte sur le format texte de la ligne, et OpenSpout n'écrit pas
+// une cellule vide sans format particulier.
+$blankcell = function () use ($numberstyle) {
+    return new \OpenSpout\Common\Entity\Cell\EmptyCell(null, $numberstyle);
+};
+// Nom de feuille nettoyé comme le fait MoodleExcelWorksheet (caractères interdits, 31 caractères).
+$sheetname = function ($name) {
+    $name = trim(core_text::substr(strtr(trim($name, "'"), '[]*/\\?:', '       '), 0, 31), "'");
+    return $name === '' ? 'Sheet' : $name;
+};
+$headerrow = function (array $headers) use ($textcell, $headerstyle) {
+    return new \OpenSpout\Common\Entity\Row(array_map($textcell, $headers), $headerstyle);
+};
+
+\core\session\manager::write_close();
+$writer = new \OpenSpout\Writer\XLSX\Writer();
+if (method_exists($writer->getOptions(), 'setTempFolder')) {
+    $writer->getOptions()->setTempFolder(make_request_directory());
+}
+$writer->openToBrowser($filename);
 
 // ---------------------------------------------------------------------------------------------
 // Feuille 1 : bilan de promotion.
 
 $report = stage_get_promotion_report($stage, $context);
 
-$sheet = $workbook->add_worksheet(get_string('promotionreport', 'mod_stage'));
+$writer->getCurrentSheet()->setName($sheetname(get_string('promotionreport', 'mod_stage')));
 
 $headers = [get_string('student', 'mod_stage'), get_string('email')];
 foreach ($report->years as $year) {
@@ -84,27 +143,24 @@ $headers = array_merge($headers, [
     get_string('pendingstages', 'mod_stage'),
     get_string('status', 'mod_stage'),
 ]);
-foreach ($headers as $col => $header) {
-    $sheet->write_string(0, $col, $header, $headerformat);
-}
+$writer->addRow($headerrow($headers));
 
-$row = 1;
 foreach ($report->rows as $reportrow) {
-    $col = 0;
-    $sheet->write_string($row, $col++, fullname($reportrow->user));
-    $sheet->write_string($row, $col++, (string) $reportrow->user->email);
+    $cells = [];
+    $cells[] = $textcell(fullname($reportrow->user));
+    $cells[] = $textcell((string) $reportrow->user->email);
     foreach ($report->years as $year) {
         // Une année sans objectif pour cet étudiant n'est ni validée ni en défaut : un tiret,
         // plutôt qu'un « non » qui se lirait comme un manquement.
-        $sheet->write_string($row, $col++, !isset($reportrow->yearsdone[$year])
+        $cells[] = $textcell(!isset($reportrow->yearsdone[$year])
             ? '-'
             : ($reportrow->yearsdone[$year] ? get_string('yes') : get_string('no')));
     }
-    $sheet->write_string($row, $col++, implode(', ', array_map(function ($year) {
+    $cells[] = $textcell(implode(', ', array_map(function ($year) {
         return stage_studyyear_label($year);
     }, $reportrow->failedyears)));
-    $sheet->write_number($row, $col++, (int) $reportrow->progress->totalretained);
-    $sheet->write_string($row, $col++, $reportrow->mandatorytotal > 0
+    $cells[] = $numbercell((int) $reportrow->progress->totalretained);
+    $cells[] = $textcell($reportrow->mandatorytotal > 0
         ? "{$reportrow->mandatorydone} / {$reportrow->mandatorytotal}" : '-');
     // Une mobilité d'études validée par la DEVE remplace le décompte des jours à l'étranger.
     if ($reportrow->abroadprogress->studymobility !== null) {
@@ -113,11 +169,11 @@ foreach ($report->rows as $reportrow) {
         $abroadcell = $reportrow->abroadprogress->required > 0
             ? "{$reportrow->abroadprogress->retained} / {$reportrow->abroadprogress->required}" : '-';
     }
-    $sheet->write_string($row, $col++, $abroadcell);
-    $sheet->write_number($row, $col++, (int) $reportrow->pendingcount);
-    $sheet->write_string($row, $col++, $reportrow->uptodate
+    $cells[] = $textcell($abroadcell);
+    $cells[] = $numbercell((int) $reportrow->pendingcount);
+    $cells[] = $textcell($reportrow->uptodate
         ? get_string('promotionuptodate', 'mod_stage') : get_string('themetodo', 'mod_stage'));
-    $row++;
+    $writer->addRow(new \OpenSpout\Common\Entity\Row($cells, $textstyle));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -225,21 +281,11 @@ $actorname = function ($userid) use ($actors) {
     return !empty($userid) && isset($actors[$userid]) ? fullname($actors[$userid]) : '';
 };
 
-// Date au format du tableur, vide si l'étape n'a pas eu lieu : une cellule vide se filtre et se
-// trie, contrairement à un « - » ou à un horodatage à 0 affiché comme 01/01/1970.
-$writedate = function ($sheet, $row, $col, $timestamp) use ($dateformat) {
-    if (!empty($timestamp)) {
-        $sheet->write_date($row, $col, $timestamp, $dateformat);
-    } else {
-        $sheet->write_string($row, $col, '');
-    }
-};
-
 $yesno = function ($value) {
     return !empty($value) ? get_string('yes') : get_string('no');
 };
 
-$sheet = $workbook->add_worksheet(get_string('allstages', 'mod_stage'));
+$writer->addNewSheetAndMakeItCurrent()->setName($sheetname(get_string('allstages', 'mod_stage')));
 
 $headers = [
     // Identifiant de la saisie : sans lui, les réponses de la feuille 3 ne pourraient pas être
@@ -331,9 +377,7 @@ $headers = [
     get_string('timecreated', 'mod_stage'),
     get_string('lastmodified'),
 ];
-foreach ($headers as $col => $header) {
-    $sheet->write_string(0, $col, $header, $headerformat);
-}
+$writer->addRow($headerrow($headers));
 
 // Les plages sont écrites en JJ/MM/AAAA, quelle que soit la langue : la restauration de l'export
 // (import_global.php) doit pouvoir les relire.
@@ -343,7 +387,6 @@ $yearsituationoptions = stage_convention_yearsituation_options();
 $reportmodeoptions = stage_report_mode_options();
 $conventiontemplates = stage_get_convention_templates($stage->id);
 
-$row = 1;
 foreach ($entries as $entry) {
     $student = $students[$entry->userid] ?? null;
     $theme = $themes[$entry->themeid] ?? null;
@@ -366,107 +409,107 @@ foreach ($entries as $entry) {
         return $detail !== null ? (string) $detail->$field : '';
     };
 
-    $col = 0;
-    $sheet->write_number($row, $col++, (int) $entry->id);
-    $sheet->write_string($row, $col++, $student ? fullname($student) : '');
-    $sheet->write_string($row, $col++, $student ? $student->email : '');
-    $sheet->write_string($row, $col++, stage_studyyear_label($entry->studyyear));
-    $sheet->write_string($row, $col++, $detail !== null
+    $cells = [];
+    $cells[] = $numbercell((int) $entry->id);
+    $cells[] = $textcell($student ? fullname($student) : '');
+    $cells[] = $textcell($student ? $student->email : '');
+    $cells[] = $textcell(stage_studyyear_label($entry->studyyear));
+    $cells[] = $textcell($detail !== null
         ? ($yearsituationoptions[$detail->yearsituation] ?? $detail->yearsituation) : '');
-    $sheet->write_string($row, $col++, $theme ? stage_plain_string($theme->name) : '');
-    $sheet->write_string($row, $col++, $yesno($theme && $theme->mandatory));
-    $sheet->write_string($row, $col++, $theme ? ($themeteachers[$theme->id] ?? '') : '');
+    $cells[] = $textcell($theme ? stage_plain_string($theme->name) : '');
+    $cells[] = $textcell($yesno($theme && $theme->mandatory));
+    $cells[] = $textcell($theme ? ($themeteachers[$theme->id] ?? '') : '');
 
-    $sheet->write_string($row, $col++, $stagetypeoptions[$stagetype] ?? $stagetype);
-    $sheet->write_string($row, $col++, (string) $entry->structure);
-    $sheet->write_string($row, $col++, $yesno($entry->abroad));
-    $sheet->write_string($row, $col++, (string) $entry->country);
-    $writedate($sheet, $row, $col++, $entry->datestart);
-    $writedate($sheet, $row, $col++, $entry->dateend);
+    $cells[] = $textcell($stagetypeoptions[$stagetype] ?? $stagetype);
+    $cells[] = $textcell((string) $entry->structure);
+    $cells[] = $textcell($yesno($entry->abroad));
+    $cells[] = $textcell((string) $entry->country);
+    $cells[] = $datecell($entry->datestart);
+    $cells[] = $datecell($entry->dateend);
 
     // Les plages ne sont détaillées que quand il y en a plusieurs : sinon elles répètent
     // exactement les deux colonnes de dates qui précèdent.
-    $sheet->write_string($row, $col++, count($periodlabels) > 1 ? implode(' ; ', $periodlabels) : '');
+    $cells[] = $textcell(count($periodlabels) > 1 ? implode(' ; ', $periodlabels) : '');
 
-    $sheet->write_number($row, $col++, (int) ($workdaycounts[$entry->id] ?? 0));
-    $sheet->write_number($row, $col++, (int) $entry->declaredduration);
-    $sheet->write_number($row, $col++, (int) $entry->retainedduration);
-    $sheet->write_string($row, $col++, stage_status_label($entry->status));
+    $cells[] = $numbercell((int) ($workdaycounts[$entry->id] ?? 0));
+    $cells[] = $numbercell((int) $entry->declaredduration);
+    $cells[] = $numbercell((int) $entry->retainedduration);
+    $cells[] = $textcell(stage_status_label($entry->status));
 
-    $sheet->write_string($row, $col++, stage_convention_status_label($entry->conventionstatus));
-    $sheet->write_string($row, $col++, $template ? stage_plain_string($template->name) : '');
-    $sheet->write_string($row, $col++, $detail !== null ? $actorname($detail->referentteacherid) : '');
-    $writedate($sheet, $row, $col++, $entry->conventionrequesttime);
-    $sheet->write_string($row, $col++, $actorname($entry->conventionteachervalidatedby));
-    $writedate($sheet, $row, $col++, $entry->conventionteachervalidatetime);
-    $sheet->write_string($row, $col++, $actorname($entry->conventionthemevalidatedby));
-    $writedate($sheet, $row, $col++, $entry->conventionthemevalidatetime);
-    $sheet->write_string($row, $col++, $actorname($entry->conventioneditedby));
-    $writedate($sheet, $row, $col++, $entry->conventionedittime);
-    $sheet->write_string($row, $col++, $actorname($entry->conventionsignedby));
-    $writedate($sheet, $row, $col++, $entry->conventionsigntime);
-    $sheet->write_string($row, $col++, $actorname($entry->conventionrejectedby));
-    $writedate($sheet, $row, $col++, $entry->conventionrejecttime);
-    $sheet->write_string($row, $col++, (string) $entry->conventionrejectcomment);
+    $cells[] = $textcell(stage_convention_status_label($entry->conventionstatus));
+    $cells[] = $textcell($template ? stage_plain_string($template->name) : '');
+    $cells[] = $textcell($detail !== null ? $actorname($detail->referentteacherid) : '');
+    $cells[] = $datecell($entry->conventionrequesttime);
+    $cells[] = $textcell($actorname($entry->conventionteachervalidatedby));
+    $cells[] = $datecell($entry->conventionteachervalidatetime);
+    $cells[] = $textcell($actorname($entry->conventionthemevalidatedby));
+    $cells[] = $datecell($entry->conventionthemevalidatetime);
+    $cells[] = $textcell($actorname($entry->conventioneditedby));
+    $cells[] = $datecell($entry->conventionedittime);
+    $cells[] = $textcell($actorname($entry->conventionsignedby));
+    $cells[] = $datecell($entry->conventionsigntime);
+    $cells[] = $textcell($actorname($entry->conventionrejectedby));
+    $cells[] = $datecell($entry->conventionrejecttime);
+    $cells[] = $textcell((string) $entry->conventionrejectcomment);
 
-    $writedate($sheet, $row, $col++, $detail !== null ? $detail->studentbirthdate : null);
-    $sheet->write_string($row, $col++, $detailvalue('studentaddress'));
-    $sheet->write_string($row, $col++, $detailvalue('studentphone'));
-    $sheet->write_string($row, $col++, $detailvalue('hostaddress'));
-    $sheet->write_string($row, $col++, $detailvalue('hostrepresentative'));
-    $sheet->write_string($row, $col++, $detailvalue('hostrepresentativetitle'));
-    $sheet->write_string($row, $col++, $detailvalue('hostservice'));
-    $sheet->write_string($row, $col++, $detailvalue('hostphone'));
-    $sheet->write_string($row, $col++, $detailvalue('hostemail'));
-    $sheet->write_string($row, $col++, $detailvalue('siret'));
-    $sheet->write_string($row, $col++, $detailvalue('hostlocation'));
-    $sheet->write_string($row, $col++, $detailvalue('tutorname'));
-    $sheet->write_string($row, $col++, $detailvalue('tutorfunction'));
-    $sheet->write_string($row, $col++, $detailvalue('tutorphone'));
-    $sheet->write_string($row, $col++, $detailvalue('tutoremail'));
-    $sheet->write_string($row, $col++, $detail !== null ? $yesno($detail->nightpresence) : '');
-    $sheet->write_string($row, $col++, $detail !== null ? $yesno($detail->sundaypresence) : '');
-    $sheet->write_string($row, $col++, $detail !== null ? $yesno($detail->holidaypresence) : '');
-    $sheet->write_string($row, $col++, $detail !== null ? $yesno($detail->homebased) : '');
-    $sheet->write_string($row, $col++, $detailvalue('othermodality'));
-    $sheet->write_string($row, $col++, $detailvalue('gratificationamount'));
-    $sheet->write_string($row, $col++, $detail !== null ? $yesno($detail->hasleave) : '');
-    $sheet->write_string($row, $col++, $detailvalue('leavedays'));
-    $sheet->write_string($row, $col++, $detailvalue('leavemodalities'));
+    $cells[] = $datecell($detail !== null ? $detail->studentbirthdate : null);
+    $cells[] = $textcell($detailvalue('studentaddress'));
+    $cells[] = $textcell($detailvalue('studentphone'));
+    $cells[] = $textcell($detailvalue('hostaddress'));
+    $cells[] = $textcell($detailvalue('hostrepresentative'));
+    $cells[] = $textcell($detailvalue('hostrepresentativetitle'));
+    $cells[] = $textcell($detailvalue('hostservice'));
+    $cells[] = $textcell($detailvalue('hostphone'));
+    $cells[] = $textcell($detailvalue('hostemail'));
+    $cells[] = $textcell($detailvalue('siret'));
+    $cells[] = $textcell($detailvalue('hostlocation'));
+    $cells[] = $textcell($detailvalue('tutorname'));
+    $cells[] = $textcell($detailvalue('tutorfunction'));
+    $cells[] = $textcell($detailvalue('tutorphone'));
+    $cells[] = $textcell($detailvalue('tutoremail'));
+    $cells[] = $textcell($detail !== null ? $yesno($detail->nightpresence) : '');
+    $cells[] = $textcell($detail !== null ? $yesno($detail->sundaypresence) : '');
+    $cells[] = $textcell($detail !== null ? $yesno($detail->holidaypresence) : '');
+    $cells[] = $textcell($detail !== null ? $yesno($detail->homebased) : '');
+    $cells[] = $textcell($detailvalue('othermodality'));
+    $cells[] = $textcell($detailvalue('gratificationamount'));
+    $cells[] = $textcell($detail !== null ? $yesno($detail->hasleave) : '');
+    $cells[] = $textcell($detailvalue('leavedays'));
+    $cells[] = $textcell($detailvalue('leavemodalities'));
 
     // Les évaluations sont exportées en texte : les réponses aux questionnaires définis par
     // thématique, elles, ne tiennent pas en colonnes fixes et font l'objet de la feuille 3. Un
     // texte brut (évaluation importée de StageVet, une information par ligne) garde ses retours à
     // la ligne ; seul un texte saisi dans l'éditeur est converti depuis le HTML.
     $selfeval = (string) $entry->studentselfeval;
-    $sheet->write_string($row, $col++, $selfeval !== strip_tags($selfeval) ? html_to_text($selfeval, 0, false) : $selfeval);
-    $sheet->write_string($row, $col++, $referentsbyuser[$entry->userid] ?? '');
+    $cells[] = $textcell($selfeval !== strip_tags($selfeval) ? html_to_text($selfeval, 0, false) : $selfeval);
+    $cells[] = $textcell($referentsbyuser[$entry->userid] ?? '');
     // L'évaluateur figure parmi les intervenants résolus plus haut (stage_entry.teacherid).
-    $sheet->write_string($row, $col++, $actorname($entry->teacherid));
-    $writedate($sheet, $row, $col++, $entry->teachertime);
-    $sheet->write_string($row, $col++, (string) $entry->teachereval);
-    $sheet->write_string($row, $col++, (string) $entry->tutoreval);
-    $writedate($sheet, $row, $col++, $entry->tutortime);
-    $sheet->write_string($row, $col++, $yesno($entry->tutorbypassed));
+    $cells[] = $textcell($actorname($entry->teacherid));
+    $cells[] = $datecell($entry->teachertime);
+    $cells[] = $textcell((string) $entry->teachereval);
+    $cells[] = $textcell((string) $entry->tutoreval);
+    $cells[] = $datecell($entry->tutortime);
+    $cells[] = $textcell($yesno($entry->tutorbypassed));
     // Messages automatiques déjà envoyés : relus par la restauration, pour ne pas les renvoyer.
-    $writedate($sheet, $row, $col++, $entry->tutorrequesttime);
-    $writedate($sheet, $row, $col++, $entry->conventionremindertime);
+    $cells[] = $datecell($entry->tutorrequesttime);
+    $cells[] = $datecell($entry->conventionremindertime);
 
-    $sheet->write_string($row, $col++, $theme
+    $cells[] = $textcell($theme
         ? ($reportmodeoptions[stage_theme_report_mode($theme)] ?? '') : '');
-    $sheet->write_number($row, $col++, count($reportfiles));
-    $sheet->write_string($row, $col++, implode(' ; ', $reportfiles));
+    $cells[] = $numbercell(count($reportfiles));
+    $cells[] = $textcell(implode(' ; ', $reportfiles));
 
-    $sheet->write_string($row, $col++, $actorname($entry->deveuserid));
-    $writedate($sheet, $row, $col++, $entry->devetime);
-    $sheet->write_string($row, $col++, (string) $entry->devecomment);
-    $sheet->write_string($row, $col++, $actorname($entry->cancelledby));
-    $writedate($sheet, $row, $col++, $entry->canceltime);
-    $sheet->write_string($row, $col++, (string) $entry->cancelcomment);
-    $writedate($sheet, $row, $col++, $entry->timecreated);
-    $writedate($sheet, $row, $col++, $entry->timemodified);
+    $cells[] = $textcell($actorname($entry->deveuserid));
+    $cells[] = $datecell($entry->devetime);
+    $cells[] = $textcell((string) $entry->devecomment);
+    $cells[] = $textcell($actorname($entry->cancelledby));
+    $cells[] = $datecell($entry->canceltime);
+    $cells[] = $textcell((string) $entry->cancelcomment);
+    $cells[] = $datecell($entry->timecreated);
+    $cells[] = $datecell($entry->timemodified);
 
-    $row++;
+    $writer->addRow(new \OpenSpout\Common\Entity\Row($cells, $textstyle));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -475,7 +518,7 @@ foreach ($entries as $entry) {
 // Les questions étant définies par thématique, leurs réponses ne peuvent pas tenir en colonnes
 // fixes de la feuille 2 : une ligne par réponse, avec de quoi la rattacher à sa saisie et la
 // filtrer par thématique ou par type d'évaluation.
-$sheet = $workbook->add_worksheet(get_string('exportanswers', 'mod_stage'));
+$writer->addNewSheetAndMakeItCurrent()->setName($sheetname(get_string('exportanswers', 'mod_stage')));
 
 $headers = [
     get_string('exportentryid', 'mod_stage'),
@@ -487,39 +530,23 @@ $headers = [
     get_string('questionlabel', 'mod_stage'),
     get_string('answer', 'mod_stage'),
     get_string('exportratingoutoffive', 'mod_stage'),
+    get_string('exportnumericvalue', 'mod_stage'),
+    get_string('qtype', 'mod_stage'),
 ];
-foreach ($headers as $col => $header) {
-    $sheet->write_string(0, $col, $header, $headerformat);
-}
+$writer->addRow($headerrow($headers));
 
-$row = 1;
 if (!empty($entryids)) {
-    [$insql, $inparams] = stage_entry_ids_subquery($stage->id, 'export');
-    $answerrecords = $DB->get_records_sql(
-        "SELECT a.id, a.entryid, a.answertext, q.name AS questionname, q.evaltype, q.qtype, q.sortorder
-           FROM {stage_answer} a
-           JOIN {stage_question} q ON q.id = a.questionid
-          WHERE a.entryid $insql
-       ORDER BY a.entryid ASC, q.evaltype ASC, q.sortorder ASC",
-        $inparams
-    );
-
     // Réponses aux questionnaires de l'activité, puis notes des évaluations textuelles (celles
     // importées de StageVet : une ligne « libellé : N/5 » par item, voir
     // stage_parse_evaluation_text()), pour que toutes les notes se filtrent et se comptent au
-    // même endroit. La colonne numérique reste vide pour une réponse sans note.
-    $lines = [];
-    foreach ($answerrecords as $answer) {
-        // Question notée de 1 à 5 : la note va aussi dans la colonne numérique.
-        $answertext = trim((string) $answer->answertext);
-        $israting = $answer->qtype === 'rating' && in_array($answertext, stage_question_rating_values(), true);
-        $lines[$answer->entryid][] = [
-            'evaltype' => $answer->evaltype,
-            'label' => stage_plain_string($answer->questionname),
-            'answer' => $israting ? $answertext . '/5' : (string) $answer->answertext,
-            'score' => $israting ? (float) $answertext : null,
-        ];
-    }
+    // même endroit. La colonne de la note reste vide pour une réponse sans note ; celle de la
+    // valeur numérique porte le nombre d'une question « nombre » et 1 ou 0 pour un oui/non (voir
+    // stage_answer_export_values()). La réponse elle-même est écrite en clair : « Oui », date mise
+    // en forme, cases cochées séparées par « ; ». Les stages se suivent par identifiant croissant.
+    $qtypes = stage_question_types();
+
+    // Notes des évaluations textuelles, par stage : peu nombreuses, calculées d'avance.
+    $textlines = [];
     foreach ($entryids as $entryid) {
         $entry = $entries[$entryid] ?? null;
         if (!$entry) {
@@ -535,39 +562,118 @@ if (!empty($entryids)) {
                     $section = $block['text'];
                 } else if ($block['type'] === 'rating') {
                     $score = $block['score'];
-                    $lines[$entryid][] = [
+                    $textlines[$entryid][] = [
                         'evaltype' => $evaltype,
                         'label' => ($section !== '' ? $section . ' - ' : '') . $block['label'],
                         'answer' => $score === null ? get_string('ratingnotprovided', 'mod_stage')
                             : format_float($score, floor($score) == $score ? 0 : 1, true, true) . '/5',
                         'score' => $score,
+                        'number' => null,
+                        'qtype' => $qtypes['rating'],
                     ];
                 }
             }
         }
     }
-    ksort($lines);
+    ksort($textlines);
 
-    foreach ($lines as $entryid => $entrylines) {
+    // Écrit les lignes d'un stage : ses réponses, puis les notes de ses évaluations textuelles. Ce
+    // qui ne dépend que du stage (nom, thématique, dates) est calculé une fois par stage, et non à
+    // chaque réponse : une promotion en compte des dizaines de milliers.
+    $evaltypelabels = [];
+    $writeentry = function (
+        $entryid,
+        array $answerlines
+    ) use (
+        &$textlines,
+        &$evaltypelabels,
+        $entries,
+        $students,
+        $themes,
+        $writer,
+        $textstyle,
+        $textcell,
+        $numbercell,
+        $datecell,
+        $blankcell,
+    ) {
+        $entrylines = array_merge($answerlines, $textlines[$entryid] ?? []);
+        unset($textlines[$entryid]);
         $entry = $entries[$entryid];
         $student = $students[$entry->userid] ?? null;
         $theme = $themes[$entry->themeid] ?? null;
+        $studentname = $student ? fullname($student) : '';
+        $themename = $theme ? stage_plain_string($theme->name) : '';
         foreach ($entrylines as $line) {
-            $col = 0;
-            $sheet->write_number($row, $col++, (int) $entry->id);
-            $sheet->write_string($row, $col++, $student ? fullname($student) : '');
-            $sheet->write_string($row, $col++, $theme ? stage_plain_string($theme->name) : '');
-            $writedate($sheet, $row, $col++, $entry->datestart);
-            $writedate($sheet, $row, $col++, $entry->dateend);
-            $sheet->write_string($row, $col++, stage_evaltype_label($line['evaltype']));
-            $sheet->write_string($row, $col++, $line['label']);
-            $sheet->write_string($row, $col++, $line['answer']);
-            if ($line['score'] !== null) {
-                $sheet->write_number($row, $col, $line['score']);
+            if (!isset($evaltypelabels[$line['evaltype']])) {
+                $evaltypelabels[$line['evaltype']] = stage_evaltype_label($line['evaltype']);
             }
-            $row++;
+            $cells = [];
+            $cells[] = $numbercell((int) $entry->id);
+            $cells[] = $textcell($studentname);
+            $cells[] = $textcell($themename);
+            $cells[] = $datecell($entry->datestart);
+            $cells[] = $datecell($entry->dateend);
+            $cells[] = $textcell($evaltypelabels[$line['evaltype']]);
+            $cells[] = $textcell($line['label']);
+            $cells[] = $textcell($line['answer']);
+            // Note et valeur numérique : cellule vierge en leur absence.
+            $cells[] = $line['score'] !== null ? $numbercell($line['score']) : $blankcell();
+            $cells[] = $line['number'] !== null ? $numbercell($line['number']) : $blankcell();
+            $cells[] = $textcell($line['qtype']);
+            $writer->addRow(new \OpenSpout\Common\Entity\Row($cells, $textstyle));
         }
+    };
+
+    // Les réponses sont lues en flux, stage après stage, plutôt que chargées d'un bloc : une
+    // promotion en compte des dizaines de milliers.
+    [$insql, $inparams] = stage_entry_ids_subquery($stage->id, 'export');
+    $answerrecords = $DB->get_recordset_sql(
+        "SELECT a.id, a.entryid, a.answertext, q.name AS questionname, q.evaltype, q.qtype, q.sortorder
+           FROM {stage_answer} a
+           JOIN {stage_question} q ON q.id = a.questionid
+          WHERE a.entryid $insql
+       ORDER BY a.entryid ASC, q.evaltype ASC, q.sortorder ASC",
+        $inparams
+    );
+    $currentid = null;
+    $currentlines = [];
+    $questionlabels = [];
+    foreach ($answerrecords as $answer) {
+        $entryid = (int) $answer->entryid;
+        if ($entryid !== $currentid) {
+            if ($currentid !== null) {
+                $writeentry($currentid, $currentlines);
+            }
+            // Stages sans réponse mais avec une évaluation textuelle notée, qui le précèdent.
+            while ($textlines && array_key_first($textlines) < $entryid) {
+                $writeentry(array_key_first($textlines), []);
+            }
+            $currentid = $entryid;
+            $currentlines = [];
+        }
+        // Un intitulé de question revient à chaque réponse : mis en forme une seule fois.
+        if (!isset($questionlabels[$answer->questionname])) {
+            $questionlabels[$answer->questionname] = stage_plain_string($answer->questionname);
+        }
+        $values = stage_answer_export_values($answer, $answer->answertext);
+        $currentlines[] = [
+            'evaltype' => $answer->evaltype,
+            'label' => $questionlabels[$answer->questionname],
+            'answer' => $values['answer'],
+            'score' => $values['score'],
+            'number' => $values['number'],
+            'qtype' => $qtypes[$answer->qtype] ?? $qtypes['text'],
+        ];
+    }
+    $answerrecords->close();
+    if ($currentid !== null) {
+        $writeentry($currentid, $currentlines);
+    }
+    while ($textlines) {
+        $writeentry(array_key_first($textlines), []);
     }
 }
 
-$workbook->close();
+$writer->close();
+exit;

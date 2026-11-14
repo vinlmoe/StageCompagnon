@@ -330,7 +330,7 @@ $string['transfernoentries'] = 'This student has no internship in this activity:
 $string['transfernotenrolled'] = 'The student is not enrolled on course "{$a}". Enrol them first: without an enrolment, their internships would not appear on any dashboard in the destination.';
 $string['transferunmatchedthemes'] = 'These themes do not exist in the destination activity: {$a}. Create them there first (with exactly the same name), or use "Import from another course": without them, the internships concerned would lose their theme and distort the student record.';
 $string['transferunmatchedtemplates'] = 'These agreement templates do not exist in the destination activity: {$a}. The internships concerned will be transferred without a template: their already signed agreement remains available, but regenerating its PDF will require choosing one again.';
-$string['transferdroppedanswers'] = '{$a} evaluation answer(s) will be deleted: the matching questions do not exist in the destination themes.';
+$string['transferdroppedanswers'] = '{$a} evaluation answer(s) will be deleted: the matching questions do not exist in the destination themes, or are of a type that does not accept these answers.';
 $string['transferreferentteachers'] = 'The referent teacher assignment ({$a}) is not transferred: it belongs to the course. Remember to assign a referent teacher to the student in the destination course.';
 $string['rejectstageheading'] = 'Reject the entry';
 $string['rejectstageheading_help'] = 'Sends the entry back to the student for correction. The reason below is passed on to them: it is required.';
@@ -386,10 +386,27 @@ $string['evaltype'] = 'Applies to form';
 $string['evaltype_student'] = 'Student self-assessment';
 $string['evaltype_teacher'] = 'Teacher evaluation';
 $string['qtype'] = 'Question type';
-$string['qtype_choice'] = 'Multiple choice';
+$string['qtype_checkbox'] = 'Checkboxes (several answers)';
+$string['qtype_choice'] = 'Multiple choice (single answer)';
+$string['qtype_date'] = 'Date';
+$string['qtype_help'] = 'Expected form of the answer:
+
+* **Multiple choice (single answer)**: one of the options entered below, one per line;
+* **Checkboxes (several answers)**: one or more of the options entered below;
+* **Yes / No**: one of the two answers;
+* **Rating (1 to 5)**: a rating, shown as stars;
+* **Number**: a numeric value (a decimal comma is accepted);
+* **Date**: a calendar date;
+* **Short text (one line)**: at most 255 characters;
+* **Free comment**: a text over several lines.
+
+In the Excel export (answers sheet), the rating out of 5, the number and the yes/no answer (1 or 0) are also written to numeric columns.';
+$string['qtype_number'] = 'Number';
 $string['qtype_rating'] = 'Rating (1 to 5)';
 $string['qtype_rating_scale'] = '1 = very poor, 5 = excellent';
+$string['qtype_shorttext'] = 'Short text (one line)';
 $string['qtype_text'] = 'Free comment';
+$string['qtype_yesno'] = 'Yes / No';
 $string['questionlabel'] = 'Question label';
 $string['questionlabelen'] = 'Question label (English, workplace tutor)';
 $string['choiceoptions'] = 'Choice options (one per line)';
@@ -803,21 +820,21 @@ $string['themeobjectivefiles_help'] = 'Upload here the documents defining the in
     . 'this theme. Students and teachers can download them from the summary page, and the internship '
     . 'supervisor from the evaluation page they receive by email.';
 $string['themeobjectivefilemissing'] = 'This document does not exist or is no longer available.';
-$string['themechecklist'] = 'Objectives checklist';
+$string['themechecklist'] = 'Prerequisites checklist';
 $string['themechecklist_help'] = 'The items defined here are shown to the student when they request their '
-    . 'agreement: they tick the ones their internship will allow them to achieve and explain, in a free text '
+    . 'agreement: they tick the ones they meet and explain, in a free text '
     . 'field, each item left unticked. The checklist is not part of the agreement; it stays attached to the '
     . 'internship, visible in its details and editable by the registrar and the supervising teacher.';
-$string['themechecklistintro'] = 'Tick the objectives your internship will allow you to achieve. For each '
-    . 'objective left unticked, explain why in the field provided.';
-$string['nochecklistitemsyet'] = 'No objective is defined for this theme.';
-$string['checklistitem'] = 'Objective';
+$string['themechecklistintro'] = 'Tick the prerequisites you meet. For each prerequisite left unticked, '
+    . 'explain why in the field provided.';
+$string['nochecklistitemsyet'] = 'No prerequisite is defined for this theme.';
+$string['checklistitem'] = 'Prerequisite';
 $string['checklistitemdescription'] = 'Details';
-$string['checklistchecked'] = 'Achievable';
-$string['checklistcomment'] = 'If not, why?';
-$string['checklistcommentrequired'] = 'Explain why this objective will not be achieved.';
+$string['checklistchecked'] = 'Met';
+$string['checklistcomment'] = 'If not met, why?';
+$string['checklistcommentrequired'] = 'Explain why this prerequisite is not met.';
 $string['checklistnotanswered'] = 'Not answered';
-$string['checklistsaved'] = 'The objectives checklist has been saved.';
+$string['checklistsaved'] = 'The prerequisites checklist has been saved.';
 $string['editchecklist'] = 'Edit the checklist';
 
 $string['privacy:metadata:core_files'] = 'Files attached to an internship: the signed agreement and the internship report.';
@@ -884,24 +901,24 @@ $string['privacy:metadata:stage_study_mobility:timemodified'] = 'Date the study 
 $string['privacy:metadata:stage_theme_teacher'] = 'Which teachers are responsible for which internship themes.';
 $string['privacy:metadata:stage_theme_teacher:themeid'] = 'The internship theme.';
 $string['privacy:metadata:stage_theme_teacher:teacherid'] = 'The teacher responsible for the theme.';
-$string['privacy:metadata:stage_entry_checklist'] = 'The answers given by the student to the objectives checklist of their internship theme.';
-$string['privacy:metadata:stage_entry_checklist:itemid'] = 'The objective being answered.';
-$string['privacy:metadata:stage_entry_checklist:checked'] = 'Whether the objective is reported as achievable.';
-$string['privacy:metadata:stage_entry_checklist:explanation'] = 'The explanation given when the objective is not ticked.';
+$string['privacy:metadata:stage_entry_checklist'] = 'The answers given by the student to the prerequisites checklist of their internship theme.';
+$string['privacy:metadata:stage_entry_checklist:itemid'] = 'The prerequisite being answered.';
+$string['privacy:metadata:stage_entry_checklist:checked'] = 'Whether the prerequisite is reported as met.';
+$string['privacy:metadata:stage_entry_checklist:explanation'] = 'The explanation given when the prerequisite is not ticked.';
 $string['errorrejectreasonrequired'] = 'Give the reason why the internship is not validated: it is passed on to the student.';
 $string['errorvalidatecancelled'] = 'Reset the cancelled internship before validating it.';
 $string['conventionentrycancelled'] = 'This internship is cancelled: its agreement can no longer be processed. The administration office must reset it first.';
 $string['errorentrychanged'] = 'This internship was changed in the meantime (evaluated, validated, rejected or cancelled by someone else): your input was not saved. Check its current state before trying again.';
 $string['errornegativeduration'] = 'The duration cannot be negative.';
 $string['errorrequiredanswer'] = 'An answer is required for this question: {$a}';
-$string['errorinvalidanswer'] = 'Select one of the available answers for this question: {$a}';
+$string['errorinvalidanswer'] = 'Invalid answer for this question: {$a} (select one of the available answers, or enter a number, a date or a short text as the question requires).';
 $string['privacy:metadata:stage_entry:tutorrequestfailtime'] = 'The date the automatic tutor evaluation invitation failed.';
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = 'The date the tutor evaluation invitation was last sent.';
 $string['viewthemeobjectives'] = 'Objectives';
-$string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be transferred: add matching objectives with unique names to the target theme.';
+$string['transferunmatchedchecklist'] = '{$a} checklist answer(s) cannot be transferred: add matching prerequisites with unique names to the target theme.';
 $string['transferblocked'] = 'The transfer is blocked. Check the mappings in the target activity.';
 $string['nothemeobjectivefiles'] = 'No objectives documents have been uploaded for this theme yet.';
-$string['themeobjectivespreviewintro'] = 'These are the objectives for this theme. You will complete this checklist when requesting your internship agreement.';
+$string['themeobjectivespreviewintro'] = 'These are the prerequisites for this theme. You will complete this checklist when requesting your internship agreement.';
 
 // Single theme management page (theme_edit.php).
 $string['managetheme'] = 'Manage theme';
@@ -912,8 +929,8 @@ $string['savethemeandreturn'] = 'Save and return to the list';
 $string['themegeneral'] = 'General settings';
 $string['themedurationssection'] = 'Required duration';
 $string['requireddurationforyear'] = 'Required duration - {$a}';
-$string['deletechecklistrow'] = 'Delete this objective (and the students\' answers)';
-$string['addchecklistrows'] = 'Add {no} objective(s)';
+$string['deletechecklistrow'] = 'Delete this prerequisite (and the students\' answers)';
+$string['addchecklistrows'] = 'Add {no} prerequisite(s)';
 $string['newquestionrow'] = 'New question (leave empty to ignore)';
 $string['addquestionrows'] = 'Add {no} question(s)';
 $string['attachquestions'] = 'Reuse questions from other themes';
@@ -999,6 +1016,7 @@ $string['removequestionrow_help'] = 'The question is removed from this list only
     . 'is deleted together with the answers already recorded.';
 $string['questionsharedwithlists'] = 'Also in: {$a}';
 $string['evallistquestionhasanswers'] = 'This question already has answers: it cannot be removed from the list.';
+$string['evallistqtypeblocked'] = 'Nothing was saved: these questions already have answers that their new type would make unreadable: {$a}. Only changes from single choice to checkboxes, from short text to free comment and from rating to number are allowed; otherwise, create a new question.';
 $string['evallistquestionsblocked'] = 'Nothing was saved: these questions already have answers and cannot be removed from the list: {$a}. The answers of internships already evaluated would be lost.';
 $string['evallistsaved'] = 'Evaluation list saved.';
 $string['evallistadd'] = 'Create an evaluation list';
@@ -1048,6 +1066,7 @@ $string['historicalimportduplicateswarning'] = '{$a} line(s) look like an intern
     . 'or same theme without dates). They will only be imported if you tick "Import anyway".';
 $string['historicalimportduplicatesskipped'] = '{$a} probable duplicate(s) not imported.';
 $string['importduplicatessincepreview'] = '{$a} internship(s) recorded in the meantime, since the preview, not imported: preview the file again to review them.';
+$string['exportnumericvalue'] = 'Numeric value';
 $string['exportratingoutoffive'] = 'Rating (out of 5)';
 
 // Events (Moodle logs).
@@ -1099,6 +1118,8 @@ $string['conventionvalidator_both'] = 'Referent teacher and teacher in charge of
 $string['conventionsiret'] = 'SIRET number of the host organisation';
 $string['conventionsiret_help'] = 'Optional. The 14-digit SIRET number of the host organisation establishment, as shown on its documents; spaces are allowed.';
 $string['conventionsiretinvalid'] = 'This SIRET number is not valid: 14 digits are expected, with a correct check digit.';
+$string['requestanswersexport'] = 'Export the answers to the internship request questionnaire';
+$string['requestanswersfilename'] = 'request_questionnaire_{$a}';
 $string['requestquestionnaire'] = 'Internship request questionnaire';
 $string['requestquestionnaireintro'] = 'Your answers are sent with the agreement request: they help the teachers who validate the request.';
 $string['conventionvalidationalreadygiven'] = 'You have already validated this request; it is waiting for the other validation.';

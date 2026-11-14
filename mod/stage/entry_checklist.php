@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Correction de la check-list d'objectifs d'une saisie de stage par la DEVE ou par l'enseignant
+ * Correction de la check-list des prérequis d'une saisie de stage par la DEVE ou par l'enseignant
  * référent de l'étudiant. L'étudiant la renseigne lors de sa demande de convention ; elle ne
  * figure pas dans la convention elle-même, mais reste attachée à la saisie, consultable dans son
  * détail (entrydetail.php) et corrigeable ici.

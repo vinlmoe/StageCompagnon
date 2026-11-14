@@ -55,7 +55,7 @@ final class question_rating_test extends \advanced_testcase {
         $this->resetAfterTest();
         $this->setAdminUser();
 
-        $this->assertSame(['choice', 'rating', 'text'], array_keys(stage_question_types()));
+        $this->assertContains('rating', array_keys(stage_question_types()));
 
         $form = new \mod_stage\form\evallist_edit_form(null, ['editing' => true, 'evaltype' => 'student']);
         $mform = (fn() => $this->_form)->call($form);

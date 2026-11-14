@@ -18,7 +18,6 @@ namespace mod_stage\external;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
 /**
@@ -28,15 +27,15 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * @copyright 2026 Sébastien Lefebvre
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class get_my_stages extends \external_api {
+class get_my_stages extends \core_external\external_api {
     /**
      * Parameters definition.
      *
-     * @return \external_function_parameters
+     * @return \core_external\external_function_parameters
      */
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'cmid' => new \external_value(PARAM_INT, "Id du module d'activité stage"),
+        return new \core_external\external_function_parameters([
+            'cmid' => new \core_external\external_value(PARAM_INT, "Id du module d'activité stage"),
         ]);
     }
 
@@ -80,20 +79,20 @@ class get_my_stages extends \external_api {
     /**
      * Return value definition.
      *
-     * @return \external_multiple_structure
+     * @return \core_external\external_multiple_structure
      */
     public static function execute_returns() {
-        return new \external_multiple_structure(
-            new \external_single_structure([
-                'id' => new \external_value(PARAM_INT, 'Id de la saisie'),
-                'themeid' => new \external_value(PARAM_INT, 'Id de la thématique'),
-                'structure' => new \external_value(PARAM_TEXT, "Structure d'accueil"),
-                'datestart' => new \external_value(PARAM_INT, 'Date de début (timestamp)'),
-                'dateend' => new \external_value(PARAM_INT, 'Date de fin (timestamp)'),
-                'declaredduration' => new \external_value(PARAM_INT, 'Durée déclarée (jours)'),
-                'retainedduration' => new \external_value(PARAM_INT, 'Durée retenue (jours)'),
-                'status' => new \external_value(PARAM_INT, 'Statut (0-3)'),
-                'statuslabel' => new \external_value(PARAM_TEXT, 'Libellé du statut'),
+        return new \core_external\external_multiple_structure(
+            new \core_external\external_single_structure([
+                'id' => new \core_external\external_value(PARAM_INT, 'Id de la saisie'),
+                'themeid' => new \core_external\external_value(PARAM_INT, 'Id de la thématique'),
+                'structure' => new \core_external\external_value(PARAM_TEXT, "Structure d'accueil"),
+                'datestart' => new \core_external\external_value(PARAM_INT, 'Date de début (timestamp)'),
+                'dateend' => new \core_external\external_value(PARAM_INT, 'Date de fin (timestamp)'),
+                'declaredduration' => new \core_external\external_value(PARAM_INT, 'Durée déclarée (jours)'),
+                'retainedduration' => new \core_external\external_value(PARAM_INT, 'Durée retenue (jours)'),
+                'status' => new \core_external\external_value(PARAM_INT, 'Statut (0-3)'),
+                'statuslabel' => new \core_external\external_value(PARAM_TEXT, 'Libellé du statut'),
             ])
         );
     }

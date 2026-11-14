@@ -25,7 +25,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * Formulaire de demande de convention de stage par l'étudiant : langue et gabarit, ainsi que
  * toutes les informations de la page 1 de la convention que la DEVE ne connaît pas déjà
  * (coordonnées de l'étudiant, organisme d'accueil, tuteur, modalités particulières,
- * gratification, congés), et la check-list d'objectifs définie pour la thématique du stage.
+ * gratification, congés), et la check-list des prérequis définie pour la thématique du stage.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -218,7 +218,7 @@ class convention_request_form extends \moodleform {
         $mform->setType('leavemodalities', PARAM_TEXT);
         $mform->hideIf('leavemodalities', 'hasleave', 'notchecked');
 
-        // Check-list d'objectifs de la thématique du stage : elle ne figure pas dans la convention
+        // Check-list des prérequis de la thématique du stage : elle ne figure pas dans la convention
         // elle-même (voir stage_build_convention_pdf()), mais accompagne la demande et reste
         // consultable et corrigeable ensuite par la DEVE et l'enseignant référent.
         stage_add_checklist_fields($mform, [$this->_customdata['themeid'] => $this->_customdata['checklistitems']]);

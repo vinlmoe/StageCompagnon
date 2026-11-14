@@ -1,0 +1,1 @@
+{"answers":19200,"bytype":{"checkbox":2400,"yesno":2400,"rating":2400,"number":2400,"date":2400,"shorttext":2400,"text":2400,"choice":2400},"invalid":0,"duplicates":0,"examples":[]}

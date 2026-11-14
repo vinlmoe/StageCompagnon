@@ -1,0 +1,94 @@
+[
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/evallist_edit.php?id=1&listid=7",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "80_evallist_types",
+  "from": "#id_questionshdr",
+  "maxheight": 2400
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/evallist_edit.php?id=1&listid=7",
+  "actions": [
+   [
+    "click",
+    "#fitem_id_questionqtype_0 a[data-bs-toggle=popover], #fitem_id_questionqtype_0 .btn-link"
+   ],
+   [
+    "wait"
+   ],
+   [
+    "eval",
+    "new Promise(r => setTimeout(r, 800))"
+   ]
+  ],
+  "file": "81_qtype_help",
+  "keepalerts": true,
+  "from": ".popover",
+  "bottom": ".popover",
+  "pad": 24
+ },
+ {
+  "user": "mbonnet",
+  "url": "/mod/stage/convention_request.php?id=1&entryid=14",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "82_request_questionnaire",
+  "from": "#id_checklistheader",
+  "pad": 32,
+  "bottom": "#fgroup_id_buttonar"
+ },
+ {
+  "user": "nlambert",
+  "url": "/mod/stage/entry.php?id=1&entryid=15",
+  "file": "83_selfeval_types",
+  "from": ":is(h3,h4):has-text('Jours de stage effectifs')",
+  "pad": 24
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/entrydetail.php?id=1&entryid=10",
+  "file": "84_entrydetail_answers",
+  "from": ":is(h3,h4):has-text('Auto-évaluation')",
+  "maxheight": 720,
+  "pad": 48
+ },
+ {
+  "user": "pdurand",
+  "url": "/mod/stage/convention_teacher_validate.php?id=1&entryid=8",
+  "file": "85_teacher_request_answers",
+  "from": ":is(h3,h4):has-text('Questionnaire de demande')",
+  "to": "#id_hostheader",
+  "pad": 24,
+  "maxheight": 500
+ },
+ {
+  "user": "jbernard",
+  "url": "/mod/stage/theme_stages.php?id=1&themeid=3",
+  "file": "86_theme_stages_export"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/theme_edit.php?id=1&themeid=2",
+  "actions": [
+   [
+    "expandall"
+   ]
+  ],
+  "file": "05e_theme_checklist",
+  "element": "#id_checklisthdr"
+ },
+ {
+  "user": "cleroy",
+  "url": "/mod/stage/theme_objectives_view.php?id=1&themeid=2",
+  "file": "62_objectives"
+ }
+]

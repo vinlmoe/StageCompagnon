@@ -122,11 +122,28 @@ $mform->set_data($formdata);
 
 // Questions retirées alors que des réponses en dépendent : rien n'est enregistré, la DEVE en est
 // avertie (voir stage_remove_evallist_question()).
+$existing = [];
+foreach ($questions as $question) {
+    $existing[(int) $question->id] = $question;
+}
 $blockeddeletions = [];
+// Changements de type refusés : une question déjà répondue (dans cette liste ou une autre qui la
+// partage) ne change de type que vers un type qui accepte ses réponses (voir
+// stage_question_type_change_allowed()) ; sinon ses réponses deviendraient illisibles.
+$blockedtypes = [];
 $data = $mform->get_data();
 if ($data && $list) {
     foreach ($data->questionid ?? [] as $i => $questionid) {
         $questionid = (int) $questionid;
+        $current = $existing[$questionid] ?? null;
+        $newqtype = (string) ($data->questionqtype[$i] ?? '');
+        if (
+            $current && empty($data->questiondelete[$i]) && $newqtype !== $current->qtype
+                && !stage_question_type_change_allowed($current->qtype, $newqtype)
+                && $DB->record_exists('stage_answer', ['questionid' => $questionid])
+        ) {
+            $blockedtypes[] = format_string($current->name);
+        }
         if (
             !empty($data->questiondelete[$i]) && $questionid
                 && $DB->record_exists('stage_evallist_question', ['listid' => $list->id, 'questionid' => $questionid])
@@ -137,7 +154,7 @@ if ($data && $list) {
     }
 }
 
-if ($data && !$blockeddeletions) {
+if ($data && !$blockeddeletions && !$blockedtypes) {
     $now = time();
     $transaction = $DB->start_delegated_transaction();
 
@@ -160,10 +177,6 @@ if ($data && !$blockeddeletions) {
         }
     }
 
-    $existing = [];
-    foreach ($questions as $question) {
-        $existing[(int) $question->id] = $question;
-    }
     foreach ($data->questionid ?? [] as $i => $questionid) {
         $questionid = (int) $questionid;
         $name = trim((string) ($data->questionname[$i] ?? ''));
@@ -175,7 +188,7 @@ if ($data && !$blockeddeletions) {
             'evaltype' => $list->evaltype,
             'qtype' => $qtype,
             'name' => $name,
-            'options' => $qtype === 'choice' ? ($data->questionoptions[$i] ?? null) : null,
+            'options' => stage_question_type_has_options($qtype) ? ($data->questionoptions[$i] ?? null) : null,
             'required' => !empty($data->questionrequired[$i]) ? 1 : 0,
             'sortorder' => (int) ($data->questionsortorder[$i] ?? 0),
             'timemodified' => $now,
@@ -184,7 +197,7 @@ if ($data && !$blockeddeletions) {
         // champs ; ailleurs, elle n'est pas touchée.
         if ($list->evaltype === 'tutor') {
             $question->nameen = $data->questionnameen[$i] ?? null;
-            $question->optionsen = $qtype === 'choice' ? ($data->questionoptionsen[$i] ?? null) : null;
+            $question->optionsen = stage_question_type_has_options($qtype) ? ($data->questionoptionsen[$i] ?? null) : null;
         }
         if ($questionid && isset($existing[$questionid])) {
             if ($delete) {
@@ -230,6 +243,12 @@ if ($returnurlparam !== '') {
 }
 echo html_writer::end_div();
 
+if ($blockedtypes) {
+    echo $OUTPUT->notification(
+        get_string('evallistqtypeblocked', 'mod_stage', implode(', ', $blockedtypes)),
+        \core\output\notification::NOTIFY_ERROR
+    );
+}
 if ($blockeddeletions) {
     echo $OUTPUT->notification(
         get_string('evallistquestionsblocked', 'mod_stage', implode(', ', $blockeddeletions)),

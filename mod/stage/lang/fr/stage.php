@@ -339,7 +339,7 @@ $string['transfernoentries'] = "Cet étudiant n'a aucun stage dans cette activit
 $string['transfernotenrolled'] = "L'étudiant n'est pas inscrit au cours « {\$a} ». Inscrivez-le d'abord : sans inscription, ses stages n'apparaîtraient dans aucun tableau de bord de la destination.";
 $string['transferunmatchedthemes'] = "Ces thématiques n'existent pas dans l'activité de destination : {\$a}. Créez-les-y d'abord (avec exactement le même nom), ou utilisez « Importer depuis un autre cours » : sans elles, les stages concernés perdraient leur rattachement et fausseraient le bilan de l'étudiant.";
 $string['transferunmatchedtemplates'] = "Ces gabarits de convention n'existent pas dans l'activité de destination : {\$a}. Les stages concernés seront transférés sans gabarit : leur convention déjà signée reste disponible, mais sa regénération en PDF nécessitera d'en rechoisir un.";
-$string['transferdroppedanswers'] = "{\$a} réponse(s) d'évaluation seront supprimées : les questions correspondantes n'existent pas dans les thématiques de destination.";
+$string['transferdroppedanswers'] = "{\$a} réponse(s) d'évaluation seront supprimées : les questions correspondantes n'existent pas dans les thématiques de destination, ou sont d'un type qui n'accepte pas ces réponses.";
 $string['transferreferentteachers'] = "L'attribution des enseignants référents ({\$a}) n'est pas transférée : elle est propre au cours. Pensez à attribuer un enseignant référent à l'étudiant dans le cours de destination.";
 $string['rejectstageheading'] = 'Refuser la saisie';
 $string['rejectstageheading_help'] = "Renvoie la saisie à l'étudiant pour correction. Le motif ci-dessous lui est transmis : il est obligatoire.";
@@ -395,10 +395,27 @@ $string['evaltype'] = "Formulaire concerné";
 $string['evaltype_student'] = "Auto-évaluation de l'étudiant";
 $string['evaltype_teacher'] = "Évaluation de l'enseignant";
 $string['qtype'] = 'Type de question';
-$string['qtype_choice'] = 'Choix multiples';
+$string['qtype_checkbox'] = 'Cases à cocher (plusieurs réponses)';
+$string['qtype_choice'] = 'Choix multiples (une seule réponse)';
+$string['qtype_date'] = 'Date';
+$string['qtype_help'] = 'Forme de la réponse attendue :
+
+* **Choix multiples (une seule réponse)** : une option parmi celles saisies ci-dessous, une par ligne ;
+* **Cases à cocher (plusieurs réponses)** : une ou plusieurs options parmi celles saisies ci-dessous ;
+* **Oui / Non** : l\'une des deux réponses ;
+* **Note (de 1 à 5)** : une note, affichée en étoiles ;
+* **Nombre** : une valeur numérique (la virgule décimale est acceptée) ;
+* **Date** : une date du calendrier ;
+* **Texte court (une ligne)** : au plus 255 caractères ;
+* **Commentaire libre** : un texte sur plusieurs lignes.
+
+Dans l\'export Excel (feuille des réponses), la note sur 5, le nombre et le oui/non (1 ou 0) sont aussi écrits dans des colonnes numériques.';
+$string['qtype_number'] = 'Nombre';
 $string['qtype_rating'] = 'Note (de 1 à 5)';
 $string['qtype_rating_scale'] = '1 = très insuffisant, 5 = excellent';
+$string['qtype_shorttext'] = 'Texte court (une ligne)';
 $string['qtype_text'] = 'Commentaire libre';
+$string['qtype_yesno'] = 'Oui / Non';
 $string['questionlabel'] = 'Intitulé de la question';
 $string['questionlabelen'] = 'Intitulé de la question (anglais, maître de stage)';
 $string['choiceoptions'] = 'Options du QCM (une par ligne)';
@@ -814,30 +831,30 @@ $string['conventiondetails'] = 'Détail de la convention';
 // Objectifs de stage (documents et check-list par thématique).
 $string['themeobjectives'] = 'Objectifs de stage';
 $string['viewthemeobjectives'] = 'Objectifs';
-$string['transferunmatchedchecklist'] = '{$a} réponse(s) à la check-list ne peuvent pas être transférées : ajoutez dans la thématique cible des objectifs correspondants avec des noms uniques.';
+$string['transferunmatchedchecklist'] = '{$a} réponse(s) à la check-list ne peuvent pas être transférées : ajoutez dans la thématique cible des prérequis correspondants avec des noms uniques.';
 $string['transferblocked'] = 'Le transfert est bloqué. Vérifiez les correspondances dans la promotion cible.';
 $string['nothemeobjectivefiles'] = "Aucun document d'objectifs n'a encore été déposé pour cette thématique.";
-$string['themeobjectivespreviewintro'] = 'Voici les objectifs de cette thématique. Vous renseignerez cette check-list lors de votre demande de convention.';
+$string['themeobjectivespreviewintro'] = 'Voici les prérequis de cette thématique. Vous renseignerez cette check-list lors de votre demande de convention.';
 $string['themeobjectivefiles'] = "Documents d'objectifs";
 $string['themeobjectivefiles_help'] = "Déposez ici les documents qui définissent les objectifs de "
     . "stage de cette thématique. Ils sont téléchargeables par les étudiants et les enseignants depuis la page "
     . 'de synthèse, et par le maître de stage depuis la page d\'évaluation qu\'il reçoit par courriel.';
 $string['themeobjectivefilemissing'] = "Ce document n'existe pas ou n'est plus disponible.";
-$string['themechecklist'] = "Check-list d'objectifs";
+$string['themechecklist'] = 'Check-list des prérequis';
 $string['themechecklist_help'] = "Les éléments définis ici sont présentés à l'étudiant lors de sa demande "
-    . "de convention : il coche ceux que son stage permettra d'atteindre et justifie dans un champ libre ceux "
+    . "de convention : il coche ceux qu'il remplit et justifie dans un champ libre ceux "
     . "qu'il laisse décochés. La check-list ne figure pas dans la convention ; elle reste attachée au stage, "
     . "consultable dans son détail et modifiable par la DEVE et l'enseignant référent.";
-$string['themechecklistintro'] = "Cochez les objectifs que votre stage permettra d'atteindre. Pour chaque "
-    . 'objectif laissé décoché, expliquez pourquoi dans le champ prévu à cet effet.';
-$string['nochecklistitemsyet'] = "Aucun objectif n'est défini pour cette thématique.";
-$string['checklistitem'] = 'Objectif';
+$string['themechecklistintro'] = 'Cochez les prérequis que vous remplissez. Pour chaque prérequis '
+    . 'laissé décoché, expliquez pourquoi dans le champ prévu à cet effet.';
+$string['nochecklistitemsyet'] = "Aucun prérequis n'est défini pour cette thématique.";
+$string['checklistitem'] = 'Prérequis';
 $string['checklistitemdescription'] = 'Précision';
-$string['checklistchecked'] = 'Atteint';
-$string['checklistcomment'] = 'Si non atteint, pourquoi ?';
-$string['checklistcommentrequired'] = 'Expliquez pourquoi cet objectif ne sera pas atteint.';
+$string['checklistchecked'] = 'Rempli';
+$string['checklistcomment'] = 'Si non rempli, pourquoi ?';
+$string['checklistcommentrequired'] = "Expliquez pourquoi ce prérequis n'est pas rempli.";
 $string['checklistnotanswered'] = 'Non renseigné';
-$string['checklistsaved'] = "La check-list d'objectifs a été enregistrée.";
+$string['checklistsaved'] = 'La check-list des prérequis a été enregistrée.';
 $string['editchecklist'] = "Modifier la check-list";
 
 $string['privacy:metadata:core_files'] = 'Fichiers rattachés à un stage : la convention signée et le rapport de stage.';
@@ -904,17 +921,17 @@ $string['privacy:metadata:stage_study_mobility:timemodified'] = "Date de la vali
 $string['privacy:metadata:stage_theme_teacher'] = 'Les enseignants responsables de chaque thématique de stage.';
 $string['privacy:metadata:stage_theme_teacher:themeid'] = 'La thématique de stage.';
 $string['privacy:metadata:stage_theme_teacher:teacherid'] = 'L\'enseignant responsable de la thématique.';
-$string['privacy:metadata:stage_entry_checklist'] = "Les réponses de l'étudiant à la check-list d'objectifs de sa thématique de stage.";
-$string['privacy:metadata:stage_entry_checklist:itemid'] = "L'objectif auquel il est répondu.";
-$string['privacy:metadata:stage_entry_checklist:checked'] = "Si l'objectif est annoncé comme atteignable.";
-$string['privacy:metadata:stage_entry_checklist:explanation'] = "La justification apportée lorsque l'objectif n'est pas coché.";
+$string['privacy:metadata:stage_entry_checklist'] = "Les réponses de l'étudiant à la check-list des prérequis de sa thématique de stage.";
+$string['privacy:metadata:stage_entry_checklist:itemid'] = 'Le prérequis auquel il est répondu.';
+$string['privacy:metadata:stage_entry_checklist:checked'] = 'Si le prérequis est déclaré rempli.';
+$string['privacy:metadata:stage_entry_checklist:explanation'] = "La justification apportée lorsque le prérequis n'est pas coché.";
 $string['errorrejectreasonrequired'] = 'Indiquez le motif de la non-validation : il est communiqué à l\'étudiant.';
 $string['errorvalidatecancelled'] = 'Réinitialisez le stage annulé avant de le valider.';
 $string['conventionentrycancelled'] = 'Ce stage est annulé : sa convention ne peut plus être traitée. Il doit d\'abord être réinitialisé par la DEVE.';
 $string['errorentrychanged'] = 'Ce stage a changé entre-temps (évalué, validé, refusé ou annulé par un autre intervenant) : votre saisie n\'a pas été enregistrée. Vérifiez son état avant de recommencer.';
 $string['errornegativeduration'] = 'La durée ne peut pas être négative.';
 $string['errorrequiredanswer'] = 'Une réponse est obligatoire pour la question : {$a}';
-$string['errorinvalidanswer'] = 'Choisissez une réponse proposée pour la question : {$a}';
+$string['errorinvalidanswer'] = 'Réponse non valide pour la question : {$a} (choisissez une réponse proposée, ou saisissez un nombre, une date ou un texte court selon la question).';
 $string['privacy:metadata:stage_entry:tutorrequestfailtime'] = "La date de l'échec de l'invitation automatique du maître de stage.";
 $string['privacy:metadata:stage_entry:tutorrequesttime'] = "La date du dernier envoi de l'invitation au maître de stage.";
 
@@ -927,8 +944,8 @@ $string['savethemeandreturn'] = 'Enregistrer et revenir à la liste';
 $string['themegeneral'] = 'Paramètres généraux';
 $string['themedurationssection'] = 'Durée requise';
 $string['requireddurationforyear'] = 'Durée requise - {$a}';
-$string['deletechecklistrow'] = 'Supprimer cet objectif (et les réponses des étudiants)';
-$string['addchecklistrows'] = 'Ajouter {no} objectif(s)';
+$string['deletechecklistrow'] = 'Supprimer ce prérequis (et les réponses des étudiants)';
+$string['addchecklistrows'] = 'Ajouter {no} prérequis';
 $string['newquestionrow'] = 'Nouvelle question (laisser vide pour ignorer)';
 $string['addquestionrows'] = 'Ajouter {no} question(s)';
 $string['attachquestions'] = "Réutiliser des questions d'autres thématiques";
@@ -1019,6 +1036,7 @@ $string['removequestionrow_help'] = "La question est retirée de cette liste seu
     . "autre liste, elle est supprimée avec les réponses déjà enregistrées.";
 $string['questionsharedwithlists'] = 'Figure aussi dans : {$a}';
 $string['evallistquestionhasanswers'] = 'Cette question a déjà des réponses : elle ne peut pas être retirée de la liste.';
+$string['evallistqtypeblocked'] = 'Rien n\'a été enregistré : ces questions ont déjà des réponses, que leur nouveau type rendrait illisibles : {$a}. Seuls les passages du choix unique aux cases à cocher, du texte court au commentaire libre et de la note au nombre sont permis ; sinon, créez une nouvelle question.';
 $string['evallistquestionsblocked'] = 'Rien n\'a été enregistré : ces questions ont déjà des réponses et ne peuvent pas être retirées de la liste : {$a}. Les réponses des stages déjà évalués seraient perdues.';
 $string['evallistsaved'] = "La liste d'évaluation a été enregistrée.";
 $string['evallistadd'] = "Créer une liste d'évaluation";
@@ -1069,6 +1087,7 @@ $string['historicalimportduplicateswarning'] = "{\$a} ligne(s) ressemblent à un
     . "ou même thématique sans dates). Elles ne seront importées que si vous cochez « Importer quand même ».";
 $string['historicalimportduplicatesskipped'] = '{$a} doublon(s) probable(s) non importé(s).';
 $string['importduplicatessincepreview'] = '{$a} stage(s) enregistré(s) entre-temps, depuis la prévisualisation, non importé(s) : relancez la prévisualisation pour les arbitrer.';
+$string['exportnumericvalue'] = 'Valeur numérique';
 $string['exportratingoutoffive'] = 'Note (sur 5)';
 
 // Événements (journaux Moodle).
@@ -1120,6 +1139,8 @@ $string['conventionvalidator_both'] = 'Enseignant référent et enseignant respo
 $string['conventionsiret'] = 'Numéro SIRET de l\'organisme d\'accueil';
 $string['conventionsiret_help'] = 'Facultatif. Le numéro SIRET à 14 chiffres de l\'établissement d\'accueil, tel qu\'il figure sur ses documents ; les espaces sont acceptés.';
 $string['conventionsiretinvalid'] = 'Ce numéro SIRET n\'est pas valide : 14 chiffres sont attendus, avec une clé de contrôle juste.';
+$string['requestanswersexport'] = 'Exporter les réponses au questionnaire de demande (pré-stage)';
+$string['requestanswersfilename'] = 'questionnaire_demande_{$a}';
 $string['requestquestionnaire'] = 'Questionnaire de demande de stage';
 $string['requestquestionnaireintro'] = 'Vos réponses accompagnent la demande de convention : elles servent aux enseignants qui la valident.';
 $string['conventionvalidationalreadygiven'] = 'Vous avez déjà validé cette demande ; elle attend l\'autre validation.';

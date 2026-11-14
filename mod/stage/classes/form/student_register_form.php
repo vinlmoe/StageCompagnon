@@ -28,7 +28,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * référent, coordonnées de l'étudiant, organisme d'accueil, tuteur, modalités, gratification,
  * congés).
  *
- * La check-list d'objectifs définie pour chaque thématique y figure également : seuls les
+ * La check-list des prérequis définie pour chaque thématique y figure également : seuls les
  * éléments de la thématique sélectionnée restent visibles.
  *
  * Également réutilisé en mode édition par student_register.php (customdata 'editing' et
@@ -267,7 +267,7 @@ class student_register_form extends \moodleform {
         $mform->setType('leavemodalities', PARAM_TEXT);
         $mform->hideIf('leavemodalities', 'hasleave', 'notchecked');
 
-        // Check-list d'objectifs : la thématique se choisissant dans ce même formulaire, les
+        // Check-list des prérequis : la thématique se choisissant dans ce même formulaire, les
         // éléments de toutes les thématiques proposées sont ajoutés, et seuls ceux de la
         // thématique sélectionnée restent visibles (voir stage_add_checklist_fields()).
         stage_add_checklist_fields($mform, $this->_customdata['checklistsbytheme'], 'themeid');

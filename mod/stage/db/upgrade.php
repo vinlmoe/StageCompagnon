@@ -984,7 +984,7 @@ function xmldb_stage_upgrade($oldversion) {
     }
 
     if ($oldversion < 2026091900) {
-        // Check-list d'objectifs d'une thématique, et réponse de l'étudiant pour chaque saisie.
+        // Check-list des prérequis d'une thématique, et réponse de l'étudiant pour chaque saisie.
         // Les documents d'objectifs, eux, sont des fichiers (zone STAGE_THEME_OBJECTIVE_FILEAREA,
         // itemid = id de la thématique) et n'ont pas de table.
         $checklisttable = new xmldb_table('stage_theme_checklist');

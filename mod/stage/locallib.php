@@ -1804,7 +1804,7 @@ function stage_update_entry_details(
 ) {
     global $DB;
 
-    // Les réponses à la check-list d'objectifs appartiennent à la thématique : en changer laisse
+    // Les réponses à la check-list des prérequis appartiennent à la thématique : en changer laisse
     // sinon des réponses à des objectifs d'une autre thématique, invisibles et qui bloqueraient un
     // transfert ultérieur (« objectifs sans correspondance »).
     if ((int) $entry->themeid !== (int) $themeid) {
@@ -3534,17 +3534,68 @@ function stage_get_reusable_evallist_questions(stdClass $list) {
 }
 
 /**
- * Types de question des listes d'évaluation, avec leur libellé : choix multiples, note de 1 à 5
- * (affichée en étoiles, voir stage_render_stars()) et commentaire libre.
+ * Types de question des listes d'évaluation, avec leur libellé : choix multiples à une seule
+ * réponse, cases à cocher (plusieurs réponses), oui/non, note de 1 à 5 (affichée en étoiles, voir
+ * stage_render_stars()), nombre, date, texte court et commentaire libre.
+ *
+ * Forme enregistrée de la réponse (stage_answer.answertext), voir stage_normalize_answer() :
+ * - choice : l'option choisie ; checkbox : les options cochées, une par ligne ;
+ * - yesno : « yes » ou « no » ; rating : la note, de « 1 » à « 5 » ;
+ * - number : le nombre, point décimal ; date : la date au format AAAA-MM-JJ ;
+ * - shorttext, text : le texte saisi.
+ *
+ * Le code du type tient dans stage_question.qtype (10 caractères).
  *
  * @return string[] Type => libellé.
  */
 function stage_question_types() {
     return [
         'choice' => get_string('qtype_choice', 'mod_stage'),
+        'checkbox' => get_string('qtype_checkbox', 'mod_stage'),
+        'yesno' => get_string('qtype_yesno', 'mod_stage'),
         'rating' => get_string('qtype_rating', 'mod_stage'),
+        'number' => get_string('qtype_number', 'mod_stage'),
+        'date' => get_string('qtype_date', 'mod_stage'),
+        'shorttext' => get_string('qtype_shorttext', 'mod_stage'),
         'text' => get_string('qtype_text', 'mod_stage'),
     ];
+}
+
+/**
+ * Type de paramètre Moodle sous lequel lire une réponse soumise. Les réponses comparées ensuite à
+ * une liste fermée ou à un format strict (stage_answer_is_valid()) sont lues telles quelles :
+ * PARAM_TEXT retirerait les balises d'une option comme « <b>Urgences</b> », qui ne correspondrait
+ * plus à aucune option et serait refusée. Les textes libres restent nettoyés par PARAM_TEXT.
+ *
+ * @param string $qtype
+ * @return string PARAM_RAW ou PARAM_TEXT
+ */
+function stage_question_param_type($qtype) {
+    return in_array($qtype, ['text', 'shorttext'], true) || !array_key_exists($qtype, stage_question_types())
+        ? PARAM_TEXT : PARAM_RAW;
+}
+
+/**
+ * Indique si une question déjà répondue peut passer d'un type à un autre : seulement si toute
+ * réponse valide de l'ancien type l'est encore pour le nouveau (choix unique vers cases à cocher,
+ * texte court vers commentaire libre, note vers nombre).
+ *
+ * @param string $from
+ * @param string $to
+ * @return bool
+ */
+function stage_question_type_change_allowed($from, $to) {
+    return $from === $to || in_array("$from>$to", ['choice>checkbox', 'shorttext>text', 'rating>number'], true);
+}
+
+/**
+ * Indique si un type de question propose des options saisies par la DEVE (champ « options »).
+ *
+ * @param string $qtype
+ * @return bool
+ */
+function stage_question_type_has_options($qtype) {
+    return in_array($qtype, ['choice', 'checkbox'], true);
 }
 
 /**
@@ -3554,6 +3605,158 @@ function stage_question_types() {
  */
 function stage_question_rating_values() {
     return ['1', '2', '3', '4', '5'];
+}
+
+/**
+ * Réponses d'une question de type « yesno », avec leur libellé. Comme pour les intitulés (voir
+ * stage_question_name()), 'fr' désigne la version principale, affichée dans la langue de
+ * l'utilisateur ; 'en' force l'anglais (maître de stage dont la convention est en anglais).
+ *
+ * @param string $lang
+ * @return string[] Valeur enregistrée => libellé.
+ */
+function stage_question_yesno_values($lang = 'fr') {
+    if ($lang === 'en') {
+        $strings = get_string_manager();
+        return [
+            'yes' => $strings->get_string('yes', 'moodle', null, 'en'),
+            'no' => $strings->get_string('no', 'moodle', null, 'en'),
+        ];
+    }
+    return ['yes' => get_string('yes'), 'no' => get_string('no')];
+}
+
+/**
+ * Découpe une réponse enregistrée sur plusieurs lignes (cases cochées d'une question
+ * « checkbox ») en ses valeurs, sans ligne vide.
+ *
+ * @param string|null $answertext
+ * @return string[]
+ */
+function stage_answer_lines($answertext) {
+    $values = [];
+    foreach (preg_split('/\r\n|\r|\n/', (string) $answertext) as $line) {
+        $line = trim($line);
+        if ($line !== '') {
+            $values[] = $line;
+        }
+    }
+    return $values;
+}
+
+/**
+ * Met une réponse soumise sous sa forme enregistrée (voir stage_question_types()) : cases cochées
+ * une par ligne, nombre avec un point décimal, texte sans espaces superflus. Une valeur que la
+ * normalisation ne sait pas interpréter est rendue telle quelle, pour que stage_validate_answers()
+ * la refuse.
+ *
+ * @param stdClass $question
+ * @param mixed $value Valeur soumise : chaîne, ou tableau pour une question « checkbox ».
+ * @return string
+ */
+function stage_normalize_answer(stdClass $question, $value) {
+    if (is_array($value)) {
+        $value = implode("\n", array_map(fn($item) => is_scalar($item) ? (string) $item : '', $value));
+    }
+    $value = (string) $value;
+    switch ($question->qtype) {
+        case 'checkbox':
+            return implode("\n", array_values(array_unique(stage_answer_lines($value))));
+        case 'number':
+            $number = str_replace([' ', "\u{00A0}", "\u{202F}", ','], ['', '', '', '.'], trim($value));
+            return is_numeric($number) ? $number : trim($value);
+        case 'text':
+            return $value;
+        default:
+            return trim($value);
+    }
+}
+
+/**
+ * Horodatage (midi UTC) d'une réponse de type « date », ou null si elle n'est pas une date valide
+ * au format AAAA-MM-JJ.
+ *
+ * @param string|null $value
+ * @return int|null
+ */
+function stage_answer_date_timestamp($value) {
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', trim((string) $value), $m)) {
+        return null;
+    }
+    if (!checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+        return null;
+    }
+    return gmmktime(12, 0, 0, (int) $m[2], (int) $m[3], (int) $m[1]);
+}
+
+/**
+ * Date d'une réponse de type « date », mise en forme pour l'affichage, ou null si elle n'est pas
+ * valide. Le jour est lu en UTC, comme il a été enregistré, quel que soit le fuseau du lecteur.
+ *
+ * @param string|null $value
+ * @return string|null
+ */
+function stage_format_answer_date($value) {
+    $timestamp = stage_answer_date_timestamp($value);
+    return $timestamp === null ? null : userdate($timestamp, get_string('strftimedate', 'langconfig'), 'UTC');
+}
+
+/**
+ * Réponse à une question, en texte brut lisible : libellé « Oui »/« Non », note « N/5 », date mise
+ * en forme, cases cochées séparées par « ; ». Utilisé par l'export Excel et l'export des données
+ * personnelles. Une réponse enregistrée hors de la forme attendue est rendue telle quelle.
+ *
+ * @param stdClass $question
+ * @param string|null $answertext
+ * @param string $lang Langue des libellés.
+ * @return string
+ */
+function stage_format_answer(stdClass $question, $answertext, $lang = 'fr') {
+    $answertext = (string) $answertext;
+    $value = trim($answertext);
+    if ($value === '') {
+        return '';
+    }
+    switch ($question->qtype) {
+        case 'checkbox':
+            return implode('; ', stage_answer_lines($answertext));
+        case 'yesno':
+            return stage_question_yesno_values($lang)[$value] ?? $answertext;
+        case 'rating':
+            return in_array($value, stage_question_rating_values(), true) ? $value . '/5' : $answertext;
+        case 'date':
+            return stage_format_answer_date($value) ?? $answertext;
+        default:
+            return $answertext;
+    }
+}
+
+/**
+ * Valeurs d'une réponse pour l'export Excel des questionnaires (feuille « Réponses ») : le texte
+ * lisible (voir stage_format_answer()), la note sur 5 d'une question « rating » et la valeur
+ * numérique d'une question « number » (1 ou 0 pour une question « yesno »), à écrire dans des
+ * colonnes numériques pour que les réponses se filtrent et se comptent.
+ *
+ * @param stdClass $question Doit porter au moins qtype.
+ * @param string|null $answertext
+ * @return array ['answer' => string, 'score' => float|null, 'number' => float|null]
+ */
+function stage_answer_export_values(stdClass $question, $answertext) {
+    $value = trim((string) $answertext);
+    $score = null;
+    $number = null;
+    if ($question->qtype === 'rating' && in_array($value, stage_question_rating_values(), true)) {
+        $score = (float) $value;
+    } else if ($question->qtype === 'number' && is_numeric($value) && is_finite((float) $value)) {
+        $number = (float) $value;
+    } else if ($question->qtype === 'yesno' && ($value === 'yes' || $value === 'no')) {
+        $number = $value === 'yes' ? 1.0 : 0.0;
+    }
+    return [
+        'answer' => stage_format_answer($question, $answertext),
+        'score' => $score,
+        'number' => $number,
+    ];
 }
 
 /**
@@ -3636,7 +3839,7 @@ function stage_save_answers($entryid, array $questions, array $submitted) {
     $existing = stage_get_answers($entryid);
     foreach ($questions as $question) {
         $value = $submitted[$question->id] ?? '';
-        $value = is_array($value) ? implode(', ', $value) : (string) $value;
+        $value = is_array($value) ? stage_normalize_answer($question, $value) : (string) $value;
 
         if (isset($existing[$question->id])) {
             $answer = $existing[$question->id];
@@ -3663,11 +3866,40 @@ function stage_save_answers($entryid, array $questions, array $submitted) {
  * @return array questionid => valeur soumise
  */
 function stage_get_submitted_answers(array $questions, $lang = 'fr') {
+    $submitted = stage_read_submitted_answers($questions);
+    stage_validate_answers($questions, $submitted, $lang);
+    return $submitted;
+}
+
+/**
+ * Lit, sans les valider, les réponses soumises par un formulaire produit par
+ * stage_render_question_fields(), mises sous leur forme enregistrée (stage_normalize_answer()) :
+ * une question « checkbox » envoie un tableau de cases cochées, les autres une seule valeur.
+ *
+ * @param array $questions Liste de stage_question
+ * @return array questionid => réponse
+ */
+function stage_read_submitted_answers(array $questions) {
     $submitted = [];
     foreach ($questions as $question) {
-        $submitted[$question->id] = optional_param('q_' . $question->id, '', PARAM_TEXT);
+        $param = 'q_' . $question->id;
+        $type = stage_question_param_type($question->qtype);
+        try {
+            $value = $question->qtype === 'checkbox'
+                ? optional_param_array($param, [], $type)
+                : optional_param($param, '', $type);
+        } catch (coding_exception $e) {
+            // Tableau envoyé à la place d'une valeur (ou tableau imbriqué) : formulaire falsifié.
+            // La réponse est marquée invalide, refusée ensuite par stage_validate_answers().
+            $submitted[$question->id] = null;
+            continue;
+        }
+        if (is_array($value) && $question->qtype !== 'checkbox') {
+            $submitted[$question->id] = null;
+            continue;
+        }
+        $submitted[$question->id] = stage_normalize_answer($question, $value);
     }
-    stage_validate_answers($questions, $submitted, $lang);
     return $submitted;
 }
 
@@ -3681,16 +3913,49 @@ function stage_get_submitted_answers(array $questions, $lang = 'fr') {
  */
 function stage_validate_answers(array $questions, array $submitted, $lang = 'fr') {
     foreach ($questions as $question) {
-        $value = $submitted[$question->id] ?? '';
-        if (!is_string($value) || (!empty($question->required) && trim($value) === '')) {
+        $value = array_key_exists($question->id, $submitted) ? $submitted[$question->id] : '';
+        if (!is_string($value)) {
+            throw new moodle_exception('errorinvalidanswer', 'mod_stage', '', stage_question_name($question, $lang));
+        }
+        if (!empty($question->required) && trim($value) === '') {
             throw new moodle_exception('errorrequiredanswer', 'mod_stage', '', stage_question_name($question, $lang));
         }
-        if ($question->qtype === 'choice' && $value !== '' && !in_array($value, stage_question_options($question, $lang), true)) {
+        if ($value !== '' && !stage_answer_is_valid($question, $value, $lang)) {
             throw new moodle_exception('errorinvalidanswer', 'mod_stage', '', stage_question_name($question, $lang));
         }
-        if ($question->qtype === 'rating' && $value !== '' && !in_array($value, stage_question_rating_values(), true)) {
-            throw new moodle_exception('errorinvalidanswer', 'mod_stage', '', stage_question_name($question, $lang));
-        }
+    }
+}
+
+/**
+ * Indique si une réponse non vide, sous sa forme enregistrée, est permise par sa question : une
+ * option proposée (ou plusieurs pour des cases à cocher), oui ou non, une note de 1 à 5, un
+ * nombre, une date AAAA-MM-JJ existante, un texte court d'au plus 255 caractères.
+ *
+ * @param stdClass $question
+ * @param string $value
+ * @param string $lang Langue des options affichées.
+ * @return bool
+ */
+function stage_answer_is_valid(stdClass $question, $value, $lang = 'fr') {
+    switch ($question->qtype) {
+        case 'choice':
+            return in_array($value, stage_question_options($question, $lang), true);
+        case 'checkbox':
+            $options = stage_question_options($question, $lang);
+            $values = stage_answer_lines($value);
+            return $values && !array_diff($values, $options);
+        case 'yesno':
+            return $value === 'yes' || $value === 'no';
+        case 'rating':
+            return in_array($value, stage_question_rating_values(), true);
+        case 'number':
+            return is_numeric($value) && is_finite((float) $value);
+        case 'date':
+            return stage_answer_date_timestamp($value) !== null;
+        case 'shorttext':
+            return core_text::strlen($value) <= STAGE_QUESTION_SHORTTEXT_MAXLENGTH && !preg_match('/[\r\n]/', $value);
+        default:
+            return true;
     }
 }
 
@@ -3757,6 +4022,68 @@ function stage_render_question_fields(array $questions, array $answers, $lang = 
                 $out .= html_writer::tag('label', s($option), ['for' => $optionid, 'class' => 'form-check-label']);
                 $out .= html_writer::end_tag('div');
             }
+        } else if ($question->qtype === 'checkbox') {
+            // Plusieurs réponses : pas d'attribut « required », qui exigerait chaque case ; une
+            // réponse obligatoire (au moins une case) est contrôlée côté serveur.
+            $checked = stage_answer_lines($current);
+            foreach (stage_question_options($question, $lang) as $index => $option) {
+                $optionid = $fieldname . '_' . $index;
+                $out .= html_writer::start_tag('div', ['class' => 'form-check']);
+                $out .= html_writer::empty_tag('input', [
+                    'type' => 'checkbox',
+                    'name' => $fieldname . '[]',
+                    'value' => $option,
+                    'id' => $optionid,
+                    'class' => 'form-check-input',
+                    'checked' => in_array($option, $checked, true) ? 'checked' : null,
+                ]);
+                $out .= html_writer::tag('label', s($option), ['for' => $optionid, 'class' => 'form-check-label']);
+                $out .= html_writer::end_tag('div');
+            }
+        } else if ($question->qtype === 'yesno') {
+            // Sur sa propre ligne, sous l'intitulé, comme les notes.
+            $out .= html_writer::start_div('stage-yesno');
+            foreach (stage_question_yesno_values($lang) as $value => $label) {
+                $optionid = $fieldname . '_' . $value;
+                $out .= html_writer::start_tag('div', ['class' => 'form-check form-check-inline']);
+                $out .= html_writer::empty_tag('input', array_merge([
+                    'type' => 'radio',
+                    'name' => $fieldname,
+                    'value' => $value,
+                    'id' => $optionid,
+                    'class' => 'form-check-input',
+                    'checked' => ($current === $value) ? 'checked' : null,
+                ], $required));
+                $out .= html_writer::tag('label', s($label), ['for' => $optionid, 'class' => 'form-check-label']);
+                $out .= html_writer::end_tag('div');
+            }
+            $out .= html_writer::end_div();
+        } else if ($question->qtype === 'number') {
+            $out .= html_writer::empty_tag('input', array_merge([
+                'type' => 'number',
+                'step' => 'any',
+                'name' => $fieldname,
+                'id' => $fieldname,
+                'value' => $current,
+                'class' => 'form-control',
+            ], $required));
+        } else if ($question->qtype === 'date') {
+            $out .= html_writer::empty_tag('input', array_merge([
+                'type' => 'date',
+                'name' => $fieldname,
+                'id' => $fieldname,
+                'value' => $current,
+                'class' => 'form-control',
+            ], $required));
+        } else if ($question->qtype === 'shorttext') {
+            $out .= html_writer::empty_tag('input', array_merge([
+                'type' => 'text',
+                'name' => $fieldname,
+                'id' => $fieldname,
+                'value' => $current,
+                'maxlength' => STAGE_QUESTION_SHORTTEXT_MAXLENGTH,
+                'class' => 'form-control',
+            ], $required));
         } else {
             $out .= html_writer::tag('textarea', s($current), array_merge([
                 'name' => $fieldname,
@@ -3972,6 +4299,10 @@ function stage_render_answers_readonly(array $questions, array $answers, $lang =
             $value = html_writer::tag('em', get_string('noanswer', 'mod_stage'));
         } else if ($question->qtype === 'rating' && in_array($current, stage_question_rating_values(), true)) {
             $value = stage_render_stars((int) $current);
+        } else if ($question->qtype === 'checkbox') {
+            $value = html_writer::alist(array_map('s', stage_answer_lines($current)), ['class' => 'mb-0']);
+        } else if ($question->qtype === 'yesno' || $question->qtype === 'date') {
+            $value = s(stage_format_answer($question, $current, $lang));
         } else {
             $value = nl2br(s($current));
         }
@@ -5513,12 +5844,17 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
         // réponses comme les autres et seraient sinon supprimées faute d'équivalent trouvé.
         // Comme pour les objectifs, seules les correspondances uniques des deux côtés sont
         // retenues, et une question cible ne reçoit jamais deux réponses d'un même stage (l'index
-        // unique entryid-questionid ferait échouer le transfert).
+        // unique entryid-questionid ferait échouer le transfert). La question cible doit aussi
+        // accepter les réponses de la question source (même type, ou type compatible, voir
+        // stage_question_type_change_allowed()) : sinon ses réponses y deviendraient illisibles et
+        // sont comptées parmi les réponses abandonnées.
         $usedtargets = [];
         foreach (array_keys(stage_evallist_fields()) as $evaltype) {
             $targetquestions = [];
+            $targettypes = [];
             foreach (stage_get_questions($targetthemeid, $evaltype) as $targetquestion) {
                 $targetquestions[stage_normalize_name($targetquestion->name)][] = $targetquestion->id;
+                $targettypes[$targetquestion->id] = $targetquestion->qtype;
             }
             // Côté source, les questions auxquelles les stages transférés ont répondu comptent
             // aussi, même si la thématique a changé de liste depuis.
@@ -5531,7 +5867,8 @@ function stage_plan_student_transfer(stdClass $sourcestage, stdClass $targetstag
             }
             foreach ($sourcequestions as $name => $questionids) {
                 $targetids = $targetquestions[$name] ?? [];
-                $unique = count($questionids) === 1 && count($targetids) === 1 && !isset($usedtargets[$targetids[0]]);
+                $unique = count($questionids) === 1 && count($targetids) === 1 && !isset($usedtargets[$targetids[0]])
+                    && stage_question_type_change_allowed($candidates[$questionids[0]]->qtype, $targettypes[$targetids[0]]);
                 foreach ($questionids as $questionid) {
                     if (array_key_exists($questionid, $plan->questionmap[$sourcethemeid] ?? [])) {
                         continue;
@@ -7861,7 +8198,7 @@ function stage_render_theme_objectives_section(context $context, stdClass $cm, a
 }
 
 /**
- * Éléments de la check-list d'objectifs d'une thématique, dans l'ordre d'affichage.
+ * Éléments de la check-list des prérequis d'une thématique, dans l'ordre d'affichage.
  *
  * @param int $themeid
  * @return array id => enregistrement stage_theme_checklist.
@@ -7933,7 +8270,7 @@ function stage_delete_theme_checklist($themeid) {
 }
 
 /**
- * Réponses données à la check-list d'objectifs pour une saisie de stage.
+ * Réponses données à la check-list des prérequis pour une saisie de stage.
  *
  * @param int $entryid
  * @return array itemid => enregistrement stage_entry_checklist.
@@ -7951,7 +8288,7 @@ function stage_get_entry_checklist($entryid) {
 }
 
 /**
- * Enregistre les réponses à la check-list d'objectifs d'une saisie.
+ * Enregistre les réponses à la check-list des prérequis d'une saisie.
  *
  * Les réponses portant sur des éléments qui ne font plus partie de la check-list attendue sont
  * supprimées : c'est le cas lorsque l'étudiant change la thématique de son stage avant que sa
@@ -8068,8 +8405,10 @@ function stage_get_request_questions_by_theme(array $themeids) {
  * Ajoute à un formulaire Moodle les questions du questionnaire de demande de stage. Avec
  * $themefield, les questions d'une thématique ne s'affichent que si elle est choisie.
  *
- * Une note ou un choix se donnent par une liste déroulante, une réponse libre dans une zone de
- * texte. Les réponses obligatoires sont contrôlées côté serveur (stage_validate_request_answers()).
+ * Une note, un choix ou un oui/non se donnent par une liste déroulante, des cases à cocher par une
+ * liste à sélection multiple, une date par un sélecteur de date, un nombre ou un texte court dans
+ * un champ texte, une réponse libre dans une zone de texte. Les réponses obligatoires sont
+ * contrôlées côté serveur (stage_validate_request_answers()).
  *
  * @param \MoodleQuickForm $mform
  * @param array $questionsbytheme themeid => questions (voir stage_get_request_questions_by_theme()).
@@ -8093,12 +8432,31 @@ function stage_add_request_question_fields(\MoodleQuickForm $mform, array $quest
             $field = stage_request_question_field($themeid, $question->id);
             $label = format_string($question->name) . (!empty($question->required) ? ' *' : '');
             if ($question->qtype === 'rating' || $question->qtype === 'choice') {
+                // Libellés échappés : le gabarit des listes déroulantes les affiche tels quels, et une
+                // option peut contenir une balise (« <b>Urgences</b> »).
                 $values = $question->qtype === 'rating' ? stage_question_rating_values() : stage_question_options($question);
-                $mform->addElement('select', $field, $label, ['' => get_string('choosedots')] + array_combine($values, $values));
+                $mform->addElement('select', $field, $label, ['' => get_string('choosedots')]
+                    + array_combine($values, array_map('s', $values)));
+            } else if ($question->qtype === 'checkbox') {
+                $values = stage_question_options($question);
+                $mform->addElement('select', $field, $label, array_combine($values, array_map('s', $values)))->setMultiple(true);
+            } else if ($question->qtype === 'yesno') {
+                $mform->addElement('select', $field, $label, ['' => get_string('choosedots')] + stage_question_yesno_values());
+            } else if ($question->qtype === 'date') {
+                // Date facultative dans le formulaire : une réponse obligatoire est contrôlée côté
+                // serveur, comme les autres.
+                $mform->addElement('date_selector', $field, $label, ['optional' => true]);
+            } else if ($question->qtype === 'number') {
+                $mform->addElement('text', $field, $label, ['size' => 12, 'inputmode' => 'decimal']);
+            } else if ($question->qtype === 'shorttext') {
+                $mform->addElement('text', $field, $label, ['size' => 60, 'maxlength' => STAGE_QUESTION_SHORTTEXT_MAXLENGTH]);
+                $mform->addRule($field, null, 'maxlength', STAGE_QUESTION_SHORTTEXT_MAXLENGTH, 'client');
             } else {
                 $mform->addElement('textarea', $field, $label, ['rows' => 3, 'cols' => 60]);
             }
-            $mform->setType($field, PARAM_TEXT);
+            if ($question->qtype !== 'date') {
+                $mform->setType($field, stage_question_param_type($question->qtype));
+            }
             if ($themefield !== null) {
                 $mform->hideIf($field, $themefield, 'neq', $themeid);
             }
@@ -8117,9 +8475,22 @@ function stage_add_request_question_fields(\MoodleQuickForm $mform, array $quest
 function stage_request_question_form_data($themeid, array $questions, array $answers) {
     $data = [];
     foreach ($questions as $question) {
-        if (isset($answers[$question->id])) {
-            $data[stage_request_question_field($themeid, $question->id)] = $answers[$question->id]->answertext;
+        if (!isset($answers[$question->id])) {
+            continue;
         }
+        $value = $answers[$question->id]->answertext;
+        if ($question->qtype === 'checkbox') {
+            $value = stage_answer_lines($value);
+        } else if ($question->qtype === 'date') {
+            // Le sélecteur de date travaille en horodatage, dans le fuseau de l'utilisateur.
+            $timestamp = stage_answer_date_timestamp($value);
+            $value = $timestamp === null ? 0 : make_timestamp(
+                (int) gmdate('Y', $timestamp),
+                (int) gmdate('n', $timestamp),
+                (int) gmdate('j', $timestamp)
+            );
+        }
+        $data[stage_request_question_field($themeid, $question->id)] = $value;
     }
     return $data;
 }
@@ -8136,7 +8507,25 @@ function stage_extract_request_answers($data, $themeid, array $questions) {
     $data = (array) $data;
     $answers = [];
     foreach ($questions as $question) {
-        $answers[$question->id] = trim((string) ($data[stage_request_question_field($themeid, $question->id)] ?? ''));
+        $value = $data[stage_request_question_field($themeid, $question->id)] ?? '';
+        if ($question->qtype === 'date') {
+            // Sélecteur de date : un horodatage, 0 si la date n'est pas renseignée (ou, avant
+            // envoi du formulaire, le tableau des composantes de la date).
+            if (is_array($value)) {
+                $value = !empty($value['enabled']) && isset($value['year'], $value['month'], $value['day'])
+                    ? sprintf('%04d-%02d-%02d', $value['year'], $value['month'], $value['day']) : '';
+            } else if ((int) $value > 0) {
+                // Jour grégorien dans le fuseau de l'utilisateur, celui de make_timestamp() : pas
+                // userdate(), qui suivrait le calendrier choisi par l'utilisateur (hégirien...).
+                $value = (new DateTime('@' . (int) $value))->setTimezone(core_date::get_user_timezone_object())->format('Y-m-d');
+            } else {
+                $value = '';
+            }
+        }
+        $answer = stage_normalize_answer($question, $value);
+        // Les commentaires libres des évaluations gardent leurs espaces ; ceux de la demande de
+        // stage, comme avant l'arrivée des types de question, en sont débarrassés aux extrémités.
+        $answers[$question->id] = $question->qtype === 'text' ? trim($answer) : $answer;
     }
     return $answers;
 }
@@ -8207,6 +8596,140 @@ function stage_render_request_answers(stdClass $entry) {
     }
     return html_writer::tag('h4', get_string('requestquestionnaire', 'mod_stage'), ['class' => 'mt-3'])
         . stage_render_answers_readonly($questions, stage_get_answers($entry->id));
+}
+
+/**
+ * Indique si l'export des réponses au questionnaire de demande d'une thématique a un objet : la
+ * thématique propose un questionnaire de demande, ou des stages y ont déjà répondu (questionnaire
+ * retiré depuis).
+ *
+ * @param stdClass $theme
+ * @return bool
+ */
+function stage_theme_has_request_answers(stdClass $theme) {
+    global $DB;
+
+    if (stage_get_questions($theme->id, 'request')) {
+        return true;
+    }
+    return $DB->record_exists_sql(
+        "SELECT 1
+           FROM {stage_answer} a
+           JOIN {stage_question} q ON q.id = a.questionid
+           JOIN {stage_entry} e ON e.id = a.entryid
+          WHERE e.themeid = :themeid AND q.evaltype = :evaltype",
+        ['themeid' => $theme->id, 'evaltype' => 'request']
+    );
+}
+
+/**
+ * Tableau des réponses au questionnaire de demande (pré-stage) d'une thématique, pour
+ * request_answers_export.php : une ligne par stage ayant répondu au questionnaire, une colonne par
+ * question, précédées de quoi identifier le stage (n°, étudiant, courriel, dates, statuts).
+ *
+ * Les questions sont celles de la liste que la thématique propose aujourd'hui, dans leur ordre,
+ * suivies de celles auxquelles des stages ont répondu et que cette liste ne contient plus (voir
+ * stage_get_entry_questions()). Une note sur 5 et un nombre sont écrits en valeur numérique, les
+ * dates au format AAAA-MM-JJ (qui se trie), les autres réponses en clair (voir
+ * stage_answer_export_values()).
+ *
+ * @param stdClass $theme
+ * @param array $entries Stages de la thématique (voir stage_get_filtered_entries()), dans l'ordre voulu.
+ * @param bool $includeemail Ajouter le courriel des étudiants (réservé à qui voit tous les stages).
+ * @return array ['columns' => clé => libellé, 'rows' => liste de tableaux clé => valeur]
+ */
+function stage_get_request_answers_export(stdClass $theme, array $entries, $includeemail = true) {
+    global $DB;
+
+    $questions = stage_get_questions($theme->id, 'request');
+    $answers = [];
+    // Par paquets : une liste IN de tous les stages d'une thématique dépasserait les limites de
+    // paramètres de certains SGBD (2 100 sous SQL Server, 1 000 éléments sous Oracle).
+    foreach (array_chunk(array_keys($entries), 1000) as $chunk) {
+        [$insql, $params] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'entry');
+        $params['evaltype'] = 'request';
+        $records = $DB->get_recordset_sql(
+            "SELECT a.id, a.entryid, a.questionid, a.answertext
+               FROM {stage_answer} a
+               JOIN {stage_question} q ON q.id = a.questionid
+              WHERE a.entryid $insql AND q.evaltype = :evaltype",
+            $params
+        );
+        foreach ($records as $record) {
+            $answers[$record->entryid][$record->questionid] = $record->answertext;
+        }
+        $records->close();
+    }
+    if ($answers) {
+        // Questions retirées de la liste depuis que des stages y ont répondu.
+        $answered = [];
+        foreach ($answers as $entryanswers) {
+            $answered += array_fill_keys(array_keys($entryanswers), true);
+        }
+        $missing = array_diff_key($answered, $questions);
+        if ($missing) {
+            $questions += $DB->get_records_list('stage_question', 'id', array_keys($missing), 'sortorder ASC, id ASC');
+        }
+    }
+
+    $columns = [
+        'entryid' => get_string('exportentryid', 'mod_stage'),
+        'student' => get_string('student', 'mod_stage'),
+        'email' => get_string('email'),
+        'datestart' => get_string('datestart', 'mod_stage'),
+        'dateend' => get_string('dateend', 'mod_stage'),
+        'status' => get_string('status', 'mod_stage'),
+        'conventionstatus' => get_string('conventionstatus', 'mod_stage'),
+    ];
+    if (!$includeemail) {
+        unset($columns['email']);
+    }
+    foreach ($questions as $question) {
+        $columns['q' . $question->id] = stage_plain_string($question->name);
+    }
+
+    $students = stage_get_entry_users($entries);
+    $timezone = core_date::get_user_timezone_object();
+    $isodate = fn($time) => !empty($time) ? (new DateTime('@' . (int) $time))->setTimezone($timezone)->format('Y-m-d') : '';
+    $rows = [];
+    foreach ($entries as $entry) {
+        if (empty($answers[$entry->id])) {
+            continue;
+        }
+        $student = $students[$entry->userid] ?? null;
+        $row = [
+            'entryid' => (int) $entry->id,
+            'student' => $student ? fullname($student) : '',
+            'email' => $student ? (string) $student->email : '',
+            'datestart' => $isodate($entry->datestart),
+            'dateend' => $isodate($entry->dateend),
+            'status' => stage_status_label($entry->status),
+            'conventionstatus' => stage_convention_status_label($entry->conventionstatus ?? 0),
+        ];
+        foreach ($questions as $question) {
+            $value = '';
+            if (isset($answers[$entry->id][$question->id])) {
+                $stored = $answers[$entry->id][$question->id];
+                $values = stage_answer_export_values($question, $stored);
+                if ($values['score'] !== null) {
+                    $value = $values['score'];
+                } else if ($question->qtype === 'number' && $values['number'] !== null) {
+                    $value = $values['number'];
+                } else if ($question->qtype === 'date' && stage_answer_date_timestamp($stored) !== null) {
+                    $value = trim($stored);
+                } else {
+                    $value = $values['answer'];
+                }
+            }
+            $row['q' . $question->id] = $value;
+        }
+        if (!$includeemail) {
+            unset($row['email']);
+        }
+        $rows[] = $row;
+    }
+
+    return ['columns' => $columns, 'rows' => $rows];
 }
 
 /**
@@ -8349,7 +8872,7 @@ function stage_validate_checklist(array $data, array $items) {
 }
 
 /**
- * Rend la check-list d'objectifs d'une saisie en lecture seule (détail d'une saisie).
+ * Rend la check-list des prérequis d'une saisie en lecture seule (détail d'une saisie).
  *
  * Un élément sans réponse enregistrée est présenté comme non renseigné plutôt que comme non
  * atteint : la DEVE peut avoir ajouté l'objectif après la demande de convention, ou avoir changé
@@ -8396,7 +8919,7 @@ function stage_render_entry_checklist(array $items, array $responses) {
 }
 
 /**
- * Section « Check-list d'objectifs » des pages qui portent sur une saisie précise (détail,
+ * Section « Check-list des prérequis » des pages qui portent sur une saisie précise (détail,
  * validation de la convention par l'enseignant référent, revue de la convention par la DEVE) :
  * les réponses de l'étudiant en lecture seule, suivies du bouton de correction pour ceux qui y
  * ont droit.
@@ -8441,7 +8964,7 @@ function stage_render_entry_checklist_section(
 }
 
 /**
- * Qui peut modifier la check-list d'objectifs d'une saisie après coup : la DEVE et l'enseignant
+ * Qui peut modifier la check-list des prérequis d'une saisie après coup : la DEVE et l'enseignant
  * référent de l'étudiant, et eux seuls. L'étudiant la renseigne lors de sa demande de convention
  * et ne la reprend plus ensuite ; l'enseignant responsable de la thématique, qui accède pourtant
  * au détail de la saisie, n'a pas à la corriger.
