@@ -6803,6 +6803,41 @@ function stage_validate_siret_field(array $data) {
 }
 
 /**
+ * Contrôle serveur des listes déroulantes obligatoires d'un formulaire.
+ *
+ * Une valeur absente des options (formulaire falsifié) passe la règle « required » de QuickForm,
+ * qui ne regarde que la valeur brute, mais elle est retirée des données exportées : le champ
+ * manquerait alors à l'enregistrement, qui échouerait sur une contrainte NOT NULL au lieu d'un
+ * message sur le champ. Chaque liste nommée doit donc avoir une valeur parmi ses options.
+ *
+ * @param \MoodleQuickForm $mform Formulaire portant les listes.
+ * @param array $data Données soumises, telles que reçues par validation().
+ * @param string[] $fieldnames Noms des listes à contrôler ; une liste absente du formulaire est ignorée.
+ * @return array champ => message d'erreur
+ */
+function stage_validate_select_fields(\MoodleQuickForm $mform, array $data, array $fieldnames) {
+    $errors = [];
+    foreach ($fieldnames as $name) {
+        if (!$mform->elementExists($name)) {
+            continue;
+        }
+        $element = $mform->getElement($name);
+        if (!$element instanceof \HTML_QuickForm_select) {
+            continue;
+        }
+        $allowed = [];
+        foreach ($element->_options as $option) {
+            $allowed[] = (string) $option['attr']['value'];
+        }
+        $value = $data[$name] ?? null;
+        if (!is_scalar($value) || !in_array((string) $value, $allowed, true)) {
+            $errors[$name] = get_string('required');
+        }
+    }
+    return $errors;
+}
+
+/**
  * Enregistre (création ou mise à jour) les informations complémentaires de convention d'une
  * saisie, saisies par l'étudiant lors de sa demande.
  *

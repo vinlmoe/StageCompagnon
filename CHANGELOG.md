@@ -64,6 +64,11 @@ changements. À tenir à jour à chaque modification de `version.php`.
     court borné côté navigateur.
 - Guides : captures des nouveautés (`demo_questions.php`, `plan_questions.json`) et texte sur
   les types de question, l'export pré-stage et la check-list des prérequis.
+- Demande de convention (`convention_request.php`) et enregistrement de stage par l'étudiant
+  (`student_register.php`) : une valeur absente d'une liste déroulante (formulaire falsifié)
+  est refusée par la validation, sur son champ, au lieu de disparaître des données et de faire
+  échouer l'enregistrement sur la contrainte NOT NULL de `stage_convention_detail`
+  (`stage_validate_select_fields()`, test `select_validation_test`).
 
 ## mod_stage 0.6.0 et mod_stagesynthesis 0.2.2 — 2026-11-07
 
