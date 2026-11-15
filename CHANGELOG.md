@@ -8,6 +8,18 @@ changements. À tenir à jour à chaque modification de `version.php`.
 ## Non publié
 
 ### mod_stage
+- Nouvelle page *Actions DEVE en attente* (`deve_actions.php`), réservée à la DEVE et
+  accessible depuis la barre de navigation : tous les stages de la promotion qui attendent une
+  action de sa part (convention à générer, convention à marquer signée, invitation du maître de
+  stage en échec, stage à valider), avec un décompte par type d'action, un filtre par thématique
+  et par action, et pour chaque stage le bouton qui mène à l'action. Les stages annulés n'y
+  figurent pas.
+- Export de tous les questionnaires d'un stage (demande, auto-évaluation, évaluation de
+  l'enseignant référent, évaluation du maître de stage) en Excel ou en PDF, depuis la page de
+  détail du stage (`entry_questionnaires_export.php`). Ouvert à la DEVE, à l'enseignant référent
+  de l'étudiant et à l'enseignant responsable de la thématique. L'Excel reprend les notes et les
+  nombres en colonnes numériques ; le PDF présente un tableau question / réponse par
+  questionnaire.
 - Listes d'évaluation : cinq nouveaux types de question, en plus des choix multiples, des notes
   de 1 à 5 et des commentaires libres. *Cases à cocher* (plusieurs options parmi celles saisies,
   enregistrées une par ligne), *Oui / Non*, *Nombre* (virgule décimale acceptée), *Date*
