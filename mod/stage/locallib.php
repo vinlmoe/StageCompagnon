@@ -2565,6 +2565,124 @@ function stage_reject_by_deve(stdClass $entry, $deveuserid, $comment) {
 }
 
 /**
+ * Types d'action attendus de la DEVE sur un stage, dans l'ordre du circuit : générer la
+ * convention demandée, la marquer signée, débloquer l'évaluation du maître de stage dont
+ * l'invitation automatique a échoué, puis valider le stage.
+ *
+ * @return array clé => libellé
+ */
+function stage_deve_action_types() {
+    $types = [];
+    foreach (['conventionreview', 'conventionsign', 'tutorrequestfailed', 'validate'] as $key) {
+        $types[$key] = get_string('deveaction_' . $key, 'mod_stage');
+    }
+    return $types;
+}
+
+/**
+ * Actions qu'un stage attend de la DEVE (voir stage_deve_action_types()).
+ *
+ * Mêmes règles que les boutons d'action principale de stage_render_entry_management_actions() et
+ * de conventions.php : convention demandée (à générer) ou éditée (à marquer signée), stage évalué
+ * par l'enseignant référent (à valider). S'y ajoute l'invitation du maître de stage en échec, que
+ * seule la DEVE peut relancer à la main (voir stage_get_entries_needing_tutor_request()). Un stage
+ * annulé n'attend plus rien.
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @param stdClass|null $theme Thématique du stage.
+ * @return string[] Clés de stage_deve_action_types(), dans le même ordre.
+ */
+function stage_get_deve_entry_actions(stdClass $stage, stdClass $entry, ?stdClass $theme) {
+    $status = (int) $entry->status;
+    if ($status === STAGE_STATUS_ANNULE) {
+        return [];
+    }
+    $conventionstatus = (int) $entry->conventionstatus;
+
+    $actions = [];
+    if ($conventionstatus === STAGE_CONVENTION_REQUESTED) {
+        $actions[] = 'conventionreview';
+    }
+    if ($conventionstatus === STAGE_CONVENTION_EDITED) {
+        $actions[] = 'conventionsign';
+    }
+    if (
+        $status >= STAGE_STATUS_ENREGISTRE && $status < STAGE_STATUS_VALIDE_DEVE
+        && !empty($entry->tutorrequestfailtime) && empty($entry->tutortime) && empty($entry->tutorbypassed)
+        && stage_tutor_evaluation_enabled($stage, $theme)
+    ) {
+        $actions[] = 'tutorrequestfailed';
+    }
+    if ($status === STAGE_STATUS_EVAL_ENSEIGNANT) {
+        $actions[] = 'validate';
+    }
+    return $actions;
+}
+
+/**
+ * Stages de l'activité qui attendent une action de la DEVE (page deve_actions.php).
+ *
+ * Les candidats sont présélectionnés en SQL sur les statuts concernés, puis retenus d'après
+ * stage_get_deve_entry_actions(), qui fait foi. Chaque saisie renvoyée porte ses actions dans
+ * $entry->deveactions.
+ *
+ * @param stdClass $stage
+ * @param string $search Recherche sur le nom de l'étudiant.
+ * @param int $themeid Thématique, 0 pour toutes.
+ * @param string $action Type d'action (clé de stage_deve_action_types()), vide pour tous.
+ * @return array Saisies indexées par identifiant, triées de la plus ancienne mise à jour à la
+ *               plus récente.
+ */
+function stage_get_deve_action_entries(stdClass $stage, $search = '', $themeid = 0, $action = '') {
+    global $DB;
+
+    $params = [
+        'stageid' => $stage->id, 'cancelled' => STAGE_STATUS_ANNULE,
+        'requested' => STAGE_CONVENTION_REQUESTED, 'edited' => STAGE_CONVENTION_EDITED,
+        'evalteacher' => STAGE_STATUS_EVAL_ENSEIGNANT, 'registered' => STAGE_STATUS_ENREGISTRE,
+        'validated' => STAGE_STATUS_VALIDE_DEVE,
+    ];
+    $where = [
+        'e.stageid = :stageid',
+        'e.status <> :cancelled',
+        '(e.conventionstatus IN (:requested, :edited) OR e.status = :evalteacher'
+            . ' OR (e.tutorrequestfailtime > 0 AND (e.tutortime IS NULL OR e.tutortime = 0) AND e.tutorbypassed = 0'
+            . ' AND e.status >= :registered AND e.status < :validated))',
+    ];
+    if ($themeid) {
+        $where[] = 'e.themeid = :themeid';
+        $params['themeid'] = (int) $themeid;
+    }
+    if ($search !== '') {
+        $fullname = $DB->sql_concat('u.firstname', "' '", 'u.lastname');
+        $where[] = $DB->sql_like($fullname, ':search', false, false);
+        $params['search'] = '%' . $DB->sql_like_escape($search) . '%';
+    }
+
+    $entries = $DB->get_records_sql(
+        "SELECT e.*
+           FROM {stage_entry} e
+           JOIN {user} u ON u.id = e.userid
+          WHERE " . implode(' AND ', $where) . "
+       ORDER BY e.timemodified ASC, e.id ASC",
+        $params
+    );
+
+    $themes = stage_get_themes($stage->id);
+    $result = [];
+    foreach ($entries as $entry) {
+        $actions = stage_get_deve_entry_actions($stage, $entry, $themes[$entry->themeid] ?? null);
+        if (empty($actions) || ($action !== '' && !in_array($action, $actions, true))) {
+            continue;
+        }
+        $entry->deveactions = $actions;
+        $result[$entry->id] = $entry;
+    }
+    return $result;
+}
+
+/**
  * Réinitialise une saisie de stage à son état initial (à faire auto-évaluer), pour permettre à
  * l'étudiant et à l'enseignant référent de la modifier à nouveau. Action réservée à la DEVE :
  * l'auto-évaluation et l'évaluation enseignant ne sont pas modifiables une fois soumises, sauf
@@ -4941,6 +5059,8 @@ function stage_render_navlinks(stdClass $cm, context $context) {
             new moodle_url('/mod/stage/conventions.php', ['id' => $cm->id]);
     }
     if (has_capability('mod/stage:validatedeve', $context)) {
+        // Tout ce qui attend la DEVE, conventions et validations confondues, sur une seule page.
+        $links[get_string('deveactions', 'mod_stage')] = new moodle_url('/mod/stage/deve_actions.php', ['id' => $cm->id]);
         $links[get_string('devevalidation', 'mod_stage')] = new moodle_url('/mod/stage/deve.php', ['id' => $cm->id]);
     }
     if (has_capability('mod/stage:evaluateteacher', $context)) {
@@ -8730,6 +8850,179 @@ function stage_get_request_answers_export(stdClass $theme, array $entries, $incl
     }
 
     return ['columns' => $columns, 'rows' => $rows];
+}
+
+/**
+ * Questionnaires d'un stage, dans l'ordre du circuit, pour leur export (entry_questionnaires_export.php) :
+ * questionnaire de demande, auto-évaluation de l'étudiant, évaluation de l'enseignant référent et
+ * évaluation du maître de stage.
+ *
+ * Mêmes règles d'affichage que la page de détail du stage (entrydetail.php) : un questionnaire
+ * figure dès que la thématique en propose un ou que le stage y a répondu (questions retirées de la
+ * liste depuis comprises, voir stage_get_entry_questions()), ou qu'un commentaire libre a été
+ * saisi. L'évaluation du maître de stage n'est retenue que si l'activité la sollicite, ou si elle a
+ * été importée (StageVet).
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @param stdClass|null $theme Thématique du stage.
+ * @return array Liste de sections ['type' => 'request'|'student'|'teacher'|'tutor', 'title' => string,
+ *               'respondent' => string, 'time' => int|null, 'items' => liste de ['question' => string,
+ *               'qtype' => string, 'answer' => string, 'score' => float|null, 'number' => float|null],
+ *               'comment' => string (texte brut)].
+ */
+function stage_get_entry_questionnaires(stdClass $stage, stdClass $entry, ?stdClass $theme) {
+    global $DB;
+
+    $answers = stage_get_answers($entry->id);
+    $plain = fn($text, $format) => trim(html_to_text(format_text((string) $text, $format), 0, false));
+
+    $teachername = '';
+    if (!empty($entry->teacherid) && ($teacher = $DB->get_record('user', ['id' => $entry->teacherid]))) {
+        $teachername = fullname($teacher);
+    }
+    $student = $DB->get_record('user', ['id' => $entry->userid]);
+    $tutorenabled = stage_tutor_evaluation_enabled($stage, $theme) || trim((string) $entry->tutoreval) !== '';
+
+    $definitions = [
+        'request' => [
+            'title' => get_string('requestquestionnaire', 'mod_stage'), 'text' => '', 'format' => FORMAT_PLAIN,
+            'respondent' => $student ? fullname($student) : '', 'time' => $entry->conventionrequesttime ?? null,
+        ],
+        'student' => [
+            'title' => get_string('studentselfeval', 'mod_stage'), 'text' => $entry->studentselfeval,
+            'format' => FORMAT_HTML, 'respondent' => $student ? fullname($student) : '', 'time' => null,
+        ],
+        'teacher' => [
+            'title' => get_string('teachereval', 'mod_stage'), 'text' => $entry->teachereval, 'format' => FORMAT_PLAIN,
+            'respondent' => $teachername, 'time' => $entry->teachertime ?? null,
+        ],
+        'tutor' => [
+            'title' => get_string('tutorevalheading', 'mod_stage'), 'text' => $entry->tutoreval, 'format' => FORMAT_PLAIN,
+            'respondent' => '', 'time' => $entry->tutortime ?? null,
+        ],
+    ];
+
+    $sections = [];
+    foreach ($definitions as $type => $definition) {
+        if ($type === 'tutor' && !$tutorenabled) {
+            continue;
+        }
+        $questions = stage_get_entry_questions($entry, $type);
+        $comment = trim((string) $definition['text']) !== '' ? $plain($definition['text'], $definition['format']) : '';
+        if (empty($questions) && $comment === '') {
+            continue;
+        }
+        $items = [];
+        foreach ($questions as $question) {
+            $stored = isset($answers[$question->id]) ? (string) $answers[$question->id]->answertext : '';
+            $values = stage_answer_export_values($question, $stored);
+            $items[] = [
+                'question' => stage_plain_string(stage_question_name($question)),
+                'qtype' => $question->qtype,
+                'answer' => $values['answer'],
+                'score' => $values['score'],
+                'number' => $values['number'],
+            ];
+        }
+        $sections[] = [
+            'type' => $type,
+            'title' => $definition['title'],
+            'respondent' => $definition['respondent'],
+            'time' => !empty($definition['time']) ? (int) $definition['time'] : null,
+            'items' => $items,
+            'comment' => $comment,
+        ];
+    }
+    return $sections;
+}
+
+/**
+ * Identité d'un stage en tête de l'export de ses questionnaires : de quel stage il s'agit.
+ *
+ * @param stdClass $entry
+ * @param stdClass|null $theme
+ * @return array libellé => valeur (texte brut)
+ */
+function stage_get_entry_questionnaires_identity(stdClass $entry, ?stdClass $theme) {
+    global $DB;
+
+    $student = $DB->get_record('user', ['id' => $entry->userid]);
+    $date = fn($time) => !empty($time) ? userdate($time, get_string('strftimedate', 'langconfig')) : '-';
+    return [
+        get_string('exportentryid', 'mod_stage') => (string) $entry->id,
+        get_string('student', 'mod_stage') => $student ? fullname($student) : '-',
+        get_string('theme', 'mod_stage') => $theme ? stage_plain_string($theme->name) : '-',
+        get_string('structure', 'mod_stage') => trim((string) $entry->structure) !== '' ? (string) $entry->structure : '-',
+        get_string('datestart', 'mod_stage') => $date($entry->datestart),
+        get_string('dateend', 'mod_stage') => $date($entry->dateend),
+        get_string('status', 'mod_stage') => stage_status_label($entry->status),
+        get_string('conventionstatus', 'mod_stage') => stage_convention_status_label($entry->conventionstatus ?? 0),
+    ];
+}
+
+/**
+ * Tableau de l'export Excel des questionnaires d'un stage : une ligne par question, et une par
+ * commentaire libre, précédée du questionnaire, du répondant et de la date. Une note sur 5 et un
+ * nombre (1 ou 0 pour un oui/non) sont repris en colonnes numériques, comme dans l'export Excel
+ * de la promotion.
+ *
+ * @param array $sections Voir stage_get_entry_questionnaires().
+ * @return array ['columns' => libellés, 'rows' => liste de listes de valeurs]
+ */
+function stage_get_entry_questionnaires_table(array $sections) {
+    $columns = [
+        get_string('entryquestionnaire', 'mod_stage'),
+        get_string('entryquestionnairerespondent', 'mod_stage'),
+        get_string('date'),
+        get_string('entryquestionnairequestion', 'mod_stage'),
+        get_string('entryquestionnaireanswer', 'mod_stage'),
+        get_string('exportratingoutoffive', 'mod_stage'),
+        get_string('exportnumericvalue', 'mod_stage'),
+        get_string('qtype', 'mod_stage'),
+    ];
+    $qtypes = stage_question_types();
+    $rows = [];
+    foreach ($sections as $section) {
+        $time = !empty($section['time']) ? userdate($section['time'], get_string('strftimedatetimeshort', 'langconfig')) : '';
+        foreach ($section['items'] as $item) {
+            $rows[] = [
+                $section['title'], $section['respondent'], $time, $item['question'], $item['answer'],
+                $item['score'], $item['number'], $qtypes[$item['qtype']] ?? $item['qtype'],
+            ];
+        }
+        if ($section['comment'] !== '') {
+            $rows[] = [
+                $section['title'], $section['respondent'], $time, get_string('entryquestionnairecomment', 'mod_stage'),
+                $section['comment'], null, null, '',
+            ];
+        }
+    }
+    return ['columns' => $columns, 'rows' => $rows];
+}
+
+/**
+ * Indique qui peut exporter les questionnaires d'un stage : la DEVE, l'enseignant référent de
+ * l'étudiant et l'enseignant responsable de la thématique du stage, c'est-à-dire ceux qui
+ * consultent déjà ces réponses sur la page de détail du stage (entrydetail.php).
+ *
+ * @param stdClass $stage
+ * @param stdClass $entry
+ * @param context $context Contexte du module.
+ * @param int $userid
+ * @return bool
+ */
+function stage_can_export_entry_questionnaires(stdClass $stage, stdClass $entry, context $context, $userid) {
+    if (has_capability('mod/stage:viewall', $context, $userid)) {
+        return true;
+    }
+    if (
+        has_capability('mod/stage:evaluateteacher', $context, $userid)
+        && array_key_exists($entry->userid, stage_get_assigned_students($stage->id, $userid))
+    ) {
+        return true;
+    }
+    return stage_is_theme_teacher($entry->themeid, $userid);
 }
 
 /**

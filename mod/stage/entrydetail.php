@@ -113,6 +113,16 @@ $backurl = $returnurlparam !== ''
     : new moodle_url('/mod/stage/dashboard.php', ['id' => $cm->id, 'studentid' => $student->id]);
 echo html_writer::link($backurl, get_string('back'));
 
+// Export de tous les questionnaires du stage, pour qui les consulte ici (DEVE, enseignant référent,
+// responsable de la thématique) : en Excel pour les exploiter, en PDF pour les archiver.
+if (stage_can_export_entry_questionnaires($stage, $entry, $context, $USER->id)) {
+    $exporturl = new moodle_url('/mod/stage/entry_questionnaires_export.php', ['id' => $cm->id, 'entryid' => $entry->id]);
+    echo html_writer::div(stage_render_actions([
+        get_string('entryquestionnairesexportexcel', 'mod_stage') => new moodle_url($exporturl, ['format' => 'excel']),
+        get_string('entryquestionnairesexportpdf', 'mod_stage') => new moodle_url($exporturl, ['format' => 'pdf']),
+    ]), 'mt-2 mb-2');
+}
+
 $dateformat = get_string('strftimedate', 'langconfig');
 $datetimeformat = get_string('strftimedatetime', 'langconfig');
 
