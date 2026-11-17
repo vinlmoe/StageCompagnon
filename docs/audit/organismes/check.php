@@ -1,6 +1,6 @@
 <?php
-// Invariants après une vague du banc « organismes proposés ». Aucun ne doit être violé, quel que
-// soit l'entrelacement des requêtes :
+// Invariants après une vague du banc « organismes proposés ». Aucun des neuf ne doit être violé,
+// quel que soit l'entrelacement des requêtes :
 //  1. aucun organisme n'a plus d'étudiants affectés que de places ;
 //  2. un étudiant a au plus une affectation par thématique ;
 //  3. une affectation issue de l'appariement porte sur un vœu de l'étudiant, au rang enregistré ;
@@ -9,7 +9,9 @@
 //  5. le stage rattaché à une affectation appartient à l'étudiant et à la thématique ;
 //  6. un étudiant n'a pas deux stages non annulés sur la thématique (double envoi) ;
 //  7. un stage hors affectation, en France, porte un SIRET valide ;
-//  8. tout stage déposé a une demande de convention et son détail.
+//  8. tout stage déposé a une demande de convention et son détail ;
+//  9. aucun organisme n'est proposé deux fois (même SIRET ou même nom) dans une thématique de
+//     l'activité, quels que soient les imports Excel simultanés ou rejoués.
 // Usage : php check.php site-<tag>.json  (code de sortie 1 si un invariant est violé).
 define('CLI_SCRIPT', true);
 require(getenv('MOODLE_CONFIG') ?: '/home/user/moodle/moodle/config.php');
@@ -94,8 +96,21 @@ foreach ($active as $userid => $count) {
         $bad[] = "étudiant $userid : $count stages actifs sur la thématique";
     }
 }
+$duplicates = 0;
+foreach ($DB->get_fieldset_select('stage_theme', 'id', 'stageid = ?', [$site->stageid]) as $themeid) {
+    $keys = [];
+    foreach (stage_placement_get_offers($themeid) as $offer) {
+        $key = stage_placement_offer_key($offer->name, $offer->siret);
+        if (isset($keys[$key])) {
+            $duplicates++;
+            $bad[] = "organisme {$offer->id} : doublon de l'organisme {$keys[$key]} (« {$offer->name} »)";
+        }
+        $keys[$key] = $offer->id;
+    }
+}
 echo json_encode([
     'organismes' => count($offers),
+    'organismes en double' => $duplicates,
     'places' => array_sum(array_column($offers, 'places')),
     'étudiants avec vœux' => count($wishes),
     'affectations' => count($assignments),

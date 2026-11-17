@@ -2,7 +2,15 @@
 
 Usage : python3 load.py site-<tag>.json <threads> [graine]
 
-Chaque étudiant simulé a sa propre session Moodle. La vague enchaîne quatre phases :
+Chaque étudiant simulé a sa propre session Moodle. La vague enchaîne cinq phases :
+
+0. Import Excel. Un compte DEVE télécharge le modèle (les organismes déjà proposés) et le
+   réimporte tel quel : rien ne doit être ajouté. Il importe ensuite un classeur qui ajoute des
+   organismes et en met d'autres à jour. Deux comptes DEVE importent au même instant le même
+   classeur d'organismes nouveaux : chacun ne doit être créé qu'une fois. Un classeur de 2 000
+   lignes est importé dans une autre thématique, et un fichier qui n'est pas un classeur est refusé.
+   Pendant la phase 1, un compte DEVE réimporte en boucle le classeur des organismes (mises à jour
+   seules) et un classeur de 40 lignes toutes en erreur (places illisibles ou SIRET invalide).
 
 1. Vœux. Chaque étudiant ouvre « Mes stages », la page des organismes, puis enregistre ses vœux.
    Les organismes sont choisis selon une popularité très inégale (les premiers sont demandés par
@@ -24,12 +32,13 @@ Chaque étudiant simulé a sa propre session Moodle. La vague enchaîne quatre p
 Temps par action et décompte des issues dans logs/load-<threads>.json. Les invariants se vérifient
 ensuite avec check.php.
 """
-import json, os, random, re, statistics, sys, threading, time
+import io, json, os, random, re, statistics, sys, threading, time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'questions'))
 from lib import BASE, errors, flat, mform, psql, session, timed  # noqa: E402
+import openpyxl  # noqa: E402
 
 site = json.load(open(sys.argv[1]))
 THREADS = int(sys.argv[2])
@@ -57,6 +66,8 @@ EXPECTED = {
     'hors liste refusé': 'passe par les organismes proposés',
     'SIRET exigé': 'SIRET de l\'organisme est obligatoire',
     'doublon de stage': 'déjà enregistré',
+    'fichier illisible': 'ne peut pas être lu comme un classeur',
+    'colonne du nom absente': 'Colonne « Organisme » introuvable',
 }
 
 
@@ -120,7 +131,89 @@ def wishes_phase(student):
         post_wishes(s, pick_wishes(rng), 'vœux (modification)')
 
 
+IMPORT_URL = f'/mod/stage/placement_import.php?id={CM}&themeid='
+HEADERS = ['Organisme', 'Places', 'Précisions', 'Adresse', 'SIRET', 'Tuteur', 'Courriel du tuteur']
+
+
+def workbook(rows, headers=HEADERS):
+    """Classeur XLSX en mémoire : une ligne d'intitulés puis les lignes données."""
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.append(headers)
+    for row in rows:
+        sheet.append(row)
+    buffer = io.BytesIO()
+    book.save(buffer)
+    return buffer.getvalue()
+
+
+def new_rows(prefix, count):
+    return [[f'{prefix} {i:04d}', 1 + i % 3, f'Import {prefix}', f'{i} rue du Classeur, 01000 Bourg', '',
+             f'Dr {prefix} {i}', f'tuteur{i}@example.test'] for i in range(1, count + 1)]
+
+
+def import_file(n, content, action, themeid=None, expect=None, name='organismes.xlsx'):
+    """Téléverse un classeur ; renvoie (ajoutés, mis à jour, lignes en erreur)."""
+    d = session(f'odeve{TAG}_{n}', 'Deve1!xx')
+    files = {'xlsxfile': (name, content, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
+    r, dt, errs = timed(d, 'POST', IMPORT_URL + str(themeid or THEME), data={'sesskey': d.sesskey}, files=files)
+    m = re.search(r'(\d+) organisme\(s\) ajouté\(s\), (\d+) mis à jour', r.text)
+    result = (int(m.group(1)), int(m.group(2)), len(re.findall(r'Ligne \d+ ', r.text))) if m else None
+    refused = outcome(r.text)
+    wrong = [] if (result or refused) else ['ni compte rendu ni refus']
+    if expect is not None and result is not None and not expect(result):
+        wrong.append(f'compte rendu inattendu : {result}')
+    record(action, r, dt, errs + wrong,
+           f'{result[0]} ajoutés, {result[1]} mis à jour, {result[2]} lignes en erreur' if result else refused)
+    return result
+
+
+def import_phase():
+    """Phase 0 : imports avant l'ouverture des vœux. Renvoie le classeur de référence de la thématique."""
+    d = session(f'odeve{TAG}_3', 'Deve1!xx')
+    count = len(OFFERS)
+    # Modèle téléchargé puis réimporté tel quel : le classeur écrit par Moodle doit se relire.
+    r, dt, errs = timed(d, 'GET', IMPORT_URL + f'{THEME}&template=1')
+    ok = 'spreadsheetml' in r.headers.get('Content-Type', '') or 'attachment' in r.headers.get('Content-Disposition', '')
+    record('modèle Excel (téléchargement)', r, dt, [] if ok else ['pas de classeur'])
+    import_file(3, r.content, 'import du modèle inchangé', expect=lambda x: x == (0, count, 0))
+    # Ajouts et mises à jour dans le même classeur : 20 nouveaux, 10 existants dont les places changent.
+    sheet = openpyxl.load_workbook(io.BytesIO(r.content)).active
+    existing = [row[0] for row in sheet.iter_rows(min_row=2, values_only=True)][:10]
+    rows = new_rows('Nouvel organisme', 20) + [[name, 2, 'Places revues à l\'import', '', '', '', ''] for name in existing]
+    import_file(3, workbook(rows), 'import mixte (ajouts et mises à jour)', expect=lambda x: x == (20, 10, 0))
+    # Deux comptes DEVE importent au même instant les mêmes 15 nouveaux organismes.
+    content = workbook(new_rows('Organisme simultané', 15))
+    with ThreadPoolExecutor(2) as pool:
+        both = list(pool.map(lambda n: import_file(n, content, 'import simultané (deux DEVE)'), (2, 3)))
+    if sorted(x[0] for x in both if x) != [0, 15]:
+        with LOCK:
+            ERRORS['import simultané (deux DEVE)'].append((200, [f'ajouts {both} au lieu de 15 et 0']))
+    # Gros classeur, dans une thématique à part pour ne pas noyer la liste proposée aux étudiants.
+    big = workbook(new_rows('Organisme en volume', 2000))
+    import_file(3, big, 'import de 2 000 lignes', site['themefree'], lambda x: x == (2000, 0, 0))
+    import_file(3, big, 'réimport de 2 000 lignes', site['themefree'], lambda x: x == (0, 2000, 0))
+    # Refus : fichier qui n'est pas un classeur, classeur sans colonne du nom.
+    import_file(3, b'ceci n est pas un classeur', 'import refusé (fichier illisible)')
+    import_file(3, workbook([[1, 'x']], ['Places', 'Adresse']), 'import refusé (colonne manquante)')
+    # Classeur de référence : tous les organismes de la thématique, places telles qu'en base.
+    rows = psql(f'SELECT id, name, places FROM mdl_stage_placement_offer WHERE themeid = {THEME} ORDER BY id')
+    offers = [row.split('|') for row in rows.splitlines() if row]
+    return offers, workbook([[name, int(places), 'Réimport pendant les vœux', '', '', '', ''] for _, name, places in offers])
+
+
+def deve_importer(reference, total):
+    """Pendant les vœux : réimports (mises à jour seules) et classeur de 40 lignes toutes en erreur."""
+    bad = [[f'Organisme refusé {i}', 'deux' if i % 2 else 1, '', '', '12345678901234' if not i % 2 else '', '', '']
+           for i in range(40)]
+    faulty = workbook(bad)
+    while not STOP_IMPORT.is_set():
+        import_file(2, reference, 'réimport pendant les vœux', expect=lambda x: x == (0, total, 0))
+        import_file(2, faulty, 'import de lignes en erreur', expect=lambda x: x == (0, 0, 40))
+
+
 STOP = threading.Event()
+STOP_IMPORT = threading.Event()
 
 
 def deve_reader():
@@ -200,11 +293,13 @@ def assigned_request(student):
     url = f'/mod/stage/student_register.php?id={CM}&placement={THEME}'
     r, dt, errs = timed(s, 'GET', url)
     fields = mform(r.text, 'structure')
-    prefilled = fields is not None and fields.get('structure', '').startswith('Organisme ') and fields.get('tutoremail')
+    prefilled = fields is not None and fields.get('structure', '') in NAMES
     record('demande préremplie (page)', r, dt, errs if prefilled else errs + ['formulaire non prérempli'])
     if not prefilled:
         return
-    fields = fill_request(fields, student, r.text, {})
+    # Un organisme importé avec son seul nom laisse des champs vides : l'étudiant les complète.
+    missing = {k: v for k, v in HOST.items() if k != 'structure' and not fields.get(k)}
+    fields = fill_request(fields, student, r.text, missing)
     if student['id'] % 6 == 0:
         with ThreadPoolExecutor(2) as pool:
             list(pool.map(lambda _: send_request(s, url, fields, 'demande préremplie (double clic)', True), range(2)))
@@ -245,13 +340,26 @@ for n in (1, 2, 3, 4):
 login_s = time.time() - t0
 phases = {}
 
-# Phase 1 : vœux.
+# Phase 0 : imports Excel. Les organismes ajoutés entrent dans la liste proposée aux étudiants.
+t0 = time.time()
+ALL_OFFERS, REFERENCE = import_phase()
+phases['0 import Excel'] = round(time.time() - t0, 1)
+PLACES = {int(offerid): int(places) for offerid, _, places in ALL_OFFERS}
+NAMES = {name for _, name, _ in ALL_OFFERS}
+OFFERS[:] = list(PLACES)
+WEIGHTS[:] = [1 / (rank + 1) for rank in range(len(OFFERS))]
+
+# Phase 1 : vœux, pendant qu'un compte DEVE réimporte des classeurs.
 reader = threading.Thread(target=deve_reader)
+importer = threading.Thread(target=deve_importer, args=(REFERENCE, len(OFFERS)))
 reader.start()
+importer.start()
 t0 = time.time()
 with ThreadPoolExecutor(THREADS) as pool:
     list(pool.map(wishes_phase, STUDENTS))
 phases['1 vœux'] = round(time.time() - t0, 1)
+STOP_IMPORT.set()
+importer.join()
 wishers = int(psql(f'SELECT count(DISTINCT userid) FROM mdl_stage_placement_wish WHERE themeid = {THEME}'))
 
 # Phase 2 : trois appariements simultanés, pendant que des étudiants renvoient leurs vœux.
@@ -270,7 +378,7 @@ assigned = assignments()
 
 # Phase 3 : dernière place d'un organisme disputée par deux comptes DEVE.
 unassigned = [st for st in STUDENTS if st['id'] not in assigned]
-full = [o for o in OFFERS if list(assigned.values()).count(o) >= next(x['places'] for x in site['offers'] if x['id'] == o)]
+full = [o for o in OFFERS if list(assigned.values()).count(o) >= PLACES[o]]
 races = min(10, len(full), len(unassigned) // 2)
 t0 = time.time()
 for i in range(races):
@@ -299,7 +407,7 @@ STOP.set()
 reader.join()
 
 summary = {'threads': THREADS, 'étudiants': len(STUDENTS), 'organismes': len(OFFERS),
-           'places': sum(o['places'] for o in site['offers']), 'connexions_s': round(login_s, 1),
+           'places': sum(PLACES.values()), 'connexions_s': round(login_s, 1),
            'phases_s': phases, 'requêtes': sum(len(t) for t in TIMES.values()),
            'erreurs': sum(len(e) for e in ERRORS.values()), 'actions': {}}
 summary['requêtes_par_s'] = round(summary['requêtes'] / sum(phases.values()), 1)
@@ -317,6 +425,7 @@ summary['final'] = {
     'affectations manuelles': int(psql(f'SELECT count(*) FROM mdl_stage_placement_assign WHERE themeid = {THEME} AND assignedby IS NOT NULL')),
     'stages déposés': int(psql(f"SELECT count(*) FROM mdl_stage_entry WHERE stageid = {site['stageid']} AND themeid = {THEME}")),
     'stages rattachés à une affectation': int(psql(f'SELECT count(*) FROM mdl_stage_placement_assign WHERE themeid = {THEME} AND entryid IS NOT NULL')),
+    'organismes importés en volume': int(psql(f"SELECT count(*) FROM mdl_stage_placement_offer WHERE themeid = {site['themefree']}")),
 }
 os.makedirs('logs', exist_ok=True)
 json.dump(summary, open(f'logs/load-{THREADS}.json', 'w'), ensure_ascii=False, indent=1)

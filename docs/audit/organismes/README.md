@@ -5,7 +5,8 @@ vrai Moodle 4.5 (PostgreSQL 16) où `mod/stage` est **copié** (pas de lien symb
 `MOODLE_CONFIG` donne le chemin de `config.php`, `MOODLE_URL` l'adresse du serveur (par défaut
 `http://localhost:8080`). `config.php` doit contenir `$CFG->noemailever = true;` et
 `$CFG->noreplyaddress`. Les outils HTTP (sessions, lecture des formulaires, détection des erreurs)
-sont ceux de `../questions/lib.py`.
+sont ceux de `../questions/lib.py`. Les classeurs importés sont écrits par `openpyxl`
+(`pip install openpyxl requests`).
 
 ```bash
 PHP_CLI_SERVER_WORKERS=16 php -d max_input_vars=5000 -d memory_limit=256M -S localhost:8080 -t moodle
@@ -22,9 +23,15 @@ PHP_CLI_SERVER_WORKERS=16 php -d max_input_vars=5000 -d memory_limit=256M -S loc
 
 - `load.py site.json <threads> [graine]` : chaque étudiant a sa session et enchaîne ce que ferait
   une promotion le jour de l'ouverture puis de la clôture des vœux.
+  0. **Import Excel** : modèle téléchargé puis réimporté tel quel ; classeur qui ajoute et met à
+     jour ; même classeur importé au même instant par deux comptes DEVE ; classeur de 2 000 lignes
+     (dans la thématique libre) puis son réimport ; fichier illisible et classeur sans colonne du
+     nom, refusés. Les organismes ajoutés entrent dans la liste proposée aux étudiants.
   1. **Vœux** : page « Mes stages », page des organismes, enregistrement des vœux selon une
      popularité très inégale des organismes ; modifications, doubles clics, retraits, envois
-     invalides. Un compte DEVE recharge en boucle ses trois pages pendant toute la vague.
+     invalides. Pendant ce temps, un compte DEVE réimporte en boucle le classeur des organismes
+     (mises à jour seules) et un classeur de 40 lignes toutes en erreur. Un autre recharge en
+     boucle ses trois pages pendant toute la vague.
   2. **Clôture** : trois comptes DEVE lancent l'appariement au même instant pendant que des
      étudiants renvoient leurs vœux.
   3. **Dernière place** : deux comptes DEVE affectent au même instant deux étudiants différents
@@ -35,9 +42,10 @@ PHP_CLI_SERVER_WORKERS=16 php -d max_input_vars=5000 -d memory_limit=256M -S loc
 
   Résultat : `logs/load-<threads>.json` (durées par action, décompte des issues, refus attendus
   distingués des erreurs). Code de sortie 1 si une réponse est une erreur.
-- `check.php site.json` : huit invariants relus en base (places jamais dépassées, une affectation
+- `check.php site.json` : neuf invariants relus en base (places jamais dépassées, une affectation
   par étudiant, affectation sur un vœu de l'étudiant, vœux cohérents, stage rattaché au bon
-  étudiant, pas de stage en double, SIRET des stages hors liste, demande complète). Code de
+  étudiant, pas de stage en double, SIRET des stages hors liste, demande complète, aucun
+  organisme en double après les imports). Code de
   sortie 1 si l'un est violé. Résultats : `logs/check-<threads>.json`.
 
 ```bash

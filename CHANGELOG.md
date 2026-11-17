@@ -42,8 +42,11 @@ changements. À tenir à jour à chaque modification de `version.php`.
     supprimés, vœux rouverts), transfert d'un étudiant et données personnelles en tiennent compte.
   - Test de charge avec utilisateurs simulés (`docs/audit/organismes/`, rapport
     `docs/audit/test-de-charge-organismes.tex`) : quatre vagues, jusqu'à 1 000 étudiants et 64
-    utilisateurs simultanés, 15 894 requêtes sans erreur et huit invariants respectés (places
-    jamais dépassées, une affectation et un stage par étudiant). Le test a fait alléger la page
+    utilisateurs simultanés, 15 884 requêtes sans erreur et neuf invariants respectés (places
+    jamais dépassées, une affectation et un stage par étudiant, aucun organisme en double). Les
+    vagues comprennent l'import Excel : modèle réimporté, ajouts et mises à jour, deux imports
+    simultanés du même classeur, réimports pendant la saisie des vœux, lignes en erreur, classeur
+    de 2 000 lignes, fichiers refusés. Le test a fait alléger la page
     *Vœux et appariement*, qui pesait 11 Mo pour 1 000 étudiants : le menu de chaque ligne se
     limite aux vœux de l'étudiant (1,2 Mo).
 - Nouvelle page *Actions DEVE en attente* (`deve_actions.php`), réservée à la DEVE et
