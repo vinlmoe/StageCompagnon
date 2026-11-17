@@ -49,6 +49,13 @@ changements. À tenir à jour à chaque modification de `version.php`.
     même nom et de SIRET différents ne sont plus confondus. Une date de clôture passée est refusée.
     Les courriels d'un appariement lancé par la DEVE partent par une tâche ponctuelle. Un pays
     « France » ne fait plus un organisme étranger.
+  - Scénarios Behat (`tests/behat/placement.feature`) : vœux, appariement et demande préremplie ;
+    demande hors liste refusée, puis admise avec SIRET ou pays ; gestion des organismes et
+    affectation à la main par la DEVE. Générateurs Behat pour les organismes, les vœux et les
+    affectations. Le menu d'affectation de chaque étudiant a un vrai libellé, masqué à l'écran.
+  - Les suites PHPUnit passent sur MariaDB 10.11 comme sur PostgreSQL 16, et une vague du test de
+    charge (400 étudiants, 32 simultanés) a été jouée sur MariaDB : aucune erreur, neuf invariants
+    respectés.
   - Test de charge avec utilisateurs simulés (`docs/audit/organismes/`, rapport
     `docs/audit/test-de-charge-organismes.tex`) : quatre vagues, jusqu'à 1 000 étudiants et 64
     utilisateurs simultanés, 15 959 requêtes sans erreur et neuf invariants respectés (places

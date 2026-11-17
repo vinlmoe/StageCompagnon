@@ -30,7 +30,8 @@ Chaque étudiant simulé a sa propre session Moodle. La vague enchaîne cinq pha
    sans SIRET en France, acceptée avec un SIRET ou pour un stage à l'étranger.
 
 Temps par action et décompte des issues dans logs/load-<threads>.json. Les invariants se vérifient
-ensuite avec check.php.
+ensuite avec check.php. Avec MOODLE_DB=mariadb, le script lit une base MariaDB (journal
+logs/load-mariadb-<threads>.json) ; MOODLE_URL et MOODLE_CONFIG désignent alors ce Moodle.
 """
 import io, json, os, random, re, statistics, sys, threading, time
 from collections import Counter, defaultdict
@@ -39,6 +40,16 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'questions'))
 from lib import BASE, errors, flat, mform, psql, session, timed  # noqa: E402
 import openpyxl  # noqa: E402
+import subprocess  # noqa: E402
+
+# Base du Moodle visé : PostgreSQL par défaut (outil de ../questions/lib.py), ou MariaDB avec
+# MOODLE_DB=mariadb. Les requêtes de contrôle du script sont du SQL commun aux deux.
+MARIADB = os.environ.get('MOODLE_DB') == 'mariadb'
+if MARIADB:
+    def psql(sql):  # noqa: F811
+        out = subprocess.run(['mariadb', '-h', '127.0.0.1', '-u', 'moodle', '-pmoodle', 'moodle', '-N', '-B', '-e', sql],
+                             capture_output=True, text=True).stdout.strip()
+        return out.replace('\t', '|')
 
 site = json.load(open(sys.argv[1]))
 THREADS = int(sys.argv[2])
@@ -428,6 +439,7 @@ summary['final'] = {
     'organismes importés en volume': int(psql(f"SELECT count(*) FROM mdl_stage_placement_offer WHERE themeid = {site['themefree']}")),
 }
 os.makedirs('logs', exist_ok=True)
-json.dump(summary, open(f'logs/load-{THREADS}.json', 'w'), ensure_ascii=False, indent=1)
+summary['base'] = 'MariaDB' if MARIADB else 'PostgreSQL'
+json.dump(summary, open(f"logs/load-{'mariadb-' if MARIADB else ''}{THREADS}.json", 'w'), ensure_ascii=False, indent=1)
 print(json.dumps(summary, ensure_ascii=False, indent=1))
 sys.exit(1 if summary['erreurs'] else 0)

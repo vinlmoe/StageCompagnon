@@ -269,15 +269,18 @@ foreach ($students as $student) {
         fullname($student),
         $wishitems ? html_writer::tag('ol', implode('', $wishitems), ['class' => 'mb-0 pl-3'])
             : html_writer::span(get_string('placementnowishesyet', 'mod_stage'), 'text-muted'),
-        html_writer::select(
+        // Un vrai libellé, masqué à l'écran : les lecteurs d'écran et les tests le retrouvent.
+        html_writer::label(
+            get_string('placementassignmentof', 'mod_stage', fullname($student)),
+            'placementoffer_' . $student->id,
+            false,
+            ['class' => 'sr-only']
+        ) . html_writer::select(
             $rowoptions,
             'offer[' . $student->id . ']',
             $assignment ? $assignment->offerid : 0,
             [0 => get_string('placementnoassignment', 'mod_stage')],
-            [
-                'class' => 'custom-select',
-                'aria-label' => get_string('placementassignmentof', 'mod_stage', fullname($student)),
-            ]
+            ['id' => 'placementoffer_' . $student->id, 'class' => 'custom-select']
         ),
         $assignment ? stage_placement_rank_label($assignment->wishrank) : '-',
         $entrycell,

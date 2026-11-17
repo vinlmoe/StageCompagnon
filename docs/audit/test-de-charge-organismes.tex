@@ -254,6 +254,40 @@ Réimport pendant les vœux, médiane / p95 (s) & 0{,}77 / 1{,}06 & 0{,}99 / 1{,
     qui relit chaque organisme avant de le mettre à jour, en prend moins de quatre.
 \end{itemize}
 
+\subsection{MariaDB}\label{sec:mariadb}
+
+Les quatre vagues ci-dessus tournent sur PostgreSQL. Une cinquième a été jouée sur MariaDB~10.11,
+la version de la CI, avec un second Moodle : 400~étudiants, 32~utilisateurs simultanés, les mêmes cinq
+phases. MariaDB isole les transactions autrement que PostgreSQL et Moodle y pose ses verrous par un
+autre mécanisme : c'est là qu'un défaut de concurrence propre à cette base se verrait.
+
+\begin{center}
+\begin{tabularx}{0.8\linewidth}{@{}X r@{}}
+\toprule
+\textbf{Vague MariaDB} & \\
+\midrule
+Requêtes HTTP mesurées & 2\,870 \\
+Réponses en erreur & 0 \\
+Invariants violés & 0 \\
+Organismes en double après les imports & 0 \\
+Appariements simultanés ayant affecté des étudiants & 1 sur 3 \\
+Étudiants affectés par l'appariement & 321 \\
+Dernière place : obtenue par un seul étudiant & 10 sur 10 \\
+Stages rattachés à une affectation / affectations & 331 / 331 \\
+Débit moyen (requêtes/s) & 54{,}7 \\
+Réponse la plus lente (s) & 1{,}51 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Le comportement est le même que sur PostgreSQL : un seul appariement, une seule affectation par
+place disputée, aucun stage ni organisme en double. Le débit, plus élevé, ne se compare pas à celui
+des autres vagues : ce second site, tout juste installé, est plus léger que le premier.
+
+Le journal du serveur contient une réponse~500, sur le tableau de bord de Moodle
+(\code{/my/}), pendant les connexions simultanées qui précèdent la vague. Elle ne vient pas du
+module et n'entre pas dans les mesures.
+
 \section{Défaut corrigé}\label{sec:defaut}
 
 La page \og Vœux et appariement\fg{} proposait, sur la ligne de chaque étudiant, un menu de tous
@@ -310,8 +344,8 @@ tour complémentaire sur les places restantes, ou affecter à la main les dernie
 \begin{itemize}
   \item La machine de test porte à la fois le serveur, la base et les clients. Les durées
     absolues ne valent pas pour un serveur de production.
-  \item Seul PostgreSQL a été testé sous charge. La suite PHPUnit tourne aussi sur MariaDB dans la
-    CI, mais pas ce banc.
+  \item MariaDB n'a reçu qu'une vague, de 400~étudiants (section~\ref{sec:mariadb}) ; les quatre
+    autres, dont celle de 1\,000~étudiants, tournent sur PostgreSQL.
   \item Les clients n'exécutent pas le JavaScript des pages et ne chargent pas les feuilles de
     style : seul le travail du serveur est mesuré.
   \item La reprise de stages précédents, action ponctuelle d'un seul compte DEVE, ne fait pas
@@ -324,7 +358,9 @@ tour complémentaire sur les places restantes, ou affecter à la main les dernie
 \section{Tests unitaires}
 
 La fonction est couverte par 46~tests PHPUnit (\code{tests/placement_test.php}), auxquels
-s'ajoute le test de sauvegarde et de restauration. Ils vérifient notamment les états de la
+s'ajoute le test de sauvegarde et de restauration, et par quatre scénarios Behat
+(\code{tests/behat/placement.feature}). Les deux suites PHPUnit passent sur PostgreSQL~16 et sur
+MariaDB~10.11. Ils vérifient notamment les états de la
 campagne, la validation des vœux, l'ordre et les places dans l'appariement, l'équité du tirage au
 sort sur 400~tirages, une promotion entière de 300~étudiants, le tour complémentaire, la
 réouverture, l'affectation par la DEVE, la règle du hors liste et du SIRET dans les deux

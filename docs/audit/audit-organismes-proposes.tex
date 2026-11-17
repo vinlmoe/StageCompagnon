@@ -44,8 +44,9 @@ Le module est en version \code{2026111700}.
   \item \textbf{Les tests joués}, contrairement à l'audit précédent : PHPUnit sur un Moodle~4.5
     et PostgreSQL~16, le contrôle de style \code{phpcs} avec le standard \code{moodle}, et le banc
     d'utilisateurs simulés de \code{docs/audit/organismes/}, rejoué après les corrections.
-  \item \textbf{Limites} : ni MariaDB ni Behat n'ont été joués ici ; la CI doit le faire. La tâche
-    d'envoi des courriels a été exécutée par les tests, pas par un cron réel.
+  \item \textbf{MariaDB et Behat}, joués dans un second temps (section~\ref{sec:verifications}).
+  \item \textbf{Limites} : Moodle~4.3 avec PHP~8.0, borne basse de la CI, n'a pas été joué ici. La
+    tâche d'envoi des courriels a été exécutée par les tests, pas par un cron réel.
 \end{itemize}
 
 \noindent\textbf{Échelle} : celle des rapports précédents. \crit~critique, \maj~majeure,
@@ -242,22 +243,27 @@ se desserre en un point : \code{stage_placement_request_errors()}.
     anglais, et toutes celles définies sont utilisées.
 \end{itemize}
 
-\section{Vérifications après correction}
+\section{Vérifications après correction}\label{sec:verifications}
 
 \begin{itemize}
   \item \textbf{PHPUnit} : 46~tests pour la fonction, dont un par correction de cet audit. La suite
     de \code{mod_stage} et celle de \code{mod_stagesynthesis} passent sur Moodle~4.5 et PostgreSQL.
+  \item \textbf{MariaDB~10.11} : les 333~tests de \code{mod_stage} et les 8 de
+    \code{mod_stagesynthesis} passent aussi sur un second Moodle branché sur MariaDB.
+  \item \textbf{Behat} : quatre scénarios ajoutés (\code{tests/behat/placement.feature}) : vœux,
+    appariement et demande préremplie ; hors liste refusé ; hors liste admis avec SIRET ou pays ;
+    gestion des organismes et affectation à la main par la DEVE. Les 15~scénarios du module
+    passent, sans JavaScript, comme dans la CI.
   \item \textbf{Style} : \code{phpcs} propre sur tout le dépôt.
   \item \textbf{Banc d'utilisateurs simulés} : les quatre vagues ont été rejouées sur le code
     corrigé. Leurs résultats sont dans \code{test-de-charge-organismes.tex} : aucune erreur, neuf
-    invariants respectés.
+    invariants respectés. Une cinquième vague, sur MariaDB, donne le même résultat.
 \end{itemize}
 
 \section{Suite}
 
 \begin{itemize}
-  \item Faire jouer la CI (MariaDB, Moodle~4.3 avec PHP~8.0, Behat) avant toute fusion.
-  \item Ajouter un scénario Behat du parcours : vœux, appariement, demande préremplie.
+  \item Faire jouer la CI avant toute fusion, pour la borne basse (Moodle~4.3 avec PHP~8.0).
   \item Confirmer la décision de la section~\ref{sec:decision}.
 \end{itemize}
 

@@ -48,6 +48,11 @@ PHP_CLI_SERVER_WORKERS=16 php -d max_input_vars=5000 -d memory_limit=256M -S loc
   organisme en double après les imports). Code de
   sortie 1 si l'un est violé. Résultats : `logs/check-<threads>.json`.
 
+Sur MariaDB : `MOODLE_DB=mariadb`, avec `MOODLE_URL` et `MOODLE_CONFIG` pointant sur un Moodle
+branché sur cette base (identifiants `moodle`/`moodle`, base `moodle`, sur `127.0.0.1`). Le journal
+s'appelle alors `logs/load-mariadb-<threads>.json`. Le site doit être en français : le script
+reconnaît les refus prévus à leur message.
+
 ```bash
 for threads in 16 32 64; do
   site=$(php setup.php 400 80 5 | cut -d' ' -f1)

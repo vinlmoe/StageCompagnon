@@ -38,7 +38,9 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  */
 class behat_mod_stage_generator extends behat_generator_base {
     /**
-     * Entités créables : « themes », « entries » et « teacher assignments ».
+     * Entités créables : « themes », « entries », « teacher assignments », listes d'évaluation,
+     * gabarits, et pour les organismes proposés « placement offers », « placement wishes » et
+     * « placement assignments ».
      *
      * L'activité est désignée par son nom ou son idnumber, les utilisateurs par leur username et
      * la thématique d'une saisie par son nom.
@@ -83,6 +85,24 @@ class behat_mod_stage_generator extends behat_generator_base {
                 'required' => ['stage', 'name'],
                 'switchids' => ['stage' => 'stageid'],
             ],
+            'placement offers' => [
+                'singular' => 'placement offer',
+                'datagenerator' => 'placement_offer',
+                'required' => ['stage', 'theme', 'name'],
+                'switchids' => ['stage' => 'stageid'],
+            ],
+            'placement wishes' => [
+                'singular' => 'placement wish',
+                'datagenerator' => 'placement_wish',
+                'required' => ['stage', 'theme', 'user', 'offers'],
+                'switchids' => ['stage' => 'stageid', 'user' => 'userid'],
+            ],
+            'placement assignments' => [
+                'singular' => 'placement assignment',
+                'datagenerator' => 'placement_assignment',
+                'required' => ['stage', 'theme', 'user', 'offer'],
+                'switchids' => ['stage' => 'stageid', 'user' => 'userid'],
+            ],
         ];
     }
 
@@ -123,7 +143,85 @@ class behat_mod_stage_generator extends behat_generator_base {
      * @return void
      */
     protected function process_theme(array $data): void {
+        // Date de clôture des vœux (organismes proposés) : horodatage ou expression de strtotime.
+        if (isset($data['placementdeadline']) && !is_numeric($data['placementdeadline'])) {
+            $data['placementdeadline'] = strtotime($data['placementdeadline']);
+        }
         $this->componentdatagenerator->create_theme($data['stageid'], $data);
+    }
+
+    /**
+     * Thématique d'une activité, par son nom.
+     *
+     * @param int $stageid
+     * @param string $name
+     * @return stdClass
+     */
+    protected function get_theme(int $stageid, string $name): stdClass {
+        global $DB;
+
+        return $DB->get_record('stage_theme', ['stageid' => $stageid, 'name' => $name], '*', MUST_EXIST);
+    }
+
+    /**
+     * Organisme proposé d'une thématique, par son nom.
+     *
+     * @param int $themeid
+     * @param string $name
+     * @return int
+     */
+    protected function get_offer_id(int $themeid, string $name): int {
+        global $DB;
+
+        return (int) $DB->get_field('stage_placement_offer', 'id', ['themeid' => $themeid, 'name' => trim($name)], MUST_EXIST);
+    }
+
+    /**
+     * Crée un organisme proposé pour une thématique. Colonnes facultatives : places et les
+     * coordonnées de l'organisme (address, siret, country, tutorname, tutoremail...).
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function process_placement_offer(array $data): void {
+        $theme = $this->get_theme($data['stageid'], $data['theme']);
+        unset($data['theme'], $data['stageid']);
+        $this->componentdatagenerator->create_placement_offer($theme, $data);
+    }
+
+    /**
+     * Enregistre les vœux d'un étudiant : colonne « offers », noms des organismes séparés par des
+     * virgules, du premier au dernier vœu.
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function process_placement_wish(array $data): void {
+        $theme = $this->get_theme($data['stageid'], $data['theme']);
+        $offerids = array_map(fn($name) => $this->get_offer_id($theme->id, $name), explode(',', $data['offers']));
+        $error = stage_placement_save_wishes($theme, $data['userid'], $offerids);
+        if ($error !== null) {
+            throw new Exception('Placement wishes refused: ' . $error);
+        }
+    }
+
+    /**
+     * Affecte un étudiant à un organisme proposé, comme le ferait la DEVE.
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function process_placement_assignment(array $data): void {
+        $theme = $this->get_theme($data['stageid'], $data['theme']);
+        $error = stage_placement_set_assignment(
+            $theme,
+            $data['userid'],
+            $this->get_offer_id($theme->id, $data['offer']),
+            get_admin()->id
+        );
+        if ($error !== null) {
+            throw new Exception('Placement assignment refused: ' . $error);
+        }
     }
 
     /**
