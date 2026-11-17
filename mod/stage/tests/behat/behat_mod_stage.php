@@ -33,6 +33,8 @@ class behat_mod_stage extends behat_base {
      *
      * Types reconnus : Activity (page d'accueil), Register (enregistrement des stages par la DEVE),
      * Conventions, Teacher validation, Academic office validation, Pilotage, Evaluation lists.
+     * Pour une thématique à organismes proposés, désignée par « Activité > Thématique » : Placement
+     * offers (organismes), Placement matching (vœux et appariement), Placement wishes (étudiant).
      *
      * @param string $type
      * @param string $identifier
@@ -49,6 +51,19 @@ class behat_mod_stage extends behat_base {
             'evaluation lists' => 'evallists.php',
         ];
         $key = strtolower($type);
+        // Pages d'une thématique à organismes proposés : « Activité > Thématique ».
+        $themepages = [
+            'placement offers' => 'placement_offers.php',
+            'placement matching' => 'placement_matching.php',
+            'placement wishes' => 'placement.php',
+        ];
+        if (isset($themepages[$key])) {
+            global $DB;
+            [$activity, $themename] = array_map('trim', explode('>', $identifier, 2));
+            $cm = $this->get_cm_by_activity_name('stage', $activity);
+            $themeid = $DB->get_field('stage_theme', 'id', ['stageid' => $cm->instance, 'name' => $themename], MUST_EXIST);
+            return new moodle_url('/mod/stage/' . $themepages[$key], ['id' => $cm->id, 'themeid' => $themeid]);
+        }
         if (!isset($pages[$key])) {
             throw new Exception('Unrecognised mod_stage page type "' . $type . '"');
         }

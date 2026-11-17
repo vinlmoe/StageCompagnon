@@ -1253,5 +1253,92 @@ function xmldb_stage_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026110700, 'stage');
     }
 
+    if ($oldversion < 2026111700) {
+        // Thématiques à organismes proposés : réglages de la thématique, organismes proposés, vœux
+        // des étudiants et affectations issues de l'appariement.
+        $table = new xmldb_table('stage_theme');
+        $fields = [
+            new xmldb_field('placementenabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'requestlistid'),
+            new xmldb_field('placementchoices', XMLDB_TYPE_INTEGER, '3', null, XMLDB_NOTNULL, null, '3', 'placementenabled'),
+            new xmldb_field('placementdeadline', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'placementchoices'),
+            new xmldb_field('placementofflist', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'placementdeadline'),
+            new xmldb_field(
+                'placementmatchedtime',
+                XMLDB_TYPE_INTEGER,
+                '10',
+                null,
+                XMLDB_NOTNULL,
+                null,
+                '0',
+                'placementofflist'
+            ),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        $table = new xmldb_table('stage_placement_offer');
+        if (!$dbman->table_exists($table)) {
+            $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $table->add_field('themeid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('name', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+            foreach (
+                ['address' => '255', 'representative' => '255', 'representativetitle' => '255', 'service' => '255',
+                    'phone' => '30', 'email' => '255', 'location' => '255', 'siret' => '14', 'country' => '255',
+                    'tutorname' => '255', 'tutorfunction' => '255', 'tutorphone' => '30', 'tutoremail' => '255'] as $name => $length
+            ) {
+                $table->add_field($name, XMLDB_TYPE_CHAR, $length, null, null, null, null);
+            }
+            $table->add_field('places', XMLDB_TYPE_INTEGER, '5', null, XMLDB_NOTNULL, null, '1');
+            $table->add_field('description', XMLDB_TYPE_TEXT, null, null, null, null, null);
+            $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_key('themeid', XMLDB_KEY_FOREIGN, ['themeid'], 'stage_theme', ['id']);
+            $dbman->create_table($table);
+        }
+
+        $table = new xmldb_table('stage_placement_wish');
+        if (!$dbman->table_exists($table)) {
+            $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $table->add_field('themeid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('offerid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('wishrank', XMLDB_TYPE_INTEGER, '3', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_key('themeid', XMLDB_KEY_FOREIGN, ['themeid'], 'stage_theme', ['id']);
+            $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $table->add_key('offerid', XMLDB_KEY_FOREIGN, ['offerid'], 'stage_placement_offer', ['id']);
+            $table->add_index('userid-offerid', XMLDB_INDEX_UNIQUE, ['userid', 'offerid']);
+            $dbman->create_table($table);
+        }
+
+        $table = new xmldb_table('stage_placement_assign');
+        if (!$dbman->table_exists($table)) {
+            $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $table->add_field('themeid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('offerid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('wishrank', XMLDB_TYPE_INTEGER, '3', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('entryid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $table->add_field('assignedby', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_key('themeid', XMLDB_KEY_FOREIGN, ['themeid'], 'stage_theme', ['id']);
+            $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $table->add_key('offerid', XMLDB_KEY_FOREIGN, ['offerid'], 'stage_placement_offer', ['id']);
+            $table->add_key('entryid', XMLDB_KEY_FOREIGN, ['entryid'], 'stage_entry', ['id']);
+            $table->add_key('assignedby', XMLDB_KEY_FOREIGN, ['assignedby'], 'user', ['id']);
+            $table->add_index('themeid-userid', XMLDB_INDEX_UNIQUE, ['themeid', 'userid']);
+            $dbman->create_table($table);
+        }
+
+        upgrade_mod_savepoint(true, 2026111700, 'stage');
+    }
+
     return true;
 }

@@ -35,6 +35,7 @@
 1.7 & 31 octobre 2026 & Questions notées de 1 à 5 dans les listes d'évaluation ; la réinitialisation d'un stage annule la décision de la DEVE. \\
 1.8 & 7 novembre 2026 & Questionnaire de demande de stage par thématique ; SIRET de l'organisme d'accueil ; validation de la demande par le référent, le responsable de la thématique ou les deux. \\
 1.9 & 10 novembre 2026 & Huit types de question (cases à cocher, oui/non, nombre, date, texte court) ; changement de type d'une question déjà répondue ; export par thématique des réponses au questionnaire pré-stage ; check-list des prérequis. \\
+1.10 & 17 novembre 2026 & Thématiques à organismes proposés : liste des organismes (saisie, import Excel, reprise de stages précédents), vœux des étudiants, appariement, demande de convention préremplie, demandes hors liste avec SIRET obligatoire. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -261,6 +262,110 @@ lisent à côté des informations de la convention ; la DEVE les retrouve à la
 génération et dans le détail du stage.
 
 \capture[0.85\linewidth]{05f_theme_lists}{Choix des listes d'évaluation.}
+
+\subsection{Organismes proposés, vœux et appariement}
+\label{sec:organismes}
+
+Pour certaines thématiques, l'établissement propose lui-même les organismes
+d'accueil. Les étudiants classent leurs vœux, sont affectés à un organisme, puis
+déposent une demande de convention déjà remplie avec ses coordonnées. Les autres
+thématiques ne changent pas.
+
+\paragraph{Activer.} Dans la fiche de la thématique, volet \og Organismes
+proposés\fg{} :
+
+\begin{itemize}
+  \item \bouton{Proposer des organismes aux étudiants} active l'option ;
+  \item \bouton{Nombre de vœux à classer} : chaque étudiant classe ce nombre
+        d'organismes (tous, s'il y en a moins) ;
+  \item \bouton{Clôture des vœux et appariement} : jusqu'à cette date, les
+        étudiants modifient leurs vœux ; à cette date, l'appariement part tout
+        seul, dans l'heure. Sans date, il se lance à la main ;
+  \item \bouton{Autoriser les demandes de convention hors des organismes
+        proposés} : voir plus bas.
+\end{itemize}
+
+\capture[0.85\linewidth]{90_placement_settings}{Volet \og Organismes proposés\fg{} de la thématique.}
+
+\paragraph{Dresser la liste.} \bouton{Gérer les organismes proposés} ouvre la
+liste. Chaque organisme a un nombre de places, des précisions montrées aux
+étudiants et les coordonnées de la convention. Seul le nom est obligatoire : ce
+qui manque sera saisi par l'étudiant. Trois façons de remplir la liste, qui se
+combinent :
+
+\begin{itemize}
+  \item \bouton{Ajouter un organisme} : saisie à la main ;
+  \item \bouton{Importer des organismes (Excel)} : un classeur dont la première
+        ligne porte les intitulés. Seule la colonne \og Organisme\fg{} est
+        obligatoire. Le modèle téléchargeable reprend les organismes déjà
+        proposés ; un organisme existant (même SIRET, ou à défaut même nom) est
+        mis à jour, pas dupliqué ;
+  \item \bouton{Reprendre des stages précédents} : cochez des organismes parmi
+        ceux des stages de cette promotion ou d'une autre promotion que vous
+        gérez. Chacun est repris avec les coordonnées de son stage le plus
+        récent.
+\end{itemize}
+
+\capture{91_placement_offers}{Organismes proposés d'une thématique : places, vœux reçus, étudiants affectés.}
+
+Un organisme situé hors de France se signale par son pays : le stage de
+l'étudiant affecté sera enregistré comme stage à l'étranger.
+
+\paragraph{Appariement.} \bouton{Vœux et appariement} montre les vœux de chaque
+étudiant et son affectation. À la clôture, les étudiants qui ont des vœux sont
+tirés au sort ; dans cet ordre, chacun reçoit le mieux classé de ses vœux où il
+reste une place. Personne n'a donc intérêt à classer ses vœux autrement que selon
+ses préférences. Un étudiant dont tous les vœux sont complets reste sans
+affectation. Chaque étudiant reçoit le résultat par courriel
+(section~\ref{sec:liste-courriels}), dans les minutes qui suivent.
+
+\capture{92_placement_matching}{Vœux et affectations d'une thématique.}
+
+Depuis cette page, vous pouvez :
+
+\begin{itemize}
+  \item lancer l'appariement sans attendre la date de clôture ;
+  \item le relancer en tour complémentaire, après avoir ajouté des places ou des
+        organismes : seuls les étudiants sans affectation y passent, les
+        affectations faites ne bougent pas ;
+  \item affecter, déplacer ou retirer un étudiant à la main, dans la limite des
+        places : le menu de sa ligne propose ses vœux, et \bouton{Affecter hors
+        vœux}, en haut de page, n'importe quel organisme (y compris pour un
+        étudiant sans vœux) ;
+  \item exporter les vœux et les affectations.
+\end{itemize}
+
+Pour rouvrir les vœux après l'appariement, cochez \bouton{Rouvrir les vœux} dans
+la fiche de la thématique et fixez une nouvelle date de clôture.
+
+\paragraph{Demande de convention.} L'étudiant affecté ouvre sa demande depuis
+l'encart \og Organismes proposés\fg{} de sa page \og Mes stages\fg{}. La
+thématique y est fixée et les coordonnées de l'organisme préremplies ; il les
+vérifie et complète le reste. La demande doit porter sur l'organisme attribué :
+son nom ne se change pas. Une fois la demande déposée, l'affectation ne se
+déplace plus ; annulez d'abord le stage. La demande suit ensuite le circuit habituel
+(section~\ref{sec:conventions}). Si le stage est annulé ou supprimé,
+l'affectation redevient utilisable.
+
+\paragraph{Demandes hors liste.} Deux réglages possibles :
+
+\begin{itemize}
+  \item option décochée : seul l'étudiant affecté à un organisme proposé peut
+        demander une convention pour cette thématique ;
+  \item option cochée : un étudiant peut aussi demander une convention avec un
+        organisme hors de la liste. Le numéro SIRET de l'organisme est alors
+        \textbf{obligatoire}, sauf pour un stage à l'étranger dont le pays est
+        indiqué.
+\end{itemize}
+
+Dans les deux cas, vous pouvez toujours enregistrer vous-même un stage sur la
+thématique et en déposer la demande : la règle ne s'applique pas à la DEVE.
+
+\begin{attention}
+La réinitialisation du cours et la restauration sans les étudiants gardent la
+liste des organismes, mais effacent vœux, affectations et date de clôture :
+fixez la nouvelle date à chaque rentrée.
+\end{attention}
 
 \subsection{Durées par année et mobilité internationale}
 \label{sec:durees}
@@ -848,6 +953,7 @@ Convention prête & Étudiant & La DEVE génère la convention avec le cadre de 
 Invitation du maître de stage & Maître de stage & Tâche quotidienne (6~h~45), à partir du premier jour du stage, une seule fois, si l'option est active pour l'activité et la thématique, la convention signée ou dispensée, et le courriel du maître de stage renseigné. \\
 Demande d'évaluation après import & Référents & Un import StageVet réunit les évaluations de l'étudiant et du maître de stage. \\
 Rappel de convention non signée & Étudiant & Tâche quotidienne (6~h~30), une seule fois, quand le stage commence dans 7~jours ou moins sans convention signée. \\
+Résultat de l'appariement & Étudiant & À la clôture des vœux d'une thématique à organismes proposés (tâche horaire), ou quand la DEVE lance l'appariement en demandant de prévenir les étudiants. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -867,6 +973,7 @@ Rappel de convention non signée & Étudiant & Tâche quotidienne (6~h~30), une 
 \var{comment} & Motif du refus & Dates manquantes \\
 \var{datestart} & Date de début du stage & 2 novembre 2026 \\
 \var{days} & Délai du rappel, en jours & 7 \\
+\var{result} & Résultat de l'appariement & Vous êtes affecté(e) à : Clinique du Parc. \\
 \bottomrule
 \end{tabularx}
 \end{center}

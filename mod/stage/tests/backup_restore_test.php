@@ -239,10 +239,44 @@ final class backup_restore_test extends \advanced_testcase {
             'filepath' => '/', 'filename' => 'objectifs.pdf',
         ], 'objectifs');
 
+        // Organismes proposés : réglages de la thématique, organisme, vœu et affectation de
+        // l'étudiant, celle-ci rattachée à sa saisie de stage.
+        $deadline = $now + WEEKSECS;
+        $DB->update_record('stage_theme', (object) [
+            'id' => $theme->id, 'placementenabled' => 1, 'placementchoices' => 1, 'placementdeadline' => $deadline,
+            'placementofflist' => 1,
+        ]);
+        $theme = $DB->get_record('stage_theme', ['id' => $theme->id], '*', MUST_EXIST);
+        $offer = $stagegen->create_placement_offer($theme, ['name' => 'Clinique du Parc', 'places' => 2, 'address' => 'Lyon']);
+        $this->assertNull(stage_placement_save_wishes($theme, $student->id, [$offer->id]));
+        $this->assertNull(stage_placement_set_assignment($theme, $student->id, $offer->id, $teacher->id));
+        stage_placement_link_entry(stage_placement_get_assignment($theme->id, $student->id)->id, $entry->id);
+
         $newcourse = $this->backup_and_restore($course);
         $newcm = $this->single_instance($newcourse->id, 'stage');
         $newstage = $DB->get_record('stage', ['id' => $newcm->instance], '*', MUST_EXIST);
         $this->assertNotEquals($stage->id, $newstage->id);
+
+        // Organismes proposés de la copie : rattachés à sa thématique, à son organisme et à sa saisie.
+        $copiedtheme = $DB->get_record('stage_theme', ['stageid' => $newstage->id], '*', MUST_EXIST);
+        $this->assertEquals(1, $copiedtheme->placementenabled);
+        $this->assertEquals(1, $copiedtheme->placementofflist);
+        $this->assertEquals($deadline, $copiedtheme->placementdeadline);
+        $copiedoffers = stage_placement_get_offers($copiedtheme->id);
+        $this->assertCount(1, $copiedoffers);
+        $copiedoffer = reset($copiedoffers);
+        $this->assertNotEquals($offer->id, $copiedoffer->id);
+        $this->assertSame('Clinique du Parc', $copiedoffer->name);
+        $this->assertSame('Lyon', $copiedoffer->address);
+        $this->assertEquals(2, $copiedoffer->places);
+        $this->assertSame([(int) $copiedoffer->id], stage_placement_get_wishes($copiedtheme->id, $student->id));
+        $copiedassignment = stage_placement_get_assignment($copiedtheme->id, $student->id);
+        $this->assertEquals($copiedoffer->id, $copiedassignment->offerid);
+        $this->assertEquals($teacher->id, $copiedassignment->assignedby);
+        $this->assertEquals(
+            $DB->get_field('stage_entry', 'id', ['stageid' => $newstage->id], MUST_EXIST),
+            $copiedassignment->entryid
+        );
 
         // Paramétrage de l'instance.
         $this->assertSame('Stages A3', $newstage->name);

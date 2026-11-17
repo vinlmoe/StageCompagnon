@@ -82,6 +82,26 @@ class mod_stage_generator extends testing_module_generator {
     }
 
     /**
+     * Crée un organisme proposé pour une thématique (voir placementlib.php).
+     *
+     * @param stdClass|int $theme Thématique (ou son id).
+     * @param array $record Champs à surcharger : name, places, siret, country, address...
+     * @return stdClass L'organisme créé.
+     */
+    public function create_placement_offer($theme, array $record = []) {
+        global $DB;
+
+        $themeid = is_object($theme) ? $theme->id : $theme;
+        $record = array_merge([
+            'name' => 'Organisme ' . ($DB->count_records('stage_placement_offer', ['themeid' => $themeid]) + 1),
+            'places' => 1,
+        ], $record);
+
+        $id = stage_placement_save_offer($themeid, $record);
+        return $DB->get_record('stage_placement_offer', ['id' => $id], '*', MUST_EXIST);
+    }
+
+    /**
      * Enregistre un stage pour un étudiant, avec sa plage de dates (voir stage_register_entry(),
      * qui la crée automatiquement à partir de datestart/dateend).
      *

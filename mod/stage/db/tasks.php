@@ -47,4 +47,15 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        // Toutes les heures : l'appariement d'une thématique part dans l'heure qui suit la clôture
+        // de ses vœux, fixée à l'heure près par la DEVE. Chaque thématique n'est appariée qu'une fois.
+        'classname' => 'mod_stage\task\run_placement_matching',
+        'blocking' => 0,
+        'minute' => '5',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];

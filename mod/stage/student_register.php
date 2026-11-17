@@ -40,6 +40,9 @@ use mod_stage\form\student_register_form;
 
 $id = required_param('id', PARAM_INT);
 $entryid = optional_param('entryid', 0, PARAM_INT);
+// Thématique à organismes proposés dont l'étudiant utilise l'affectation : la demande est alors
+// préremplie avec les coordonnées de l'organisme attribué (voir placementlib.php).
+$placementthemeid = optional_param('placement', 0, PARAM_INT);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -73,18 +76,45 @@ if ($entryid) {
     }
 }
 
+// Affectation à un organisme proposé dont découle la demande : celle à laquelle la saisie existante
+// est déjà rattachée (demande refusée à corriger), ou celle de la thématique passée en paramètre.
+$assignment = null;
+if ($existingentry) {
+    // Affectation déjà rattachée à la saisie, ou affectation encore inutilisée de l'étudiant si la
+    // DEVE a enregistré le stage chez l'organisme attribué : la demande en découle alors, et lui
+    // sera rattachée à l'enregistrement.
+    $assignment = stage_placement_assignment_for_entry($existingentry);
+} else if ($placementthemeid) {
+    $assignment = stage_placement_get_assignment($placementthemeid, $USER->id) ?: null;
+    if (
+        !$assignment || !stage_placement_assignment_usable($assignment)
+            || !$DB->record_exists('stage_theme', ['id' => $placementthemeid, 'stageid' => $stage->id, 'placementenabled' => 1])
+    ) {
+        redirect($viewurl, get_string('placementnotusable', 'mod_stage'), null, \core\output\notification::NOTIFY_INFO);
+    }
+}
+$assignedoffer = $assignment ? $DB->get_record('stage_placement_offer', ['id' => $assignment->offerid]) : null;
+
 $pagetitle = get_string($existingentry ? 'requestconvention' : 'registerstageandconvention', 'mod_stage');
 
-$baseurl = new moodle_url(
-    '/mod/stage/student_register.php',
-    $existingentry ? ['id' => $cm->id, 'entryid' => $entryid] : ['id' => $cm->id]
-);
+$baseparams = ['id' => $cm->id];
+if ($existingentry) {
+    $baseparams['entryid'] = $entryid;
+} else if ($assignment) {
+    $baseparams['placement'] = $assignment->themeid;
+}
+$baseurl = new moodle_url('/mod/stage/student_register.php', $baseparams);
 $PAGE->set_url($baseurl);
 $PAGE->set_title(format_string($stage->name) . ' - ' . $pagetitle);
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
 $themes = stage_get_themes($stage->id, true);
+// Une demande déposée à partir d'une affectation porte sur la thématique de cette affectation, et
+// sur elle seule (même si elle a depuis été masquée aux étudiants).
+if ($assignment) {
+    $themes = $DB->get_records('stage_theme', ['id' => $assignment->themeid, 'stageid' => $stage->id]);
+}
 if (empty($themes)) {
     echo $OUTPUT->header();
     echo $OUTPUT->notification(get_string('nothemesyet', 'mod_stage'), \core\output\notification::NOTIFY_ERROR);
@@ -131,6 +161,8 @@ $mform = new student_register_form($baseurl, [
     'periods' => $existingperiods,
     'checklistsbytheme' => $checklistsbytheme,
     'requestquestionsbytheme' => $requestquestionsbytheme,
+    'assignment' => $assignment,
+    'existingthemeid' => $existingentry ? (int) $existingentry->themeid : 0,
 ]);
 
 if ($existingentry) {
@@ -175,6 +207,9 @@ if ($existingentry) {
         $formdata->$field = $value;
     }
     $mform->set_data($formdata);
+} else if ($assignedoffer) {
+    // Coordonnées de l'organisme attribué : préremplies, et corrigeables si elles ont changé.
+    $mform->set_data((object) (['id' => $cm->id, 'themeid' => $assignment->themeid] + stage_placement_prefill($assignedoffer)));
 } else {
     $mform->set_data((object) ['id' => $cm->id]);
 }
@@ -200,7 +235,17 @@ if ($mform->is_cancelled()) {
             $existingentry = $DB->get_record('stage_entry', ['id' => $existingentry->id], '*', MUST_EXIST);
             if (!stage_convention_request_allowed($existingentry)) {
                 $refused = 'conventionalreadyrequested';
+            } else if (
+                $assignment && (int) $assignment->entryid !== (int) $existingentry->id
+                    && !stage_placement_assignment_usable_now($assignment->id)
+            ) {
+                // Affectation encore libre à l'affichage, utilisée depuis pour un autre stage (autre
+                // onglet) : la rattacher ici donnerait deux demandes pour une seule affectation.
+                $refused = 'placementnotusable';
             }
+        } else if ($assignment && !stage_placement_assignment_usable_now($assignment->id)) {
+            // Relue sous le verrou : affectation retirée par la DEVE, ou déjà utilisée par un double envoi.
+            $refused = 'placementnotusable';
         } else if (
             stage_entry_is_duplicate(
                 $stage->id,
@@ -229,6 +274,9 @@ if ($mform->is_cancelled()) {
                     'timemodified' => time(),
                 ]);
                 $entry = $DB->get_record('stage_entry', ['id' => $existingentry->id], '*', MUST_EXIST);
+                if ($assignment && (int) $assignment->entryid !== (int) $entry->id) {
+                    stage_placement_link_entry($assignment->id, $entry->id);
+                }
             } else {
                 $newentryid = stage_register_entry(
                     $stage->id,
@@ -244,6 +292,9 @@ if ($mform->is_cancelled()) {
                     $data->country ?? ''
                 );
                 $entry = $DB->get_record('stage_entry', ['id' => $newentryid], '*', MUST_EXIST);
+                if ($assignment) {
+                    stage_placement_link_entry($assignment->id, $entry->id);
+                }
             }
 
             $requireteachervalidation = stage_convention_requires_teacher_validation($stage);
@@ -322,6 +373,13 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading($pagetitle);
 echo html_writer::link($viewurl, get_string('back'));
 
+if ($assignedoffer && !$existingentry) {
+    echo $OUTPUT->notification(
+        get_string('placementprefilled', 'mod_stage', format_string($assignedoffer->name)),
+        \core\output\notification::NOTIFY_INFO,
+        false
+    );
+}
 if (!$existingentry) {
     echo $OUTPUT->box(get_string('registerstageandconvention_help', 'mod_stage'), 'generalbox mb-3');
     echo stage_render_abroad_rules($stage);

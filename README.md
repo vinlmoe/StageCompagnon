@@ -53,6 +53,14 @@ de l'enseignant référent ni du maître de stage. Un stage annulé doit d'abord
 réinitialisé. Les réponses obligatoires sont contrôlées côté serveur lorsqu'un
 étudiant, enseignant ou maître de stage soumet son questionnaire.
 
+Une thématique peut proposer des organismes d'accueil choisis par l'établissement :
+la DEVE en dresse la liste (saisie, import Excel ou reprise de stages précédents),
+chaque étudiant classe un nombre fixé de vœux jusqu'à une date de clôture, puis
+l'appariement l'affecte à l'un d'eux dans la limite des places. Sa demande de
+convention est alors préremplie avec les coordonnées de l'organisme. Selon le
+réglage de la thématique, une demande hors de la liste reste possible : le numéro
+SIRET de l'organisme y est obligatoire, sauf pour un stage à l'étranger.
+
 Dans le bilan des thématiques obligatoires, le bouton **Objectifs** de chaque
 ligne ouvre une page réunissant les documents à télécharger et la check-list
 des prérequis. Cette consultation est disponible même avant l'enregistrement

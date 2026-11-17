@@ -68,6 +68,16 @@
             COMMENT="Liste d'évaluation du maître de stage, 0 = commentaire libre"/>
         <FIELD NAME="requestlistid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
             COMMENT="Questionnaire rempli par l'étudiant avec sa demande de convention (liste d'évaluation de type request), 0 = aucun"/>
+        <FIELD NAME="placementenabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Thématique à organismes proposés : les étudiants classent des vœux parmi les organismes proposés par l'établissement, puis sont appariés"/>
+        <FIELD NAME="placementchoices" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="3" SEQUENCE="false"
+            COMMENT="Nombre d'organismes que chaque étudiant doit classer"/>
+        <FIELD NAME="placementdeadline" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Date de clôture des vœux, à laquelle l'appariement est lancé (0 = pas de date : appariement lancé à la main)"/>
+        <FIELD NAME="placementofflist" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Autorise une demande de convention hors des organismes proposés ; le SIRET y est alors obligatoire, sauf stage à l'étranger"/>
+        <FIELD NAME="placementmatchedtime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Date du premier appariement (0 = pas encore fait : les vœux restent modifiables jusqu'à la clôture)"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
@@ -488,6 +498,79 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="entryid-itemid" UNIQUE="true" FIELDS="entryid, itemid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="stage_placement_offer" COMMENT="Organisme d'accueil proposé par l'établissement pour une thématique à organismes proposés : les étudiants le classent parmi leurs vœux, et ses coordonnées préremplissent la demande de convention de l'étudiant qui y est affecté">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Nom de l'organisme (structure d'accueil)"/>
+        <FIELD NAME="address" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="representative" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="representativetitle" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="service" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="phone" TYPE="char" LENGTH="30" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="email" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="location" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Lieu du stage, s'il diffère de l'adresse"/>
+        <FIELD NAME="siret" TYPE="char" LENGTH="14" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="country" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Pays, pour un organisme à l'étranger (vide = France)"/>
+        <FIELD NAME="tutorname" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tutorfunction" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tutorphone" TYPE="char" LENGTH="30" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tutoremail" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="places" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Nombre d'étudiants que l'organisme peut accueillir"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Précisions affichées aux étudiants (activité, période, conditions)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_placement_wish" COMMENT="Vœu d'un étudiant : organisme proposé d'une thématique, avec son rang de préférence (1 = premier vœu)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Étudiant"/>
+        <FIELD NAME="offerid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="wishrank" TYPE="int" LENGTH="3" NOTNULL="true" SEQUENCE="false" COMMENT="Rang de préférence ; « rank » serait un mot réservé"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="offerid" TYPE="foreign" FIELDS="offerid" REFTABLE="stage_placement_offer" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="userid-offerid" UNIQUE="true" FIELDS="userid, offerid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="stage_placement_assign" COMMENT="Affectation d'un étudiant à un organisme proposé d'une thématique, issue de l'appariement des vœux ou décidée par la DEVE ; la saisie de stage qui en découle y est rattachée">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Étudiant"/>
+        <FIELD NAME="offerid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="wishrank" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Rang du vœu satisfait (0 = affectation hors vœux)"/>
+        <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Stage enregistré à partir de cette affectation"/>
+        <FIELD NAME="assignedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Membre de la DEVE ayant décidé l'affectation (vide = appariement automatique)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="offerid" TYPE="foreign" FIELDS="offerid" REFTABLE="stage_placement_offer" REFFIELDS="id"/>
+        <KEY NAME="entryid" TYPE="foreign" FIELDS="entryid" REFTABLE="stage_entry" REFFIELDS="id"/>
+        <KEY NAME="assignedby" TYPE="foreign" FIELDS="assignedby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="themeid-userid" UNIQUE="true" FIELDS="themeid, userid"/>
       </INDEXES>
     </TABLE>
   </TABLES>

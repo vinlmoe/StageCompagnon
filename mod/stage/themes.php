@@ -60,6 +60,8 @@ if ($action === 'delete' && $themeid && data_submitted()) {
         // Objectifs de stage : la check-list (et les réponses qui s'y rattachent) et les documents
         // déposés disparaissent avec la thématique qu'ils décrivaient.
         stage_delete_theme_checklist($theme->id);
+        // Organismes proposés et vœux : sans stage sur la thématique, plus rien ne s'y rattache.
+        stage_placement_delete_themes_data([$theme->id]);
         get_file_storage()->delete_area_files(
             $context->id,
             'mod_stage',

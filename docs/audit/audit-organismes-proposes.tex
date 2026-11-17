@@ -1,0 +1,270 @@
+% Audit du code des thématiques à organismes proposés de mod_stage : constats, corrections, tests.
+% Compilation : latexmk -pdf audit-organismes-proposes.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref,enumitem}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{url}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z}
+\DeclareUrlCommand\code{\urlstyle{tt}}
+\Urlmuskip=0mu plus 2mu
+\newcommand{\grav}[1]{\textbf{\textcolor{#1}{\textbullet}}}
+\newcommand{\maj}{\grav{orange}}
+\newcommand{\mineure}{\grav{gray}}
+\newcommand{\crit}{\grav{red}}
+\setlist[itemize]{itemsep=2pt,topsep=3pt}
+\newcommand{\ok}{\textcolor{teal}{\textbf{corrigé}}}
+\newcommand{\partiel}{\textcolor{orange}{\textbf{en partie}}}
+\newcommand{\non}{\textcolor{gray}{\textbf{non traité}}}
+\title{Audit des thématiques à organismes proposés de \texttt{mod\_stage}}
+\author{Sébastien Lefebvre}
+\date{17 novembre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Objet et méthode}
+
+Ce rapport couvre le code ajouté depuis le commit \code{29099d0} sur la branche
+\code{ccr-9819324d-uc8w8o} : les thématiques à organismes proposés (commit \code{341c6a7}), leurs
+tests et leur test de charge (commits \code{6690f9a} et \code{82fce02}). Il porte sur
+\code{placementlib.php}, les six pages \code{placement*.php}, le formulaire et l'importateur
+d'organismes, la tâche planifiée, et les parties modifiées de la demande de convention, de la fiche
+de thématique, de la sauvegarde, de la restauration et du fournisseur de données personnelles.
+Le module est en version \code{2026111700}.
+
+\begin{itemize}
+  \item \textbf{Une revue indépendante}, conduite sans connaître les conclusions de l'auteur, sur
+    sept axes : sécurité, contournement des règles, concurrence, portabilité SQL, sauvegarde et
+    données personnelles, performance, code mort et chaînes de langue. Chaque constat est assorti
+    d'un scénario d'échec et a été vérifié à la lecture de toutes les lignes en cause.
+  \item \textbf{La relecture de l'auteur}, menée en parallèle. Trois de ses constats recoupent ceux
+    de la revue ; quatre s'y ajoutent.
+  \item \textbf{Les tests joués}, contrairement à l'audit précédent : PHPUnit sur un Moodle~4.5
+    et PostgreSQL~16, le contrôle de style \code{phpcs} avec le standard \code{moodle}, et le banc
+    d'utilisateurs simulés de \code{docs/audit/organismes/}, rejoué après les corrections.
+  \item \textbf{MariaDB et Behat}, joués dans un second temps (section~\ref{sec:verifications}).
+  \item \textbf{Limites} : Moodle~4.3 avec PHP~8.0, borne basse de la CI, n'a pas été joué ici. La
+    tâche d'envoi des courriels a été exécutée par les tests, pas par un cron réel.
+\end{itemize}
+
+\noindent\textbf{Échelle} : celle des rapports précédents. \crit~critique, \maj~majeure,
+\mineure~mineure.
+
+\section{Synthèse}
+
+L'audit n'a trouvé \textbf{aucun défaut critique et aucune faille de sécurité}. Il a relevé
+\textbf{trois défauts majeurs, seize mineurs et deux points de finition}. Tous sont corrigés, sauf
+un point de finition traité en partie. Une quatrième anomalie majeure est née d'une correction de
+cet audit, et a été rattrapée par le test de charge avant d'être livrée
+(section~\ref{sec:regression}).
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+& \textbf{Constat} & \textbf{État} \\
+\midrule
+\maj & Règle du SIRET contournable en cochant \og à l'étranger\fg{} sans indiquer de pays & \ok \\
+\maj & Après une réinitialisation du cours, la campagne de vœux se refermait seule dans l'heure & \ok \\
+\maj & L'étudiant affecté pouvait déposer sa demande pour un autre organisme que le sien & \ok \\
+\maj & Import de 2\,000 lignes en échec, par une correction de cet audit & \ok \\
+\mineure & Affectation déplacée ou retirée alors que la demande de convention est déposée & \ok \\
+\mineure & Affectation libre non relue sous le verrou en mode édition : deux demandes pour une affectation & \ok \\
+\mineure & Demande d'un stage déjà enregistré : affectation de l'étudiant ignorée, puis réutilisable & \ok \\
+\mineure & Affectation consommée par un stage enregistré chez un autre organisme & \ok \\
+\mineure & Tâche planifiée : appariement d'une thématique dont la date vient d'être repoussée & \ok \\
+\mineure & Tâche planifiée : une thématique en échec privait les suivantes de leur appariement & \ok \\
+\mineure & Thématique masquée après l'appariement : plus aucun accès à la demande préremplie & \ok \\
+\mineure & Organismes de même nom et de SIRET différents confondus à l'import et à la reprise & \ok \\
+\mineure & Suppression et reprise d'organismes hors verrou : affectation orpheline, doublons & \ok \\
+\mineure & Date de clôture passée acceptée, y compris à la réouverture des vœux & \ok \\
+\mineure & Pays \og France\fg{} importé : organisme traité comme étranger & \ok \\
+\mineure & Courriels de résultat envoyés dans la requête de la page & \ok \\
+\mineure & Échange de deux étudiants impossible, malgré le commentaire du code & \ok \\
+\mineure & Organisme enregistrable sans nom, ou avec moins de places que d'affectés & \ok \\
+\mineure & Noms sans lettre ni chiffre tous confondus entre eux & \ok \\
+\mineure & Nom de l'étudiant non échappé dans un message d'erreur & \ok \\
+\mineure & Test unitaire fondé sur une durée d'exécution & \ok \\
+& Export des données personnelles : rien pour le membre de la DEVE cité & \ok \\
+& Quelques requêtes par thématique dans l'encart de l'étudiant et l'export personnel & \partiel \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Défauts majeurs}
+
+\begin{itemize}
+  \item[\maj] \textbf{SIRET contournable.} La règle du hors liste dispensait de SIRET dès que la
+    case \og à l'étranger\fg{} était cochée, sans regarder le pays. Un étudiant cochait la case,
+    laissait le pays vide et déposait sa demande sans SIRET ; le stage comptait en plus comme stage
+    à l'étranger. \emph{Correction} : la dispense exige un pays, qui ne soit pas la France
+    (\code{stage_placement_request_errors()}). Sans pays, le formulaire demande le pays ou le SIRET.
+  \item[\maj] \textbf{Campagne refermée après réinitialisation.} La réinitialisation du cours
+    effaçait la date de l'appariement mais gardait la date de clôture, déjà passée. La thématique
+    redevenait \og vœux clos\fg{}, la tâche planifiée l'appariait sans aucun vœu dans l'heure, et
+    la nouvelle promotion trouvait une campagne terminée. Même effet après une suppression des
+    données personnelles de toute l'activité. \emph{Correction} : la date de clôture est effacée
+    elle aussi, comme le fait déjà une restauration sans les étudiants.
+  \item[\maj] \textbf{Demande pour un autre organisme.} Une demande ouverte à partir d'une
+    affectation n'était plus contrôlée du tout : l'étudiant pouvait remplacer l'organisme attribué
+    par un autre, sans SIRET, même sur une thématique où le hors liste est interdit. L'affectation
+    était marquée utilisée et la place restait prise. \emph{Correction} : la demande doit porter
+    sur l'organisme attribué (même nom, et même SIRET s'il en a un). Les autres coordonnées restent
+    corrigeables. C'est un choix : voir la section~\ref{sec:decision}.
+\end{itemize}
+
+\section{Régression introduite et rattrapée}\label{sec:regression}
+
+\begin{itemize}
+  \item[\maj] \textbf{Import de 2\,000 lignes en échec.} Pour ne plus confondre deux organismes de
+    même nom, la première correction cherchait chaque ligne du classeur en parcourant tous les
+    organismes connus, et relisait l'organisme en base après chaque ligne. Le coût devenait
+    quadratique. Les 46~tests unitaires passaient ; le banc d'utilisateurs simulés, lui, a renvoyé
+    deux erreurs~500 sur l'import et le réimport de 2\,000~lignes, et un débit divisé par deux.
+    \emph{Correction} : un index par SIRET et par nom
+    (\code{stage_placement_index_offers()}). L'import de 2\,000~lignes prend de nouveau deux secondes
+    environ.
+\end{itemize}
+
+Cette anomalie n'a jamais été poussée. Elle montre ce que le banc apporte que les tests unitaires
+n'apportent pas : ceux-ci vérifiaient le résultat sur quelques lignes, pas le coût sur un volume.
+
+\section{Défauts mineurs}
+
+\subsection{Affectations}
+
+\begin{itemize}
+  \item[\mineure] \textbf{Affectation modifiée après le dépôt.} La DEVE pouvait déplacer ou
+    retirer un étudiant dont la convention était déjà demandée : le tableau et la convention
+    disaient alors deux organismes différents. \emph{Correction} : refus, avec un message qui
+    demande d'annuler d'abord le stage.
+  \item[\mineure] \textbf{Deux demandes pour une affectation.} En mode édition d'un stage
+    enregistré par la DEVE, l'affectation libre de l'étudiant n'était pas relue sous le verrou. Avec
+    deux onglets, elle servait à un nouveau stage puis était rattachée à l'ancien.
+    \emph{Correction} : relecture sous le verrou, et refus si elle a servi entre-temps.
+  \item[\mineure] \textbf{Page \code{convention_request.php}.} Encore accessible à l'étudiant par
+    son adresse, elle ignorait son affectation libre : elle exigeait le SIRET, puis laissait
+    l'affectation réutilisable. \emph{Correction} : même règle que l'autre formulaire, et
+    rattachement du stage à l'affectation.
+  \item[\mineure] \textbf{Affectation consommée à tort.} Un stage enregistré par la DEVE chez un
+    autre organisme était rattaché à l'affectation libre de l'étudiant. \emph{Correction} :
+    l'affectation n'est reprise que si le stage est chez l'organisme attribué
+    (\code{stage_placement_assignment_for_entry()}) ; sinon la demande est hors liste.
+  \item[\mineure] \textbf{Échange de deux étudiants.} Les affectations du tableau étaient
+    enregistrées une à une : deux étudiants ne pouvaient pas échanger leurs organismes complets.
+    \emph{Correction} : le lot est appliqué en entier ou pas du tout, les places libérées par le
+    lot étant disponibles pour lui (\code{stage_placement_set_assignments()}).
+\end{itemize}
+
+\subsection{Appariement et campagne}
+
+\begin{itemize}
+  \item[\mineure] \textbf{Thématique périmée.} La tâche planifiée lit la liste des thématiques une
+    fois, puis envoie des courriels pendant plusieurs minutes. Une date repoussée entre-temps
+    n'empêchait pas l'appariement. \emph{Correction} : la thématique est relue sous le verrou, et
+    l'appariement automatique n'a lieu que si les vœux sont toujours clos.
+  \item[\mineure] \textbf{Échec en chaîne.} Une thématique dont l'activité était verrouillée
+    interrompait la tâche. \emph{Correction} : l'échec est consigné, les thématiques suivantes
+    sont traitées, la thématique en échec est reprise au passage suivant.
+  \item[\mineure] \textbf{Date de clôture passée.} Elle était acceptée à l'activation et à la
+    réouverture des vœux, qui restait alors sans effet. \emph{Correction} : refus quand la date
+    vient d'être saisie ou que les vœux sont rouverts. Une date passée déjà enregistrée ne bloque
+    pas le reste de la fiche.
+  \item[\mineure] \textbf{Thématique masquée.} L'étudiant affecté perdait tout lien vers sa
+    demande, et le courriel de résultat menait à une page indisponible. \emph{Correction} :
+    l'encart et la page des organismes restent ouverts à l'étudiant qui a des vœux ou une
+    affectation.
+  \item[\mineure] \textbf{Courriels dans la page.} Lancé par la DEVE, l'appariement envoyait un
+    courriel par étudiant avant de répondre. Pour une promotion entière, la page pouvait dépasser
+    son délai, et les étudiants non prévenus ne pouvaient plus l'être. \emph{Correction} : l'envoi
+    est confié à une tâche ponctuelle (\code{notify_placement_results}), exécutée par le cron.
+\end{itemize}
+
+\subsection{Organismes}
+
+\begin{itemize}
+  \item[\mineure] \textbf{Même nom, SIRET différents.} Deux sites d'une même clinique, chacun avec
+    son SIRET, étaient confondus : la seconde ligne du classeur écrasait la première.
+    \emph{Correction} : le nom ne rapproche deux organismes que si l'un des deux n'a pas de SIRET.
+  \item[\mineure] \textbf{Écritures hors verrou.} La suppression d'un organisme pendant un
+    appariement pouvait laisser une affectation orpheline ; un double clic sur la reprise de
+    stages précédents créait des doublons. \emph{Correction} : verrou de l'activité et
+    transaction dans les deux fonctions.
+  \item[\mineure] \textbf{Pays \og France\fg{}.} Une colonne \og Pays\fg{} remplie de
+    \og France\fg{} faisait de chaque organisme un organisme étranger. \emph{Correction} : ce pays
+    est effacé à l'enregistrement.
+  \item[\mineure] Organisme sans nom (nom fait d'espaces) ; places ramenées sous le nombre
+    d'étudiants affectés ; noms sans lettre ni chiffre confondus entre eux ; nom de l'étudiant non
+    échappé dans le message d'erreur des affectations ; test unitaire qui échouait quand la
+    machine ralentissait. \emph{Tous corrigés}.
+\end{itemize}
+
+\section{Finition}
+
+\begin{itemize}
+  \item L'export des données personnelles ne sortait rien pour le membre de la DEVE qui avait
+    décidé des affectations. Il exporte maintenant ses décisions : thématique, organisme et date,
+    sans l'identité de l'étudiant. \ok
+  \item L'encart de l'étudiant faisait jusqu'à quatre requêtes par thématique. Les affectations
+    sont maintenant lues en une requête ; il reste une requête de comptage par thématique dont les
+    vœux sont ouverts. L'export des données personnelles fait toujours trois requêtes par
+    thématique. Sans effet mesurable tant que les thématiques se comptent en dizaines. \partiel
+\end{itemize}
+
+\section{Décision à confirmer}\label{sec:decision}
+
+La correction du troisième défaut majeur impose que la demande ouverte à partir d'une affectation
+porte sur l'organisme attribué. C'est la lecture la plus stricte de la fonction. L'autre lecture
+est possible : laisser l'étudiant changer d'organisme et le signaler à la DEVE lors de l'instruction
+de la convention. Elle serait plus souple, mais une thématique où le hors liste est interdit
+pourrait alors être contournée par tout étudiant affecté. Si la souplesse est préférée, la règle
+se desserre en un point : \code{stage_placement_request_errors()}.
+
+\section{Ce qui tient}
+
+\begin{itemize}
+  \item \textbf{Sécurité.} Chaque page vérifie la connexion et la capacité, charge la thématique
+    avec son activité et l'organisme avec sa thématique. Toutes les écritures sont en POST avec la
+    clé de session. La reprise de stages précédents ne montre que les activités où l'utilisateur
+    gère les thématiques. Les sorties sont échappées. Aucune redirection ouverte.
+  \item \textbf{Contournements testés et bloqués.} Thématique d'une autre activité dans
+    l'adresse, changement de thématique en mode édition, affectation utilisée deux fois par double
+    envoi, vœux après la clôture ou après l'appariement.
+  \item \textbf{Verrou.} Aucun chemin ne prend le verrou de l'activité deux fois. Il est libéré
+    dans tous les cas, y compris sur les sorties anticipées, après la validation de la transaction.
+  \item \textbf{Portabilité SQL.} Pas de sous-requête sur la table modifiée, pas de mot réservé.
+    \code{install.xml} et \code{upgrade.php} sont identiques champ par champ ; la mise à jour
+    depuis la version précédente, jouée, donne le schéma d'une installation neuve.
+  \item \textbf{Sauvegarde et données personnelles.} Vœux et affectations ne suivent que les
+    données utilisateur ; les identifiants sont mis en correspondance, y compris le stage rattaché.
+  \item \textbf{Chaînes de langue.} Toutes les chaînes utilisées sont définies en français et en
+    anglais, et toutes celles définies sont utilisées.
+\end{itemize}
+
+\section{Vérifications après correction}\label{sec:verifications}
+
+\begin{itemize}
+  \item \textbf{PHPUnit} : 46~tests pour la fonction, dont un par correction de cet audit. La suite
+    de \code{mod_stage} et celle de \code{mod_stagesynthesis} passent sur Moodle~4.5 et PostgreSQL.
+  \item \textbf{MariaDB~10.11} : les 333~tests de \code{mod_stage} et les 8 de
+    \code{mod_stagesynthesis} passent aussi sur un second Moodle branché sur MariaDB.
+  \item \textbf{Behat} : quatre scénarios ajoutés (\code{tests/behat/placement.feature}) : vœux,
+    appariement et demande préremplie ; hors liste refusé ; hors liste admis avec SIRET ou pays ;
+    gestion des organismes et affectation à la main par la DEVE. Les 15~scénarios du module
+    passent, sans JavaScript, comme dans la CI.
+  \item \textbf{Style} : \code{phpcs} propre sur tout le dépôt.
+  \item \textbf{Banc d'utilisateurs simulés} : les quatre vagues ont été rejouées sur le code
+    corrigé. Leurs résultats sont dans \code{test-de-charge-organismes.tex} : aucune erreur, neuf
+    invariants respectés. Une cinquième vague, sur MariaDB, donne le même résultat.
+\end{itemize}
+
+\section{Suite}
+
+\begin{itemize}
+  \item Faire jouer la CI avant toute fusion, pour la borne basse (Moodle~4.3 avec PHP~8.0).
+  \item Confirmer la décision de la section~\ref{sec:decision}.
+\end{itemize}
+
+\end{document}

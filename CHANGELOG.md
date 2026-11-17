@@ -8,6 +8,63 @@ changements. À tenir à jour à chaque modification de `version.php`.
 ## Non publié
 
 ### mod_stage
+- Thématiques à organismes proposés (`placementlib.php`). Une thématique peut désormais proposer
+  aux étudiants une liste d'organismes d'accueil, qu'ils classent par ordre de préférence avant
+  d'y être affectés. L'option se règle dans la fiche de la thématique, volet *Organismes
+  proposés* : activation, nombre de vœux à classer, date de clôture des vœux, et autorisation
+  des demandes hors liste.
+  - *Organismes* (`placement_offers.php`) : chaque organisme a un nombre de places, des précisions
+    montrées aux étudiants et les coordonnées de la convention (adresse, représentant, service,
+    téléphone, courriel, SIRET, lieu, pays, tuteur). Ils s'ajoutent à la main, par import d'un
+    classeur Excel (`placement_import.php`, modèle téléchargeable, organisme existant mis à jour
+    au réimport) ou par reprise des organismes de stages précédents de cette promotion ou d'une
+    autre (`placement_pick.php`, coordonnées du stage le plus récent).
+  - *Vœux* (`placement.php`) : l'étudiant classe le nombre d'organismes demandé, les modifie ou
+    les retire jusqu'à la clôture. Un encart *Organismes proposés* de la page *Mes stages* indique
+    où il en est et l'action à faire.
+  - *Appariement* (`placement_matching.php`) : à la date de clôture, une tâche planifiée horaire
+    apparie les étudiants et leur annonce le résultat par courriel (nouveau modèle
+    personnalisable *Résultat de l'appariement*). Les étudiants sont tirés au sort ; dans cet
+    ordre, chacun reçoit le mieux classé de ses vœux où il reste une place. La DEVE peut lancer
+    l'appariement sans attendre, le rejouer en tour complémentaire (seuls les étudiants sans
+    affectation y passent), affecter ou réaffecter un étudiant à la main (parmi ses vœux depuis
+    le tableau, à n'importe quel organisme depuis le formulaire *Affecter hors vœux*), rouvrir les
+    vœux et exporter vœux et affectations.
+  - *Demande de convention* : l'étudiant affecté ouvre sa demande depuis son affectation ; la
+    thématique y est fixée et les coordonnées de l'organisme préremplies, corrigeables. Le stage
+    reste rattaché à l'affectation, qui redevient utilisable s'il est annulé ou supprimé.
+  - *Hors liste* : selon le réglage de la thématique, une demande de convention avec un organisme
+    hors de la liste est refusée, ou admise avec le numéro SIRET de l'organisme obligatoire, sauf
+    pour un stage à l'étranger. La règle ne s'applique pas aux demandes déposées par la DEVE.
+  - Trois tables (`stage_placement_offer`, `stage_placement_wish`, `stage_placement_assign`) et
+    cinq champs de `stage_theme`. Sauvegarde et restauration, import de thématiques (réglage et
+    organismes, sans la date de clôture), réinitialisation du cours (vœux et affectations
+    supprimés, vœux rouverts), transfert d'un étudiant et données personnelles en tiennent compte.
+  - Audit du code (`docs/audit/audit-organismes-proposes.tex`) : aucun défaut critique ni faille
+    de sécurité ; trois défauts majeurs et seize mineurs corrigés. La dispense de SIRET à
+    l'étranger exige un pays, qui ne soit pas la France. La réinitialisation du cours efface aussi
+    la date de clôture des vœux. La demande ouverte à partir d'une affectation doit porter sur
+    l'organisme attribué. Une affectation dont la demande est déposée ne se déplace plus ; les
+    affectations du tableau s'appliquent en un lot, ce qui permet un échange. Deux organismes de
+    même nom et de SIRET différents ne sont plus confondus. Une date de clôture passée est refusée.
+    Les courriels d'un appariement lancé par la DEVE partent par une tâche ponctuelle. Un pays
+    « France » ne fait plus un organisme étranger.
+  - Scénarios Behat (`tests/behat/placement.feature`) : vœux, appariement et demande préremplie ;
+    demande hors liste refusée, puis admise avec SIRET ou pays ; gestion des organismes et
+    affectation à la main par la DEVE. Générateurs Behat pour les organismes, les vœux et les
+    affectations. Le menu d'affectation de chaque étudiant a un vrai libellé, masqué à l'écran.
+  - Les suites PHPUnit passent sur MariaDB 10.11 comme sur PostgreSQL 16, et une vague du test de
+    charge (400 étudiants, 32 simultanés) a été jouée sur MariaDB : aucune erreur, neuf invariants
+    respectés.
+  - Test de charge avec utilisateurs simulés (`docs/audit/organismes/`, rapport
+    `docs/audit/test-de-charge-organismes.tex`) : quatre vagues, jusqu'à 1 000 étudiants et 64
+    utilisateurs simultanés, 15 959 requêtes sans erreur et neuf invariants respectés (places
+    jamais dépassées, une affectation et un stage par étudiant, aucun organisme en double). Les
+    vagues comprennent l'import Excel : modèle réimporté, ajouts et mises à jour, deux imports
+    simultanés du même classeur, réimports pendant la saisie des vœux, lignes en erreur, classeur
+    de 2 000 lignes, fichiers refusés. Le test a fait alléger la page
+    *Vœux et appariement*, qui pesait 11 Mo pour 1 000 étudiants : le menu de chaque ligne se
+    limite aux vœux de l'étudiant (1,2 Mo).
 - Nouvelle page *Actions DEVE en attente* (`deve_actions.php`), réservée à la DEVE et
   accessible depuis la barre de navigation : tous les stages de la promotion qui attendent une
   action de sa part (convention à générer, convention à marquer signée, invitation du maître de

@@ -271,6 +271,23 @@ class convention_request_form extends \moodleform {
         // Un objectif laissé décoché doit être justifié : c'est la raison d'être du champ libre.
         $errors += stage_validate_checklist($data, $this->_customdata['checklistitems']);
         $errors += stage_validate_siret_field($data);
+        // Demande hors des organismes proposés de la thématique : SIRET obligatoire en France (la
+        // page ne transmet la thématique que pour une demande déposée par l'étudiant lui-même).
+        $placementerrors = stage_placement_request_errors(
+            $this->_customdata['placementtheme'] ?? null,
+            $data + [
+                'abroad' => !empty($this->_customdata['abroad']),
+                'country' => (string) ($this->_customdata['country'] ?? ''),
+            ],
+            null,
+            true
+        );
+        // Le pays du stage ne se saisit pas ici (il appartient à la saisie) : un stage « à l'étranger »
+        // sans pays est traité comme un stage en France, et l'erreur est portée par le SIRET.
+        if (isset($placementerrors['country'])) {
+            $placementerrors = ['siret' => get_string('placementsiretrequired', 'mod_stage')];
+        }
+        $errors += $placementerrors;
         $errors += stage_validate_request_answers(
             $data,
             $this->_customdata['themeid'],

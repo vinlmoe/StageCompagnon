@@ -1,0 +1,42 @@
+[
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/theme_edit.php?id=1&themeid=3",
+  "file": "90_placement_settings",
+  "from": "#id_placementhdr",
+  "to": "#id_questionshdr"
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/placement_offers.php?id=1&themeid=3",
+  "file": "91_placement_offers",
+  "from": "h2:has-text('Organismes proposés')",
+  "pad": 24
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/placement_matching.php?id=1&themeid=3",
+  "file": "92_placement_matching",
+  "from": "h2:has-text('Vœux et appariement')",
+  "pad": 24
+ },
+ {
+  "user": "hroux",
+  "url": "/mod/stage/view.php?id=1",
+  "file": "93_placement_student_card",
+  "from": "h4:has-text('Organismes proposés')",
+  "bottom": ".stage-placement-card",
+  "pad": 24
+ },
+ {
+  "user": "hroux",
+  "url": "/mod/stage/placement.php?id=1&themeid=3",
+  "actions": [
+   ["select", "#id_wish_1", {"index": 3}],
+   ["select", "#id_wish_2", {"index": 1}]
+  ],
+  "file": "94_placement_wishes",
+  "from": "h2:has-text('Organismes proposés')",
+  "pad": 24
+ }
+]
