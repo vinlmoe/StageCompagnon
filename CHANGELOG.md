@@ -27,8 +27,9 @@ changements. À tenir à jour à chaque modification de `version.php`.
     personnalisable *Résultat de l'appariement*). Les étudiants sont tirés au sort ; dans cet
     ordre, chacun reçoit le mieux classé de ses vœux où il reste une place. La DEVE peut lancer
     l'appariement sans attendre, le rejouer en tour complémentaire (seuls les étudiants sans
-    affectation y passent), affecter ou réaffecter un étudiant à la main, rouvrir les vœux et
-    exporter vœux et affectations.
+    affectation y passent), affecter ou réaffecter un étudiant à la main (parmi ses vœux depuis
+    le tableau, à n'importe quel organisme depuis le formulaire *Affecter hors vœux*), rouvrir les
+    vœux et exporter vœux et affectations.
   - *Demande de convention* : l'étudiant affecté ouvre sa demande depuis son affectation ; la
     thématique y est fixée et les coordonnées de l'organisme préremplies, corrigeables. Le stage
     reste rattaché à l'affectation, qui redevient utilisable s'il est annulé ou supprimé.
@@ -39,6 +40,12 @@ changements. À tenir à jour à chaque modification de `version.php`.
     cinq champs de `stage_theme`. Sauvegarde et restauration, import de thématiques (réglage et
     organismes, sans la date de clôture), réinitialisation du cours (vœux et affectations
     supprimés, vœux rouverts), transfert d'un étudiant et données personnelles en tiennent compte.
+  - Test de charge avec utilisateurs simulés (`docs/audit/organismes/`, rapport
+    `docs/audit/test-de-charge-organismes.tex`) : quatre vagues, jusqu'à 1 000 étudiants et 64
+    utilisateurs simultanés, 15 894 requêtes sans erreur et huit invariants respectés (places
+    jamais dépassées, une affectation et un stage par étudiant). Le test a fait alléger la page
+    *Vœux et appariement*, qui pesait 11 Mo pour 1 000 étudiants : le menu de chaque ligne se
+    limite aux vœux de l'étudiant (1,2 Mo).
 - Nouvelle page *Actions DEVE en attente* (`deve_actions.php`), réservée à la DEVE et
   accessible depuis la barre de navigation : tous les stages de la promotion qui attendent une
   action de sa part (convention à générer, convention à marquer signée, invitation du maître de

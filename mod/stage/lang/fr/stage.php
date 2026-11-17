@@ -1332,3 +1332,5 @@ $string['privacy:metadata:stage_placement_assign:userid'] = 'L\'étudiant affect
 $string['privacy:metadata:stage_placement_assign:offerid'] = 'L\'organisme auquel l\'étudiant est affecté.';
 $string['privacy:metadata:stage_placement_assign:wishrank'] = 'Le rang du vœu satisfait.';
 $string['privacy:metadata:stage_placement_assign:assignedby'] = 'Le membre de la DEVE qui a décidé l\'affectation, le cas échéant.';
+$string['placementassignany'] = 'Affecter hors vœux';
+$string['placementassignanybutton'] = 'Affecter';

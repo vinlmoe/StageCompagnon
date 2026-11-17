@@ -1,0 +1,286 @@
+% Test de charge des thématiques à organismes proposés : utilisateurs simulés par HTTP.
+% Compilation : latexmk -pdf test-de-charge-organismes.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,microtype,booktabs,tabularx,xcolor,hyperref}
+\usepackage[margin=2.2cm]{geometry}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\title{Test de charge des thématiques à organismes proposés de \code{mod_stage}}
+\author{Sébastien Lefebvre}
+\date{17 novembre 2026}
+
+\begin{document}
+\maketitle
+
+\section{Résumé}
+
+Quatre vagues d'utilisateurs simulés ont été jouées contre un Moodle complet : trois promotions de
+400~étudiants, avec 16, 32 puis 64~utilisateurs simultanés, et une promotion de 1\,000~étudiants
+avec 48~utilisateurs simultanés. Chaque vague enchaîne l'ouverture des vœux, leur clôture,
+l'appariement et le dépôt des demandes de convention, en provoquant les situations de concurrence
+qu'une promotion réelle peut produire.
+
+\begin{itemize}
+  \item Aucune des 15\,894~réponses mesurées n'est une erreur. Le journal du serveur ne contient ni
+    avertissement PHP ni réponse~500.
+  \item Les huit invariants relus en base après chaque vague sont respectés : aucune place
+    dépassée, aucune affectation en double, aucun stage en double.
+  \item Le débit plafonne à 35~requêtes par seconde sur la machine de test, quelle que soit la
+    concurrence : le serveur est saturé, les durées s'allongent, rien ne casse.
+  \item Le test a fait apparaître un défaut de performance, corrigé : la page \og Vœux et
+    appariement\fg{} pesait 11~Mo pour 1\,000~étudiants (section~\ref{sec:defaut}).
+  \item Une observation d'usage, sans défaut de code : quand les vœux se concentrent sur les mêmes
+    organismes, des étudiants restent sans affectation alors que des places sont libres
+    (section~\ref{sec:voeux}).
+\end{itemize}
+
+\section{Méthode}
+
+\subsection{Environnement}
+
+Moodle~4.5.16, PHP~8.3.6, PostgreSQL~16, sur une machine de 4~cœurs et 15~Go de mémoire qui héberge
+aussi la base et les clients simulés. Le serveur web est celui intégré à PHP, avec 16~processus.
+Les courriels sont désactivés (\code{$CFG->noemailever}) : le courriel de résultat est composé mais
+pas remis. Le module est celui de la branche, version \code{2026111700}.
+
+Ce n'est pas une configuration de production : pas de cache d'opcodes partagé entre processus,
+clients et serveur sur les mêmes cœurs. Les durées se comparent entre elles, pas à celles d'un
+serveur réel, qui seront plus courtes.
+
+\subsection{Données}
+
+\code{setup.php} crée une promotion, une thématique à organismes proposés (cinq vœux à classer,
+demandes hors liste interdites), des organismes dont les places couvrent 85~\% de l'effectif, dix
+enseignants référents et quatre comptes DEVE. Chaque vague a son propre site.
+
+\subsection{Utilisateurs simulés}
+
+\code{load.py} ouvre une session Moodle par étudiant et envoie les mêmes requêtes qu'un navigateur :
+pages, formulaires avec leur clé de session, redirections. Les vœux suivent une loi de Zipf : le
+premier organisme est demandé deux fois plus que le deuxième, trois fois plus que le troisième, et
+ainsi de suite. C'est le cas défavorable, où presque toute la promotion vise les mêmes places.
+
+\begin{enumerate}
+  \item \textbf{Vœux.} Chaque étudiant ouvre \og Mes stages\fg{}, la page des organismes, puis
+    enregistre ses vœux. Un sur trois les modifie ensuite, un sur dix envoie deux fois le
+    formulaire en même temps, un sur vingt les retire puis les refait, un sur vingt tente trois
+    envois invalides (doublon, rang vide, organisme d'une autre thématique).
+  \item \textbf{Clôture.} Trois comptes DEVE lancent l'appariement au même instant, pendant que
+    des étudiants renvoient encore leurs vœux.
+  \item \textbf{Dernière place.} Dix fois de suite, une place est ajoutée à un organisme complet et
+    deux comptes DEVE y affectent au même instant deux étudiants différents.
+  \item \textbf{Demandes de convention.} Chaque étudiant affecté ouvre sa demande préremplie et
+    l'envoie, deux fois en même temps pour un sur six. Les autres tentent une demande hors liste,
+    d'abord interdite, puis autorisée : sans SIRET, puis avec SIRET ou à l'étranger.
+\end{enumerate}
+
+Pendant toute la vague, un quatrième compte DEVE recharge en boucle la liste des organismes, la
+page des vœux et l'export des affectations.
+
+Un refus prévu par l'application (vœux clos, organisme complet, SIRET exigé) est compté à part. Une
+réponse est une erreur si son code est 500 ou plus, si elle contient une trace d'erreur de PHP ou
+de Moodle, ou si elle n'est ni l'enregistrement attendu ni un refus prévu.
+
+\subsection{Invariants}
+
+Après chaque vague, \code{check.php} relit la base :
+
+\begin{enumerate}
+  \item aucun organisme n'a plus d'étudiants affectés que de places ;
+  \item un étudiant a au plus une affectation par thématique ;
+  \item une affectation issue de l'appariement porte sur un vœu de l'étudiant, au rang enregistré ;
+  \item les vœux d'un étudiant sont au nombre demandé, de rangs 1 à 5, sans doublon ;
+  \item le stage rattaché à une affectation appartient à cet étudiant et à cette thématique ;
+  \item aucun étudiant n'a deux stages actifs sur la thématique ;
+  \item un stage hors liste en France porte un SIRET valide ;
+  \item tout stage déposé a sa demande de convention et son détail.
+\end{enumerate}
+
+\section{Résultats}
+
+\subsection{Vue d'ensemble}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X r r r r@{}}
+\toprule
+& \textbf{Vague 1} & \textbf{Vague 2} & \textbf{Vague 3} & \textbf{Vague 4} \\
+\midrule
+Étudiants simulés & 400 & 400 & 400 & 1\,000 \\
+Utilisateurs simultanés & 16 & 32 & 64 & 48 \\
+Organismes proposés & 80 & 80 & 80 & 150 \\
+Places & 340 & 340 & 340 & 850 \\
+Requêtes HTTP mesurées & 2\,955 & 2\,932 & 2\,912 & 7\,095 \\
+Durée des quatre phases (s) & 83{,}8 & 83{,}7 & 82{,}7 & 200{,}0 \\
+Débit moyen (requêtes/s) & 35{,}3 & 35{,}0 & 35{,}2 & 35{,}5 \\
+Réponses en erreur & 0 & 0 & 0 & 0 \\
+Invariants violés & 0 & 0 & 0 & 0 \\
+Réponse la plus lente (s) & 1{,}75 & 2{,}79 & 5{,}12 & 4{,}48 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Les connexions des étudiants, faites avant chaque vague, ne sont pas mesurées.
+
+\subsection{Durées par action}
+
+Médiane et 95\textsuperscript{e}~centile, en secondes.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}X r r r r r r r r@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{16}} & \multicolumn{2}{c}{\textbf{32}} & \multicolumn{2}{c}{\textbf{64}} & \multicolumn{2}{c}{\textbf{48, 1\,000 ét.}} \\
+\textbf{Action} & méd. & p95 & méd. & p95 & méd. & p95 & méd. & p95 \\
+\midrule
+Page \og Mes stages\fg{} & 0{,}36 & 0{,}64 & 0{,}66 & 1{,}00 & 1{,}16 & 1{,}52 & 0{,}92 & 1{,}26 \\
+Page des organismes et des vœux & 0{,}32 & 0{,}64 & 0{,}60 & 0{,}92 & 1{,}18 & 1{,}52 & 0{,}91 & 1{,}23 \\
+Enregistrement des vœux & 0{,}49 & 0{,}93 & 1{,}05 & 1{,}59 & 2{,}12 & 2{,}69 & 1{,}65 & 2{,}22 \\
+Vœux, double clic & 0{,}64 & 1{,}08 & 1{,}12 & 1{,}68 & 2{,}12 & 2{,}89 & 1{,}68 & 2{,}24 \\
+Vœux pendant la clôture & 0{,}46 & 0{,}99 & 0{,}93 & 1{,}62 & 1{,}82 & 2{,}42 & 1{,}51 & 2{,}14 \\
+Appariement (médiane de trois) & 0{,}85 & -- & 1{,}69 & -- & 2{,}44 & -- & 2{,}73 & -- \\
+Affectation par la DEVE & 0{,}18 & 0{,}43 & 0{,}21 & 0{,}36 & 0{,}19 & 0{,}39 & 0{,}27 & 0{,}41 \\
+Demande préremplie, page & 0{,}41 & 0{,}74 & 0{,}84 & 1{,}18 & 1{,}66 & 2{,}15 & 1{,}17 & 1{,}66 \\
+Demande préremplie, envoi & 0{,}67 & 1{,}17 & 1{,}50 & 2{,}11 & 3{,}03 & 4{,}02 & 2{,}21 & 2{,}91 \\
+Demande hors liste avec SIRET & 0{,}58 & 1{,}03 & 1{,}19 & 1{,}94 & 2{,}14 & 3{,}75 & 1{,}93 & 2{,}62 \\
+Liste des organismes (DEVE) & 0{,}30 & 0{,}53 & 0{,}49 & 0{,}99 & 0{,}97 & 1{,}65 & 1{,}03 & 1{,}52 \\
+Vœux et appariement (DEVE) & 0{,}45 & 0{,}84 & 0{,}64 & 1{,}09 & 1{,}02 & 1{,}74 & 1{,}22 & 2{,}08 \\
+Export des affectations (DEVE) & 0{,}18 & 0{,}50 & 0{,}29 & 1{,}01 & 0{,}70 & 1{,}51 & 0{,}86 & 1{,}27 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Le débit reste à 35~requêtes par seconde de 16 à 64~utilisateurs simultanés : les quatre cœurs sont
+occupés dès la première vague. Au-delà, les requêtes attendent leur tour et les durées croissent
+avec la concurrence, sans erreur ni délai dépassé. L'enregistrement des vœux et le dépôt d'une
+demande sont les actions les plus longues : elles prennent le verrou de l'activité, qui met en
+file les écritures d'une même promotion. C'est ce verrou qui garantit les invariants.
+
+L'appariement lui-même dure moins de trois secondes pour 1\,000~étudiants, sous la charge des vœux
+envoyés au même moment.
+
+\subsection{Concurrence}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X r r r r@{}}
+\toprule
+& \textbf{Vague 1} & \textbf{Vague 2} & \textbf{Vague 3} & \textbf{Vague 4} \\
+\midrule
+Vœux invalides refusés & 54 & 84 & 57 & 177 \\
+Doubles clics sur les vœux (envois) & 68 & 92 & 72 & 196 \\
+Appariements lancés au même instant & 3 & 3 & 3 & 3 \\
+\quad dont ayant affecté des étudiants & 1 & 1 & 1 & 1 \\
+Étudiants affectés par l'appariement & 290 & 288 & 295 & 688 \\
+Vœux envoyés pendant la clôture : acceptés & 19 & 42 & 91 & 66 \\
+\quad refusés, vœux clos & 29 & 54 & 101 & 78 \\
+Dernière place disputée par deux DEVE & 10 & 10 & 10 & 10 \\
+\quad obtenue par un seul étudiant & 10 & 10 & 10 & 10 \\
+\quad refusée à l'autre, organisme complet & 10 & 10 & 10 & 10 \\
+Demandes préremplies, double clic (paires) & 52 & 49 & 57 & 119 \\
+Stages rattachés à une affectation & 300 & 298 & 305 & 698 \\
+Affectations & 300 & 298 & 305 & 698 \\
+Hors liste refusé, option décochée & 100 & 102 & 95 & 302 \\
+Hors liste refusé sans SIRET & 100 & 102 & 95 & 302 \\
+Hors liste accepté avec SIRET & 78 & 73 & 72 & 229 \\
+Hors liste accepté à l'étranger & 22 & 29 & 23 & 73 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{itemize}
+  \item \textbf{Trois appariements simultanés.} Un seul affecte les étudiants ; les deux autres,
+    qui passent après lui sous le verrou, ne trouvent plus personne à affecter et ne changent
+    rien.
+  \item \textbf{Vœux pendant la clôture.} Un envoi arrivé avant l'appariement est enregistré et
+    pris en compte ; un envoi arrivé après est refusé avec le message \og vœux clos\fg{}. Aucun
+    n'est perdu ni enregistré à moitié.
+  \item \textbf{Dernière place.} Sur les dix courses de chaque vague, un étudiant obtient la place
+    et l'autre reçoit \og organisme complet\fg{}. Jamais les deux.
+  \item \textbf{Double clic sur la demande.} Chaque paire d'envois simultanés ne crée qu'un stage :
+    le nombre de stages rattachés à une affectation est égal au nombre d'affectations.
+  \item \textbf{Hors liste.} Toutes les demandes sont refusées tant que l'option est décochée.
+    Une fois cochée, toutes sont refusées sans SIRET en France, et acceptées avec un SIRET ou pour
+    un stage à l'étranger.
+\end{itemize}
+
+\section{Défaut corrigé}\label{sec:defaut}
+
+La page \og Vœux et appariement\fg{} proposait, sur la ligne de chaque étudiant, un menu de tous
+les organismes. Son poids croissait comme le produit des deux nombres.
+
+\begin{center}
+\begin{tabularx}{0.8\linewidth}{@{}X r r@{}}
+\toprule
+\textbf{Promotion} & \textbf{Avant} & \textbf{Après} \\
+\midrule
+400 étudiants, 80 organismes & 2{,}63~Mo & 0{,}58~Mo \\
+1\,000 étudiants, 150 organismes & 11{,}32~Mo & 1{,}23~Mo \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Le menu de chaque ligne se limite désormais aux vœux de l'étudiant et à son affectation actuelle.
+Un formulaire unique, \og Affecter hors vœux\fg{}, en haut de page, permet d'affecter n'importe
+quel étudiant à n'importe quel organisme. Les quatre vagues ci-dessus ont été rejouées après cette
+correction ; leurs résultats sont ceux du code livré.
+
+\section{Observation sur les vœux}\label{sec:voeux}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X r r r r@{}}
+\toprule
+& \textbf{Vague 1} & \textbf{Vague 2} & \textbf{Vague 3} & \textbf{Vague 4} \\
+\midrule
+Étudiants affectés par l'appariement & 290 (72~\%) & 288 (72~\%) & 295 (74~\%) & 688 (69~\%) \\
+\quad sur leur premier vœu & 97 & 115 & 116 & 257 \\
+\quad sur leur deuxième ou troisième vœu & 125 & 99 & 116 & 262 \\
+\quad sur leur quatrième ou cinquième vœu & 73 & 74 & 66 & 174 \\
+Étudiants sans affectation & 110 & 112 & 105 & 312 \\
+Places restées libres après l'appariement & 50 & 52 & 45 & 162 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Les rangs sont relevés en fin de vague : ils comptent aussi les quelques affectations faites à la
+main en phase~3 lorsqu'elles tombaient sur un vœu de l'étudiant.
+
+Avec des vœux très concentrés, un quart à un tiers des étudiants restent sans affectation alors que
+des places sont libres dans des organismes que personne, ou presque, n'a classés. Ce n'est pas un
+défaut de l'appariement : il ne peut affecter un étudiant qu'à un organisme qu'il a demandé. La
+concentration simulée est volontairement forte ; une promotion réelle sera sans doute moins
+tranchée, mais l'effet existe dès que quelques organismes attirent la majorité des vœux.
+
+Trois leviers, tous disponibles : augmenter le nombre de vœux à classer, rouvrir les vœux pour un
+tour complémentaire sur les places restantes, ou affecter à la main les derniers étudiants.
+
+\section{Limites}
+
+\begin{itemize}
+  \item La machine de test porte à la fois le serveur, la base et les clients. Les durées
+    absolues ne valent pas pour un serveur de production.
+  \item Seul PostgreSQL a été testé sous charge. La suite PHPUnit tourne aussi sur MariaDB dans la
+    CI, mais pas ce banc.
+  \item Les clients n'exécutent pas le JavaScript des pages et ne chargent pas les feuilles de
+    style : seul le travail du serveur est mesuré.
+  \item L'import Excel et la reprise de stages précédents, actions ponctuelles d'un seul compte
+    DEVE, ne font pas partie de la vague. Ils sont couverts par les tests unitaires.
+  \item L'envoi réel des courriels de résultat n'est pas mesuré.
+\end{itemize}
+
+\section{Tests unitaires}
+
+La fonction est couverte par 35~tests PHPUnit (\code{tests/placement_test.php}), auxquels
+s'ajoute le test de sauvegarde et de restauration. Ils vérifient notamment les états de la
+campagne, la validation des vœux, l'ordre et les places dans l'appariement, l'équité du tirage au
+sort sur 400~tirages, une promotion entière de 300~étudiants, le tour complémentaire, la
+réouverture, l'affectation par la DEVE, la règle du hors liste et du SIRET dans les deux
+formulaires de demande, le préremplissage, l'import Excel, la reprise de stages précédents, la
+tâche planifiée et son courriel, l'export, l'encart de l'étudiant, la réinitialisation, l'import
+de thématiques et les données personnelles.
+
+\section{Reproduire}
+
+Les scripts et leurs journaux sont dans \code{docs/audit/organismes/} ; le fichier
+\code{README.md} du dossier donne les commandes.
+
+\end{document}

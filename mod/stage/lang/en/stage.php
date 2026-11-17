@@ -1311,3 +1311,5 @@ $string['privacy:metadata:stage_placement_assign:userid'] = 'The assigned studen
 $string['privacy:metadata:stage_placement_assign:offerid'] = 'The organisation the student is assigned to.';
 $string['privacy:metadata:stage_placement_assign:wishrank'] = 'The rank of the wish granted.';
 $string['privacy:metadata:stage_placement_assign:assignedby'] = 'The DEVE member who decided the assignment, if any.';
+$string['placementassignany'] = 'Assign outside wishes';
+$string['placementassignanybutton'] = 'Assign';

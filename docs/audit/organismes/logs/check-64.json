@@ -1,0 +1,22 @@
+{
+    "organismes": 80,
+    "places": 350,
+    "étudiants avec vœux": 400,
+    "affectations": 305,
+    "dont manuelles": 10,
+    "vœu satisfait (rang => nombre)": {
+        "1": 116,
+        "2": 65,
+        "5": 35,
+        "3": 51,
+        "4": 31,
+        "0": 7
+    },
+    "organismes complets": 60,
+    "organismes en dépassement": 0,
+    "stages déposés": 400,
+    "dont rattachés à une affectation": 305,
+    "dont hors liste": 95,
+    "invariants violés": 0,
+    "exemples": []
+}

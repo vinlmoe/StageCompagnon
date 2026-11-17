@@ -20,7 +20,8 @@
  * La page montre où en est la campagne (vœux ouverts, clos, appariement fait), les vœux de chaque
  * étudiant et l'organisme auquel il est affecté. La DEVE peut lancer l'appariement sans attendre
  * la tâche planifiée, le rejouer en tour complémentaire pour les étudiants restés sans affectation,
- * affecter ou réaffecter un étudiant à la main, et exporter le tableau.
+ * affecter ou réaffecter un étudiant à la main (parmi ses vœux depuis le tableau, à n'importe quel
+ * organisme depuis le formulaire du haut de page), et exporter le tableau.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -84,9 +85,13 @@ if ($action === 'match' && data_submitted()) {
     );
 }
 
-if ($action === 'assign' && data_submitted()) {
+if (($action === 'assign' || $action === 'assignone') && data_submitted()) {
     require_sesskey();
-    $submitted = optional_param_array('offer', [], PARAM_INT);
+    // « assignone » : affectation d'un seul étudiant à n'importe quel organisme, y compris hors de
+    // ses vœux (formulaire du haut de page). « assign » : menus du tableau, enregistrés ensemble.
+    $submitted = $action === 'assignone'
+        ? [optional_param('userid', 0, PARAM_INT) => optional_param('offerid', 0, PARAM_INT)]
+        : optional_param_array('offer', [], PARAM_INT);
     $current = stage_placement_get_assignments($theme->id);
     $changed = 0;
     $errors = [];
@@ -195,6 +200,34 @@ foreach ($offers as $offer) {
         . ')';
 }
 
+// Affectation hors vœux : un seul formulaire pour toute la page. Proposer tous les organismes dans
+// le menu de chaque étudiant ferait une page de plusieurs mégaoctets pour une promotion entière
+// (11 Mo pour 1 000 étudiants et 150 organismes) ; le menu de chaque ligne se limite donc aux vœux
+// de l'étudiant et à son affectation actuelle.
+if (!empty($offers)) {
+    $studentoptions = [];
+    foreach ($students as $student) {
+        $studentoptions[$student->id] = fullname($student);
+    }
+    echo html_writer::start_tag('form', [
+        'method' => 'post', 'action' => new moodle_url($baseurl, ['action' => 'assignone']),
+        'class' => 'form-inline border rounded p-3 mb-3',
+    ]);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+    echo html_writer::label(get_string('placementassignany', 'mod_stage'), 'placementassignuser', false, ['class' => 'mr-2']);
+    echo html_writer::select($studentoptions, 'userid', '', ['' => get_string('choosedots')], [
+        'id' => 'placementassignuser', 'class' => 'custom-select mr-2', 'required' => 'required',
+    ]);
+    echo html_writer::label(get_string('placementassignment', 'mod_stage'), 'placementassignoffer', false, ['class' => 'sr-only']);
+    echo html_writer::select($offeroptions, 'offerid', '', ['' => get_string('choosedots')], [
+        'id' => 'placementassignoffer', 'class' => 'custom-select mr-2', 'required' => 'required',
+    ]);
+    echo html_writer::tag('button', get_string('placementassignanybutton', 'mod_stage'), [
+        'type' => 'submit', 'class' => 'btn btn-secondary',
+    ]);
+    echo html_writer::end_tag('form');
+}
+
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => new moodle_url($baseurl, ['action' => 'assign'])]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
@@ -213,6 +246,13 @@ foreach ($students as $student) {
         $wishitems[] = html_writer::tag('li', isset($offers[$offerid]) ? format_string($offers[$offerid]->name) : '-');
     }
     $assignment = $assignments[$student->id] ?? null;
+    // Menu de la ligne : les vœux de l'étudiant, et son affectation actuelle si elle est hors vœux.
+    $rowoptions = [];
+    foreach (array_merge($wishes[$student->id] ?? [], $assignment ? [(int) $assignment->offerid] : []) as $offerid) {
+        if (isset($offeroptions[$offerid])) {
+            $rowoptions[$offerid] = $offeroptions[$offerid];
+        }
+    }
     $entrycell = '-';
     if ($assignment && !empty($assignment->entryid)) {
         $entrycell = html_writer::link(
@@ -225,7 +265,7 @@ foreach ($students as $student) {
         $wishitems ? html_writer::tag('ol', implode('', $wishitems), ['class' => 'mb-0 pl-3'])
             : html_writer::span(get_string('placementnowishesyet', 'mod_stage'), 'text-muted'),
         html_writer::select(
-            $offeroptions,
+            $rowoptions,
             'offer[' . $student->id . ']',
             $assignment ? $assignment->offerid : 0,
             [0 => get_string('placementnoassignment', 'mod_stage')],

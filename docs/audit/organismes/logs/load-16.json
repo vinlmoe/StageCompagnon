@@ -1,0 +1,224 @@
+{
+ "threads": 16,
+ "étudiants": 400,
+ "organismes": 80,
+ "places": 340,
+ "connexions_s": 35.7,
+ "phases_s": {
+  "1 vœux": 40.1,
+  "2 clôture": 1.7,
+  "3 dernière place": 3.0,
+  "4 demandes": 39.0
+ },
+ "requêtes": 2955,
+ "erreurs": 0,
+ "actions": {
+  "Mes stages (page)": {
+   "n": 400,
+   "p50": 0.357,
+   "p95": 0.64,
+   "max": 1.079,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "affectation manuelle (envoi)": {
+   "n": 20,
+   "p50": 0.183,
+   "p95": 0.426,
+   "max": 0.493,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "appariement (envoi)": {
+   "n": 3,
+   "p50": 0.849,
+   "p95": 0.849,
+   "max": 0.904,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "demande hors liste (page)": {
+   "n": 200,
+   "p50": 0.407,
+   "p95": 0.76,
+   "max": 1.751,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "demande préremplie (double clic)": {
+   "n": 104,
+   "p50": 0.764,
+   "p95": 1.251,
+   "max": 1.393,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "demande préremplie (envoi)": {
+   "n": 248,
+   "p50": 0.67,
+   "p95": 1.166,
+   "max": 1.547,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "demande préremplie (page)": {
+   "n": 300,
+   "p50": 0.406,
+   "p95": 0.742,
+   "max": 1.135,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "export des affectations (DEVE)": {
+   "n": 86,
+   "p50": 0.178,
+   "p95": 0.503,
+   "max": 0.66,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "hors liste avec SIRET (envoi)": {
+   "n": 78,
+   "p50": 0.578,
+   "p95": 1.03,
+   "max": 1.321,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "hors liste non autorisé (envoi)": {
+   "n": 100,
+   "p50": 0.43,
+   "p95": 0.838,
+   "max": 0.982,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "hors liste sans SIRET (envoi)": {
+   "n": 100,
+   "p50": 0.403,
+   "p95": 0.762,
+   "max": 1.317,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "hors liste à l'étranger (envoi)": {
+   "n": 22,
+   "p50": 0.659,
+   "p95": 1.038,
+   "max": 1.074,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "organismes (DEVE)": {
+   "n": 87,
+   "p50": 0.297,
+   "p95": 0.533,
+   "max": 1.1,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "organismes et vœux (page)": {
+   "n": 400,
+   "p50": 0.315,
+   "p95": 0.636,
+   "max": 1.072,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "vœux (double clic)": {
+   "n": 68,
+   "p50": 0.641,
+   "p95": 1.081,
+   "max": 1.672,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "vœux (envoi)": {
+   "n": 389,
+   "p50": 0.489,
+   "p95": 0.93,
+   "max": 1.346,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "vœux (modification)": {
+   "n": 139,
+   "p50": 0.486,
+   "p95": 0.897,
+   "max": 1.431,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "vœux (retrait)": {
+   "n": 23,
+   "p50": 0.46,
+   "p95": 0.746,
+   "max": 0.93,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "vœux et appariement (DEVE)": {
+   "n": 86,
+   "p50": 0.448,
+   "p95": 0.845,
+   "max": 1.034,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "vœux invalides (envoi)": {
+   "n": 54,
+   "p50": 0.483,
+   "p95": 0.838,
+   "max": 1.034,
+   "erreurs": 0,
+   "exemples": []
+  },
+  "vœux pendant la clôture (envoi)": {
+   "n": 48,
+   "p50": 0.461,
+   "p95": 0.993,
+   "max": 1.183,
+   "erreurs": 0,
+   "exemples": []
+  }
+ },
+ "requêtes_par_s": 35.3,
+ "issues": {
+  "Mes stages (page) : ok": 400,
+  "affectation manuelle (envoi) : ok": 10,
+  "affectation manuelle (envoi) : organisme complet": 10,
+  "appariement (envoi) : 0 affectés, 110 sans affectation": 2,
+  "appariement (envoi) : 290 affectés, 110 sans affectation": 1,
+  "demande hors liste (page) : ok": 200,
+  "demande préremplie (double clic) : affectation déjà utilisée": 16,
+  "demande préremplie (double clic) : enregistrée": 52,
+  "demande préremplie (double clic) : sans message (affiché sur l'autre réponse)": 36,
+  "demande préremplie (envoi) : enregistrée": 248,
+  "demande préremplie (page) : ok": 300,
+  "export des affectations (DEVE) : ok": 86,
+  "hors liste avec SIRET (envoi) : enregistrée": 78,
+  "hors liste non autorisé (envoi) : hors liste refusé": 100,
+  "hors liste sans SIRET (envoi) : SIRET exigé": 100,
+  "hors liste à l'étranger (envoi) : enregistrée": 22,
+  "organismes (DEVE) : ok": 87,
+  "organismes et vœux (page) : ok": 400,
+  "vœux (double clic) : ok": 68,
+  "vœux (envoi) : ok": 389,
+  "vœux (modification) : ok": 139,
+  "vœux (retrait) : ok": 23,
+  "vœux et appariement (DEVE) : ok": 86,
+  "vœux invalides (envoi) : organisme inconnu": 18,
+  "vœux invalides (envoi) : vœux en doublon": 18,
+  "vœux invalides (envoi) : vœux incomplets": 18,
+  "vœux pendant la clôture (envoi) : ok": 19,
+  "vœux pendant la clôture (envoi) : vœux clos": 29
+ },
+ "final": {
+  "étudiants avec vœux avant la clôture": 400,
+  "affectations": 300,
+  "courses à la dernière place": 10,
+  "affectations manuelles": 10,
+  "stages déposés": 400,
+  "stages rattachés à une affectation": 300
+ }
+}
