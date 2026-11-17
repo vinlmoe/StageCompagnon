@@ -342,6 +342,14 @@ class student_register_form extends \moodleform {
             $this->_customdata['checklistsbytheme'][(int) $data['themeid']] ?? []
         );
         $errors += stage_validate_siret_field($data);
+        // Thématique à organismes proposés : hors de l'affectation de l'étudiant, la demande n'est
+        // admise que si la thématique l'autorise, et le SIRET y est obligatoire en France.
+        $errors += stage_placement_request_errors(
+            $this->_customdata['themes'][(int) $data['themeid']] ?? null,
+            $data,
+            $this->_customdata['assignment'] ?? null,
+            (int) ($this->_customdata['existingthemeid'] ?? 0) === (int) $data['themeid']
+        );
         // Même chose pour le questionnaire de demande : seul celui de la thématique retenue compte.
         $errors += stage_validate_request_answers(
             $data,

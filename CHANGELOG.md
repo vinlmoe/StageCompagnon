@@ -8,6 +8,37 @@ changements. À tenir à jour à chaque modification de `version.php`.
 ## Non publié
 
 ### mod_stage
+- Thématiques à organismes proposés (`placementlib.php`). Une thématique peut désormais proposer
+  aux étudiants une liste d'organismes d'accueil, qu'ils classent par ordre de préférence avant
+  d'y être affectés. L'option se règle dans la fiche de la thématique, volet *Organismes
+  proposés* : activation, nombre de vœux à classer, date de clôture des vœux, et autorisation
+  des demandes hors liste.
+  - *Organismes* (`placement_offers.php`) : chaque organisme a un nombre de places, des précisions
+    montrées aux étudiants et les coordonnées de la convention (adresse, représentant, service,
+    téléphone, courriel, SIRET, lieu, pays, tuteur). Ils s'ajoutent à la main, par import d'un
+    classeur Excel (`placement_import.php`, modèle téléchargeable, organisme existant mis à jour
+    au réimport) ou par reprise des organismes de stages précédents de cette promotion ou d'une
+    autre (`placement_pick.php`, coordonnées du stage le plus récent).
+  - *Vœux* (`placement.php`) : l'étudiant classe le nombre d'organismes demandé, les modifie ou
+    les retire jusqu'à la clôture. Un encart *Organismes proposés* de la page *Mes stages* indique
+    où il en est et l'action à faire.
+  - *Appariement* (`placement_matching.php`) : à la date de clôture, une tâche planifiée horaire
+    apparie les étudiants et leur annonce le résultat par courriel (nouveau modèle
+    personnalisable *Résultat de l'appariement*). Les étudiants sont tirés au sort ; dans cet
+    ordre, chacun reçoit le mieux classé de ses vœux où il reste une place. La DEVE peut lancer
+    l'appariement sans attendre, le rejouer en tour complémentaire (seuls les étudiants sans
+    affectation y passent), affecter ou réaffecter un étudiant à la main, rouvrir les vœux et
+    exporter vœux et affectations.
+  - *Demande de convention* : l'étudiant affecté ouvre sa demande depuis son affectation ; la
+    thématique y est fixée et les coordonnées de l'organisme préremplies, corrigeables. Le stage
+    reste rattaché à l'affectation, qui redevient utilisable s'il est annulé ou supprimé.
+  - *Hors liste* : selon le réglage de la thématique, une demande de convention avec un organisme
+    hors de la liste est refusée, ou admise avec le numéro SIRET de l'organisme obligatoire, sauf
+    pour un stage à l'étranger. La règle ne s'applique pas aux demandes déposées par la DEVE.
+  - Trois tables (`stage_placement_offer`, `stage_placement_wish`, `stage_placement_assign`) et
+    cinq champs de `stage_theme`. Sauvegarde et restauration, import de thématiques (réglage et
+    organismes, sans la date de clôture), réinitialisation du cours (vœux et affectations
+    supprimés, vœux rouverts), transfert d'un étudiant et données personnelles en tiennent compte.
 - Nouvelle page *Actions DEVE en attente* (`deve_actions.php`), réservée à la DEVE et
   accessible depuis la barre de navigation : tous les stages de la promotion qui attendent une
   action de sa part (convention à générer, convention à marquer signée, invitation du maître de

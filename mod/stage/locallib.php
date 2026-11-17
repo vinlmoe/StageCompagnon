@@ -25,6 +25,9 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/stage/lib.php');
+// Thématiques à organismes proposés (vœux des étudiants, appariement) : fonctions à part, pour ne
+// pas alourdir encore ce fichier.
+require_once($CFG->dirroot . '/mod/stage/placementlib.php');
 
 /**
  * Retourne le libellé lisible d'un statut de stage.
@@ -2883,6 +2886,12 @@ function stage_get_email_definitions() {
             'subjectstring' => 'conventionremindernotifsubject',
             'bodystring' => 'conventionremindernotifbody',
             'vars' => ['student', 'stage', 'theme', 'datestart', 'days', 'url'],
+        ],
+        'placementresult' => [
+            'label' => get_string('emailkeyplacementresult', 'mod_stage'),
+            'subjectstring' => 'placementresultnotifsubject',
+            'bodystring' => 'placementresultnotifbody',
+            'vars' => ['student', 'stage', 'theme', 'result', 'url'],
         ],
     ];
 }
@@ -6147,6 +6156,10 @@ function stage_execute_student_transfer(
     // où elle continue de décrire l'année passée, et n'est pas recréée dans la cible.
     $DB->delete_records('stage_entry_teacher', ['stageid' => $sourcestage->id, 'studentid' => $userid]);
 
+    // Vœux et affectations à un organisme proposé : ils appartiennent à la campagne de la promotion
+    // quittée, où la place de l'étudiant est ainsi libérée.
+    stage_placement_delete_users_data($sourcestage->id, [$userid]);
+
     // La mobilité d'études compte dans les jours à l'étranger de l'étudiant : elle le suit, sans
     // quoi il apparaissait en défaut dans la cible et la ligne restait orpheline dans la source.
     // Une mobilité déjà saisie dans la cible (index unique stageid, userid) est la plus récente :
@@ -6231,9 +6244,15 @@ function stage_import_themes($sourcestageid, $targetstageid, ?context $sourcecon
             // référents, ils sont propres au cours (voir stage_execute_student_transfer()).
             'tutorevaluationenabled' => $theme->tutorevaluationenabled,
             'reportmode' => $theme->reportmode,
+            // Organismes proposés : le réglage et la liste des organismes suivent la thématique. La
+            // date de clôture des vœux, propre à la campagne de la promotion source, est à refixer.
+            'placementenabled' => $theme->placementenabled,
+            'placementchoices' => $theme->placementchoices,
+            'placementofflist' => $theme->placementofflist,
             'timecreated' => time(),
             'timemodified' => time(),
         ]));
+        stage_placement_copy_offers($theme->id, $newthemeid);
         foreach (stage_get_theme_durations($theme->id) as $studyyear => $requiredduration) {
             stage_set_theme_duration($newthemeid, $studyyear, $requiredduration);
         }
@@ -9991,6 +10010,9 @@ function stage_delete_entries(array $entryids, ?context $context = null) {
         ) {
             $DB->delete_records_select($table, "entryid $insql", $inparams);
         }
+        // L'affectation de l'étudiant à un organisme proposé survit au stage qui en découlait : il
+        // pourra déposer une nouvelle demande à partir d'elle.
+        $DB->set_field_select('stage_placement_assign', 'entryid', null, "entryid $insql", $inparams);
         $DB->delete_records_select('stage_entry', "id $insql", $inparams);
     }
 }

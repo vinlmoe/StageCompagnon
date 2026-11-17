@@ -139,6 +139,19 @@ class provider implements
             'teacherid' => 'privacy:metadata:stage_entry_teacher:teacherid',
         ], 'privacy:metadata:stage_entry_teacher');
 
+        $collection->add_database_table('stage_placement_wish', [
+            'userid' => 'privacy:metadata:stage_placement_wish:userid',
+            'offerid' => 'privacy:metadata:stage_placement_wish:offerid',
+            'wishrank' => 'privacy:metadata:stage_placement_wish:wishrank',
+        ], 'privacy:metadata:stage_placement_wish');
+
+        $collection->add_database_table('stage_placement_assign', [
+            'userid' => 'privacy:metadata:stage_placement_assign:userid',
+            'offerid' => 'privacy:metadata:stage_placement_assign:offerid',
+            'wishrank' => 'privacy:metadata:stage_placement_assign:wishrank',
+            'assignedby' => 'privacy:metadata:stage_placement_assign:assignedby',
+        ], 'privacy:metadata:stage_placement_assign');
+
         $collection->add_database_table('stage_study_mobility', [
             'userid' => 'privacy:metadata:stage_study_mobility:userid',
             'location' => 'privacy:metadata:stage_study_mobility:location',
@@ -235,6 +248,28 @@ class provider implements
             'validatedby' => $userid,
         ]);
 
+        // Vœux et affectation à un organisme proposé : ils existent avant toute saisie de stage. Le
+        // membre de la DEVE qui a décidé une affectation y est cité.
+        $placementtables = [
+            'stage_placement_wish' => 'pl.userid = :studentid',
+            'stage_placement_assign' => 'pl.userid = :studentid OR pl.assignedby = :assignedby',
+        ];
+        foreach ($placementtables as $table => $where) {
+            $sql = "SELECT ctx.id
+                      FROM {context} ctx
+                      JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
+                      JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                      JOIN {stage} s ON s.id = cm.instance
+                      JOIN {stage_theme} t ON t.stageid = s.id
+                      JOIN {{$table}} pl ON pl.themeid = t.id
+                     WHERE $where";
+            $contextlist->add_from_sql($sql, [
+                'modname' => 'stage',
+                'contextlevel' => CONTEXT_MODULE,
+                'studentid' => $userid,
+            ] + ($table === 'stage_placement_assign' ? ['assignedby' => $userid] : []));
+        }
+
         // Enseignant nommé référent sur une convention : il peut n'avoir ni attribution ni
         // évaluation dans l'activité, et doit pourtant y être retrouvé.
         $sql = "SELECT ctx.id
@@ -310,6 +345,19 @@ class provider implements
                                                JOIN {stage} s ON s.id = cm.instance
                                                JOIN {stage_study_mobility} sm ON sm.stageid = s.id
                                               WHERE cm.id = :instanceid", $params);
+        }
+
+        $placementfields = ['stage_placement_wish' => ['userid'], 'stage_placement_assign' => ['userid', 'assignedby']];
+        foreach ($placementfields as $table => $fields) {
+            foreach ($fields as $field) {
+                $userlist->add_from_sql($field, "SELECT pl.$field
+                                                   FROM {course_modules} cm
+                                                   JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                                                   JOIN {stage} s ON s.id = cm.instance
+                                                   JOIN {stage_theme} t ON t.stageid = s.id
+                                                   JOIN {{$table}} pl ON pl.themeid = t.id
+                                                  WHERE cm.id = :instanceid", $params);
+            }
         }
 
         $userlist->add_from_sql('referentteacherid', "SELECT d.referentteacherid
@@ -471,6 +519,28 @@ class provider implements
                 ]);
             }
 
+            // Vœux et affectation à un organisme proposé, par thématique.
+            $placements = [];
+            foreach (stage_get_themes($cm->instance) as $theme) {
+                $offers = stage_placement_get_offers($theme->id);
+                $offername = fn($offerid) => isset($offers[$offerid]) ? stage_plain_string($offers[$offerid]->name) : '';
+                $wishes = array_map($offername, stage_placement_get_wishes($theme->id, $user->id));
+                $assignment = stage_placement_get_assignment($theme->id, $user->id);
+                if ($wishes || $assignment) {
+                    $placements[] = [
+                        'theme' => stage_plain_string($theme->name),
+                        'wishes' => $wishes,
+                        'assignment' => $assignment ? $offername($assignment->offerid) : '',
+                        'wishrank' => $assignment ? (int) $assignment->wishrank : null,
+                    ];
+                }
+            }
+            if ($placements) {
+                writer::with_context($context)->export_data([get_string('placementoffers', 'mod_stage')], (object) [
+                    'placements' => $placements,
+                ]);
+            }
+
             // Enseignants référents attribués à l'étudiant.
             $teachers = stage_get_student_teachers($cm->instance, $user->id);
             if ($teachers) {
@@ -617,6 +687,8 @@ class provider implements
         stage_delete_entries($DB->get_fieldset_select('stage_entry', 'id', 'stageid = ?', [$cm->instance]), $context);
         $DB->delete_records('stage_entry_teacher', ['stageid' => $cm->instance]);
         $DB->delete_records('stage_study_mobility', ['stageid' => $cm->instance]);
+        // Vœux et affectations de tous les étudiants ; les organismes proposés, eux, restent.
+        stage_placement_reset_userdata($cm->instance);
 
         $themeids = $DB->get_fieldset_select('stage_theme', 'id', 'stageid = ?', [$cm->instance]);
         if ($themeids) {
@@ -713,6 +785,17 @@ class provider implements
         // Mobilité d'études de l'étudiant ; la DEVE qui l'a validée en est seulement dissociée.
         $DB->delete_records_select('stage_study_mobility', "stageid = :stageid AND userid $usersql", $params);
         $DB->set_field_select('stage_study_mobility', 'validatedby', null, "stageid = :stageid AND validatedby $usersql", $params);
+
+        // Vœux et affectation à un organisme proposé de l'étudiant ; le membre de la DEVE qui a décidé
+        // l'affectation d'un autre étudiant en est seulement dissocié.
+        stage_placement_delete_users_data($cm->instance, $userids);
+        $DB->set_field_select(
+            'stage_placement_assign',
+            'assignedby',
+            null,
+            "themeid IN (SELECT id FROM {stage_theme} WHERE stageid = :stageid) AND assignedby $usersql",
+            $params
+        );
 
         // 2. En tant que personnel cité dans le stage d'un autre étudiant : le stage appartient à
         // cet étudiant et doit survivre, seules les références à l'utilisateur supprimé sautent.

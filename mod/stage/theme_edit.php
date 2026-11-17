@@ -91,6 +91,10 @@ $mform = new theme_edit_form($baseurl, [
     // Une liste déjà choisie pour le maître de stage reste visible même si l'évaluation par le
     // maître de stage a depuis été désactivée : sinon l'enregistrement la retirerait en silence.
     'tutorenabled' => !empty($stage->tutorevaluationenabled) || !empty($theme->tutorlistid),
+    'placementoffersurl' => $theme
+        ? (new moodle_url('/mod/stage/placement_offers.php', ['id' => $cm->id, 'themeid' => $theme->id]))->out(false) : '',
+    'placementoffercount' => $theme ? $DB->count_records('stage_placement_offer', ['themeid' => $theme->id]) : 0,
+    'placementmatched' => $theme && !empty($theme->placementmatchedtime),
     'filemanageroptions' => $filemanageroptions,
 ]);
 
@@ -113,7 +117,7 @@ if ($theme) {
     foreach (
         ['name', 'description', 'mandatory', 'requiredduration', 'minstudyyear', 'maxstudyyear', 'sortorder',
             'visible', 'tutorevaluationenabled', 'reportmode', 'studentlistid', 'teacherlistid', 'tutorlistid',
-            'requestlistid',
+            'requestlistid', 'placementenabled', 'placementchoices', 'placementdeadline', 'placementofflist',
         ] as $field
     ) {
         $formdata[$field] = $theme->$field;
@@ -155,8 +159,21 @@ if ($data = $mform->get_data()) {
             'tutorevaluationenabled' => !empty($data->tutorevaluationenabled) ? 1 : 0,
             'reportmode' => array_key_exists((int) $data->reportmode, stage_report_mode_options())
                 ? (int) $data->reportmode : STAGE_REPORT_NONE,
+            'placementenabled' => !empty($data->placementenabled) ? 1 : 0,
             'timemodified' => $now,
         ];
+        // Organismes proposés : les réglages ne sont lus que si l'option est cochée. Décochée, ses
+        // champs sont masqués et la thématique garde ses réglages, retrouvés si elle est réactivée.
+        if ($record->placementenabled) {
+            $record->placementchoices = max(1, (int) ($data->placementchoices ?? 3));
+            $record->placementdeadline = (int) ($data->placementdeadline ?? 0);
+            $record->placementofflist = !empty($data->placementofflist) ? 1 : 0;
+            // Rouvrir les vœux : l'appariement sera refait à la nouvelle date de clôture. Les
+            // affectations déjà faites sont conservées, seuls les étudiants sans affectation y passent.
+            if (!empty($data->placementreopen)) {
+                $record->placementmatchedtime = 0;
+            }
+        }
         // Liste d'évaluation de chaque formulaire : seule une liste de cette activité et de ce type
         // est acceptée. Un champ absent du formulaire (maître de stage non proposé) garde sa valeur.
         foreach (stage_evallist_fields() as $evaltype => $field) {
@@ -284,6 +301,13 @@ if ($theme) {
         get_string('viewthemestages', 'mod_stage'),
         ['class' => 'btn btn-outline-secondary mr-2 mb-1']
     );
+    if (!empty($theme->placementenabled)) {
+        echo html_writer::link(
+            new moodle_url('/mod/stage/placement_offers.php', ['id' => $cm->id, 'themeid' => $theme->id]),
+            get_string('placementoffers', 'mod_stage'),
+            ['class' => 'btn btn-outline-secondary mr-2 mb-1']
+        );
+    }
 }
 echo html_writer::end_div();
 
@@ -294,6 +318,7 @@ $sections = [
     'id_teachershdr' => get_string('themeteachers', 'mod_stage'),
     'id_objectiveshdr' => get_string('themeobjectives', 'mod_stage'),
     'id_checklisthdr' => get_string('themechecklist', 'mod_stage'),
+    'id_placementhdr' => get_string('placementoffers', 'mod_stage'),
     'id_questionshdr' => get_string('evallists', 'mod_stage'),
 ];
 $toc = [];

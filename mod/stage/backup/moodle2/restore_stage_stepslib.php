@@ -34,6 +34,9 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
     /** @var array Thématique restaurée => anciens identifiants de ses listes d'évaluation. */
     protected $themelists = [];
 
+    /** @var array Affectation restaurée => ancien identifiant de la saisie de stage qui en découle. */
+    protected $placemententries = [];
+
     /**
      * Déclare les chemins à restaurer.
      *
@@ -57,6 +60,10 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         $paths[] = new restore_path_element(
             'stage_theme_duration',
             '/activity/stage/themes/theme/themedurations/themeduration'
+        );
+        $paths[] = new restore_path_element(
+            'stage_placement_offer',
+            '/activity/stage/themes/theme/placementoffers/placementoffer'
         );
         $paths[] = new restore_path_element(
             'stage_year_requirement',
@@ -84,6 +91,14 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         );
 
         if ($userinfo) {
+            $paths[] = new restore_path_element(
+                'stage_placement_wish',
+                '/activity/stage/themes/theme/placementoffers/placementoffer/placementwishes/placementwish'
+            );
+            $paths[] = new restore_path_element(
+                'stage_placement_assign',
+                '/activity/stage/themes/theme/placementoffers/placementoffer/placementassigns/placementassign'
+            );
             $paths[] = new restore_path_element(
                 'stage_entry_teacher',
                 '/activity/stage/entryteachers/entryteacher'
@@ -153,6 +168,13 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
             $data->$field = 0;
         }
 
+        // Organismes proposés : sans les étudiants (duplication, import de cours), la copie repart
+        // d'une campagne de vœux vierge, dont la date de clôture reste à fixer.
+        if (!$this->get_setting_value('userinfo')) {
+            $data->placementdeadline = 0;
+            $data->placementmatchedtime = 0;
+        }
+
         // La thématique porte désormais des fichiers (les documents d'objectifs) : la
         // correspondance doit le déclarer pour qu'after_execute() puisse les rattacher.
         $newitemid = $DB->insert_record('stage_theme', $data);
@@ -214,6 +236,76 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
 
         $newitemid = $DB->insert_record('stage_theme_checklist', $data);
         $this->set_mapping('stage_theme_checklist', $oldid, $newitemid);
+    }
+
+    /**
+     * Restaure un organisme proposé d'une thématique.
+     *
+     * @param array $data
+     */
+    protected function process_stage_placement_offer($data) {
+        global $DB;
+
+        $data = (object) $data;
+        $oldid = $data->id;
+        $data->themeid = $this->get_new_parentid('stage_theme');
+
+        $newitemid = $DB->insert_record('stage_placement_offer', $data);
+        $this->set_mapping('stage_placement_offer', $oldid, $newitemid);
+    }
+
+    /**
+     * Restaure un vœu d'étudiant. La ligne est écartée si l'étudiant n'est pas dans l'archive.
+     *
+     * @param array $data
+     */
+    protected function process_stage_placement_wish($data) {
+        global $DB;
+
+        $data = (object) $data;
+        unset($data->id);
+
+        $data->userid = $this->get_mappingid('user', $data->userid);
+        $data->offerid = $this->get_new_parentid('stage_placement_offer');
+        // L'index (userid, offerid) est unique : deux comptes de la sauvegarde peuvent se retrouver
+        // fusionnés sur un même compte du site cible.
+        $same = ['userid' => $data->userid, 'offerid' => $data->offerid];
+        if (!$data->userid || $DB->record_exists('stage_placement_wish', $same)) {
+            return;
+        }
+        $data->themeid = $this->get_new_parentid('stage_theme');
+
+        $DB->insert_record('stage_placement_wish', $data);
+    }
+
+    /**
+     * Restaure l'affectation d'un étudiant à un organisme proposé. La saisie de stage qui en
+     * découle est restaurée plus tard : son rattachement est repris par after_execute().
+     *
+     * @param array $data
+     */
+    protected function process_stage_placement_assign($data) {
+        global $DB;
+
+        $data = (object) $data;
+        unset($data->id);
+
+        $data->userid = $this->get_mappingid('user', $data->userid);
+        $data->themeid = $this->get_new_parentid('stage_theme');
+        // L'index (themeid, userid) est unique, pour la même raison que celui des vœux.
+        $same = ['themeid' => $data->themeid, 'userid' => $data->userid];
+        if (!$data->userid || $DB->record_exists('stage_placement_assign', $same)) {
+            return;
+        }
+        $data->offerid = $this->get_new_parentid('stage_placement_offer');
+        $data->assignedby = empty($data->assignedby) ? null : ($this->get_mappingid('user', $data->assignedby) ?: null);
+        $oldentryid = (int) ($data->entryid ?? 0);
+        $data->entryid = null;
+
+        $newitemid = $DB->insert_record('stage_placement_assign', $data);
+        if ($oldentryid) {
+            $this->placemententries[$newitemid] = $oldentryid;
+        }
     }
 
     /**
@@ -566,6 +658,15 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
                 $update[$field] = $oldlistid ? ((int) $this->get_mappingid('stage_evallist', $oldlistid) ?: 0) : 0;
             }
             $DB->update_record('stage_theme', (object) $update);
+        }
+
+        // Saisie de stage découlant de chaque affectation à un organisme proposé, une fois les
+        // saisies recréées.
+        foreach ($this->placemententries as $assignmentid => $oldentryid) {
+            $entryid = $this->get_mappingid('stage_entry', $oldentryid);
+            if ($entryid) {
+                $DB->set_field('stage_placement_assign', 'entryid', $entryid, ['id' => $assignmentid]);
+            }
         }
 
         // Zones sans itemid, rattachées au contexte du module.

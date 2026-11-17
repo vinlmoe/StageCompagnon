@@ -112,6 +112,11 @@ $requestquestions = stage_get_questions($entry->themeid, 'request');
 $mform = new convention_request_form($baseurl, [
     'templates' => $templates, 'referentteachers' => $referentteachers, 'periods' => $periods,
     'themeid' => (int) $entry->themeid, 'checklistitems' => $checklistitems, 'requestquestions' => $requestquestions,
+    // Organismes proposés : la règle du SIRET ne s'impose qu'à l'étudiant, pas à la DEVE qui dépose
+    // la demande à sa place.
+    'placementtheme' => $canregister ? null : $DB->get_record('stage_theme', ['id' => $entry->themeid]),
+    'assignment' => stage_placement_get_entry_assignment($entry->id) ?: null,
+    'abroad' => !empty($entry->abroad),
 ]);
 
 $formdata = (object) ['id' => $cm->id, 'entryid' => $entryid];

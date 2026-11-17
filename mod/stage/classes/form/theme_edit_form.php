@@ -35,6 +35,9 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * - evallisturl : URL de base de l'édition d'une liste (evallist_edit.php), complétée de listid ;
  * - evallistsindexurl : URL de la page qui gère toutes les listes (evallists.php) ;
  * - tutorenabled : la liste du maître de stage est-elle proposée ;
+ * - placementoffersurl : URL de la gestion des organismes proposés, pour une thématique existante ;
+ * - placementoffercount : nombre d'organismes déjà proposés ;
+ * - placementmatched : l'appariement des vœux a-t-il déjà eu lieu ;
  * - filemanageroptions : options du gestionnaire de fichiers des documents d'objectifs.
  *
  * @package   mod_stage
@@ -61,6 +64,7 @@ class theme_edit_form extends \moodleform {
         $this->define_durations($mform);
         $this->define_teachers($mform, $customdata['teachers'] ?? []);
         $this->define_objectives($mform, $customdata);
+        $this->define_placement($mform, $customdata);
         $this->define_evallists($mform, $customdata);
 
         $buttons = [
@@ -226,6 +230,60 @@ class theme_edit_form extends \moodleform {
     }
 
     /**
+     * Organismes proposés : l'établissement propose des organismes d'accueil, les étudiants classent
+     * leurs vœux jusqu'à la date de clôture, puis l'appariement les affecte (voir placementlib.php).
+     * La liste des organismes se gère sur sa propre page, ouverte une fois la thématique créée.
+     *
+     * @param \MoodleQuickForm $mform
+     * @param array $customdata
+     */
+    protected function define_placement(\MoodleQuickForm $mform, array $customdata) {
+        $mform->addElement('header', 'placementhdr', get_string('placementoffers', 'mod_stage'));
+        $mform->setExpanded('placementhdr', true);
+        $mform->addElement('static', 'placementintro', '', get_string('placementintro', 'mod_stage'));
+
+        $mform->addElement('advcheckbox', 'placementenabled', get_string('placementenabled', 'mod_stage'));
+        $mform->addHelpButton('placementenabled', 'placementenabled', 'mod_stage');
+
+        $mform->addElement('text', 'placementchoices', get_string('placementchoices', 'mod_stage'), ['size' => 4]);
+        $mform->setType('placementchoices', PARAM_INT);
+        $mform->setDefault('placementchoices', 3);
+        $mform->addHelpButton('placementchoices', 'placementchoices', 'mod_stage');
+        $mform->hideIf('placementchoices', 'placementenabled', 'notchecked');
+
+        $mform->addElement(
+            'date_time_selector',
+            'placementdeadline',
+            get_string('placementdeadline', 'mod_stage'),
+            ['optional' => true]
+        );
+        $mform->addHelpButton('placementdeadline', 'placementdeadline', 'mod_stage');
+        $mform->hideIf('placementdeadline', 'placementenabled', 'notchecked');
+
+        $mform->addElement('advcheckbox', 'placementofflist', get_string('placementofflist', 'mod_stage'));
+        $mform->addHelpButton('placementofflist', 'placementofflist', 'mod_stage');
+        $mform->hideIf('placementofflist', 'placementenabled', 'notchecked');
+
+        if (!empty($customdata['placementmatched'])) {
+            // Sans cette case, l'appariement déjà fait reste acquis : seules les affectations se
+            // corrigent, sur la page des vœux.
+            $mform->addElement('advcheckbox', 'placementreopen', get_string('placementreopen', 'mod_stage'));
+            $mform->addHelpButton('placementreopen', 'placementreopen', 'mod_stage');
+            $mform->hideIf('placementreopen', 'placementenabled', 'notchecked');
+        }
+
+        if (!empty($customdata['placementoffersurl'])) {
+            $mform->addElement('static', 'placementofferslink', '', \html_writer::link(
+                $customdata['placementoffersurl'],
+                get_string('placementmanageoffers', 'mod_stage', (int) ($customdata['placementoffercount'] ?? 0)),
+                ['class' => 'btn btn-sm btn-outline-secondary']
+            ));
+        } else {
+            $mform->addElement('static', 'placementofferslink', '', get_string('placementsavefirst', 'mod_stage'));
+        }
+    }
+
+    /**
      * Choix, pour chaque formulaire d'évaluation, de la liste de questions utilisée par la
      * thématique. Les listes elles-mêmes s'éditent sur leur propre page : un lien y mène
      * (« Éditer la liste », mis à jour par le script de theme_edit.php selon la liste choisie).
@@ -297,6 +355,10 @@ class theme_edit_form extends \moodleform {
             if ($value !== '' && !ctype_digit($value)) {
                 $errors['duration_' . $year] = get_string('durationinvalid', 'mod_stage');
             }
+        }
+
+        if (!empty($data['placementenabled']) && (int) ($data['placementchoices'] ?? 0) < 1) {
+            $errors['placementchoices'] = get_string('placementchoicesinvalid', 'mod_stage');
         }
 
         if (

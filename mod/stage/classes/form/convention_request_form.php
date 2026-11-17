@@ -271,6 +271,14 @@ class convention_request_form extends \moodleform {
         // Un objectif laissé décoché doit être justifié : c'est la raison d'être du champ libre.
         $errors += stage_validate_checklist($data, $this->_customdata['checklistitems']);
         $errors += stage_validate_siret_field($data);
+        // Demande hors des organismes proposés de la thématique : SIRET obligatoire en France (la
+        // page ne transmet la thématique que pour une demande déposée par l'étudiant lui-même).
+        $errors += stage_placement_request_errors(
+            $this->_customdata['placementtheme'] ?? null,
+            $data + ['abroad' => !empty($this->_customdata['abroad'])],
+            $this->_customdata['assignment'] ?? null,
+            true
+        );
         $errors += stage_validate_request_answers(
             $data,
             $this->_customdata['themeid'],

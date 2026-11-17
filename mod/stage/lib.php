@@ -151,6 +151,15 @@ define('STAGE_SQL_CHUNK', 500);
  */
 define('STAGE_PERIOD_MAX_DAYS', 366);
 
+/** Organismes proposés (voir placementlib.php) : thématique qui n'en propose pas. */
+define('STAGE_PLACEMENT_OFF', 'off');
+/** Organismes proposés : les étudiants peuvent enregistrer et modifier leurs vœux. */
+define('STAGE_PLACEMENT_OPEN', 'open');
+/** Organismes proposés : les vœux sont clos, l'appariement n'a pas encore été fait. */
+define('STAGE_PLACEMENT_CLOSED', 'closed');
+/** Organismes proposés : l'appariement a été fait. */
+define('STAGE_PLACEMENT_MATCHED', 'matched');
+
 /**
  * Returns the list of features supported by this module.
  *
@@ -245,6 +254,8 @@ function stage_delete_instance($id) {
         // Check-list des prérequis : idem. Les réponses des étudiants sont parties avec les saisies
         // ci-dessus (stage_delete_entries()), les éléments eux-mêmes restent à supprimer.
         $DB->delete_records_select('stage_theme_checklist', "themeid $insql", $inparams);
+        // Organismes proposés, vœux et affectations des thématiques.
+        stage_placement_delete_themes_data($themeids);
     }
     $DB->delete_records('stage_theme', ['stageid' => $id]);
     $DB->delete_records('stage_convention_template', ['stageid' => $id]);
@@ -308,6 +319,9 @@ function stage_reset_userdata($data) {
             $context = $cm ? context_module::instance($cm->id) : null;
             stage_delete_entries($DB->get_fieldset_select('stage_entry', 'id', 'stageid = ?', [$stage->id]), $context);
             $DB->delete_records('stage_study_mobility', ['stageid' => $stage->id]);
+            // Vœux et affectations de la promotion sortante : les organismes proposés restent, la
+            // campagne de vœux repart de zéro.
+            stage_placement_reset_userdata($stage->id);
         }
         $status[] = ['component' => $componentstr, 'item' => get_string('resetstageentries', 'mod_stage'), 'error' => false];
     }

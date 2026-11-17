@@ -83,6 +83,9 @@ if (has_capability('mod/stage:submit', $context) && !has_capability('mod/stage:r
         ['class' => 'btn btn-primary d-block mb-3', 'style' => 'width:fit-content']
     );
 
+    // Thématiques à organismes proposés : vœux, affectation et demande de convention préremplie.
+    echo stage_placement_render_student_section($stage, $cm, $USER->id);
+
     stage_print_student_dashboard($stage, $USER->id, $cm, true, false);
 }
 

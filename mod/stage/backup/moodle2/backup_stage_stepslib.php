@@ -61,7 +61,23 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             'name', 'description', 'mandatory', 'requiredduration', 'minstudyyear', 'maxstudyyear',
             'sortorder', 'visible', 'tutorevaluationenabled', 'reportmode',
             'studentlistid', 'teacherlistid', 'tutorlistid', 'requestlistid',
+            'placementenabled', 'placementchoices', 'placementdeadline', 'placementofflist', 'placementmatchedtime',
             'timecreated', 'timemodified',
+        ]);
+
+        // Organismes proposés : la liste relève du paramétrage ; les vœux et les affectations des
+        // étudiants, des données utilisateur.
+        $placementoffers = new backup_nested_element('placementoffers');
+        $placementoffer = new backup_nested_element('placementoffer', ['id'], [
+            'name', 'address', 'representative', 'representativetitle', 'service', 'phone', 'email', 'location',
+            'siret', 'country', 'tutorname', 'tutorfunction', 'tutorphone', 'tutoremail', 'places', 'description',
+            'timecreated', 'timemodified',
+        ]);
+        $placementwishes = new backup_nested_element('placementwishes');
+        $placementwish = new backup_nested_element('placementwish', ['id'], ['userid', 'wishrank', 'timecreated']);
+        $placementassigns = new backup_nested_element('placementassigns');
+        $placementassign = new backup_nested_element('placementassign', ['id'], [
+            'userid', 'wishrank', 'entryid', 'assignedby', 'timecreated', 'timemodified',
         ]);
 
         $themeteachers = new backup_nested_element('themeteachers');
@@ -177,6 +193,12 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $themechecklists->add_child($themechecklist);
         $theme->add_child($themedurations);
         $themedurations->add_child($themeduration);
+        $theme->add_child($placementoffers);
+        $placementoffers->add_child($placementoffer);
+        $placementoffer->add_child($placementwishes);
+        $placementwishes->add_child($placementwish);
+        $placementoffer->add_child($placementassigns);
+        $placementassigns->add_child($placementassign);
 
         $stage->add_child($yearrequirements);
         $yearrequirements->add_child($yearrequirement);
@@ -224,6 +246,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             'sortorder, id'
         );
         $themeduration->set_source_table('stage_theme_duration', ['themeid' => backup::VAR_PARENTID], 'studyyear');
+        $placementoffer->set_source_table('stage_placement_offer', ['themeid' => backup::VAR_PARENTID], 'id');
         $yearrequirement->set_source_table('stage_year_requirement', ['stageid' => backup::VAR_PARENTID], 'studyyear');
         $conventiontemplate->set_source_table('stage_convention_template', ['stageid' => backup::VAR_PARENTID], 'id');
         $question->set_source_table('stage_question', ['stageid' => backup::VAR_PARENTID], 'sortorder, id');
@@ -245,6 +268,8 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             $conventiondetail->set_source_table('stage_convention_detail', ['entryid' => backup::VAR_PARENTID], 'id');
             $answer->set_source_table('stage_answer', ['entryid' => backup::VAR_PARENTID], 'id');
             $entrychecklist->set_source_table('stage_entry_checklist', ['entryid' => backup::VAR_PARENTID], 'id');
+            $placementwish->set_source_table('stage_placement_wish', ['offerid' => backup::VAR_PARENTID], 'id');
+            $placementassign->set_source_table('stage_placement_assign', ['offerid' => backup::VAR_PARENTID], 'id');
         }
 
         // Annotations d'identifiants.
@@ -263,6 +288,9 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $entry->annotate_ids('user', 'conventionsignedby');
         $entry->annotate_ids('user', 'cancelledby');
         $conventiondetail->annotate_ids('user', 'referentteacherid');
+        $placementwish->annotate_ids('user', 'userid');
+        $placementassign->annotate_ids('user', 'userid');
+        $placementassign->annotate_ids('user', 'assignedby');
 
         // Zones de fichiers. Les logos de convention n'ont pas d'itemid (toujours 0).
         $stage->annotate_files('mod_stage', 'intro', null);
