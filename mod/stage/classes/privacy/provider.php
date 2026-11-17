@@ -541,6 +541,27 @@ class provider implements
                 ]);
             }
 
+            // Affectations décidées par l'utilisateur en tant que membre de la DEVE : sa décision lui
+            // appartient, pas l'identité de l'étudiant affecté.
+            $decided = $DB->get_records_sql(
+                "SELECT a.id, t.name AS theme, o.name AS offer, a.timemodified
+                   FROM {stage_placement_assign} a
+                   JOIN {stage_theme} t ON t.id = a.themeid
+                   JOIN {stage_placement_offer} o ON o.id = a.offerid
+                  WHERE t.stageid = :stageid AND a.assignedby = :userid
+               ORDER BY a.timemodified, a.id",
+                ['stageid' => $cm->instance, 'userid' => $user->id]
+            );
+            if ($decided) {
+                writer::with_context($context)->export_data([get_string('placementassignment', 'mod_stage')], (object) [
+                    'decidedassignments' => array_values(array_map(fn($row) => [
+                        'theme' => stage_plain_string($row->theme),
+                        'offer' => stage_plain_string($row->offer),
+                        'timemodified' => transform::datetime($row->timemodified),
+                    ], $decided)),
+                ]);
+            }
+
             // Enseignants référents attribués à l'étudiant.
             $teachers = stage_get_student_teachers($cm->instance, $user->id);
             if ($teachers) {

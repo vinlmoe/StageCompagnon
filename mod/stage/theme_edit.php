@@ -95,6 +95,7 @@ $mform = new theme_edit_form($baseurl, [
         ? (new moodle_url('/mod/stage/placement_offers.php', ['id' => $cm->id, 'themeid' => $theme->id]))->out(false) : '',
     'placementoffercount' => $theme ? $DB->count_records('stage_placement_offer', ['themeid' => $theme->id]) : 0,
     'placementmatched' => $theme && !empty($theme->placementmatchedtime),
+    'placementdeadline' => $theme ? (int) $theme->placementdeadline : 0,
     'filemanageroptions' => $filemanageroptions,
 ]);
 

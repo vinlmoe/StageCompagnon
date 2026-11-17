@@ -117,7 +117,78 @@ function stage_placement_get_offers($themeid) {
  */
 function stage_placement_offer_key($name, $siret = '') {
     $siret = stage_normalize_siret($siret);
-    return $siret !== '' ? 'siret:' . $siret : 'name:' . stage_normalize_name($name);
+    if ($siret !== '') {
+        return 'siret:' . $siret;
+    }
+    // Un nom sans lettre ni chiffre (« ??? ») se normalise en chaîne vide : il est alors comparé tel
+    // quel, pour ne pas confondre entre eux tous les noms de ce genre.
+    $normalized = stage_normalize_name($name);
+    return 'name:' . ($normalized !== '' ? $normalized : core_text::strtolower(trim((string) $name)));
+}
+
+/**
+ * Index d'organismes pour stage_placement_find_offer() : par SIRET et par nom normalisé. Un import
+ * de plusieurs milliers de lignes cherche chaque ligne parmi les organismes déjà connus ; sans
+ * index, la recherche serait quadratique.
+ *
+ * @param array $offers Organismes (objets portant id, name, siret).
+ * @return array {siret: SIRET => organisme, name: clé du nom => organismes}
+ */
+function stage_placement_index_offers(array $offers) {
+    $index = ['siret' => [], 'name' => []];
+    foreach ($offers as $offer) {
+        stage_placement_index_add($index, $offer);
+    }
+    return $index;
+}
+
+/**
+ * Ajoute un organisme à un index (voir stage_placement_index_offers()).
+ *
+ * @param array $index Index, complété en place.
+ * @param stdClass $offer Organisme portant id, name, siret.
+ * @return void
+ */
+function stage_placement_index_add(array &$index, stdClass $offer) {
+    $siret = stage_normalize_siret($offer->siret ?? '');
+    if ($siret !== '' && !isset($index['siret'][$siret])) {
+        $index['siret'][$siret] = $offer;
+    }
+    $index['name'][stage_placement_offer_key($offer->name)][] = $offer;
+}
+
+/**
+ * Cherche, dans un index d'organismes, celui qui correspond à un nom et à un SIRET : même SIRET, ou
+ * à défaut même nom. Deux organismes de même nom qui portent chacun un SIRET différent sont deux
+ * établissements distincts (deux sites d'une même clinique) : ils ne sont jamais rapprochés.
+ *
+ * @param array $index Index de stage_placement_index_offers().
+ * @param string $name
+ * @param string|null $siret
+ * @return stdClass|null L'organisme correspondant, ou null.
+ */
+function stage_placement_find_offer(array $index, $name, $siret = '') {
+    $siret = stage_normalize_siret($siret);
+    if ($siret !== '' && isset($index['siret'][$siret])) {
+        return $index['siret'][$siret];
+    }
+    foreach ($index['name'][stage_placement_offer_key($name)] ?? [] as $offer) {
+        if ($siret === '' || stage_normalize_siret($offer->siret ?? '') === '') {
+            return $offer;
+        }
+    }
+    return null;
+}
+
+/**
+ * Vrai si un pays saisi désigne la France : un organisme ou un stage « à l'étranger, en France »
+ * n'est pas à l'étranger.
+ *
+ * @param string|null $country
+ * @return bool
+ */
+function stage_placement_country_is_france($country) {
+    return in_array(stage_normalize_name($country), ['france', 'fr', 'republique francaise', 'france metropolitaine'], true);
 }
 
 /**
@@ -138,6 +209,10 @@ function stage_placement_clean_offer($data) {
         $value = trim((string) $data->$field);
         if ($field === 'siret') {
             $value = stage_normalize_siret($value);
+        }
+        // Le pays ne sert qu'à signaler un organisme à l'étranger : « France » n'en est pas un.
+        if ($field === 'country' && stage_placement_country_is_france($value)) {
+            $value = '';
         }
         if (isset($lengths[$field]) && core_text::strlen($value) > $lengths[$field]) {
             $value = core_text::substr($value, 0, $lengths[$field]);
@@ -188,24 +263,28 @@ function stage_placement_save_offer($themeid, $data, $offerid = 0) {
  * @return int Nombre d'organismes ajoutés.
  */
 function stage_placement_add_offers($themeid, array $offers) {
-    $known = [];
-    foreach (stage_placement_get_offers($themeid) as $existing) {
-        $known[stage_placement_offer_key($existing->name, $existing->siret)] = true;
-        $known[stage_placement_offer_key($existing->name)] = true;
-    }
-    $added = 0;
-    foreach ($offers as $offer) {
-        $offer = stage_placement_clean_offer($offer);
-        if (!isset($offer->name) || $offer->name === '') {
-            continue;
+    global $DB;
+
+    // Sous le verrou de l'activité : deux envois simultanés (double clic) ajouteraient deux fois
+    // les mêmes organismes, chacun ne voyant pas ceux de l'autre.
+    $lock = stage_get_activity_lock($DB->get_field('stage_theme', 'stageid', ['id' => $themeid], MUST_EXIST));
+    try {
+        $transaction = $DB->start_delegated_transaction();
+        $known = stage_placement_index_offers(stage_placement_get_offers($themeid));
+        $added = 0;
+        foreach ($offers as $offer) {
+            $offer = stage_placement_clean_offer($offer);
+            $name = $offer->name ?? '';
+            if ($name === '' || stage_placement_find_offer($known, $name, $offer->siret ?? '')) {
+                continue;
+            }
+            $offer->id = stage_placement_save_offer($themeid, $offer);
+            stage_placement_index_add($known, $offer);
+            $added++;
         }
-        $keys = [stage_placement_offer_key($offer->name, $offer->siret ?? ''), stage_placement_offer_key($offer->name)];
-        if (array_intersect_key(array_flip($keys), $known)) {
-            continue;
-        }
-        stage_placement_save_offer($themeid, $offer);
-        $known += array_flip($keys);
-        $added++;
+        $transaction->allow_commit();
+    } finally {
+        $lock->release();
     }
     return $added;
 }
@@ -221,14 +300,24 @@ function stage_placement_add_offers($themeid, array $offers) {
 function stage_placement_delete_offer($themeid, $offerid) {
     global $DB;
 
-    if (!$DB->record_exists('stage_placement_offer', ['id' => $offerid, 'themeid' => $themeid])) {
+    $stageid = $DB->get_field('stage_theme', 'stageid', ['id' => $themeid]);
+    if (!$stageid || !$DB->record_exists('stage_placement_offer', ['id' => $offerid, 'themeid' => $themeid])) {
         return true;
     }
-    if ($DB->record_exists('stage_placement_assign', ['offerid' => $offerid])) {
-        return false;
+    // Sous le verrou de l'activité : un appariement ou un enregistrement de vœux en cours pourrait
+    // sinon citer l'organisme entre le contrôle et la suppression.
+    $lock = stage_get_activity_lock($stageid);
+    try {
+        if ($DB->record_exists('stage_placement_assign', ['offerid' => $offerid])) {
+            return false;
+        }
+        $transaction = $DB->start_delegated_transaction();
+        $DB->delete_records('stage_placement_wish', ['offerid' => $offerid]);
+        $DB->delete_records('stage_placement_offer', ['id' => $offerid]);
+        $transaction->allow_commit();
+    } finally {
+        $lock->release();
     }
-    $DB->delete_records('stage_placement_wish', ['offerid' => $offerid]);
-    $DB->delete_records('stage_placement_offer', ['id' => $offerid]);
     return true;
 }
 
@@ -252,8 +341,8 @@ function stage_placement_delete_themes_data(array $themeids) {
 
 /**
  * Supprime les vœux et les affectations des étudiants d'une activité, et rouvre les vœux de ses
- * thématiques : la promotion suivante repart d'une campagne vierge. Les organismes proposés, qui
- * relèvent du paramétrage, sont conservés.
+ * thématiques, sans date de clôture : la promotion suivante repart d'une campagne vierge, dont la
+ * date reste à fixer. Les organismes proposés, qui relèvent du paramétrage, sont conservés.
  *
  * @param int $stageid
  * @return void
@@ -267,7 +356,10 @@ function stage_placement_reset_userdata($stageid) {
         $DB->delete_records_select('stage_placement_assign', "themeid $insql", $inparams);
         $DB->delete_records_select('stage_placement_wish', "themeid $insql", $inparams);
     }
+    // La date de clôture, déjà passée, est effacée avec l'appariement : sans cela la tâche planifiée
+    // refermerait la campagne dans l'heure, avant que la nouvelle promotion ait saisi un vœu.
     $DB->set_field('stage_theme', 'placementmatchedtime', 0, ['stageid' => $stageid]);
+    $DB->set_field('stage_theme', 'placementdeadline', 0, ['stageid' => $stageid]);
 }
 
 /**
@@ -506,49 +598,100 @@ function stage_placement_remaining_places(array $offers, array $assignments) {
  * @return string|null Identifiant de la chaîne d'erreur, ou null si l'affectation est enregistrée.
  */
 function stage_placement_set_assignment(stdClass $theme, $userid, $offerid, $byuserid) {
+    $errors = stage_placement_set_assignments($theme, [$userid => $offerid], $byuserid);
+    return $errors[$userid] ?? null;
+}
+
+/**
+ * Affecte, déplace ou retire plusieurs étudiants en une fois (décision de la DEVE).
+ *
+ * Le lot est appliqué en entier ou pas du tout. Les places des étudiants déplacés ou retirés sont
+ * libérées avant de contrôler celles des organismes d'arrivée : deux étudiants peuvent ainsi
+ * échanger leurs organismes. Un étudiant dont la demande de convention est déjà déposée à partir
+ * de son affectation ne peut être ni déplacé ni retiré : le stage doit d'abord être annulé.
+ *
+ * @param stdClass $theme
+ * @param array $changes userid => organisme (0 pour retirer l'affectation).
+ * @param int $byuserid Membre de la DEVE qui décide.
+ * @return string[] userid => identifiant de la chaîne d'erreur ; vide si tout le lot est enregistré.
+ */
+function stage_placement_set_assignments(stdClass $theme, array $changes, $byuserid) {
     global $DB;
 
-    $offerid = (int) $offerid;
+    $errors = [];
     $lock = stage_get_activity_lock($theme->stageid);
     try {
-        $existing = stage_placement_get_assignment($theme->id, $userid);
-        if (!$offerid) {
-            if ($existing) {
-                $DB->delete_records('stage_placement_assign', ['id' => $existing->id]);
-            }
-            return null;
-        }
-        if ($existing && (int) $existing->offerid === $offerid) {
-            return null;
-        }
         $offers = stage_placement_get_offers($theme->id);
-        if (!isset($offers[$offerid])) {
-            return 'placementwishesunknown';
+        $assignments = stage_placement_get_assignments($theme->id);
+
+        // Changements effectifs seulement, places des étudiants concernés libérées.
+        $effective = [];
+        $kept = $assignments;
+        foreach ($changes as $userid => $offerid) {
+            $userid = (int) $userid;
+            $offerid = (int) $offerid;
+            $existing = $assignments[$userid] ?? null;
+            if ((int) ($existing->offerid ?? 0) === $offerid) {
+                continue;
+            }
+            if ($existing && !stage_placement_assignment_usable($existing)) {
+                $errors[$userid] = 'placementassignmentused';
+                continue;
+            }
+            if ($offerid && !isset($offers[$offerid])) {
+                $errors[$userid] = 'placementwishesunknown';
+                continue;
+            }
+            $effective[$userid] = $offerid;
+            unset($kept[$userid]);
         }
-        $remaining = stage_placement_remaining_places($offers, stage_placement_get_assignments($theme->id));
-        if ($remaining[$offerid] < 1) {
-            return 'placementofferfull';
+        $remaining = stage_placement_remaining_places($offers, $kept);
+        foreach ($effective as $userid => $offerid) {
+            if (!$offerid) {
+                continue;
+            }
+            if ($remaining[$offerid] < 1) {
+                $errors[$userid] = 'placementofferfull';
+                continue;
+            }
+            $remaining[$offerid]--;
         }
-        $rank = array_search($offerid, stage_placement_get_wishes($theme->id, $userid), true);
-        $record = (object) [
-            'offerid' => $offerid,
-            'wishrank' => $rank === false ? 0 : $rank + 1,
-            'assignedby' => $byuserid,
-            'timemodified' => time(),
-        ];
-        if ($existing) {
-            $record->id = $existing->id;
-            $DB->update_record('stage_placement_assign', $record);
-        } else {
-            $record->themeid = $theme->id;
-            $record->userid = $userid;
-            $record->timecreated = $record->timemodified;
-            $DB->insert_record('stage_placement_assign', $record);
+        if ($errors) {
+            return $errors;
         }
+
+        $transaction = $DB->start_delegated_transaction();
+        $now = time();
+        // Les retraits et les départs d'abord : l'index unique (thématique, étudiant) n'est pas en
+        // cause, mais l'ordre garde les places cohérentes à chaque instant de la transaction.
+        foreach ($effective as $userid => $offerid) {
+            $existing = $assignments[$userid] ?? null;
+            if (!$offerid) {
+                $DB->delete_records('stage_placement_assign', ['id' => $existing->id]);
+                continue;
+            }
+            $rank = array_search($offerid, stage_placement_get_wishes($theme->id, $userid), true);
+            $record = (object) [
+                'offerid' => $offerid,
+                'wishrank' => $rank === false ? 0 : $rank + 1,
+                'assignedby' => $byuserid,
+                'timemodified' => $now,
+            ];
+            if ($existing) {
+                $record->id = $existing->id;
+                $DB->update_record('stage_placement_assign', $record);
+            } else {
+                $record->themeid = $theme->id;
+                $record->userid = $userid;
+                $record->timecreated = $now;
+                $DB->insert_record('stage_placement_assign', $record);
+            }
+        }
+        $transaction->allow_commit();
     } finally {
         $lock->release();
     }
-    return null;
+    return [];
 }
 
 /**
@@ -565,14 +708,23 @@ function stage_placement_set_assignment(stdClass $theme, $userid, $offerid, $byu
  *
  * @param stdClass $theme
  * @param int[]|null $order Ordre de passage imposé (tests) ; tirage au sort par défaut.
- * @return stdClass {assigned: userid => offerid, unassigned: userid[]}
+ * @param bool $onlyifdue Appariement automatique (tâche planifiée) : il n'a lieu que si, au moment
+ *        de le faire, la thématique propose toujours des organismes, que ses vœux sont clos et
+ *        qu'elle n'a pas déjà été appariée. La DEVE peut avoir repoussé la date entre-temps.
+ * @return stdClass {assigned: userid => offerid, unassigned: userid[], skipped: bool}
  */
-function stage_placement_run_matching(stdClass $theme, ?array $order = null) {
+function stage_placement_run_matching(stdClass $theme, ?array $order = null, $onlyifdue = false) {
     global $DB;
 
-    $result = (object) ['assigned' => [], 'unassigned' => []];
+    $result = (object) ['assigned' => [], 'unassigned' => [], 'skipped' => false];
     $lock = stage_get_activity_lock($theme->stageid);
     try {
+        // Relue sous le verrou : la thématique reçue peut dater de plusieurs minutes.
+        $theme = $DB->get_record('stage_theme', ['id' => $theme->id], '*', MUST_EXIST);
+        if ($onlyifdue && stage_placement_state($theme) !== STAGE_PLACEMENT_CLOSED) {
+            $result->skipped = true;
+            return $result;
+        }
         $offers = stage_placement_get_offers($theme->id);
         $assignments = stage_placement_get_assignments($theme->id);
         $remaining = stage_placement_remaining_places($offers, $assignments);
@@ -619,7 +771,6 @@ function stage_placement_run_matching(stdClass $theme, ?array $order = null) {
         }
         if (empty($theme->placementmatchedtime)) {
             $DB->set_field('stage_theme', 'placementmatchedtime', $now, ['id' => $theme->id]);
-            $theme->placementmatchedtime = $now;
         }
         $transaction->allow_commit();
     } finally {
@@ -721,32 +872,83 @@ function stage_placement_prefill(stdClass $offer) {
 /**
  * Contrôle d'une demande de convention au regard des organismes proposés de sa thématique.
  *
- * - Thématique sans organismes proposés, ou demande déposée à partir de l'affectation de
- *   l'étudiant : rien à contrôler.
+ * - Thématique sans organismes proposés : rien à contrôler.
+ * - Demande déposée à partir de l'affectation de l'étudiant : elle doit porter sur l'organisme
+ *   attribué (même nom, et même SIRET si l'organisme en a un). Les autres coordonnées, préremplies,
+ *   restent corrigeables.
  * - Sinon la demande est « hors liste ». Elle est refusée si la thématique ne l'autorise pas, sauf
  *   pour un stage déjà enregistré (par la DEVE, qui en a décidé ainsi). Quand elle est admise, le
- *   SIRET de l'organisme est obligatoire, sauf pour un stage à l'étranger.
+ *   SIRET de l'organisme est obligatoire, sauf pour un stage à l'étranger : le pays doit alors être
+ *   indiqué, et ne pas être la France.
  *
  * @param stdClass|null $theme Thématique retenue pour le stage.
- * @param array $data Données soumises (abroad, siret).
+ * @param array $data Données soumises (structure, abroad, country, siret).
  * @param stdClass|null|false $assignment Affectation à partir de laquelle la demande est déposée.
  * @param bool $existingentry Le stage est déjà enregistré sur cette thématique.
  * @return array champ => message d'erreur
  */
 function stage_placement_request_errors($theme, array $data, $assignment, $existingentry = false) {
+    global $DB;
+
     if (!$theme || empty($theme->placementenabled)) {
         return [];
     }
     if ($assignment && (int) $assignment->themeid === (int) $theme->id) {
+        $offer = $DB->get_record('stage_placement_offer', ['id' => $assignment->offerid]);
+        if (!$offer) {
+            return [];
+        }
+        if (stage_placement_offer_key($data['structure'] ?? '') !== stage_placement_offer_key($offer->name)) {
+            return ['structure' => get_string('placementstructuremismatch', 'mod_stage', format_string($offer->name))];
+        }
+        $siret = stage_normalize_siret($data['siret'] ?? '');
+        if ((string) $offer->siret !== '' && $siret !== '' && $siret !== (string) $offer->siret) {
+            return ['siret' => get_string('placementsiretmismatch', 'mod_stage', s($offer->siret))];
+        }
         return [];
     }
     if (empty($theme->placementofflist) && !$existingentry) {
         return ['themeid' => get_string('placementrequired', 'mod_stage')];
     }
-    if (empty($data['abroad']) && stage_normalize_siret($data['siret'] ?? '') === '') {
+    if (stage_normalize_siret($data['siret'] ?? '') !== '') {
+        return [];
+    }
+    if (empty($data['abroad'])) {
         return ['siret' => get_string('placementsiretrequired', 'mod_stage')];
     }
+    // « À l'étranger » ne dispense du SIRET que si le pays est indiqué, et n'est pas la France.
+    $country = trim((string) ($data['country'] ?? ''));
+    if ($country === '' || stage_placement_country_is_france($country)) {
+        return ['country' => get_string('placementcountryrequired', 'mod_stage')];
+    }
     return [];
+}
+
+/**
+ * Affectation dont découle la demande de convention d'un stage déjà enregistré : celle à laquelle
+ * il est rattaché ou, pour un stage enregistré par la DEVE chez l'organisme attribué à l'étudiant,
+ * l'affectation encore inutilisée de l'étudiant sur cette thématique. Un stage enregistré chez un
+ * autre organisme ne consomme pas l'affectation : sa demande est hors liste.
+ *
+ * @param stdClass $entry Saisie de stage.
+ * @return stdClass|null
+ */
+function stage_placement_assignment_for_entry(stdClass $entry) {
+    global $DB;
+
+    $linked = stage_placement_get_entry_assignment($entry->id);
+    if ($linked) {
+        return $linked;
+    }
+    $unused = stage_placement_get_assignment($entry->themeid, $entry->userid);
+    if (!$unused || !stage_placement_assignment_usable($unused)) {
+        return null;
+    }
+    $offername = $DB->get_field('stage_placement_offer', 'name', ['id' => $unused->offerid]);
+    if ($offername === false || stage_placement_offer_key($offername) !== stage_placement_offer_key($entry->structure)) {
+        return null;
+    }
+    return $unused;
 }
 
 /**
@@ -863,7 +1065,19 @@ function stage_placement_offer_place(stdClass $offer) {
 function stage_placement_render_student_section(stdClass $stage, stdClass $cm, $userid) {
     global $DB, $OUTPUT;
 
-    $themes = array_filter(stage_get_themes($stage->id, true), fn($theme) => !empty($theme->placementenabled));
+    // Thématiques à organismes proposés visibles, et celles, même masquées depuis, où l'étudiant a
+    // déjà une affectation : il doit pouvoir y déposer sa demande. Affectations lues en une requête.
+    $assignments = [];
+    $sql = "SELECT a.*
+              FROM {stage_placement_assign} a
+              JOIN {stage_theme} t ON t.id = a.themeid
+             WHERE t.stageid = :stageid AND a.userid = :userid";
+    foreach ($DB->get_records_sql($sql, ['stageid' => $stage->id, 'userid' => $userid]) as $assignment) {
+        $assignments[(int) $assignment->themeid] = $assignment;
+    }
+    $themes = array_filter(stage_get_themes($stage->id), function ($theme) use ($assignments) {
+        return !empty($theme->placementenabled) && (!empty($theme->visible) || isset($assignments[(int) $theme->id]));
+    });
     if (!$themes) {
         return '';
     }
@@ -871,7 +1085,7 @@ function stage_placement_render_student_section(stdClass $stage, stdClass $cm, $
     $out = $OUTPUT->heading(get_string('placementoffers', 'mod_stage'), 4);
     foreach ($themes as $theme) {
         $state = stage_placement_state($theme);
-        $assignment = stage_placement_get_assignment($theme->id, $userid);
+        $assignment = $assignments[(int) $theme->id] ?? null;
         $wishesurl = new moodle_url('/mod/stage/placement.php', ['id' => $cm->id, 'themeid' => $theme->id]);
         $lines = [];
         $actions = [];

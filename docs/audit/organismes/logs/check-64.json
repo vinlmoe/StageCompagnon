@@ -3,21 +3,21 @@
     "organismes en double": 0,
     "places": 401,
     "étudiants avec vœux": 400,
-    "affectations": 322,
+    "affectations": 323,
     "dont manuelles": 10,
     "vœu satisfait (rang => nombre)": {
-        "1": 121,
-        "2": 73,
-        "3": 59,
-        "4": 40,
-        "5": 23,
-        "0": 6
+        "2": 74,
+        "5": 27,
+        "1": 132,
+        "3": 48,
+        "4": 34,
+        "0": 8
     },
     "organismes complets": 79,
     "organismes en dépassement": 0,
     "stages déposés": 400,
-    "dont rattachés à une affectation": 322,
-    "dont hors liste": 78,
+    "dont rattachés à une affectation": 323,
+    "dont hors liste": 77,
     "invariants violés": 0,
     "exemples": []
 }

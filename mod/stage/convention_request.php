@@ -109,14 +109,19 @@ $periods = array_values(stage_get_or_seed_entry_periods($entry));
 // seuls ses éléments sont donc proposés.
 $checklistitems = stage_get_theme_checklist($entry->themeid);
 $requestquestions = stage_get_questions($entry->themeid, 'request');
+// Affectation à un organisme proposé dont découle la demande (voir placementlib.php).
+$placementassignment = stage_placement_assignment_for_entry($entry);
 $mform = new convention_request_form($baseurl, [
     'templates' => $templates, 'referentteachers' => $referentteachers, 'periods' => $periods,
     'themeid' => (int) $entry->themeid, 'checklistitems' => $checklistitems, 'requestquestions' => $requestquestions,
     // Organismes proposés : la règle du SIRET ne s'impose qu'à l'étudiant, pas à la DEVE qui dépose
     // la demande à sa place.
-    'placementtheme' => $canregister ? null : $DB->get_record('stage_theme', ['id' => $entry->themeid]),
-    'assignment' => stage_placement_get_entry_assignment($entry->id) ?: null,
+    // Une demande qui découle de l'affectation de l'étudiant n'y est pas soumise non plus : le nom
+    // de l'organisme, fixé par la saisie, ne se modifie pas dans ce formulaire.
+    'placementtheme' => ($canregister || $placementassignment)
+        ? null : $DB->get_record('stage_theme', ['id' => $entry->themeid]),
     'abroad' => !empty($entry->abroad),
+    'country' => (string) $entry->country,
 ]);
 
 $formdata = (object) ['id' => $cm->id, 'entryid' => $entryid];
@@ -154,6 +159,14 @@ if ($mform->is_cancelled()) {
     // une demande ne doit pas rester sans contenu après un échec en cours de route.
     $transaction = $DB->start_delegated_transaction();
     stage_request_convention($entry, $data->conventiontemplateid, $requireteachervalidation);
+    // L'affectation encore libre de l'étudiant est rattachée au stage : elle ne servira pas une
+    // seconde fois. Si elle a été utilisée entre-temps (autre onglet), elle reste où elle est.
+    if (
+        $placementassignment && (int) $placementassignment->entryid !== (int) $entry->id
+            && stage_placement_assignment_usable_now($placementassignment->id)
+    ) {
+        stage_placement_link_entry($placementassignment->id, $entry->id);
+    }
 
     $detail = new stdClass();
     $detail->referentteacherid = $data->referentteacherid;

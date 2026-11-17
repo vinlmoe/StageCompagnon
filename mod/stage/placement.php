@@ -41,7 +41,11 @@ require_capability('mod/stage:submit', $context);
 
 $theme = $DB->get_record('stage_theme', ['id' => $themeid, 'stageid' => $stage->id], '*', MUST_EXIST);
 $viewurl = new moodle_url('/mod/stage/view.php', ['id' => $cm->id]);
-if (empty($theme->placementenabled) || empty($theme->visible)) {
+// Une thématique masquée depuis reste consultable par l'étudiant qui y a des vœux ou une
+// affectation : le courriel de résultat y mène, et sa demande de convention en part.
+$involved = $DB->record_exists('stage_placement_assign', ['themeid' => $theme->id, 'userid' => $USER->id])
+    || $DB->record_exists('stage_placement_wish', ['themeid' => $theme->id, 'userid' => $USER->id]);
+if (empty($theme->placementenabled) || (empty($theme->visible) && !$involved)) {
     redirect($viewurl, get_string('placementnotavailable', 'mod_stage'), null, \core\output\notification::NOTIFY_INFO);
 }
 

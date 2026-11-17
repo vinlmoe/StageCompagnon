@@ -40,9 +40,18 @@ changements. À tenir à jour à chaque modification de `version.php`.
     cinq champs de `stage_theme`. Sauvegarde et restauration, import de thématiques (réglage et
     organismes, sans la date de clôture), réinitialisation du cours (vœux et affectations
     supprimés, vœux rouverts), transfert d'un étudiant et données personnelles en tiennent compte.
+  - Audit du code (`docs/audit/audit-organismes-proposes.tex`) : aucun défaut critique ni faille
+    de sécurité ; trois défauts majeurs et seize mineurs corrigés. La dispense de SIRET à
+    l'étranger exige un pays, qui ne soit pas la France. La réinitialisation du cours efface aussi
+    la date de clôture des vœux. La demande ouverte à partir d'une affectation doit porter sur
+    l'organisme attribué. Une affectation dont la demande est déposée ne se déplace plus ; les
+    affectations du tableau s'appliquent en un lot, ce qui permet un échange. Deux organismes de
+    même nom et de SIRET différents ne sont plus confondus. Une date de clôture passée est refusée.
+    Les courriels d'un appariement lancé par la DEVE partent par une tâche ponctuelle. Un pays
+    « France » ne fait plus un organisme étranger.
   - Test de charge avec utilisateurs simulés (`docs/audit/organismes/`, rapport
     `docs/audit/test-de-charge-organismes.tex`) : quatre vagues, jusqu'à 1 000 étudiants et 64
-    utilisateurs simultanés, 15 884 requêtes sans erreur et neuf invariants respectés (places
+    utilisateurs simultanés, 15 959 requêtes sans erreur et neuf invariants respectés (places
     jamais dépassées, une affectation et un stage par étudiant, aucun organisme en double). Les
     vagues comprennent l'import Excel : modèle réimporté, ajouts et mises à jour, deux imports
     simultanés du même classeur, réimports pendant la saisie des vœux, lignes en erreur, classeur

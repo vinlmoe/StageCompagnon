@@ -51,7 +51,19 @@ class run_placement_matching extends \core\task\scheduled_task {
             if (!$cm) {
                 continue;
             }
-            $result = stage_placement_run_matching($theme);
+            // Une thématique en échec (verrou de l'activité occupé, par exemple) ne prive pas les
+            // suivantes de leur appariement : elle sera reprise au passage suivant.
+            try {
+                // La thématique est relue et recontrôlée sous le verrou : la DEVE peut avoir repoussé
+                // la date ou désactivé l'option pendant le traitement des thématiques précédentes.
+                $result = stage_placement_run_matching($theme, null, true);
+            } catch (\Throwable $e) {
+                mtrace("mod_stage : appariement de la thématique {$theme->id} en échec : " . $e->getMessage());
+                continue;
+            }
+            if ($result->skipped) {
+                continue;
+            }
             $sent = stage_placement_notify_results($stage, $cm, $theme, $result);
             mtrace(sprintf(
                 'mod_stage : thématique %d appariée, %d affecté(s), %d sans affectation, %d courriel(s).',

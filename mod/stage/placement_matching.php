@@ -73,7 +73,9 @@ if ($action === 'match' && data_submitted()) {
     require_sesskey();
     $result = stage_placement_run_matching($theme);
     if (optional_param('notify', 0, PARAM_BOOL)) {
-        stage_placement_notify_results($stage, $cm, $theme, $result);
+        // Les courriels partent au prochain passage du cron : un par étudiant, ils ne tiendraient
+        // pas dans le délai de la page pour une promotion entière.
+        \mod_stage\task\notify_placement_results::queue((int) $theme->id, $result);
     }
     redirect(
         $baseurl,
@@ -93,24 +95,27 @@ if (($action === 'assign' || $action === 'assignone') && data_submitted()) {
         ? [optional_param('userid', 0, PARAM_INT) => optional_param('offerid', 0, PARAM_INT)]
         : optional_param_array('offer', [], PARAM_INT);
     $current = stage_placement_get_assignments($theme->id);
-    $changed = 0;
-    $errors = [];
-    // Les retraits d'abord : ils libèrent les places que les affectations de la même saisie
-    // peuvent reprendre (échange de deux étudiants, par exemple).
-    asort($submitted);
+    // Seuls les changements réels sont transmis, pour des étudiants inscrits. Le lot est appliqué
+    // en entier ou pas du tout : deux étudiants peuvent ainsi échanger leurs organismes (voir
+    // stage_placement_set_assignments()).
+    $changes = [];
     foreach ($submitted as $userid => $offerid) {
-        if (!isset($students[$userid]) || (int) ($current[$userid]->offerid ?? 0) === (int) $offerid) {
-            continue;
-        }
-        $error = stage_placement_set_assignment($theme, $userid, $offerid, $USER->id);
-        if ($error === null) {
-            $changed++;
-        } else {
-            $errors[] = fullname($students[$userid]) . ' : ' . get_string($error, 'mod_stage');
+        if (isset($students[$userid]) && (int) ($current[$userid]->offerid ?? 0) !== (int) $offerid) {
+            $changes[(int) $userid] = (int) $offerid;
         }
     }
+    $changed = count($changes);
+    $errors = [];
+    foreach (stage_placement_set_assignments($theme, $changes, $USER->id) as $userid => $error) {
+        $errors[] = s(fullname($students[$userid])) . ' : ' . get_string($error, 'mod_stage');
+    }
     if ($errors) {
-        redirect($baseurl, implode(' ; ', $errors), null, \core\output\notification::NOTIFY_ERROR);
+        redirect(
+            $baseurl,
+            get_string('placementassignmentsrefused', 'mod_stage') . ' ' . implode(' ; ', $errors),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
     }
     redirect(
         $baseurl,

@@ -91,11 +91,7 @@ if (data_submitted() && confirm_sesskey()) {
 }
 
 // Organismes déjà proposés : ils restent listés, sans case à cocher.
-$known = [];
-foreach (stage_placement_get_offers($theme->id) as $offer) {
-    $known[md5(stage_placement_offer_key($offer->name, $offer->siret))] = true;
-    $known[md5(stage_placement_offer_key($offer->name))] = true;
-}
+$known = stage_placement_index_offers(stage_placement_get_offers($theme->id));
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('placementpick', 'mod_stage') . ' : ' . format_string($theme->name));
@@ -143,7 +139,7 @@ $table->head = [
     get_string('placementplaces', 'mod_stage'),
 ];
 foreach ($organisations as $key => $organisation) {
-    $alreadyoffered = isset($known[$key]) || isset($known[md5(stage_placement_offer_key($organisation->name))]);
+    $alreadyoffered = stage_placement_find_offer($known, $organisation->name, $organisation->siret) !== null;
     $label = get_string('placementpickselectname', 'mod_stage', stage_plain_string($organisation->name));
     $table->data[] = [
         $alreadyoffered

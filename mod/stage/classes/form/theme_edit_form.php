@@ -38,6 +38,7 @@ require_once($CFG->dirroot . '/mod/stage/locallib.php');
  * - placementoffersurl : URL de la gestion des organismes proposés, pour une thématique existante ;
  * - placementoffercount : nombre d'organismes déjà proposés ;
  * - placementmatched : l'appariement des vœux a-t-il déjà eu lieu ;
+ * - placementdeadline : date de clôture des vœux enregistrée ;
  * - filemanageroptions : options du gestionnaire de fichiers des documents d'objectifs.
  *
  * @package   mod_stage
@@ -359,6 +360,18 @@ class theme_edit_form extends \moodleform {
 
         if (!empty($data['placementenabled']) && (int) ($data['placementchoices'] ?? 0) < 1) {
             $errors['placementchoices'] = get_string('placementchoicesinvalid', 'mod_stage');
+        }
+        // Une date de clôture déjà passée ferait lancer l'appariement dans l'heure, sans vœux : elle
+        // est refusée quand elle vient d'être saisie ou que les vœux sont rouverts. Une date passée
+        // déjà enregistrée (vœux clos, appariement fait) ne bloque pas le reste de la fiche.
+        $deadline = (int) ($data['placementdeadline'] ?? 0);
+        $stored = (int) ($this->_customdata['placementdeadline'] ?? 0);
+        $pending = empty($this->_customdata['placementmatched']) || !empty($data['placementreopen']);
+        if (
+            !empty($data['placementenabled']) && $deadline && $deadline <= time() && $pending
+                && ($deadline !== $stored || !empty($data['placementreopen']))
+        ) {
+            $errors['placementdeadline'] = get_string('placementdeadlinepast', 'mod_stage');
         }
 
         if (

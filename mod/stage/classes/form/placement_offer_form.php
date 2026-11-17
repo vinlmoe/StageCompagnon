@@ -108,7 +108,8 @@ class placement_offer_form extends \moodleform {
     }
 
     /**
-     * Validation serveur : au moins une place, SIRET plausible, adresse du tuteur valide (c'est à
+     * Validation serveur : nom non vide, au moins autant de places que d'étudiants affectés,
+     * SIRET plausible, adresse du tuteur valide (c'est à
      * elle que partira l'invitation à évaluer le stage).
      *
      * @param array $data
@@ -118,8 +119,19 @@ class placement_offer_form extends \moodleform {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 
-        if ((int) ($data['places'] ?? 0) < 1) {
+        global $DB;
+
+        // La règle « obligatoire » accepte un nom fait d'espaces, que l'enregistrement réduirait à vide.
+        if (trim((string) ($data['name'] ?? '')) === '') {
+            $errors['name'] = get_string('required');
+        }
+        $places = (int) ($data['places'] ?? 0);
+        $assigned = empty($data['offerid']) ? 0 : $DB->count_records('stage_placement_assign', ['offerid' => $data['offerid']]);
+        if ($places < 1) {
             $errors['places'] = get_string('placementplacesinvalid', 'mod_stage');
+        } else if ($places < $assigned) {
+            // Moins de places que d'étudiants déjà affectés : l'organisme serait en dépassement.
+            $errors['places'] = get_string('placementplacesbelowassigned', 'mod_stage', $assigned);
         }
         $errors += stage_validate_siret_field($data);
         $tutoremail = trim((string) ($data['tutoremail'] ?? ''));

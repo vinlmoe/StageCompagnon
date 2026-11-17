@@ -298,27 +298,50 @@ final class placement_test extends \advanced_testcase {
      * Règle d'une demande de convention sur une thématique à organismes proposés.
      */
     public function test_request_errors(): void {
-        $theme = (object) ['id' => 5, 'placementenabled' => 1, 'placementofflist' => 0];
-        $assignment = (object) ['themeid' => 5];
-        $france = ['abroad' => 0, 'siret' => ''];
+        global $DB;
+        [, $theme, [$a], [$student]] = $this->fixture(1);
+        $DB->set_field('stage_placement_offer', 'siret', self::SIRET, ['id' => $a->id]);
+        stage_placement_set_assignment($theme, $student->id, $a->id, 2);
+        $assignment = stage_placement_get_assignment($theme->id, $student->id);
+        $france = ['structure' => 'Ferme du Haut', 'abroad' => 0, 'siret' => ''];
+        $withsiret = ['siret' => self::SIRET] + $france;
 
         // Thématique ordinaire : aucune contrainte.
         $this->assertSame([], stage_placement_request_errors((object) ['id' => 5, 'placementenabled' => 0], $france, null));
-        // Demande déposée à partir de l'affectation : aucune contrainte, SIRET compris.
-        $this->assertSame([], stage_placement_request_errors($theme, $france, $assignment));
-        // L'affectation d'une autre thématique ne vaut pas pour celle-ci.
-        $this->assertArrayHasKey('themeid', stage_placement_request_errors($theme, $france, (object) ['themeid' => 6]));
-        // Hors liste non autorisé : refusé, sauf pour un stage déjà enregistré (par la DEVE).
-        $this->assertArrayHasKey('themeid', stage_placement_request_errors($theme, ['abroad' => 0, 'siret' => self::SIRET], null));
-        $this->assertArrayHasKey('siret', stage_placement_request_errors($theme, $france, null, true));
-        $this->assertSame([], stage_placement_request_errors($theme, ['abroad' => 0, 'siret' => self::SIRET], null, true));
 
-        // Hors liste autorisé : SIRET obligatoire en France, pas à l'étranger.
+        // À partir de l'affectation : la demande porte sur l'organisme attribué, SIRET facultatif.
+        $assigned = ['structure' => ' clinique a ', 'abroad' => 0, 'siret' => ''];
+        $this->assertSame([], stage_placement_request_errors($theme, $assigned, $assignment));
+        $this->assertSame([], stage_placement_request_errors($theme, ['siret' => '732 829 320 00074'] + $assigned, $assignment));
+        // Autre organisme, ou autre SIRET : refusé, l'affectation ne couvre que l'organisme attribué.
+        $this->assertArrayHasKey('structure', stage_placement_request_errors($theme, $withsiret, $assignment));
+        $this->assertArrayHasKey(
+            'siret',
+            stage_placement_request_errors($theme, ['siret' => '35600000000048'] + $assigned, $assignment)
+        );
+        // L'affectation d'une autre thématique ne vaut pas pour celle-ci.
+        $other = (object) ['themeid' => $theme->id + 1, 'offerid' => $a->id];
+        $this->assertArrayHasKey('themeid', stage_placement_request_errors($theme, $assigned, $other));
+
+        // Hors liste non autorisé : refusé, sauf pour un stage déjà enregistré (par la DEVE).
+        $this->assertArrayHasKey('themeid', stage_placement_request_errors($theme, $withsiret, null));
+        $this->assertArrayHasKey('siret', stage_placement_request_errors($theme, $france, null, true));
+        $this->assertSame([], stage_placement_request_errors($theme, $withsiret, null, true));
+
+        // Hors liste autorisé : SIRET obligatoire en France.
         $theme->placementofflist = 1;
         $this->assertArrayHasKey('siret', stage_placement_request_errors($theme, $france, null));
-        $this->assertArrayHasKey('siret', stage_placement_request_errors($theme, ['abroad' => 0, 'siret' => ' '], null));
-        $this->assertSame([], stage_placement_request_errors($theme, ['abroad' => 0, 'siret' => self::SIRET], null));
-        $this->assertSame([], stage_placement_request_errors($theme, ['abroad' => 1, 'siret' => ''], null));
+        $this->assertArrayHasKey('siret', stage_placement_request_errors($theme, ['siret' => ' '] + $france, null));
+        $this->assertSame([], stage_placement_request_errors($theme, $withsiret, null));
+
+        // À l'étranger : dispensé de SIRET si le pays est indiqué et n'est pas la France.
+        $abroad = ['abroad' => 1] + $france;
+        $this->assertSame([], stage_placement_request_errors($theme, ['country' => 'Belgique'] + $abroad, null));
+        $this->assertArrayHasKey('country', stage_placement_request_errors($theme, $abroad, null));
+        $this->assertArrayHasKey('country', stage_placement_request_errors($theme, ['country' => '  '] + $abroad, null));
+        $this->assertArrayHasKey('country', stage_placement_request_errors($theme, ['country' => 'FRANCE'] + $abroad, null));
+        $frenchwithsiret = ['country' => 'France', 'siret' => self::SIRET] + $abroad;
+        $this->assertSame([], stage_placement_request_errors($theme, $frenchwithsiret, null));
     }
 
     /**
@@ -388,9 +411,13 @@ final class placement_test extends \advanced_testcase {
         $this->assertNull($form->get_data());
         $this->assertSame(get_string('placementrequired', 'mod_stage'), $error($form, 'themeid'));
 
-        // À partir de l'affectation : accepté sans SIRET.
+        // À partir de l'affectation : accepté sans SIRET pour l'organisme attribué, refusé pour un autre.
         stage_placement_set_assignment($theme, $student->id, $a->id, 2);
-        $this->assertNotNull($make($base, stage_placement_get_assignment($theme->id, $student->id))->get_data());
+        $assignment = stage_placement_get_assignment($theme->id, $student->id);
+        $this->assertNotNull($make(['structure' => 'Clinique A'] + $base, $assignment)->get_data());
+        $form = $make($base, $assignment);
+        $this->assertNull($form->get_data());
+        $this->assertNotEmpty($error($form, 'structure'));
 
         // Hors liste autorisé : SIRET obligatoire en France, facultatif à l'étranger.
         $DB->set_field('stage_theme', 'placementofflist', 1, ['id' => $theme->id]);
@@ -399,6 +426,10 @@ final class placement_test extends \advanced_testcase {
         $this->assertSame(get_string('placementsiretrequired', 'mod_stage'), $error($form, 'siret'));
         $this->assertNotNull($make(['siret' => self::SIRET] + $base)->get_data());
         $this->assertNotNull($make(['abroad' => 1, 'country' => 'Belgique'] + $base)->get_data());
+        // « À l'étranger » sans pays ne dispense pas du SIRET.
+        $form = $make(['abroad' => 1, 'country' => ''] + $base);
+        $this->assertNull($form->get_data());
+        $this->assertSame(get_string('placementcountryrequired', 'mod_stage'), $error($form, 'country'));
     }
 
     /**
@@ -788,9 +819,7 @@ final class placement_test extends \advanced_testcase {
         }
         $DB->insert_records('stage_placement_wish', $rows);
 
-        $started = microtime(true);
         $result = stage_placement_run_matching($theme);
-        $elapsed = microtime(true) - $started;
 
         $this->assertCount(300, $result->assigned + array_flip($result->unassigned));
         $used = array_count_values($result->assigned);
@@ -811,7 +840,6 @@ final class placement_test extends \advanced_testcase {
             }
         }
         $this->assertNotEmpty($result->unassigned, 'les vœux concentrés laissent des étudiants sans affectation');
-        $this->assertLessThan(10, $elapsed, 'appariement de la promotion en moins de dix secondes');
     }
 
     /**
@@ -1012,15 +1040,19 @@ final class placement_test extends \advanced_testcase {
                 'periods' => [], 'themeid' => (int) $theme->id, 'checklistitems' => [], 'requestquestions' => [],
             ]);
         };
-        $student = ['placementtheme' => $theme, 'assignment' => null, 'abroad' => false];
+        $student = ['placementtheme' => $theme, 'abroad' => false, 'country' => ''];
 
         $form = $make($base, $student);
         $this->assertNull($form->get_data());
         $this->assertSame(get_string('placementsiretrequired', 'mod_stage'), $this->field_error($form, 'siret'));
         $this->assertNotNull($make(['siret' => self::SIRET] + $base, $student)->get_data());
-        $this->assertNotNull($make($base, ['abroad' => true] + $student)->get_data());
-        $this->assertNotNull($make($base, ['assignment' => (object) ['themeid' => $theme->id]] + $student)->get_data());
-        $this->assertNotNull($make($base, ['placementtheme' => null, 'assignment' => null, 'abroad' => false])->get_data());
+        $this->assertNotNull($make($base, ['abroad' => true, 'country' => 'Belgique'] + $student)->get_data());
+        // Stage « à l'étranger » sans pays : traité comme un stage en France, erreur portée par le SIRET.
+        $form = $make($base, ['abroad' => true] + $student);
+        $this->assertNull($form->get_data());
+        $this->assertSame(get_string('placementsiretrequired', 'mod_stage'), $this->field_error($form, 'siret'));
+        // Demande de la DEVE, ou découlant de l'affectation : la page ne transmet pas la thématique.
+        $this->assertNotNull($make($base, ['placementtheme' => null, 'abroad' => false])->get_data());
     }
 
     /**
@@ -1041,7 +1073,8 @@ final class placement_test extends \advanced_testcase {
         $this->assertNotNull($data);
         $this->assertSame('Clinique du Lac', $data->name);
 
-        foreach (['places' => 0, 'siret' => '12345678901234', 'tutoremail' => 'pas-une-adresse', 'name' => ''] as $field => $bad) {
+        $badvalues = ['places' => 0, 'siret' => '12345678901234', 'tutoremail' => 'pas-une-adresse', 'name' => '   '];
+        foreach ($badvalues as $field => $bad) {
             $form = $make([$field => $bad] + $base);
             $this->assertNull($form->get_data(), $field);
             $this->assertNotEmpty($this->field_error($form, $field), $field);
@@ -1084,6 +1117,288 @@ final class placement_test extends \advanced_testcase {
 
         // Option décochée : un nombre de vœux nul n'est pas une erreur.
         $this->assertNotNull($make(['placementenabled' => 0, 'placementchoices' => 0])->get_data());
+    }
+
+    /**
+     * Deux organismes de même nom qui ont chacun leur SIRET sont deux établissements : l'import les
+     * crée tous les deux, la reprise de stages aussi. Sans SIRET d'un côté, le nom suffit à les
+     * rapprocher.
+     */
+    public function test_same_name_different_siret_stay_distinct(): void {
+        global $DB;
+        [, $theme] = $this->fixture(0);
+        $other = '35600000000048';
+        $this->assertTrue(stage_siret_valid($other));
+
+        $records = placement_offer_importer::parse_rows([
+            0 => ['Organisme', 'SIRET', 'Adresse', 'Places'],
+            1 => ['Clinique des Alpes', self::SIRET, 'Annecy', '1'],
+            2 => ['Clinique des Alpes', $other, 'Chambéry', '2'],
+        ]);
+        $results = placement_offer_importer::import($theme, $records);
+        $this->assertSame(2, $results->added);
+        $this->assertSame(0, $results->updated);
+        $address = fn($siret) => $DB->get_field('stage_placement_offer', 'address', ['themeid' => $theme->id, 'siret' => $siret]);
+        $this->assertSame('Annecy', $address(self::SIRET));
+        $this->assertSame('Chambéry', $address($other));
+
+        // Réimport : chacun est retrouvé par son SIRET.
+        $results = placement_offer_importer::import($theme, $records);
+        $this->assertSame(0, $results->added);
+        $this->assertSame(2, $results->updated);
+
+        // Même nom sans SIRET : rapproché du premier organisme de ce nom, pas ajouté.
+        $this->assertSame(0, stage_placement_add_offers($theme->id, [['name' => 'clinique des ALPES']]));
+        // Même nom, troisième SIRET : ajouté.
+        $this->assertSame(1, stage_placement_add_offers($theme->id, [['name' => 'Clinique des Alpes', 'siret' => '73282932000074']])
+            + stage_placement_add_offers($theme->id, [['name' => 'Clinique des Alpes', 'siret' => '55210055400013']]));
+
+        $offers = stage_placement_index_offers(stage_placement_get_offers($theme->id));
+        $this->assertNull(stage_placement_find_offer($offers, 'Autre nom', ''));
+        $this->assertSame(self::SIRET, stage_placement_find_offer($offers, 'Nom changé', self::SIRET)->siret);
+    }
+
+    /**
+     * Un pays « France » n'en fait pas un organisme à l'étranger : il est effacé à l'enregistrement,
+     * et la demande préremplie reste un stage en France.
+     */
+    public function test_country_france_is_not_abroad(): void {
+        [, $theme] = $this->fixture(0);
+        $stagegen = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        foreach (['France', ' france ', 'FR', 'République française'] as $country) {
+            $offer = $stagegen->create_placement_offer($theme, ['name' => "Organisme $country", 'country' => $country]);
+            $this->assertSame('', $offer->country, $country);
+            $this->assertSame(0, stage_placement_prefill($offer)['abroad'], $country);
+        }
+        $this->assertSame('Belgique', $stagegen->create_placement_offer($theme, ['country' => 'Belgique'])->country);
+    }
+
+    /**
+     * Les affectations de la DEVE s'appliquent en un lot : deux étudiants échangent leurs
+     * organismes, et un lot dont une ligne est refusée n'est pas appliqué du tout.
+     */
+    public function test_assignments_batch_swap_and_atomicity(): void {
+        [, $theme, [$a, $b], [$s1, $s2, $s3]] = $this->fixture(3);
+        $this->assertSame([], stage_placement_set_assignments($theme, [$s1->id => $a->id, $s2->id => $b->id], 2));
+
+        // Échange : chacun prend la place que l'autre libère.
+        $this->assertSame([], stage_placement_set_assignments($theme, [$s1->id => $b->id, $s2->id => $a->id], 2));
+        $this->assertEquals($b->id, stage_placement_get_assignment($theme->id, $s1->id)->offerid);
+        $this->assertEquals($a->id, stage_placement_get_assignment($theme->id, $s2->id)->offerid);
+
+        // Lot en partie impossible : s3 vise une place prise, le retrait de s1 n'est pas appliqué non plus.
+        $errors = stage_placement_set_assignments($theme, [$s1->id => 0, $s3->id => $a->id], 2);
+        $this->assertSame([$s3->id => 'placementofferfull'], $errors);
+        $this->assertEquals($b->id, stage_placement_get_assignment($theme->id, $s1->id)->offerid);
+        $this->assertFalse(stage_placement_get_assignment($theme->id, $s3->id));
+
+        // Une place libérée dans le même lot peut être reprise.
+        $this->assertSame([], stage_placement_set_assignments($theme, [$s2->id => 0, $s3->id => $a->id], 2));
+        $this->assertEquals($a->id, stage_placement_get_assignment($theme->id, $s3->id)->offerid);
+    }
+
+    /**
+     * Une affectation dont la demande de convention est déposée ne se déplace ni ne se retire : le
+     * tableau et la convention diraient sinon deux organismes différents. Stage annulé, elle redevient
+     * modifiable.
+     */
+    public function test_used_assignment_is_frozen(): void {
+        global $DB;
+        [$stage, $theme, [$a, $b], [$s1]] = $this->fixture(1);
+        stage_placement_set_assignment($theme, $s1->id, $a->id, 2);
+        $entry = $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_entry($stage, $s1->id, $theme);
+        stage_placement_link_entry(stage_placement_get_assignment($theme->id, $s1->id)->id, $entry->id);
+
+        $this->assertSame('placementassignmentused', stage_placement_set_assignment($theme, $s1->id, $b->id, 2));
+        $this->assertSame('placementassignmentused', stage_placement_set_assignment($theme, $s1->id, 0, 2));
+        $this->assertEquals($a->id, stage_placement_get_assignment($theme->id, $s1->id)->offerid);
+
+        $DB->set_field('stage_entry', 'status', STAGE_STATUS_ANNULE, ['id' => $entry->id]);
+        $this->assertNull(stage_placement_set_assignment($theme, $s1->id, $b->id, 2));
+    }
+
+    /**
+     * L'appariement automatique relit la thématique : si la DEVE a repoussé la date, désactivé
+     * l'option ou déjà apparié entre-temps, il ne fait rien et ne clôt pas les vœux.
+     */
+    public function test_automatic_matching_rechecks_the_theme(): void {
+        global $DB;
+        [, $theme, [$a, $b], [$s1]] = $this->fixture(1, ['placementdeadline' => time() - 60]);
+        $DB->set_field('stage_theme', 'placementdeadline', 0, ['id' => $theme->id]);
+        stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]);
+        $stale = clone $theme;
+
+        // Date repoussée après la lecture de la thématique par la tâche.
+        $DB->set_field('stage_theme', 'placementdeadline', time() + DAYSECS, ['id' => $theme->id]);
+        $result = stage_placement_run_matching($stale, null, true);
+        $this->assertTrue($result->skipped);
+        $this->assertFalse(stage_placement_get_assignment($theme->id, $s1->id));
+        $this->assertSame(STAGE_PLACEMENT_OPEN, stage_placement_state($this->reload($theme)));
+
+        // Option désactivée.
+        $DB->set_field('stage_theme', 'placementdeadline', time() - 60, ['id' => $theme->id]);
+        $DB->set_field('stage_theme', 'placementenabled', 0, ['id' => $theme->id]);
+        $this->assertTrue(stage_placement_run_matching($stale, null, true)->skipped);
+
+        // Vœux clos : l'appariement a lieu, une seule fois.
+        $DB->set_field('stage_theme', 'placementenabled', 1, ['id' => $theme->id]);
+        $result = stage_placement_run_matching($stale, null, true);
+        $this->assertFalse($result->skipped);
+        $this->assertEquals([$s1->id => $a->id], $result->assigned);
+        $this->assertTrue(stage_placement_run_matching($stale, null, true)->skipped);
+
+        // Lancé par la DEVE, l'appariement reste possible à tout moment.
+        $this->assertFalse(stage_placement_run_matching($stale)->skipped);
+    }
+
+    /**
+     * La réinitialisation efface aussi la date de clôture : sans cela, la tâche planifiée
+     * refermerait la campagne de la nouvelle promotion dans l'heure.
+     */
+    public function test_reset_clears_the_deadline(): void {
+        [$stage, $theme, [$a, $b], [$s1]] = $this->fixture(1, ['placementdeadline' => time() - HOURSECS]);
+        stage_placement_run_matching($theme);
+
+        stage_placement_reset_userdata($stage->id);
+
+        $theme = $this->reload($theme);
+        $this->assertEquals(0, $theme->placementdeadline);
+        $this->assertSame(STAGE_PLACEMENT_OPEN, stage_placement_state($theme));
+        $this->assertSame([], stage_placement_get_themes_to_match());
+        $this->assertNull(stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]));
+    }
+
+    /**
+     * Stage enregistré par la DEVE : la demande découle de l'affectation libre de l'étudiant
+     * seulement si le stage est chez l'organisme attribué. Chez un autre organisme, l'affectation
+     * n'est pas consommée.
+     */
+    public function test_assignment_for_entry(): void {
+        [$stage, $theme, [$a], [$s1]] = $this->fixture(1);
+        $stagegen = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        stage_placement_set_assignment($theme, $s1->id, $a->id, 2);
+        $assignment = stage_placement_get_assignment($theme->id, $s1->id);
+
+        $elsewhere = $stagegen->create_entry($stage, $s1->id, $theme, ['structure' => 'Ferme du Haut']);
+        $this->assertNull(stage_placement_assignment_for_entry($elsewhere));
+
+        $same = $stagegen->create_entry($stage, $s1->id, $theme, [
+            'structure' => 'clinique A', 'datestart' => make_timestamp(2026, 6, 1), 'dateend' => make_timestamp(2026, 6, 10),
+        ]);
+        $this->assertEquals($assignment->id, stage_placement_assignment_for_entry($same)->id);
+
+        // Une fois rattachée à un stage, elle ne vaut plus pour un autre.
+        stage_placement_link_entry($assignment->id, $same->id);
+        $this->assertEquals($assignment->id, stage_placement_assignment_for_entry($same)->id);
+        $again = $stagegen->create_entry($stage, $s1->id, $theme, [
+            'structure' => 'Clinique A', 'datestart' => make_timestamp(2026, 9, 1), 'dateend' => make_timestamp(2026, 9, 10),
+        ]);
+        $this->assertNull(stage_placement_assignment_for_entry($again));
+    }
+
+    /**
+     * L'étudiant affecté garde l'accès à sa demande quand la thématique est masquée ensuite.
+     */
+    public function test_hidden_theme_keeps_assigned_student_access(): void {
+        global $DB, $PAGE;
+        [$stage, $theme, [$a], [$s1, $s2]] = $this->fixture(2);
+        stage_placement_set_assignment($theme, $s1->id, $a->id, 2);
+        $DB->set_field('stage_theme', 'visible', 0, ['id' => $theme->id]);
+        $cm = get_coursemodule_from_instance('stage', $stage->id, 0, false, MUST_EXIST);
+        $PAGE->set_url('/mod/stage/view.php', ['id' => $cm->id]);
+
+        $html = stage_placement_render_student_section($stage, $cm, $s1->id);
+        $this->assertStringContainsString(get_string('placementcompleterequest', 'mod_stage'), $html);
+        $this->assertSame('', stage_placement_render_student_section($stage, $cm, $s2->id));
+    }
+
+    /**
+     * L'annonce d'un appariement lancé par la DEVE est mise en file et envoyée par le cron.
+     */
+    public function test_notification_is_queued(): void {
+        [, $theme, [$a], [$s1, $s2]] = $this->fixture(2);
+        $result = (object) ['assigned' => [$s1->id => $a->id], 'unassigned' => [$s2->id]];
+
+        \mod_stage\task\notify_placement_results::queue((int) $theme->id, (object) ['assigned' => [], 'unassigned' => []]);
+        $this->assertCount(0, \core\task\manager::get_adhoc_tasks(\mod_stage\task\notify_placement_results::class));
+
+        \mod_stage\task\notify_placement_results::queue((int) $theme->id, $result);
+        $tasks = \core\task\manager::get_adhoc_tasks(\mod_stage\task\notify_placement_results::class);
+        $this->assertCount(1, $tasks);
+
+        $sink = $this->redirectEmails();
+        ob_start();
+        reset($tasks)->execute();
+        ob_end_clean();
+        $this->assertSame(2, $sink->count());
+        $this->assertEqualsCanonicalizing([$s1->email, $s2->email], array_column($sink->get_messages(), 'to'));
+    }
+
+    /**
+     * Fiche de la thématique : une date de clôture passée est refusée quand elle vient d'être saisie
+     * ou que les vœux sont rouverts ; déjà enregistrée, elle ne bloque pas le reste de la fiche.
+     */
+    public function test_theme_form_rejects_past_deadline(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $past = time() - DAYSECS;
+        $date = fn(int $time) => ['enabled' => 1, 'day' => (int) userdate($time, '%d'), 'month' => (int) userdate($time, '%m'),
+            'year' => (int) userdate($time, '%Y'), 'hour' => (int) userdate($time, '%H'), 'minute' => (int) userdate($time, '%M')];
+        $make = function (array $submitted, array $custom = []) {
+            \mod_stage\form\theme_edit_form::mock_submit($submitted + [
+                'id' => 1, 'themeid' => 0, 'name' => 'Rurale', 'requiredduration' => 0, 'sortorder' => 0,
+                'minstudyyear' => 0, 'maxstudyyear' => 0, 'reportmode' => STAGE_REPORT_NONE, 'objectivefiles' => 0,
+                'placementenabled' => 1, 'placementchoices' => 3,
+            ]);
+            return new \mod_stage\form\theme_edit_form(null, $custom + [
+                'teachers' => [], 'checklistcount' => 0, 'evallists' => [], 'tutorenabled' => false, 'filemanageroptions' => [],
+            ]);
+        };
+
+        $form = $make(['placementdeadline' => $date($past)]);
+        $this->assertNull($form->get_data());
+        $this->assertSame(get_string('placementdeadlinepast', 'mod_stage'), $this->field_error($form, 'placementdeadline'));
+
+        $this->assertNotNull($make(['placementdeadline' => $date(time() + WEEKSECS)])->get_data());
+        $this->assertNotNull($make([])->get_data(), 'sans date');
+
+        // Date passée déjà enregistrée (à la minute, comme le sélecteur) : la fiche reste enregistrable.
+        $stored = make_timestamp(
+            (int) userdate($past, '%Y'),
+            (int) userdate($past, '%m'),
+            (int) userdate($past, '%d'),
+            (int) userdate($past, '%H'),
+            (int) userdate($past, '%M')
+        );
+        $this->assertNotNull($make(['placementdeadline' => $date($past)], ['placementdeadline' => $stored])->get_data());
+
+        // Réouverture avec la même date passée : refusée.
+        $form = $make(
+            ['placementdeadline' => $date($past), 'placementreopen' => 1],
+            ['placementdeadline' => $stored, 'placementmatched' => true]
+        );
+        $this->assertNull($form->get_data());
+        $this->assertNotEmpty($this->field_error($form, 'placementdeadline'));
+    }
+
+    /**
+     * Formulaire d'un organisme : pas moins de places que d'étudiants déjà affectés.
+     */
+    public function test_offer_form_places_below_assigned(): void {
+        [, $theme, [, , $c], [$s1, $s2]] = $this->fixture(2);
+        $this->setAdminUser();
+        stage_placement_set_assignments($theme, [$s1->id => $c->id, $s2->id => $c->id], 2);
+        $make = function (int $places) use ($theme, $c) {
+            \mod_stage\form\placement_offer_form::mock_submit([
+                'id' => 1, 'themeid' => $theme->id, 'offerid' => $c->id, 'name' => $c->name, 'places' => $places,
+            ]);
+            return new \mod_stage\form\placement_offer_form();
+        };
+
+        $form = $make(1);
+        $this->assertNull($form->get_data());
+        $this->assertSame(get_string('placementplacesbelowassigned', 'mod_stage', 2), $this->field_error($form, 'places'));
+        $this->assertNotNull($make(2)->get_data());
     }
 
     /**

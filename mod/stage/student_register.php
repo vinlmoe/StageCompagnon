@@ -80,13 +80,10 @@ if ($entryid) {
 // est déjà rattachée (demande refusée à corriger), ou celle de la thématique passée en paramètre.
 $assignment = null;
 if ($existingentry) {
-    $assignment = stage_placement_get_entry_assignment($existingentry->id) ?: null;
-    if (!$assignment) {
-        // Stage enregistré par la DEVE sur une thématique où l'étudiant a une affectation encore
-        // inutilisée : la demande en découle, et lui sera rattachée à l'enregistrement.
-        $unused = stage_placement_get_assignment($existingentry->themeid, $USER->id);
-        $assignment = $unused && stage_placement_assignment_usable($unused) ? $unused : null;
-    }
+    // Affectation déjà rattachée à la saisie, ou affectation encore inutilisée de l'étudiant si la
+    // DEVE a enregistré le stage chez l'organisme attribué : la demande en découle alors, et lui
+    // sera rattachée à l'enregistrement.
+    $assignment = stage_placement_assignment_for_entry($existingentry);
 } else if ($placementthemeid) {
     $assignment = stage_placement_get_assignment($placementthemeid, $USER->id) ?: null;
     if (
@@ -238,6 +235,13 @@ if ($mform->is_cancelled()) {
             $existingentry = $DB->get_record('stage_entry', ['id' => $existingentry->id], '*', MUST_EXIST);
             if (!stage_convention_request_allowed($existingentry)) {
                 $refused = 'conventionalreadyrequested';
+            } else if (
+                $assignment && (int) $assignment->entryid !== (int) $existingentry->id
+                    && !stage_placement_assignment_usable_now($assignment->id)
+            ) {
+                // Affectation encore libre à l'affichage, utilisée depuis pour un autre stage (autre
+                // onglet) : la rattacher ici donnerait deux demandes pour une seule affectation.
+                $refused = 'placementnotusable';
             }
         } else if ($assignment && !stage_placement_assignment_usable_now($assignment->id)) {
             // Relue sous le verrou : affectation retirée par la DEVE, ou déjà utilisée par un double envoi.

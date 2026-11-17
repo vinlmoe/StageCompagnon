@@ -24,7 +24,8 @@ namespace mod_stage\local;
  * accents ni de la casse ; leur ordre est libre et seule la colonne du nom de l'organisme est
  * obligatoire. Une colonne absente ne modifie rien ; le nombre de places vaut 1 par défaut.
  *
- * Un organisme déjà proposé pour la thématique (même SIRET, ou à défaut même nom) est mis à jour
+ * Un organisme déjà proposé pour la thématique (même SIRET, ou à défaut même nom si l'un des deux
+ * n'a pas de SIRET) est mis à jour
  * par les cellules renseignées de sa ligne, les autres sont ajoutés : le classeur peut être
  * réimporté après correction. Chaque ligne est traitée indépendamment : une ligne en erreur est
  * signalée et n'empêche pas l'import des autres.
@@ -144,13 +145,7 @@ class placement_offer_importer {
         $lock = stage_get_activity_lock($theme->stageid);
         try {
             $transaction = $DB->start_delegated_transaction();
-            $known = [];
-            foreach (stage_placement_get_offers($theme->id) as $offer) {
-                $known[stage_placement_offer_key($offer->name)] = (int) $offer->id;
-                if (trim((string) $offer->siret) !== '') {
-                    $known[stage_placement_offer_key($offer->name, $offer->siret)] = (int) $offer->id;
-                }
-            }
+            $known = stage_placement_index_offers(stage_placement_get_offers($theme->id));
             foreach ($records as $record) {
                 $error = self::record_error($record);
                 if ($error !== null) {
@@ -165,11 +160,21 @@ class placement_offer_importer {
                         unset($data->$field);
                     }
                 }
-                $keys = [stage_placement_offer_key($record->name, $record->siret ?? ''), stage_placement_offer_key($record->name)];
-                $offerid = $known[$keys[0]] ?? $known[$keys[1]] ?? 0;
+                // Même SIRET, ou à défaut même nom : deux organismes de même nom qui ont chacun leur
+                // SIRET restent distincts (voir stage_placement_find_offer()).
+                $match = stage_placement_find_offer($known, $record->name, $record->siret ?? '');
+                $offerid = $match ? (int) $match->id : 0;
                 $savedid = stage_placement_save_offer($theme->id, $data, $offerid);
-                foreach ($keys as $key) {
-                    $known[$key] = $savedid;
+                if (!$match) {
+                    // Une ligne suivante du même classeur doit retrouver l'organisme qui vient d'être créé.
+                    stage_placement_index_add($known, (object) [
+                        'id' => $savedid, 'name' => $record->name, 'siret' => $record->siret ?? '',
+                    ]);
+                } else if (stage_normalize_siret($match->siret ?? '') === '' && ($record->siret ?? '') !== '') {
+                    // L'organisme rapproché par son nom reçoit le SIRET de la ligne : il est désormais
+                    // retrouvé par ce SIRET.
+                    $match->siret = $record->siret;
+                    stage_placement_index_add($known, $match);
                 }
                 if ($offerid) {
                     $results->updated++;
