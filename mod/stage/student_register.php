@@ -294,6 +294,10 @@ if ($mform->is_cancelled()) {
                 $entry = $DB->get_record('stage_entry', ['id' => $newentryid], '*', MUST_EXIST);
                 if ($assignment) {
                     stage_placement_link_entry($assignment->id, $entry->id);
+                } else {
+                    // Demande hors liste sur une thématique à organismes proposés : l'étudiant a
+                    // trouvé son stage, ses vœux sont retirés et l'appariement ne le placera pas.
+                    $DB->delete_records('stage_placement_wish', ['themeid' => $entry->themeid, 'userid' => $USER->id]);
                 }
             }
 

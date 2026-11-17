@@ -111,6 +111,7 @@ if (empty($offers)) {
         get_string('placementofferplace', 'mod_stage'),
         get_string('placementcolsiret', 'mod_stage'),
         get_string('placementplaces', 'mod_stage'),
+        get_string('placementofferperiod', 'mod_stage'),
         get_string('placementwishcount', 'mod_stage'),
         get_string('placementfirstwishcount', 'mod_stage'),
         get_string('placementassignedcount', 'mod_stage'),
@@ -135,9 +136,10 @@ if (empty($offers)) {
         );
         $table->data[] = [
             $name,
-            s(stage_placement_offer_place($offer)),
+            s(\mod_stage\output\placement_view::offer_place($offer)),
             s((string) $offer->siret),
             (int) $offer->places,
+            s(\mod_stage\output\placement_view::offer_period($offer)),
             $wishcounts[$offer->id] ?? 0,
             $firstcounts[$offer->id] ?? 0,
             $assignedcounts[$offer->id] ?? 0,

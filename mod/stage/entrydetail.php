@@ -249,6 +249,8 @@ if ($objectivelinks !== '') {
     echo $OUTPUT->heading(get_string('themeobjectives', 'mod_stage'), 4);
     echo $objectivelinks;
 }
+// Thématique à organismes proposés : la demande vient-elle d'une affectation ou est-elle hors liste ?
+echo \mod_stage\output\placement_view::entry_origin($entry);
 echo stage_render_request_answers($entry);
 echo stage_render_entry_checklist_section($stage, $cm, $context, $entry, $PAGE->url);
 

@@ -159,6 +159,12 @@ define('STAGE_PLACEMENT_OPEN', 'open');
 define('STAGE_PLACEMENT_CLOSED', 'closed');
 /** Organismes proposés : l'appariement a été fait. */
 define('STAGE_PLACEMENT_MATCHED', 'matched');
+/** Règle d'appariement : tirage au sort, puis chacun reçoit son meilleur vœu encore libre. */
+define('STAGE_PLACEMENT_MODE_DRAW', 'draw');
+/** Règle d'appariement : placer le plus d'étudiants possible, puis les placer sur leurs meilleurs vœux. */
+define('STAGE_PLACEMENT_MODE_MAXPLACED', 'maxplaced');
+/** Organismes proposés : relance des étudiants sans vœux complets, ce nombre de jours avant la clôture. */
+define('STAGE_PLACEMENT_REMINDER_DAYS', 3);
 
 /**
  * Returns the list of features supported by this module.

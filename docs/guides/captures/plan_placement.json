@@ -21,7 +21,7 @@
   "pad": 24
  },
  {
-  "user": "hroux",
+  "user": "nlambert",
   "url": "/mod/stage/view.php?id=1",
   "file": "93_placement_student_card",
   "from": "h4:has-text('Organismes proposés')",
@@ -29,14 +29,50 @@
   "pad": 24
  },
  {
-  "user": "hroux",
+  "user": "nlambert",
   "url": "/mod/stage/placement.php?id=1&themeid=3",
   "actions": [
-   ["select", "#id_wish_1", {"index": 3}],
-   ["select", "#id_wish_2", {"index": 1}]
+   [
+    "select",
+    "#id_wish_1",
+    {
+     "index": 2
+    }
+   ],
+   [
+    "select",
+    "#id_wish_2",
+    {
+     "index": 1
+    }
+   ]
   ],
   "file": "94_placement_wishes",
   "from": "h2:has-text('Organismes proposés')",
   "pad": 24
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/placement_matching.php?id=1&themeid=3",
+  "file": "95_placement_rounds",
+  "from": "h3:has-text('Tours d')",
+  "pad": 56
+ },
+ {
+  "user": "efournier",
+  "url": "/mod/stage/placement.php?id=1&themeid=3",
+  "file": "96_placement_renounce",
+  "from": "h2:has-text('Organismes proposés')",
+  "to": "h3:has-text('Mes vœux')",
+  "pad": 24
+ },
+ {
+  "user": "cmartin",
+  "url": "/mod/stage/entrydetail.php?id=1&entryid=14",
+  "file": "97_entry_origin",
+  "from": "h4:has-text('Organismes proposés')",
+  "bottom": "table.stage-detailtable:near(h4:has-text('Organismes proposés'))",
+  "pad": 24,
+  "maxheight": 420
  }
 ]

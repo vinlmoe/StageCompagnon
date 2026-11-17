@@ -40,6 +40,38 @@ changements. À tenir à jour à chaque modification de `version.php`.
     cinq champs de `stage_theme`. Sauvegarde et restauration, import de thématiques (réglage et
     organismes, sans la date de clôture), réinitialisation du cours (vœux et affectations
     supprimés, vœux rouverts), transfert d'un étudiant et données personnelles en tiennent compte.
+  - Améliorations après l'audit (version `2026111701`) :
+    - *Règle d'appariement* au choix par thématique : le tirage au sort, ou « le plus d'étudiants
+      placés » (flot de coût minimal : le plus d'étudiants placés, puis la plus petite somme des
+      rangs, le tirage départageant les égalités). L'algorithme est isolé dans
+      `classes/local/placement_matcher.php`, sans accès à la base.
+    - *Trace des tours* (`stage_placement_round`, `stage_placement_draw`) : graine du tirage, ordre
+      de passage, places de départ, vœux de chacun à ce moment et résultat. La page *Vœux et
+      appariement* liste les tours, les rejoue pour vérifier le résultat et les exporte.
+    - *Renoncement* : l'étudiant affecté peut renoncer à son organisme tant que sa demande n'est
+      pas déposée ; la place est libérée et ses vœux retirés. Un étudiant affecté ne peut déposer
+      de demande hors liste qu'après y avoir renoncé, et une demande hors liste retire ses vœux.
+    - L'appariement ne place plus un étudiant qui a déjà un stage en cours sur la thématique. Un
+      tour complémentaire ne propose que les organismes qui ont encore une place libre.
+    - *Vœux incomplets* (organismes ajoutés ou supprimés depuis la saisie) signalés à l'étudiant et à
+      la DEVE ; vœux renumérotés à la suppression d'un organisme.
+    - *Relance* des étudiants sans vœux complets trois jours avant la clôture, une fois par
+      campagne, par la tâche horaire (nouveau modèle de courriel personnalisable).
+    - *Période d'accueil* des organismes : montrée aux étudiants, reprise comme dates de la demande,
+      importable (colonnes « Début » et « Fin »).
+    - *Origine de la demande* (organisme attribué ou hors liste, avec le SIRET) affichée dans le
+      détail du stage et sur les pages de validation.
+    - *Journalisation* : cinq événements (vœux enregistrés, tour d'appariement, affectation modifiée
+      par la DEVE, renoncement, vœux rouverts).
+    - *Import Excel* : cellules telles que les tableurs les enregistrent (nombres décimaux ou en
+      notation scientifique, téléphone privé de son 0, dates du tableur) ; refus de ramener un
+      organisme sous le nombre d'étudiants affectés. Vérifié sur un classeur enregistré par
+      LibreOffice Calc, joint aux tests.
+    - Affichage et exports sortis de `placementlib.php` (`classes/output/placement_view.php`,
+      `classes/local/placement_export.php`), courriels dans `classes/local/placement_notifier.php`.
+    - Vérifications : suites PHPUnit sur PostgreSQL 16, MariaDB 10.11 et Moodle 4.3 sous PHP 8.0
+      (où un test utilisait une assertion absente de PHPUnit 9.5) ; scénarios Behat ;
+      courriels envoyés par le vrai cron à un serveur SMTP local.
   - Audit du code (`docs/audit/audit-organismes-proposes.tex`) : aucun défaut critique ni faille
     de sécurité ; trois défauts majeurs et seize mineurs corrigés. La dispense de SIRET à
     l'étranger exige un pays, qui ne soit pas la France. La réinitialisation du cours efface aussi

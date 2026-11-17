@@ -1,0 +1,108 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace mod_stage\event;
+
+/**
+ * Socle des événements des thématiques à organismes proposés : vœux, appariement, affectations.
+ *
+ * Ils sont déclenchés par stage_placement_trigger_event() (placementlib.php), une fois la base
+ * mise à jour. « other » porte toujours l'identifiant de la thématique (themeid), plus les données
+ * propres à chaque événement. L'objet est la thématique, sauf pour un tour d'appariement, dont
+ * l'objet est le tour lui-même (table stage_placement_round).
+ *
+ * @package mod_stage
+ * @copyright 2026 Sébastien Lefebvre
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+abstract class placement_event_base extends \core\event\base {
+    /** @var string Lettre CRUD de l'événement. */
+    const CRUD = 'u';
+
+    /** @var int Niveau éducatif de l'événement. */
+    const EDULEVEL = self::LEVEL_TEACHING;
+
+    /** @var string Table de l'objet de l'événement. */
+    const OBJECTTABLE = 'stage_theme';
+
+    /**
+     * Initialise les données communes.
+     *
+     * @return void
+     */
+    protected function init() {
+        $this->data['crud'] = static::CRUD;
+        $this->data['edulevel'] = static::EDULEVEL;
+        $this->data['objecttable'] = static::OBJECTTABLE;
+    }
+
+    /**
+     * Nom lisible, tiré de la chaîne de langue « event » suivie du nom de la classe sans tiret bas.
+     *
+     * @return string
+     */
+    public static function get_name() {
+        $short = substr(strrchr(static::class, '\\'), 1);
+        return get_string('event' . str_replace('_', '', $short), 'mod_stage');
+    }
+
+    /**
+     * Page des vœux et de l'appariement de la thématique.
+     *
+     * @return \moodle_url
+     */
+    public function get_url() {
+        return new \moodle_url('/mod/stage/placement_matching.php', [
+            'id' => $this->contextinstanceid,
+            'themeid' => $this->other['themeid'],
+        ]);
+    }
+
+    /**
+     * La thématique doit toujours être renseignée.
+     *
+     * @return void
+     * @throws \coding_exception
+     */
+    protected function validate_data() {
+        parent::validate_data();
+        if (!isset($this->other['themeid'])) {
+            throw new \coding_exception('The \'themeid\' value must be set in other.');
+        }
+    }
+
+    /**
+     * Correspondance de l'objet lors d'une restauration de journaux.
+     *
+     * @return array
+     */
+    public static function get_objectid_mapping() {
+        return ['db' => static::OBJECTTABLE, 'restore' => static::OBJECTTABLE];
+    }
+
+    /**
+     * Correspondances de « other » lors d'une restauration de journaux.
+     *
+     * @return array
+     */
+    public static function get_other_mapping() {
+        return [
+            'themeid' => ['db' => 'stage_theme', 'restore' => 'stage_theme'],
+            'offerid' => ['db' => 'stage_placement_offer', 'restore' => 'stage_placement_offer'],
+            'previousofferid' => ['db' => 'stage_placement_offer', 'restore' => 'stage_placement_offer'],
+        ];
+    }
+}

@@ -261,6 +261,11 @@ class theme_edit_form extends \moodleform {
         $mform->addHelpButton('placementdeadline', 'placementdeadline', 'mod_stage');
         $mform->hideIf('placementdeadline', 'placementenabled', 'notchecked');
 
+        $mform->addElement('select', 'placementmode', get_string('placementmode', 'mod_stage'), stage_placement_mode_options());
+        $mform->setDefault('placementmode', STAGE_PLACEMENT_MODE_DRAW);
+        $mform->addHelpButton('placementmode', 'placementmode', 'mod_stage');
+        $mform->hideIf('placementmode', 'placementenabled', 'notchecked');
+
         $mform->addElement('advcheckbox', 'placementofflist', get_string('placementofflist', 'mod_stage'));
         $mform->addHelpButton('placementofflist', 'placementofflist', 'mod_stage');
         $mform->hideIf('placementofflist', 'placementenabled', 'notchecked');

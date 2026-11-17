@@ -96,6 +96,14 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
                 '/activity/stage/themes/theme/placementoffers/placementoffer/placementwishes/placementwish'
             );
             $paths[] = new restore_path_element(
+                'stage_placement_round',
+                '/activity/stage/themes/theme/placementrounds/placementround'
+            );
+            $paths[] = new restore_path_element(
+                'stage_placement_draw',
+                '/activity/stage/themes/theme/placementrounds/placementround/placementdraws/placementdraw'
+            );
+            $paths[] = new restore_path_element(
                 'stage_placement_assign',
                 '/activity/stage/themes/theme/placementoffers/placementoffer/placementassigns/placementassign'
             );
@@ -173,6 +181,7 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         if (!$this->get_setting_value('userinfo')) {
             $data->placementdeadline = 0;
             $data->placementmatchedtime = 0;
+            $data->placementremindertime = 0;
         }
 
         // La thématique porte désormais des fichiers (les documents d'objectifs) : la
@@ -276,6 +285,57 @@ class restore_stage_activity_structure_step extends restore_activity_structure_s
         $data->themeid = $this->get_new_parentid('stage_theme');
 
         $DB->insert_record('stage_placement_wish', $data);
+    }
+
+    /**
+     * Restaure un tour d'appariement. Les places de départ sont indexées par organisme : les
+     * identifiants sont remplacés par ceux de la copie.
+     *
+     * @param array $data
+     */
+    protected function process_stage_placement_round($data) {
+        global $DB;
+
+        $data = (object) $data;
+        $oldid = $data->id;
+        $data->themeid = $this->get_new_parentid('stage_theme');
+        $data->runby = empty($data->runby) ? null : ($this->get_mappingid('user', $data->runby) ?: null);
+        $places = [];
+        foreach ((array) json_decode((string) $data->places, true) as $offerid => $count) {
+            $newofferid = $this->get_mappingid('stage_placement_offer', $offerid);
+            if ($newofferid) {
+                $places[$newofferid] = (int) $count;
+            }
+        }
+        $data->places = json_encode($places);
+        $newitemid = $DB->insert_record('stage_placement_round', $data);
+        $this->set_mapping('stage_placement_round', $oldid, $newitemid);
+    }
+
+    /**
+     * Restaure la place d'un étudiant dans un tour d'appariement. Ses vœux, identifiants
+     * d'organismes séparés par des virgules, sont remis sur les organismes de la copie.
+     *
+     * @param array $data
+     */
+    protected function process_stage_placement_draw($data) {
+        global $DB;
+
+        $data = (object) $data;
+        unset($data->id);
+        $data->userid = $this->get_mappingid('user', $data->userid);
+        $data->roundid = $this->get_new_parentid('stage_placement_round');
+        $same = ['roundid' => $data->roundid, 'userid' => $data->userid];
+        if (!$data->userid || $DB->record_exists('stage_placement_draw', $same)) {
+            return;
+        }
+        $wishes = $data->wishes === null || $data->wishes === '' ? [] : explode(',', $data->wishes);
+        $data->wishes = implode(',', array_map(
+            fn($offerid) => (int) $this->get_mappingid('stage_placement_offer', $offerid),
+            $wishes
+        ));
+        $data->offerid = empty($data->offerid) ? null : ($this->get_mappingid('stage_placement_offer', $data->offerid) ?: null);
+        $DB->insert_record('stage_placement_draw', $data);
     }
 
     /**

@@ -68,6 +68,9 @@ if ($template) {
         foreach (array_keys($headers) as $col => $field) {
             if ($field === 'places') {
                 $sheet->write_number($row, $col, (int) $offer->places);
+            } else if ($field === 'datestart' || $field === 'dateend') {
+                // En texte jj/mm/aaaa : relu tel quel, ou comme date si le tableur l'a convertie.
+                $sheet->write_string($row, $col, $offer->$field ? userdate($offer->$field, '%d/%m/%Y') : '');
             } else {
                 $sheet->write_string($row, $col, (string) $offer->$field);
             }

@@ -260,11 +260,130 @@ se desserre en un point : \code{stage_placement_request_errors()}.
     invariants respectés. Une cinquième vague, sur MariaDB, donne le même résultat.
 \end{itemize}
 
+\section{Améliorations après l'audit}\label{sec:ameliorations}
+
+La liste des points à améliorer dressée à la fin de l'audit a été traitée en entier (version
+\code{2026111701}). Chaque point est vérifié par un test PHPUnit ou un scénario Behat, sauf mention
+contraire.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}r X l@{}}
+\toprule
+& \textbf{Point} & \textbf{Traitement} \\
+\midrule
+1 & Places libres pendant que des étudiants restent sans affectation & règle au choix ; tour complémentaire limité aux places libres \\
+2 & Demande figée sur l'organisme attribué & règle gardée ; renoncement ajouté \\
+3 & Vœux incomplets après un changement de la liste & signalés ; vœux renumérotés \\
+4 & Aucune relance avant la clôture & relance automatique \\
+5 & Organismes à dates fixes & période d'accueil, préremplie et importable \\
+6 & Étudiant hors liste encore apparié & exclu de l'appariement ; vœux retirés \\
+7 & Décisions non journalisées & cinq événements \\
+8 & Tirage non rejouable & trace complète, vérification, export \\
+9 & Origine de la demande invisible & affichée au détail et à la validation \\
+10 & Places réduites sous les affectés par l'import & refusé \\
+11 & Borne basse non vérifiée & Moodle~4.3 sous PHP~8.0 joué ; un test corrigé \\
+12 & Erreur 500 sur \code{/my/} avec MariaDB & non reproduite \\
+13 & Courriels jamais passés par un vrai cron & vérifié, SMTP réel \\
+14 & Page \code{convention_request.php} hors navigateur & scénario Behat \\
+15 & Classeurs réels non testés & classeur LibreOffice ; cellules normalisées \\
+16 & \code{placementlib.php} trop gros & quatre classes extraites \\
+17 & PDF non recompilés & recompilés \\
+18 & Guide de l'enseignant référent muet & section ajoutée \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Appariement}
+
+\begin{itemize}
+  \item \textbf{Règle au choix} (point~1). La thématique choisit entre le tirage au sort et
+    \og le plus d'étudiants placés\fg{}. La seconde règle est un flot de coût minimal : parmi
+    toutes les affectations possibles, celle qui place le plus d'étudiants, puis celle dont la
+    somme des rangs de vœux est la plus petite ; l'ordre tiré au sort départage les égalités. Elle
+    n'est pas à l'abri d'un classement stratégique des vœux, ce que l'aide du réglage dit. Sur
+    300~promotions tirées au hasard, elle ne place jamais moins d'étudiants que le tirage. Les
+    mesures sont dans \code{test-de-charge-organismes.tex} (section \og Les deux règles d'appariement\fg{}) : sur les mêmes vœux, la seconde règle place de 38 à 102~étudiants de plus par tour, sans perte de premiers vœux dans quatre tours sur cinq.
+  \item \textbf{Tour complémentaire} (point~1). Après un appariement, des vœux rouverts ne portent
+    que sur les organismes qui ont encore une place.
+  \item \textbf{Étudiant hors liste} (point~6). Un étudiant qui a déjà un stage en cours sur la
+    thématique n'est pas apparié. Une demande hors liste retire ses vœux ; un étudiant affecté doit
+    d'abord renoncer à son affectation.
+  \item \textbf{Trace} (point~8). Chaque tour enregistre la règle, la graine du tirage, les places
+    de départ, et pour chaque étudiant son rang de passage, ses vœux à ce moment et le résultat.
+    L'ordre est tiré par un générateur propre au module, indépendant de \code{mt_rand()} et de la
+    version de PHP. \og Vérifier\fg{} rejoue le tour à partir de sa trace ; \og Exporter\fg{} la
+    donne en tableau. Une trace altérée est détectée par les tests. La trace suit la sauvegarde,
+    la restauration, la réinitialisation et la suppression des données personnelles.
+  \item \textbf{Journalisation} (point~7). Vœux enregistrés, tour d'appariement, affectation
+    modifiée par la DEVE, renoncement et réouverture des vœux sont des événements Moodle.
+\end{itemize}
+
+\subsection{Étudiants}
+
+\begin{itemize}
+  \item \textbf{Renoncement} (point~2). La règle stricte est gardée : une demande ouverte à partir
+    d'une affectation porte sur l'organisme attribué. La souplesse passe par une autre voie :
+    tant que sa demande n'est pas déposée, l'étudiant peut renoncer à son affectation. La place
+    est libérée, ses vœux retirés, et il peut déposer une demande hors liste si la thématique
+    l'admet.
+  \item \textbf{Vœux incomplets} (point~3). Des vœux enregistrés avant l'ajout d'organismes sont
+    signalés à l'étudiant et comptés pour la DEVE. La suppression d'un organisme fait remonter les
+    vœux suivants, sans trou dans le classement.
+  \item \textbf{Relance} (point~4). Trois jours avant la clôture, la tâche horaire relance une fois
+    les étudiants sans vœux ou aux vœux incomplets.
+  \item \textbf{Période d'accueil} (point~5). Un organisme peut avoir une période imposée : elle est
+    montrée, préremplit les dates de la demande et s'importe.
+\end{itemize}
+
+\subsection{DEVE et enseignants}
+
+\begin{itemize}
+  \item \textbf{Origine de la demande} (point~9), au détail du stage et sur les pages de
+    validation : organisme attribué, avec le rang du vœu et l'auteur de l'affectation, ou demande
+    hors liste avec son SIRET.
+  \item \textbf{Import} (points 10 et 15). Un classeur enregistré par LibreOffice Calc à partir d'un
+    CSV a montré les pièges réels : SIRET et nombre de places enregistrés comme des nombres,
+    téléphone privé de son 0 initial, dates converties en numéros de série. L'import les remet en
+    forme ; ce classeur est joint aux tests. Il refuse aussi de ramener un organisme sous le nombre
+    d'étudiants affectés. Aucun classeur enregistré par Excel n'a pu être testé ici.
+  \item \textbf{Guides} (points 17 et 18). Les trois guides sont recompilés, avec de nouvelles
+    captures ; le guide de l'enseignant référent explique l'origine d'une demande.
+\end{itemize}
+
+\subsection{Vérifications}
+
+\begin{itemize}
+  \item \textbf{Borne basse} (point~11). PHP~8.0.30 a été compilé depuis ses sources officielles,
+    contre OpenSSL~1.1.1 (PHP~8.0 ne compile pas avec l'OpenSSL~3 d'Ubuntu~24.04), et Moodle~4.3
+    installé dessous. Toute la suite y passe, après une correction : un test utilisait
+    \code{assertObjectNotHasProperty()}, absente de la version de PHPUnit livrée avec Moodle~4.3.
+    La CI aurait échoué sur ce point. Les 211~fichiers du module passent l'analyse de syntaxe de
+    PHP~8.0.
+  \item \textbf{Erreur 500 sur MariaDB} (point~12). L'incident, vu une fois sur le tableau de bord
+    de Moodle pendant les connexions qui précèdent une vague, n'a pas été reproduit : 720~premières
+    connexions simultanées d'utilisateurs neufs, caches chauds puis vidés, sans une réponse~500
+    ni interblocage dans MariaDB. La page n'appartient pas au module. Sa cause reste inconnue.
+  \item \textbf{Courriels} (point~13). Avec un serveur SMTP local et le vrai lanceur de tâches de
+    Moodle : la relance est partie aux 6~étudiants attendus sur~12 (2 aux vœux incomplets, 4 sans
+    vœux) ; à la clôture, la tâche planifiée a apparié et prévenu les 8~étudiants qui avaient des
+    vœux ; un tour lancé par la DEVE a mis son annonce en file, envoyée par le lanceur de tâches
+    ponctuelles. Textes en français, liens corrects.
+  \item \textbf{Page de demande d'un stage enregistré} (point~14) : scénario Behat, stage
+    enregistré chez l'organisme attribué (affectation utilisée, sans SIRET) et ailleurs (SIRET
+    exigé).
+  \item \textbf{Découpage} (point~16). \code{placementlib.php} passe de 1\,537 à 1\,267~lignes :
+    l'algorithme (\code{placement_matcher}), les courriels (\code{placement_notifier}), l'affichage
+    (\code{output\\placement_view}) et les exports (\code{placement_export}) sont des classes.
+\end{itemize}
+
 \section{Suite}
 
 \begin{itemize}
-  \item Faire jouer la CI avant toute fusion, pour la borne basse (Moodle~4.3 avec PHP~8.0).
-  \item Confirmer la décision de la section~\ref{sec:decision}.
+  \item Faire jouer la CI avant toute fusion.
+  \item Choisir, thématique par thématique, la règle d'appariement : le tirage au sort quand
+    l'honnêteté des vœux prime, \og le plus d'étudiants placés\fg{} quand il faut remplir les places.
+  \item Tester l'import avec un classeur enregistré par Excel.
 \end{itemize}
 
 \end{document}

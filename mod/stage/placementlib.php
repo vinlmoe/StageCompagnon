@@ -222,6 +222,12 @@ function stage_placement_clean_offer($data) {
     if (property_exists($data, 'places')) {
         $clean->places = max(1, (int) $data->places);
     }
+    // Période d'accueil imposée par l'organisme (0 : libre).
+    foreach (['datestart', 'dateend'] as $field) {
+        if (property_exists($data, $field)) {
+            $clean->$field = max(0, (int) $data->$field);
+        }
+    }
     if (property_exists($data, 'description')) {
         $clean->description = trim((string) $data->description);
     }
@@ -312,8 +318,17 @@ function stage_placement_delete_offer($themeid, $offerid) {
             return false;
         }
         $transaction = $DB->start_delegated_transaction();
+        $users = $DB->get_fieldset_select('stage_placement_wish', 'userid', 'offerid = ?', [$offerid]);
         $DB->delete_records('stage_placement_wish', ['offerid' => $offerid]);
         $DB->delete_records('stage_placement_offer', ['id' => $offerid]);
+        // Les vœux suivants remontent d'un rang : pas de trou dans le classement de l'étudiant.
+        foreach ($users as $userid) {
+            $rank = 0;
+            $rows = $DB->get_records('stage_placement_wish', ['themeid' => $themeid, 'userid' => $userid], 'wishrank ASC, id ASC');
+            foreach ($rows as $row) {
+                $DB->set_field('stage_placement_wish', 'wishrank', ++$rank, ['id' => $row->id]);
+            }
+        }
         $transaction->allow_commit();
     } finally {
         $lock->release();
@@ -322,8 +337,8 @@ function stage_placement_delete_offer($themeid, $offerid) {
 }
 
 /**
- * Supprime tout ce qui se rattache aux organismes proposés de thématiques : organismes, vœux et
- * affectations (suppression d'une thématique ou de l'activité).
+ * Supprime tout ce qui se rattache aux organismes proposés de thématiques : organismes, vœux,
+ * affectations et trace des tours d'appariement (suppression d'une thématique ou de l'activité).
  *
  * @param int[] $themeids
  * @return void
@@ -333,6 +348,7 @@ function stage_placement_delete_themes_data(array $themeids) {
 
     foreach (array_chunk(array_values($themeids), STAGE_SQL_CHUNK) as $chunk) {
         [$insql, $inparams] = $DB->get_in_or_equal($chunk);
+        stage_placement_delete_rounds("themeid $insql", $inparams);
         foreach (['stage_placement_assign', 'stage_placement_wish', 'stage_placement_offer'] as $table) {
             $DB->delete_records_select($table, "themeid $insql", $inparams);
         }
@@ -355,7 +371,9 @@ function stage_placement_reset_userdata($stageid) {
         [$insql, $inparams] = $DB->get_in_or_equal($chunk);
         $DB->delete_records_select('stage_placement_assign', "themeid $insql", $inparams);
         $DB->delete_records_select('stage_placement_wish', "themeid $insql", $inparams);
+        stage_placement_delete_rounds("themeid $insql", $inparams);
     }
+    $DB->set_field('stage_theme', 'placementremindertime', 0, ['stageid' => $stageid]);
     // La date de clôture, déjà passée, est effacée avec l'appariement : sans cela la tâche planifiée
     // refermerait la campagne dans l'heure, avant que la nouvelle promotion ait saisi un vœu.
     $DB->set_field('stage_theme', 'placementmatchedtime', 0, ['stageid' => $stageid]);
@@ -380,6 +398,31 @@ function stage_placement_delete_users_data($stageid, array $userids) {
         $themes = "themeid IN (SELECT id FROM {stage_theme} WHERE stageid = :stageid)";
         $DB->delete_records_select('stage_placement_assign', "$themes AND userid $usersql", $params);
         $DB->delete_records_select('stage_placement_wish', "$themes AND userid $usersql", $params);
+        // Leur place dans la trace des tours d'appariement ; le reste de la trace demeure.
+        $DB->delete_records_select(
+            'stage_placement_draw',
+            "roundid IN (SELECT r.id FROM {stage_placement_round} r JOIN {stage_theme} t ON t.id = r.themeid
+                          WHERE t.stageid = :stageid) AND userid $usersql",
+            $params
+        );
+    }
+}
+
+/**
+ * Supprime des tours d'appariement et leur trace.
+ *
+ * @param string $select Condition sur stage_placement_round.
+ * @param array $params Paramètres de la condition.
+ * @return void
+ */
+function stage_placement_delete_rounds($select, array $params) {
+    global $DB;
+
+    $roundids = $DB->get_fieldset_select('stage_placement_round', 'id', $select, $params);
+    foreach (array_chunk($roundids, STAGE_SQL_CHUNK) as $chunk) {
+        [$insql, $inparams] = $DB->get_in_or_equal($chunk);
+        $DB->delete_records_select('stage_placement_draw', "roundid $insql", $inparams);
+        $DB->delete_records_select('stage_placement_round', "id $insql", $inparams);
     }
 }
 
@@ -428,6 +471,73 @@ function stage_placement_required_wishes(stdClass $theme, $offercount) {
 }
 
 /**
+ * Organismes que l'étudiant peut classer. Avant le premier appariement, tous les organismes proposés.
+ * Vœux rouverts après un appariement (tour complémentaire) : seuls ceux qui ont encore une place
+ * libre, puisque l'appariement ne peut rien attribuer d'autre.
+ *
+ * @param stdClass $theme
+ * @return array id => organisme.
+ */
+function stage_placement_wishable_offers(stdClass $theme) {
+    global $DB;
+
+    $offers = stage_placement_get_offers($theme->id);
+    if (!$DB->record_exists('stage_placement_round', ['themeid' => $theme->id])) {
+        return $offers;
+    }
+    $remaining = stage_placement_remaining_places($offers, stage_placement_get_assignments($theme->id));
+    return array_filter($offers, fn($offer) => $remaining[(int) $offer->id] > 0);
+}
+
+/**
+ * Nombre de vœux qui manquent à un étudiant qui en a enregistré : des organismes ont pu être
+ * ajoutés depuis, ou supprimés. 0 si ses vœux sont complets, ou s'il n'en a aucun.
+ *
+ * @param stdClass $theme
+ * @param int $wishcount Vœux enregistrés par l'étudiant.
+ * @param int $offercount Organismes qu'il peut classer (voir stage_placement_wishable_offers()).
+ * @return int
+ */
+function stage_placement_missing_wishes(stdClass $theme, $wishcount, $offercount) {
+    return $wishcount > 0 ? max(0, stage_placement_required_wishes($theme, $offercount) - (int) $wishcount) : 0;
+}
+
+/**
+ * L'étudiant renonce à l'organisme qui lui a été attribué : la place est libérée pour un autre, et
+ * ses vœux sont retirés pour qu'un tour complémentaire ne le replace pas. Il peut ensuite déposer
+ * une demande hors liste, si la thématique l'autorise. Impossible une fois sa demande de convention
+ * déposée à partir de l'affectation.
+ *
+ * @param stdClass $theme
+ * @param int $userid
+ * @return string|null Identifiant de la chaîne d'erreur, ou null si le renoncement est enregistré.
+ */
+function stage_placement_renounce(stdClass $theme, $userid) {
+    global $DB;
+
+    $lock = stage_get_activity_lock($theme->stageid);
+    try {
+        $assignment = stage_placement_get_assignment($theme->id, $userid);
+        if (!$assignment) {
+            return 'placementnotusable';
+        }
+        if (!stage_placement_assignment_usable($assignment)) {
+            return 'placementrequestalreadydone';
+        }
+        $transaction = $DB->start_delegated_transaction();
+        $DB->delete_records('stage_placement_assign', ['id' => $assignment->id]);
+        $DB->delete_records('stage_placement_wish', ['themeid' => $theme->id, 'userid' => $userid]);
+        $transaction->allow_commit();
+    } finally {
+        $lock->release();
+    }
+    stage_placement_trigger_event(\mod_stage\event\placement_assignment_renounced::class, $theme, $userid, 0, [
+        'offerid' => (int) $assignment->offerid,
+    ]);
+    return null;
+}
+
+/**
  * Enregistre les vœux d'un étudiant, qui remplacent les précédents. Une liste vide retire les vœux.
  *
  * @param stdClass $theme
@@ -450,7 +560,7 @@ function stage_placement_save_wishes(stdClass $theme, $userid, array $offerids) 
         if ($DB->record_exists('stage_placement_assign', ['themeid' => $theme->id, 'userid' => $userid])) {
             return 'placementalreadyassigned';
         }
-        $offers = stage_placement_get_offers($theme->id);
+        $offers = stage_placement_wishable_offers($theme);
         if ($offerids) {
             if (count(array_unique($offerids)) !== count($offerids)) {
                 return 'placementwishesduplicate';
@@ -478,6 +588,9 @@ function stage_placement_save_wishes(stdClass $theme, $userid, array $offerids) 
     } finally {
         $lock->release();
     }
+    stage_placement_trigger_event(\mod_stage\event\placement_wishes_saved::class, $theme, $userid, 0, [
+        'count' => count($offerids),
+    ]);
     return null;
 }
 
@@ -691,32 +804,82 @@ function stage_placement_set_assignments(stdClass $theme, array $changes, $byuse
     } finally {
         $lock->release();
     }
+    foreach ($effective as $userid => $offerid) {
+        stage_placement_trigger_event(\mod_stage\event\placement_assignment_changed::class, $theme, $userid, 0, [
+            'offerid' => $offerid,
+            'previousofferid' => (int) ($assignments[$userid]->offerid ?? 0),
+        ]);
+    }
     return [];
 }
 
 /**
- * Apparie les étudiants aux organismes proposés d'une thématique.
+ * Règles d'appariement proposées, pour le réglage de la thématique.
  *
- * Les étudiants qui ont des vœux et pas encore d'affectation sont tirés au sort ; dans cet ordre,
- * chacun reçoit le mieux classé de ses vœux où il reste une place. Un étudiant dont tous les vœux
- * sont complets reste sans affectation. Avec cette règle, personne n'a intérêt à classer ses vœux
- * autrement que selon ses préférences réelles.
+ * @return string[] Code => libellé.
+ */
+function stage_placement_mode_options() {
+    return [
+        STAGE_PLACEMENT_MODE_DRAW => get_string('placementmodedraw', 'mod_stage'),
+        STAGE_PLACEMENT_MODE_MAXPLACED => get_string('placementmodemaxplaced', 'mod_stage'),
+    ];
+}
+
+/**
+ * Règle d'appariement d'une thématique, ramenée au tirage au sort si la valeur est inconnue.
  *
- * Seuls les étudiants sans affectation sont traités, dans la limite des places restantes : rejouer
- * l'appariement ne défait rien et sert de tour complémentaire (places ajoutées, affectations
- * retirées par la DEVE). Les étudiants qui ne sont plus inscrits au cours sont ignorés.
+ * @param stdClass $theme
+ * @return string
+ */
+function stage_placement_mode(stdClass $theme) {
+    $mode = (string) ($theme->placementmode ?? '');
+    return array_key_exists($mode, stage_placement_mode_options()) ? $mode : STAGE_PLACEMENT_MODE_DRAW;
+}
+
+/**
+ * Étudiants qui ont déjà un stage en cours (non annulé) sur une thématique : enregistré par la
+ * DEVE, déposé hors liste ou à partir d'une affectation. L'appariement ne leur attribue pas de
+ * place qu'ils n'utiliseraient pas.
+ *
+ * @param stdClass $theme
+ * @return int[] Identifiants des étudiants, en clés.
+ */
+function stage_placement_users_with_entry(stdClass $theme) {
+    global $DB;
+
+    $userids = $DB->get_fieldset_select(
+        'stage_entry',
+        'DISTINCT userid',
+        'stageid = :stageid AND themeid = :themeid AND status <> :cancelled',
+        ['stageid' => $theme->stageid, 'themeid' => $theme->id, 'cancelled' => STAGE_STATUS_ANNULE]
+    );
+    return array_fill_keys(array_map('intval', $userids), true);
+}
+
+/**
+ * Apparie les étudiants aux organismes proposés d'une thématique, selon sa règle (voir
+ * \mod_stage\local\placement_matcher).
+ *
+ * Seuls passent les étudiants inscrits qui ont des vœux, pas encore d'affectation, et pas déjà de
+ * stage en cours sur la thématique. Rejouer l'appariement ne défait rien : c'est un tour
+ * complémentaire sur les places restantes.
+ *
+ * Chaque tour est consigné (stage_placement_round, stage_placement_draw) : graine et ordre de
+ * passage, places de départ, vœux de chaque étudiant à ce moment et résultat. Le tour peut ainsi
+ * être rejoué à l'identique (stage_placement_replay_round()), pour justifier une affectation.
  *
  * @param stdClass $theme
  * @param int[]|null $order Ordre de passage imposé (tests) ; tirage au sort par défaut.
  * @param bool $onlyifdue Appariement automatique (tâche planifiée) : il n'a lieu que si, au moment
  *        de le faire, la thématique propose toujours des organismes, que ses vœux sont clos et
  *        qu'elle n'a pas déjà été appariée. La DEVE peut avoir repoussé la date entre-temps.
- * @return stdClass {assigned: userid => offerid, unassigned: userid[], skipped: bool}
+ * @param int|null $runby Membre de la DEVE qui lance le tour (null : tâche planifiée).
+ * @return stdClass {assigned: userid => offerid, unassigned: userid[], skipped: bool, roundid: int}
  */
-function stage_placement_run_matching(stdClass $theme, ?array $order = null, $onlyifdue = false) {
+function stage_placement_run_matching(stdClass $theme, ?array $order = null, $onlyifdue = false, $runby = null) {
     global $DB;
 
-    $result = (object) ['assigned' => [], 'unassigned' => [], 'skipped' => false];
+    $result = (object) ['assigned' => [], 'unassigned' => [], 'skipped' => false, 'roundid' => 0];
     $lock = stage_get_activity_lock($theme->stageid);
     try {
         // Relue sous le verrou : la thématique reçue peut dater de plusieurs minutes.
@@ -729,6 +892,7 @@ function stage_placement_run_matching(stdClass $theme, ?array $order = null, $on
         $assignments = stage_placement_get_assignments($theme->id);
         $remaining = stage_placement_remaining_places($offers, $assignments);
         $wishes = array_diff_key(stage_placement_get_all_wishes($theme->id), $assignments);
+        $wishes = array_diff_key($wishes, stage_placement_users_with_entry($theme));
 
         $cm = get_coursemodule_from_instance('stage', $theme->stageid, 0, false, IGNORE_MISSING);
         if ($cm) {
@@ -736,47 +900,140 @@ function stage_placement_run_matching(stdClass $theme, ?array $order = null, $on
             $wishes = array_intersect_key($wishes, $enrolled);
         }
 
-        $candidates = array_keys($wishes);
+        $seed = 0;
         if ($order !== null) {
-            $position = array_flip(array_values($order));
-            usort($candidates, fn($a, $b) => ($position[$a] ?? PHP_INT_MAX) <=> ($position[$b] ?? PHP_INT_MAX) ?: $a <=> $b);
+            $order = array_values(array_intersect(array_map('intval', $order), array_keys($wishes)));
+            $order = array_merge($order, array_values(array_diff(array_keys($wishes), $order)));
         } else {
-            shuffle($candidates);
+            $seed = random_int(1, 0x7fffffff);
+            $order = \mod_stage\local\placement_matcher::order(array_keys($wishes), $seed);
         }
+        $mode = stage_placement_mode($theme);
+        $matched = \mod_stage\local\placement_matcher::match($mode, $order, $wishes, $remaining);
 
         $transaction = $DB->start_delegated_transaction();
         $now = time();
-        foreach ($candidates as $userid) {
-            $assigned = false;
-            foreach ($wishes[$userid] as $index => $offerid) {
-                if (($remaining[$offerid] ?? 0) < 1) {
-                    continue;
-                }
-                $DB->insert_record('stage_placement_assign', (object) [
+        $roundid = $DB->insert_record('stage_placement_round', (object) [
+            'themeid' => $theme->id,
+            'mode' => $mode,
+            'seed' => $seed,
+            'places' => json_encode($remaining),
+            'runby' => $runby ?: null,
+            'candidates' => count($order),
+            'assigned' => count($matched),
+            'timecreated' => $now,
+        ]);
+        $assignrows = [];
+        $drawrows = [];
+        foreach ($order as $index => $userid) {
+            [$offerid, $rank] = $matched[$userid] ?? [null, 0];
+            $drawrows[] = (object) [
+                'roundid' => $roundid,
+                'userid' => $userid,
+                'position' => $index + 1,
+                'wishes' => core_text::substr(implode(',', $wishes[$userid]), 0, 255),
+                'offerid' => $offerid,
+                'wishrank' => $rank,
+            ];
+            if ($offerid) {
+                $assignrows[] = (object) [
                     'themeid' => $theme->id,
                     'userid' => $userid,
                     'offerid' => $offerid,
-                    'wishrank' => $index + 1,
+                    'wishrank' => $rank,
                     'timecreated' => $now,
                     'timemodified' => $now,
-                ]);
-                $remaining[$offerid]--;
+                ];
                 $result->assigned[$userid] = $offerid;
-                $assigned = true;
-                break;
-            }
-            if (!$assigned) {
+            } else {
                 $result->unassigned[] = $userid;
             }
         }
+        $DB->insert_records('stage_placement_draw', $drawrows);
+        $DB->insert_records('stage_placement_assign', $assignrows);
         if (empty($theme->placementmatchedtime)) {
             $DB->set_field('stage_theme', 'placementmatchedtime', $now, ['id' => $theme->id]);
         }
         $transaction->allow_commit();
+        $result->roundid = (int) $roundid;
     } finally {
         $lock->release();
     }
+    stage_placement_trigger_event(\mod_stage\event\placement_matching_run::class, $theme, null, $result->roundid, [
+        'mode' => $mode,
+        'candidates' => count($order),
+        'assigned' => count($result->assigned),
+    ]);
     return $result;
+}
+
+/**
+ * Rejoue un tour d'appariement à partir de sa trace : ordre de passage, vœux et places de départ.
+ *
+ * @param int $roundid
+ * @return stdClass {identical: bool, differences: userid[]} Les étudiants dont le résultat rejoué
+ *         diffère de celui qui a été enregistré.
+ */
+function stage_placement_replay_round($roundid) {
+    global $DB;
+
+    $round = $DB->get_record('stage_placement_round', ['id' => $roundid], '*', MUST_EXIST);
+    $draws = $DB->get_records('stage_placement_draw', ['roundid' => $round->id], 'position ASC');
+    $order = [];
+    $wishes = [];
+    foreach ($draws as $draw) {
+        $order[] = (int) $draw->userid;
+        $wishes[(int) $draw->userid] = $draw->wishes === null || $draw->wishes === ''
+            ? [] : array_map('intval', explode(',', $draw->wishes));
+    }
+    $places = array_map('intval', (array) json_decode((string) $round->places, true));
+    $replayed = \mod_stage\local\placement_matcher::match($round->mode, $order, $wishes, $places);
+    $differences = [];
+    foreach ($draws as $draw) {
+        $expected = $replayed[$draw->userid] ?? [null, 0];
+        if ((int) $draw->offerid !== (int) $expected[0] || (int) $draw->wishrank !== (int) $expected[1]) {
+            $differences[] = (int) $draw->userid;
+        }
+    }
+    return (object) ['identical' => !$differences, 'differences' => $differences];
+}
+
+/**
+ * Tours d'appariement d'une thématique, du plus récent au plus ancien.
+ *
+ * @param int $themeid
+ * @return array id => enregistrement stage_placement_round.
+ */
+function stage_placement_get_rounds($themeid) {
+    global $DB;
+
+    return $DB->get_records('stage_placement_round', ['themeid' => $themeid], 'timecreated DESC, id DESC');
+}
+
+/**
+ * Déclenche un événement des organismes proposés, dans le contexte du module de la thématique.
+ *
+ * @param string $class Classe d'événement (\mod_stage\event\placement_*).
+ * @param stdClass $theme
+ * @param int|null $relateduserid Étudiant concerné, s'il y en a un.
+ * @param int $objectid Objet de l'événement (voir la classe) ; la thématique par défaut.
+ * @param array $other Données propres à l'événement.
+ * @return void
+ */
+function stage_placement_trigger_event($class, stdClass $theme, $relateduserid = null, $objectid = 0, array $other = []) {
+    $cm = get_coursemodule_from_instance('stage', $theme->stageid, 0, false, IGNORE_MISSING);
+    if (!$cm) {
+        return;
+    }
+    $params = [
+        'context' => context_module::instance($cm->id),
+        'objectid' => $objectid ?: $theme->id,
+        'other' => ['themeid' => (int) $theme->id] + $other,
+    ];
+    if ($relateduserid) {
+        $params['relateduserid'] = $relateduserid;
+    }
+    $class::create($params)->trigger();
 }
 
 /**
@@ -797,57 +1054,23 @@ function stage_placement_get_themes_to_match($now = null) {
 }
 
 /**
- * Annonce à chaque étudiant le résultat de l'appariement : l'organisme auquel il est affecté, ou
- * l'absence d'affectation.
+ * Thématiques dont la clôture des vœux approche et dont les étudiants n'ont pas encore été relancés
+ * (tâche planifiée) : vœux ouverts, date de clôture dans moins de STAGE_PLACEMENT_REMINDER_DAYS jours.
  *
- * @param stdClass $stage
- * @param stdClass $cm Course module.
- * @param stdClass $theme
- * @param stdClass $result Retour de stage_placement_run_matching().
- * @return int Nombre de courriels partis.
+ * @param int|null $now
+ * @return array id => enregistrement stage_theme.
  */
-function stage_placement_notify_results(stdClass $stage, stdClass $cm, stdClass $theme, stdClass $result) {
+function stage_placement_get_themes_to_remind($now = null) {
     global $DB;
 
-    $userids = array_merge(array_keys($result->assigned), $result->unassigned);
-    if (!$userids) {
-        return 0;
-    }
-    $offers = stage_placement_get_offers($theme->id);
-    $url = new moodle_url('/mod/stage/placement.php', ['id' => $cm->id, 'themeid' => $theme->id]);
-    $sent = 0;
-    foreach (array_chunk($userids, STAGE_SQL_CHUNK) as $chunk) {
-        [$insql, $inparams] = $DB->get_in_or_equal($chunk);
-        $students = $DB->get_records_select('user', "id $insql AND deleted = 0", $inparams);
-        foreach ($students as $student) {
-            $lang = $student->lang ?: null;
-            $offerid = $result->assigned[$student->id] ?? 0;
-            $outcome = $offerid && isset($offers[$offerid])
-                ? get_string_manager()->get_string(
-                    'placementresultassigned',
-                    'mod_stage',
-                    stage_plain_string($offers[$offerid]->name),
-                    $lang
-                )
-                : get_string_manager()->get_string(
-                    empty($theme->placementofflist) ? 'placementresultnone' : 'placementresultnoneofflist',
-                    'mod_stage',
-                    null,
-                    $lang
-                );
-            $text = stage_resolve_email_text($stage->id, 'placementresult', [
-                'student' => fullname($student),
-                'stage' => stage_plain_string($stage->name),
-                'theme' => stage_plain_string($theme->name),
-                'result' => $outcome,
-                'url' => $url->out(false),
-            ], $lang);
-            if (email_to_user($student, core_user::get_noreply_user(), $text->subject, $text->body)) {
-                $sent++;
-            }
-        }
-    }
-    return $sent;
+    $now = $now ?? time();
+    return $DB->get_records_select(
+        'stage_theme',
+        'placementenabled = 1 AND placementmatchedtime = 0 AND placementremindertime = 0
+         AND placementdeadline > :now AND placementdeadline <= :limit',
+        ['now' => $now, 'limit' => $now + STAGE_PLACEMENT_REMINDER_DAYS * DAYSECS],
+        'id ASC'
+    );
 }
 
 /**
@@ -866,6 +1089,11 @@ function stage_placement_prefill(stdClass $offer) {
         }
     }
     $data['abroad'] = isset($data['country']) ? 1 : 0;
+    // Période d'accueil imposée : elle devient la plage de dates du stage, modifiable.
+    if (!empty($offer->datestart) && !empty($offer->dateend)) {
+        $data['perioddatestart'] = [(int) $offer->datestart];
+        $data['perioddateend'] = [(int) $offer->dateend];
+    }
     return $data;
 }
 
@@ -885,9 +1113,11 @@ function stage_placement_prefill(stdClass $offer) {
  * @param array $data Données soumises (structure, abroad, country, siret).
  * @param stdClass|null|false $assignment Affectation à partir de laquelle la demande est déposée.
  * @param bool $existingentry Le stage est déjà enregistré sur cette thématique.
+ * @param int $userid Étudiant qui dépose une nouvelle demande hors liste : s'il a une affectation
+ *        encore inutilisée sur la thématique, il doit d'abord y renoncer (0 : pas de contrôle).
  * @return array champ => message d'erreur
  */
-function stage_placement_request_errors($theme, array $data, $assignment, $existingentry = false) {
+function stage_placement_request_errors($theme, array $data, $assignment, $existingentry = false, $userid = 0) {
     global $DB;
 
     if (!$theme || empty($theme->placementenabled)) {
@@ -909,6 +1139,15 @@ function stage_placement_request_errors($theme, array $data, $assignment, $exist
     }
     if (empty($theme->placementofflist) && !$existingentry) {
         return ['themeid' => get_string('placementrequired', 'mod_stage')];
+    }
+    // Une place attribuée et une demande hors liste : l'étudiant garderait une place qu'il
+    // n'utilisera pas. Il renonce d'abord à son affectation (page des organismes).
+    if ($userid && !$existingentry) {
+        $held = stage_placement_get_assignment($theme->id, $userid);
+        if ($held && stage_placement_assignment_usable($held)) {
+            $offername = $DB->get_field('stage_placement_offer', 'name', ['id' => $held->offerid]);
+            return ['themeid' => get_string('placementrenouncefirst', 'mod_stage', format_string((string) $offername))];
+        }
     }
     if (stage_normalize_siret($data['siret'] ?? '') !== '') {
         return [];
@@ -1025,156 +1264,4 @@ function stage_placement_copy_offers($sourcethemeid, $targetthemeid) {
     foreach (stage_placement_get_offers($sourcethemeid) as $offer) {
         stage_placement_save_offer($targetthemeid, $offer);
     }
-}
-
-/**
- * Libellé d'un vœu satisfait : « vœu n° 2 », ou « hors vœux » pour une affectation décidée par la
- * DEVE en dehors des vœux de l'étudiant.
- *
- * @param int $wishrank
- * @return string
- */
-function stage_placement_rank_label($wishrank) {
-    return $wishrank > 0
-        ? get_string('placementwishrank', 'mod_stage', (int) $wishrank)
-        : get_string('placementoutsidewishes', 'mod_stage');
-}
-
-/**
- * Lieu d'un organisme proposé tel qu'il est montré dans les listes : son lieu de stage, à défaut
- * son adresse, suivi de son pays s'il est à l'étranger.
- *
- * @param stdClass $offer
- * @return string Texte brut.
- */
-function stage_placement_offer_place(stdClass $offer) {
-    $place = trim((string) $offer->location) !== '' ? $offer->location : (string) $offer->address;
-    $parts = array_filter([trim((string) $place), trim((string) $offer->country)], fn($part) => $part !== '');
-    return implode(' — ', $parts);
-}
-
-/**
- * Encart « Organismes proposés » du tableau de bord de l'étudiant : pour chaque thématique qui en
- * propose, où en sont ses vœux, son affectation et sa demande de convention, avec l'action à faire.
- *
- * @param stdClass $stage
- * @param stdClass $cm Course module.
- * @param int $userid
- * @return string HTML, vide si aucune thématique visible ne propose d'organismes.
- */
-function stage_placement_render_student_section(stdClass $stage, stdClass $cm, $userid) {
-    global $DB, $OUTPUT;
-
-    // Thématiques à organismes proposés visibles, et celles, même masquées depuis, où l'étudiant a
-    // déjà une affectation : il doit pouvoir y déposer sa demande. Affectations lues en une requête.
-    $assignments = [];
-    $sql = "SELECT a.*
-              FROM {stage_placement_assign} a
-              JOIN {stage_theme} t ON t.id = a.themeid
-             WHERE t.stageid = :stageid AND a.userid = :userid";
-    foreach ($DB->get_records_sql($sql, ['stageid' => $stage->id, 'userid' => $userid]) as $assignment) {
-        $assignments[(int) $assignment->themeid] = $assignment;
-    }
-    $themes = array_filter(stage_get_themes($stage->id), function ($theme) use ($assignments) {
-        return !empty($theme->placementenabled) && (!empty($theme->visible) || isset($assignments[(int) $theme->id]));
-    });
-    if (!$themes) {
-        return '';
-    }
-
-    $out = $OUTPUT->heading(get_string('placementoffers', 'mod_stage'), 4);
-    foreach ($themes as $theme) {
-        $state = stage_placement_state($theme);
-        $assignment = $assignments[(int) $theme->id] ?? null;
-        $wishesurl = new moodle_url('/mod/stage/placement.php', ['id' => $cm->id, 'themeid' => $theme->id]);
-        $lines = [];
-        $actions = [];
-
-        if ($assignment) {
-            $offer = $DB->get_record('stage_placement_offer', ['id' => $assignment->offerid]);
-            $lines[] = get_string('placementassignedto', 'mod_stage', (object) [
-                'name' => $offer ? format_string($offer->name) : '-',
-                'rank' => stage_placement_rank_label($assignment->wishrank),
-            ]);
-            if (stage_placement_assignment_usable($assignment)) {
-                $actions[get_string('placementcompleterequest', 'mod_stage')] = new moodle_url(
-                    '/mod/stage/student_register.php',
-                    ['id' => $cm->id, 'placement' => $theme->id]
-                );
-            } else {
-                $lines[] = get_string('placementrequestdone', 'mod_stage');
-            }
-            $actions[get_string('placementviewoffers', 'mod_stage')] = $wishesurl;
-        } else if ($state === STAGE_PLACEMENT_OPEN) {
-            $wishcount = count(stage_placement_get_wishes($theme->id, $userid));
-            $lines[] = !empty($theme->placementdeadline)
-                ? get_string('placementopenuntil', 'mod_stage', userdate($theme->placementdeadline))
-                : get_string('placementopen', 'mod_stage');
-            $lines[] = $wishcount
-                ? get_string('placementwishessaved', 'mod_stage', $wishcount)
-                : get_string('placementnowishes', 'mod_stage');
-            $actions[get_string($wishcount ? 'placementeditwishes' : 'placementmakewishes', 'mod_stage')] = $wishesurl;
-        } else if ($state === STAGE_PLACEMENT_CLOSED) {
-            $lines[] = get_string('placementclosedwaiting', 'mod_stage');
-            $actions[get_string('placementviewoffers', 'mod_stage')] = $wishesurl;
-        } else {
-            $lines[] = get_string(
-                empty($theme->placementofflist) ? 'placementresultnone' : 'placementresultnoneofflist',
-                'mod_stage'
-            );
-            $actions[get_string('placementviewoffers', 'mod_stage')] = $wishesurl;
-        }
-        if (!empty($theme->placementofflist) && !$assignment && $state !== STAGE_PLACEMENT_MATCHED) {
-            $lines[] = get_string('placementofflistinfo', 'mod_stage');
-        }
-
-        $body = html_writer::tag('strong', format_string($theme->name));
-        foreach ($lines as $line) {
-            $body .= html_writer::div($line);
-        }
-        $body .= html_writer::div(stage_render_actions($actions, 'btn btn-sm btn-primary mr-1 mb-1', ''), 'mt-2');
-        $out .= html_writer::div($body, 'stage-placement-card border rounded p-3 mb-3');
-    }
-    return $out;
-}
-
-/**
- * Tableau récapitulatif des affectations d'une thématique, pour l'export : un étudiant par ligne,
- * avec ses vœux dans l'ordre, l'organisme attribué et le rang du vœu satisfait.
- *
- * @param stdClass $theme
- * @param array $students Étudiants à lister (id => utilisateur).
- * @return array {columns: string[], rows: array[]}
- */
-function stage_placement_get_export(stdClass $theme, array $students) {
-    $offers = stage_placement_get_offers($theme->id);
-    $wishes = stage_placement_get_all_wishes($theme->id);
-    $assignments = stage_placement_get_assignments($theme->id);
-    $choices = max(1, (int) $theme->placementchoices);
-    foreach ($wishes as $userwishes) {
-        $choices = max($choices, count($userwishes));
-    }
-
-    $columns = [get_string('lastname'), get_string('firstname'), get_string('email')];
-    for ($rank = 1; $rank <= $choices; $rank++) {
-        $columns[] = get_string('placementwishrank', 'mod_stage', $rank);
-    }
-    $columns[] = get_string('placementassignment', 'mod_stage');
-    $columns[] = get_string('placementsatisfiedwish', 'mod_stage');
-
-    $rows = [];
-    foreach ($students as $student) {
-        $row = [$student->lastname, $student->firstname, $student->email];
-        $userwishes = $wishes[$student->id] ?? [];
-        for ($index = 0; $index < $choices; $index++) {
-            $offerid = $userwishes[$index] ?? 0;
-            $row[] = isset($offers[$offerid]) ? stage_plain_string($offers[$offerid]->name) : '';
-        }
-        $assignment = $assignments[$student->id] ?? null;
-        $row[] = $assignment && isset($offers[$assignment->offerid])
-            ? stage_plain_string($offers[$assignment->offerid]->name) : '';
-        $row[] = $assignment ? stage_placement_rank_label($assignment->wishrank) : '';
-        $rows[] = $row;
-    }
-    return ['columns' => $columns, 'rows' => $rows];
 }

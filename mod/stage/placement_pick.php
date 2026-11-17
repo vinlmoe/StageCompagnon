@@ -146,7 +146,7 @@ foreach ($organisations as $key => $organisation) {
             ? html_writer::span(get_string('placementpickalready', 'mod_stage'), 'badge badge-secondary')
             : html_writer::checkbox('pick[]', $key, false, '', ['aria-label' => $label, 'id' => 'pick_' . $key]),
         html_writer::label(format_string($organisation->name), $alreadyoffered ? null : 'pick_' . $key),
-        s(stage_placement_offer_place($organisation)),
+        s(\mod_stage\output\placement_view::offer_place($organisation)),
         s($organisation->siret),
         $organisation->count,
         $organisation->lastdate ? userdate($organisation->lastdate, get_string('strftimedatefullshort', 'langconfig')) : '-',

@@ -348,7 +348,8 @@ class student_register_form extends \moodleform {
             $this->_customdata['themes'][(int) $data['themeid']] ?? null,
             $data,
             $this->_customdata['assignment'] ?? null,
-            (int) ($this->_customdata['existingthemeid'] ?? 0) === (int) $data['themeid']
+            (int) ($this->_customdata['existingthemeid'] ?? 0) === (int) $data['themeid'],
+            (int) ($this->_customdata['userid'] ?? 0)
         );
         // Même chose pour le questionnaire de demande : seul celui de la thématique retenue compte.
         $errors += stage_validate_request_answers(

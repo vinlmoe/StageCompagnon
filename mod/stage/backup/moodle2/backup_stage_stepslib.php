@@ -62,6 +62,7 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             'sortorder', 'visible', 'tutorevaluationenabled', 'reportmode',
             'studentlistid', 'teacherlistid', 'tutorlistid', 'requestlistid',
             'placementenabled', 'placementchoices', 'placementdeadline', 'placementofflist', 'placementmatchedtime',
+            'placementmode', 'placementremindertime',
             'timecreated', 'timemodified',
         ]);
 
@@ -70,12 +71,22 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $placementoffers = new backup_nested_element('placementoffers');
         $placementoffer = new backup_nested_element('placementoffer', ['id'], [
             'name', 'address', 'representative', 'representativetitle', 'service', 'phone', 'email', 'location',
-            'siret', 'country', 'tutorname', 'tutorfunction', 'tutorphone', 'tutoremail', 'places', 'description',
+            'siret', 'country', 'tutorname', 'tutorfunction', 'tutorphone', 'tutoremail', 'places', 'datestart', 'dateend',
+            'description',
             'timecreated', 'timemodified',
         ]);
         $placementwishes = new backup_nested_element('placementwishes');
         $placementwish = new backup_nested_element('placementwish', ['id'], ['userid', 'wishrank', 'timecreated']);
         $placementassigns = new backup_nested_element('placementassigns');
+        // Trace des tours d'appariement : données des étudiants, sauvegardées avec elles seulement.
+        $placementrounds = new backup_nested_element('placementrounds');
+        $placementround = new backup_nested_element('placementround', ['id'], [
+            'mode', 'seed', 'places', 'runby', 'candidates', 'assigned', 'timecreated',
+        ]);
+        $placementdraws = new backup_nested_element('placementdraws');
+        $placementdraw = new backup_nested_element('placementdraw', ['id'], [
+            'userid', 'position', 'wishes', 'offerid', 'wishrank',
+        ]);
         $placementassign = new backup_nested_element('placementassign', ['id'], [
             'userid', 'wishrank', 'entryid', 'assignedby', 'timecreated', 'timemodified',
         ]);
@@ -198,6 +209,10 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $placementoffer->add_child($placementwishes);
         $placementwishes->add_child($placementwish);
         $placementoffer->add_child($placementassigns);
+        $theme->add_child($placementrounds);
+        $placementrounds->add_child($placementround);
+        $placementround->add_child($placementdraws);
+        $placementdraws->add_child($placementdraw);
         $placementassigns->add_child($placementassign);
 
         $stage->add_child($yearrequirements);
@@ -270,6 +285,8 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
             $entrychecklist->set_source_table('stage_entry_checklist', ['entryid' => backup::VAR_PARENTID], 'id');
             $placementwish->set_source_table('stage_placement_wish', ['offerid' => backup::VAR_PARENTID], 'id');
             $placementassign->set_source_table('stage_placement_assign', ['offerid' => backup::VAR_PARENTID], 'id');
+            $placementround->set_source_table('stage_placement_round', ['themeid' => backup::VAR_PARENTID], 'id');
+            $placementdraw->set_source_table('stage_placement_draw', ['roundid' => backup::VAR_PARENTID], 'position');
         }
 
         // Annotations d'identifiants.
@@ -291,6 +308,8 @@ class backup_stage_activity_structure_step extends backup_activity_structure_ste
         $placementwish->annotate_ids('user', 'userid');
         $placementassign->annotate_ids('user', 'userid');
         $placementassign->annotate_ids('user', 'assignedby');
+        $placementround->annotate_ids('user', 'runby');
+        $placementdraw->annotate_ids('user', 'userid');
 
         // Zones de fichiers. Les logos de convention n'ont pas d'itemid (toujours 0).
         $stage->annotate_files('mod_stage', 'intro', null);

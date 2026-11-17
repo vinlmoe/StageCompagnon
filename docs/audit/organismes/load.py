@@ -440,6 +440,8 @@ summary['final'] = {
 }
 os.makedirs('logs', exist_ok=True)
 summary['base'] = 'MariaDB' if MARIADB else 'PostgreSQL'
-json.dump(summary, open(f"logs/load-{'mariadb-' if MARIADB else ''}{THREADS}.json", 'w'), ensure_ascii=False, indent=1)
+summary['règle'] = site.get('mode', 'draw')
+name = f"{'mariadb-' if MARIADB else ''}{'maxplaced-' if summary['règle'] == 'maxplaced' else ''}{THREADS}"
+json.dump(summary, open(f"logs/load-{name}.json", 'w'), ensure_ascii=False, indent=1)
 print(json.dumps(summary, ensure_ascii=False, indent=1))
 sys.exit(1 if summary['erreurs'] else 0)

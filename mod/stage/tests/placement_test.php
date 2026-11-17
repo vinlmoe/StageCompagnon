@@ -44,8 +44,13 @@ require_once($CFG->dirroot . '/mod/stage/classes/form/placement_offer_form.php')
  * @covers     ::stage_placement_prefill
  * @covers     ::stage_placement_get_past_organisations
  * @covers     ::stage_placement_add_offers
- * @covers     ::stage_placement_notify_results
+ * @covers     ::stage_placement_replay_round
+ * @covers     ::stage_placement_renounce
+ * @covers     ::stage_placement_get_themes_to_remind
+ * @covers     ::stage_placement_wishable_offers
  * @covers     \mod_stage\local\placement_offer_importer
+ * @covers     \mod_stage\local\placement_matcher
+ * @covers     \mod_stage\local\placement_notifier
  * @covers     \mod_stage\task\run_placement_matching
  * @covers     \mod_stage\form\student_register_form
  * @covers     \mod_stage\form\convention_request_form
@@ -54,8 +59,8 @@ require_once($CFG->dirroot . '/mod/stage/classes/form/placement_offer_form.php')
  * @covers     ::stage_placement_clean_offer
  * @covers     ::stage_placement_offer_key
  * @covers     ::stage_placement_remaining_places
- * @covers     ::stage_placement_get_export
- * @covers     ::stage_placement_render_student_section
+ * @covers     \mod_stage\local\placement_export
+ * @covers     \mod_stage\output\placement_view
  * @covers     ::stage_placement_get_themes_to_match
  * @covers     ::stage_placement_delete_users_data
  */
@@ -419,8 +424,14 @@ final class placement_test extends \advanced_testcase {
         $this->assertNull($form->get_data());
         $this->assertNotEmpty($error($form, 'structure'));
 
-        // Hors liste autorisé : SIRET obligatoire en France, facultatif à l'étranger.
+        // Hors liste autorisé, mais l'étudiant garde une place : il doit d'abord y renoncer.
         $DB->set_field('stage_theme', 'placementofflist', 1, ['id' => $theme->id]);
+        $form = $make(['siret' => self::SIRET] + $base);
+        $this->assertNull($form->get_data());
+        $this->assertSame(get_string('placementrenouncefirst', 'mod_stage', 'Clinique A'), $error($form, 'themeid'));
+        $this->assertNull(stage_placement_renounce($this->reload($theme), $student->id));
+
+        // Hors liste autorisé : SIRET obligatoire en France, facultatif à l'étranger.
         $form = $make($base);
         $this->assertNull($form->get_data());
         $this->assertSame(get_string('placementsiretrequired', 'mod_stage'), $error($form, 'siret'));
@@ -674,8 +685,8 @@ final class placement_test extends \advanced_testcase {
         $this->assertSame(255, \core_text::strlen($clean->address), 'tronqué en caractères, pas en octets');
         $this->assertSame(1, $clean->places);
         $this->assertSame('Accueil en mars.', $clean->description);
-        $this->assertObjectNotHasProperty('themeid', $clean);
-        $this->assertObjectNotHasProperty('inconnu', $clean);
+        $this->assertFalse(property_exists($clean, 'themeid'));
+        $this->assertFalse(property_exists($clean, 'inconnu'));
 
         // Un champ absent reste absent : une mise à jour partielle n'efface rien.
         $partial = stage_placement_clean_offer(['places' => 4]);
@@ -878,7 +889,10 @@ final class placement_test extends \advanced_testcase {
         $theme = $this->reload($theme);
         $this->assertSame(STAGE_PLACEMENT_OPEN, stage_placement_state($theme));
         $this->assertSame('placementalreadyassigned', stage_placement_save_wishes($theme, $s1->id, [$c->id, $b->id]));
-        $this->assertNull(stage_placement_save_wishes($theme, $s2->id, [$c->id, $a->id]));
+        // Tour complémentaire : seuls les organismes qui ont une place libre se classent (ici C seul).
+        $this->assertSame([(int) $c->id], array_keys(stage_placement_wishable_offers($theme)));
+        $this->assertSame('placementwishesunknown', stage_placement_save_wishes($theme, $s2->id, [$c->id, $a->id]));
+        $this->assertNull(stage_placement_save_wishes($theme, $s2->id, [$c->id]));
 
         $result = stage_placement_run_matching($theme);
         $this->assertEquals([$s2->id => $c->id], $result->assigned);
@@ -896,7 +910,7 @@ final class placement_test extends \advanced_testcase {
         stage_placement_run_matching($theme, [$s1->id, $s2->id]);
         stage_placement_set_assignment($theme, $s3->id, $a->id, 2);
 
-        $export = stage_placement_get_export($theme, [$s1->id => $s1, $s2->id => $s2, $s3->id => $s3]);
+        $export = \mod_stage\local\placement_export::offers($theme, [$s1->id => $s1, $s2->id => $s2, $s3->id => $s3]);
         $this->assertCount(7, $export['columns']);
         $this->assertSame(
             [$s1->lastname, $s1->firstname, $s1->email, 'Clinique B', 'Clinique A', 'Clinique B',
@@ -927,7 +941,7 @@ final class placement_test extends \advanced_testcase {
         $cm = get_coursemodule_from_instance('stage', $stage->id, 0, false, MUST_EXIST);
         $PAGE->set_url('/mod/stage/view.php', ['id' => $cm->id]);
         $this->setUser($s1);
-        $render = fn($user) => stage_placement_render_student_section($stage, $cm, $user->id);
+        $render = fn($user) => \mod_stage\output\placement_view::student_section($stage, $cm, $user->id);
 
         $html = $render($s1);
         $this->assertStringContainsString('Clinique rurale', $html);
@@ -974,7 +988,7 @@ final class placement_test extends \advanced_testcase {
         $cm = get_coursemodule_from_instance('stage', $stage->id, 0, false, MUST_EXIST);
         $sink = $this->redirectEmails();
 
-        $sent = stage_placement_notify_results($stage, $cm, $theme, (object) [
+        $sent = \mod_stage\local\placement_notifier::results($stage, $cm, $theme, (object) [
             'assigned' => [$s1->id => $a->id], 'unassigned' => [$s2->id],
         ]);
 
@@ -989,7 +1003,8 @@ final class placement_test extends \advanced_testcase {
             get_string('placementresultnoneofflist', 'mod_stage'),
             preg_replace('/\s+/', ' ', $bodies[$s2->email])
         );
-        $this->assertSame(0, stage_placement_notify_results($stage, $cm, $theme, (object) ['assigned' => [], 'unassigned' => []]));
+        $none = (object) ['assigned' => [], 'unassigned' => []];
+        $this->assertSame(0, \mod_stage\local\placement_notifier::results($stage, $cm, $theme, $none));
     }
 
     /**
@@ -1307,9 +1322,9 @@ final class placement_test extends \advanced_testcase {
         $cm = get_coursemodule_from_instance('stage', $stage->id, 0, false, MUST_EXIST);
         $PAGE->set_url('/mod/stage/view.php', ['id' => $cm->id]);
 
-        $html = stage_placement_render_student_section($stage, $cm, $s1->id);
+        $html = \mod_stage\output\placement_view::student_section($stage, $cm, $s1->id);
         $this->assertStringContainsString(get_string('placementcompleterequest', 'mod_stage'), $html);
-        $this->assertSame('', stage_placement_render_student_section($stage, $cm, $s2->id));
+        $this->assertSame('', \mod_stage\output\placement_view::student_section($stage, $cm, $s2->id));
     }
 
     /**
@@ -1402,6 +1417,422 @@ final class placement_test extends \advanced_testcase {
     }
 
     /**
+     * Les deux règles sur un cas d'école : A et B veulent X puis Y, C ne veut que X, une place
+     * chacun. Le tirage dans l'ordre A, C, B laisse C sans place ; la règle « le plus d'étudiants
+     * placés » place A sur Y pour que C ait X.
+     */
+    public function test_matcher_rules(): void {
+        $wishes = [1 => [10, 20], 2 => [10, 20], 3 => [10]];
+        $places = [10 => 1, 20 => 1];
+        $draw = \mod_stage\local\placement_matcher::draw([1, 3, 2], $wishes, $places);
+        $this->assertSame([1 => [10, 1], 2 => [20, 2]], $draw);
+        $max = \mod_stage\local\placement_matcher::max_placed([1, 3, 2], $wishes, $places);
+        ksort($max);
+        $this->assertSame([1 => [20, 2], 3 => [10, 1]], $max);
+
+        // À nombre placés égal, la somme des rangs la plus petite l'emporte.
+        $max = \mod_stage\local\placement_matcher::max_placed([1, 2], [1 => [10, 20], 2 => [20, 10]], $places);
+        ksort($max);
+        $this->assertSame([1 => [10, 1], 2 => [20, 1]], $max);
+
+        // À tout égal, le premier de l'ordre passe devant.
+        $tie = \mod_stage\local\placement_matcher::max_placed([2, 1], [1 => [10], 2 => [10]], [10 => 1]);
+        $this->assertSame([2 => [10, 1]], $tie);
+        $this->assertSame([], \mod_stage\local\placement_matcher::max_placed([1], [1 => [10]], [10 => 0]));
+        $this->assertSame([], \mod_stage\local\placement_matcher::max_placed([], [], []));
+    }
+
+    /**
+     * Sur 300 promotions tirées au hasard, la règle « le plus d'étudiants placés » ne place jamais
+     * moins d'étudiants que le tirage, ne dépasse aucune place et n'affecte qu'à un vœu.
+     */
+    public function test_matcher_max_placed_dominates_draw(): void {
+        mt_srand(2026);
+        for ($run = 0; $run < 300; $run++) {
+            $offers = range(1, mt_rand(2, 8));
+            $places = [];
+            foreach ($offers as $offer) {
+                $places[$offer] = mt_rand(0, 3);
+            }
+            $wishes = [];
+            for ($user = 1; $user <= mt_rand(1, 20); $user++) {
+                $chosen = (array) array_rand(array_flip($offers), mt_rand(1, count($offers)));
+                shuffle($chosen);
+                $wishes[$user] = $chosen;
+            }
+            $order = \mod_stage\local\placement_matcher::order(array_keys($wishes), $run + 1);
+            $draw = \mod_stage\local\placement_matcher::draw($order, $wishes, $places);
+            $max = \mod_stage\local\placement_matcher::max_placed($order, $wishes, $places);
+            $this->assertGreaterThanOrEqual(count($draw), count($max), "tirage $run");
+            foreach (array_count_values(array_column($max, 0)) as $offer => $count) {
+                $this->assertLessThanOrEqual($places[$offer], $count, "tirage $run, organisme $offer");
+            }
+            foreach ($max as $user => [$offer, $rank]) {
+                $this->assertSame($offer, $wishes[$user][$rank - 1], "tirage $run, étudiant $user");
+            }
+        }
+    }
+
+    /**
+     * L'ordre de passage dépend de la graine seule, pas de l'ordre des identifiants reçus, et chaque
+     * étudiant a la même chance de passer le premier.
+     */
+    public function test_matcher_order_is_reproducible_and_fair(): void {
+        $order = \mod_stage\local\placement_matcher::order([9, 3, 5, 1], 42);
+        $this->assertSame($order, \mod_stage\local\placement_matcher::order([1, 3, 5, 9], 42));
+        $this->assertEqualsCanonicalizing([1, 3, 5, 9], $order);
+        $first = array_fill_keys([1, 2, 3, 4], 0);
+        for ($seed = 1; $seed <= 4000; $seed++) {
+            $first[\mod_stage\local\placement_matcher::order([1, 2, 3, 4], $seed)[0]]++;
+        }
+        foreach ($first as $user => $count) {
+            // Attendu : 1 000 ; écart-type d'environ 27. La borne laisse plus de 5 écarts-types.
+            $this->assertGreaterThan(850, $count, "étudiant $user");
+            $this->assertLessThan(1150, $count, "étudiant $user");
+        }
+    }
+
+    /**
+     * Règle « le plus d'étudiants placés » appliquée par l'appariement de la thématique.
+     */
+    public function test_matching_max_placed_mode(): void {
+        global $DB;
+        [, $theme, [$a, $b], [$s1, $s2, $s3]] = $this->fixture(3, ['placementmode' => STAGE_PLACEMENT_MODE_MAXPLACED]);
+        stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]);
+        stage_placement_save_wishes($theme, $s2->id, [$a->id, $b->id]);
+        $DB->set_field('stage_theme', 'placementchoices', 1, ['id' => $theme->id]);
+        stage_placement_save_wishes($this->reload($theme), $s3->id, [$a->id]);
+
+        $result = stage_placement_run_matching($this->reload($theme), [$s1->id, $s3->id, $s2->id]);
+        $this->assertEquals([$s1->id => $b->id, $s3->id => $a->id], $result->assigned);
+        $this->assertEquals([$s2->id], $result->unassigned);
+        $mode = $DB->get_field('stage_placement_round', 'mode', ['id' => $result->roundid]);
+        $this->assertSame(STAGE_PLACEMENT_MODE_MAXPLACED, $mode);
+    }
+
+    /**
+     * Chaque tour est consigné et se rejoue à l'identique ; une trace altérée est détectée.
+     */
+    public function test_round_trace_and_replay(): void {
+        global $DB;
+        [, $theme, [$a, $b], $students] = $this->fixture(4);
+        foreach ($students as $student) {
+            stage_placement_save_wishes($theme, $student->id, [$a->id, $b->id]);
+        }
+        $deve = $this->getDataGenerator()->create_user();
+        $result = stage_placement_run_matching($theme, null, false, $deve->id);
+
+        $round = $DB->get_record('stage_placement_round', ['id' => $result->roundid], '*', MUST_EXIST);
+        $this->assertSame(STAGE_PLACEMENT_MODE_DRAW, $round->mode);
+        $this->assertGreaterThan(0, $round->seed);
+        $this->assertEquals($deve->id, $round->runby);
+        $this->assertEquals(4, $round->candidates);
+        $this->assertEquals(2, $round->assigned);
+        $c = $DB->get_field('stage_placement_offer', 'id', ['name' => 'Clinique C', 'themeid' => $theme->id]);
+        $this->assertEquals([$a->id => 1, $b->id => 1, $c => 2], json_decode($round->places, true));
+        $draws = $DB->get_records('stage_placement_draw', ['roundid' => $round->id], 'position ASC');
+        $this->assertSame([1, 2, 3, 4], array_map('intval', array_column($draws, 'position')));
+        $order = array_map('intval', array_column($draws, 'userid'));
+        $this->assertSame(\mod_stage\local\placement_matcher::order(array_column($students, 'id'), (int) $round->seed), $order);
+        $this->assertSame("{$a->id},{$b->id}", reset($draws)->wishes);
+
+        $this->assertTrue(stage_placement_replay_round($round->id)->identical);
+        $first = reset($draws);
+        $DB->set_field('stage_placement_draw', 'offerid', null, ['id' => $first->id]);
+        $replay = stage_placement_replay_round($round->id);
+        $this->assertFalse($replay->identical);
+        $this->assertSame([(int) $first->userid], $replay->differences);
+
+        // Export de la trace : une ligne d'en-tête, puis un étudiant par ligne dans l'ordre de passage.
+        $export = \mod_stage\local\placement_export::round($round);
+        $this->assertCount(5, $export['rows']);
+        $this->assertSame(1, $export['rows'][1][0]);
+        $this->assertSame('Clinique A ; Clinique B', $export['rows'][1][4]);
+        $this->assertCount(1, stage_placement_get_rounds($theme->id));
+    }
+
+    /**
+     * L'appariement ne place pas un étudiant qui a déjà un stage en cours sur la thématique ; un
+     * stage annulé ne compte pas.
+     */
+    public function test_matching_skips_students_with_an_entry(): void {
+        global $DB;
+        [$stage, $theme, [$a, $b], [$s1, $s2]] = $this->fixture(2);
+        stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]);
+        stage_placement_save_wishes($theme, $s2->id, [$a->id, $b->id]);
+        $entry = $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_entry($stage, $s1->id, $theme);
+
+        $this->assertEquals([$s2->id => $a->id], stage_placement_run_matching($theme, [$s1->id, $s2->id])->assigned);
+
+        $DB->set_field('stage_entry', 'status', STAGE_STATUS_ANNULE, ['id' => $entry->id]);
+        $this->assertEquals([$s1->id => $b->id], stage_placement_run_matching($this->reload($theme))->assigned);
+    }
+
+    /**
+     * Renoncer libère la place et retire les vœux ; impossible une fois la demande déposée.
+     */
+    public function test_renounce(): void {
+        [$stage, $theme, [$a, $b], [$s1, $s2]] = $this->fixture(2);
+        stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]);
+        stage_placement_run_matching($theme, [$s1->id]);
+        $this->assertSame('placementnotusable', stage_placement_renounce($theme, $s2->id));
+
+        $sink = $this->redirectEvents();
+        $this->assertNull(stage_placement_renounce($theme, $s1->id));
+        $events = array_values(array_filter(
+            $sink->get_events(),
+            fn($e) => $e instanceof \mod_stage\event\placement_assignment_renounced
+        ));
+        $this->assertCount(1, $events);
+        $this->assertEquals($s1->id, $events[0]->relateduserid);
+        $this->assertEquals($a->id, $events[0]->other['offerid']);
+        $this->assertFalse(stage_placement_get_assignment($theme->id, $s1->id));
+        $this->assertSame([], stage_placement_get_wishes($theme->id, $s1->id));
+        $this->assertNull(stage_placement_set_assignment($theme, $s2->id, $a->id, 2), 'la place est libérée');
+
+        $entry = $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_entry($stage, $s2->id, $theme);
+        stage_placement_link_entry(stage_placement_get_assignment($theme->id, $s2->id)->id, $entry->id);
+        $this->assertSame('placementrequestalreadydone', stage_placement_renounce($theme, $s2->id));
+    }
+
+    /**
+     * Vœux incomplets quand des organismes sont ajoutés ; vœux renumérotés quand un organisme est
+     * supprimé, sans trou dans le classement.
+     */
+    public function test_missing_wishes_and_renumbering(): void {
+        global $DB;
+        [, $theme, [$a, $b, $c], [$s1]] = $this->fixture(1, ['placementchoices' => 4]);
+        // Trois organismes pour quatre vœux demandés : trois suffisent.
+        $this->assertNull(stage_placement_save_wishes($theme, $s1->id, [$c->id, $a->id, $b->id]));
+        $this->assertSame(0, stage_placement_missing_wishes($theme, 3, 3));
+        $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_placement_offer($theme, ['name' => 'Clinique D']);
+        $this->assertSame(1, stage_placement_missing_wishes($theme, 3, 4));
+        $this->assertSame(0, stage_placement_missing_wishes($theme, 0, 4), 'sans vœux, rien ne « manque »');
+
+        $this->assertTrue(stage_placement_delete_offer($theme->id, $a->id));
+        $where = ['themeid' => $theme->id, 'userid' => $s1->id];
+        $ranks = $DB->get_records_menu('stage_placement_wish', $where, 'wishrank', 'offerid, wishrank');
+        $this->assertEquals([$c->id => 1, $b->id => 2], $ranks);
+    }
+
+    /**
+     * La relance part une fois, quelques jours avant la clôture, aux étudiants sans vœux ou aux
+     * vœux incomplets ; pas aux autres, ni aux étudiants affectés ou qui ont déjà un stage.
+     */
+    public function test_reminders(): void {
+        global $DB;
+        [$stage, $theme, [$a, $b], [$s1, $s2, $s3, $s4]] = $this->fixture(4, ['placementdeadline' => time() + DAYSECS]);
+        $far = $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_theme($stage, [
+            'name' => 'Lointaine', 'placementenabled' => 1, 'placementdeadline' => time() + 30 * DAYSECS,
+        ]);
+        stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]);
+        $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_entry($stage, $s4->id, $theme);
+        // s2 : vœux incomplets (un seul enregistré directement en base, comme après un ajout d'organisme).
+        $DB->insert_record('stage_placement_wish', (object) [
+            'themeid' => $theme->id, 'userid' => $s2->id, 'offerid' => $a->id, 'wishrank' => 1, 'timecreated' => time(),
+        ]);
+
+        $this->assertEquals([$theme->id], array_keys(stage_placement_get_themes_to_remind()));
+        $this->assertArrayNotHasKey($far->id, stage_placement_get_themes_to_remind());
+
+        $cm = get_coursemodule_from_instance('stage', $stage->id, 0, false, MUST_EXIST);
+        $sink = $this->redirectEmails();
+        $sent = \mod_stage\local\placement_notifier::reminders($stage, $cm, $theme);
+        $this->assertSame(2, $sent);
+        $this->assertEqualsCanonicalizing([$s2->email, $s3->email], array_column($sink->get_messages(), 'to'));
+        $this->assertStringContainsString('placement.php', quoted_printable_decode($sink->get_messages()[0]->body));
+        $this->assertSame([], stage_placement_get_themes_to_remind(), 'une seule relance par campagne');
+
+        // Par la tâche planifiée, pour une thématique dont la relance n'a pas encore eu lieu.
+        $DB->set_field('stage_theme', 'placementremindertime', 0, ['id' => $theme->id]);
+        $sink->clear();
+        ob_start();
+        (new \mod_stage\task\run_placement_matching())->execute();
+        ob_end_clean();
+        $this->assertSame(2, $sink->count());
+        $this->assertGreaterThan(0, $DB->get_field('stage_theme', 'placementremindertime', ['id' => $theme->id]));
+    }
+
+    /**
+     * Période d'accueil : enregistrée, montrée, et reprise comme plage de dates de la demande.
+     */
+    public function test_offer_period(): void {
+        [, $theme] = $this->fixture(0);
+        $start = make_timestamp(2027, 3, 1);
+        $end = make_timestamp(2027, 3, 12);
+        $offer = $this->getDataGenerator()->get_plugin_generator('mod_stage')->create_placement_offer($theme, [
+            'name' => 'Clinique du Lac', 'datestart' => $start, 'dateend' => $end,
+        ]);
+        $this->assertEquals($start, $offer->datestart);
+        $prefill = stage_placement_prefill($offer);
+        $this->assertSame([$start], $prefill['perioddatestart']);
+        $this->assertSame([$end], $prefill['perioddateend']);
+        $this->assertStringContainsString('2027', \mod_stage\output\placement_view::offer_period($offer));
+        $this->assertSame('', \mod_stage\output\placement_view::offer_period((object) ['datestart' => 0, 'dateend' => 0]));
+        $this->assertArrayNotHasKey('perioddatestart', stage_placement_prefill((object) ['name' => 'X', 'datestart' => 0]));
+
+        // Formulaire : début sans fin, ou fin avant le début, refusés.
+        $this->setAdminUser();
+        $date = fn($time) => ['enabled' => 1, 'day' => (int) date('j', $time), 'month' => (int) date('n', $time),
+            'year' => (int) date('Y', $time)];
+        $make = function (array $submitted) {
+            \mod_stage\form\placement_offer_form::mock_submit($submitted + ['id' => 1, 'themeid' => 1, 'offerid' => 0,
+                'name' => 'Clinique', 'places' => 1]);
+            return new \mod_stage\form\placement_offer_form();
+        };
+        $this->assertNotNull($make(['datestart' => $date($start), 'dateend' => $date($end)])->get_data());
+        $this->assertNull($make(['datestart' => $date($start)])->get_data());
+        $this->assertNull($make(['datestart' => $date($end), 'dateend' => $date($start)])->get_data());
+    }
+
+    /**
+     * Cellules telles qu'un tableur les enregistre : nombres décimaux ou en notation scientifique,
+     * téléphone privé de son 0, dates en numéro de série ou en texte.
+     */
+    public function test_import_normalizes_spreadsheet_cells(): void {
+        $this->resetAfterTest();
+        $n = fn($field, $value) => placement_offer_importer::normalize_cell($field, $value);
+        $this->assertSame('2', $n('places', '2.0'));
+        $this->assertSame('2', $n('places', '2,0'));
+        $this->assertSame('2.5', $n('places', '2.5'), 'refusé ensuite comme nombre de places illisible');
+        $this->assertSame(self::SIRET, $n('siret', '73282932000074'));
+        $this->assertSame(self::SIRET, $n('siret', '7.3282932000074E+13'));
+        $this->assertSame(self::SIRET, $n('siret', '73282932000074.0'));
+        $this->assertSame('732 829 320 00074', $n('siret', '732 829 320 00074'));
+        $this->assertSame('0478000000', $n('phone', '478000000'));
+        $this->assertSame('0478000000', $n('tutorphone', '478000000.0'));
+        $this->assertSame('04 78 00 00 00', $n('phone', '04 78 00 00 00'));
+        $this->assertSame('+41 22 000 00 00', $n('phone', '+41 22 000 00 00'));
+        $this->assertSame(make_timestamp(2027, 3, 1), $n('datestart', '46447'));
+        $this->assertSame(make_timestamp(2027, 3, 1), $n('datestart', '01/03/2027'));
+        $this->assertSame(make_timestamp(2027, 3, 1), $n('datestart', '1/3/27'));
+        $this->assertSame(make_timestamp(2027, 3, 1), $n('datestart', '2027-03-01'));
+        $this->assertSame('31/02/2027', $n('datestart', '31/02/2027'));
+        $this->assertSame('Clinique 2.0', $n('name', 'Clinique 2.0'));
+    }
+
+    /**
+     * Import : période d'accueil, dates illisibles refusées, et pas moins de places que d'affectés.
+     */
+    public function test_import_period_and_places_below_assigned(): void {
+        global $DB;
+        [, $theme, [$a, , $c], [$s1, $s2]] = $this->fixture(2);
+        stage_placement_set_assignments($theme, [$s1->id => $c->id, $s2->id => $c->id], 2);
+        $records = placement_offer_importer::parse_rows([
+            0 => ['Organisme', 'Places', 'Début', 'Fin'],
+            1 => ['Clinique C', '1', '', ''],
+            2 => ['Clinique A', '3', '01/03/2027', '46458'],
+            3 => ['Clinique E', '1', '01/03/2027', ''],
+            4 => ['Clinique F', '1', 'mars', 'avril'],
+            5 => ['Clinique G', '1', '12/03/2027', '01/03/2027'],
+        ]);
+        $results = placement_offer_importer::import($theme, $records);
+        $this->assertSame(0, $results->added);
+        $this->assertSame(1, $results->updated);
+        $this->assertCount(4, $results->errors);
+        $this->assertStringContainsString('Clinique C', $results->errors[0]);
+        $updated = $DB->get_record('stage_placement_offer', ['id' => $a->id]);
+        $this->assertEquals(make_timestamp(2027, 3, 1), $updated->datestart);
+        $this->assertEquals(make_timestamp(2027, 3, 12), $updated->dateend);
+        $this->assertEquals(2, $DB->get_field('stage_placement_offer', 'places', ['id' => $c->id]));
+    }
+
+    /**
+     * Classeur réel enregistré par LibreOffice Calc à partir d'un CSV : nombres, SIRET et dates
+     * convertis par le tableur, téléphone privé de son 0.
+     */
+    public function test_import_libreoffice_workbook(): void {
+        global $CFG, $DB;
+        [, $theme] = $this->fixture(0);
+        $records = placement_offer_importer::read($CFG->dirroot . '/mod/stage/tests/fixtures/placement_libreoffice.xlsx');
+        $results = placement_offer_importer::import($theme, $records);
+        $this->assertSame([], $results->errors);
+        $this->assertSame(2, $results->added);
+        $farm = $DB->get_record('stage_placement_offer', ['themeid' => $theme->id, 'name' => 'GAEC des Monts'], '*', MUST_EXIST);
+        $this->assertEquals(2, $farm->places);
+        $this->assertSame(self::SIRET, $farm->siret);
+        $this->assertSame('0478000010', $farm->phone);
+        $this->assertEquals(make_timestamp(2027, 3, 1), $farm->datestart);
+        $this->assertEquals(make_timestamp(2027, 3, 12), $farm->dateend);
+    }
+
+    /**
+     * Journalisation : vœux, affectation par la DEVE, réouverture et tour d'appariement.
+     */
+    public function test_events(): void {
+        [, $theme, [$a, $b], [$s1, $s2]] = $this->fixture(2);
+        $sink = $this->redirectEvents();
+        stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]);
+        $result = stage_placement_run_matching($theme, [$s1->id]);
+        stage_placement_set_assignment($theme, $s2->id, $b->id, 2);
+        stage_placement_trigger_event(\mod_stage\event\placement_wishes_reopened::class, $theme, null, 0, ['deadline' => 0]);
+        $events = [];
+        foreach ($sink->get_events() as $event) {
+            if (strpos(get_class($event), 'mod_stage\\event\\placement_') === 0) {
+                $events[substr(strrchr(get_class($event), '\\'), 1)] = $event;
+            }
+        }
+        $this->assertSame(
+            ['placement_wishes_saved', 'placement_matching_run', 'placement_assignment_changed', 'placement_wishes_reopened'],
+            array_keys($events)
+        );
+        $this->assertEquals(2, $events['placement_wishes_saved']->other['count']);
+        $this->assertEquals($result->roundid, $events['placement_matching_run']->objectid);
+        $this->assertEquals(1, $events['placement_matching_run']->other['assigned']);
+        $this->assertEquals($s2->id, $events['placement_assignment_changed']->relateduserid);
+        $this->assertEquals($b->id, $events['placement_assignment_changed']->other['offerid']);
+        $this->assertEquals(0, $events['placement_assignment_changed']->other['previousofferid']);
+        foreach ($events as $event) {
+            $this->assertNotEmpty($event->get_name());
+            $this->assertNotEmpty($event->get_description());
+            $this->assertStringContainsString('placement_matching.php', $event->get_url()->out(false));
+        }
+    }
+
+    /**
+     * Origine de la demande, montrée à ceux qui l'instruisent.
+     */
+    public function test_entry_origin(): void {
+        [$stage, $theme, [$a], [$s1, $s2]] = $this->fixture(2, ['placementofflist' => 1]);
+        $stagegen = $this->getDataGenerator()->get_plugin_generator('mod_stage');
+        stage_placement_set_assignment($theme, $s1->id, $a->id, 2);
+        $assigned = $stagegen->create_entry($stage, $s1->id, $theme, ['structure' => 'Clinique A']);
+        stage_placement_link_entry(stage_placement_get_assignment($theme->id, $s1->id)->id, $assigned->id);
+        $offlist = $stagegen->create_entry($stage, $s2->id, $theme, ['structure' => 'Ferme du Haut']);
+        stage_save_convention_detail($offlist->id, (object) ['siret' => self::SIRET]);
+
+        $html = \mod_stage\output\placement_view::entry_origin($assigned);
+        $this->assertStringContainsString(get_string('placementoriginassigned', 'mod_stage'), $html);
+        $this->assertStringContainsString('Clinique A', $html);
+        $this->assertStringContainsString(get_string('placementorigindeve', 'mod_stage'), $html);
+        $html = \mod_stage\output\placement_view::entry_origin($offlist);
+        $this->assertStringContainsString(get_string('placementoriginofflist', 'mod_stage'), $html);
+        $this->assertStringContainsString(self::SIRET, $html);
+        $ordinary = $stagegen->create_entry($stage, $s2->id, $stagegen->create_theme($stage));
+        $this->assertSame('', \mod_stage\output\placement_view::entry_origin($ordinary));
+    }
+
+    /**
+     * Réinitialisation et suppression des données d'un étudiant : la trace des tours suit.
+     */
+    public function test_trace_cleanup(): void {
+        global $DB;
+        [$stage, $theme, [$a, $b], [$s1, $s2]] = $this->fixture(2);
+        stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]);
+        stage_placement_save_wishes($theme, $s2->id, [$a->id, $b->id]);
+        $round = stage_placement_run_matching($theme)->roundid;
+
+        stage_placement_delete_users_data($stage->id, [$s1->id]);
+        $remaining = $DB->get_fieldset_select('stage_placement_draw', 'userid', 'roundid = ?', [$round]);
+        $this->assertSame([(int) $s2->id], array_map('intval', $remaining));
+
+        stage_placement_reset_userdata($stage->id);
+        $this->assertSame(0, $DB->count_records('stage_placement_round', ['themeid' => $theme->id]));
+        $this->assertSame(0, $DB->count_records('stage_placement_draw', ['roundid' => $round]));
+        $this->assertEquals(0, $DB->get_field('stage_theme', 'placementremindertime', ['id' => $theme->id]));
+    }
+
+    /**
      * Données personnelles : les vœux et l'affectation d'un étudiant sont retrouvés et supprimés
      * avec lui ; le membre de la DEVE qui a décidé une affectation en est seulement dissocié.
      */
@@ -1413,6 +1844,10 @@ final class placement_test extends \advanced_testcase {
         $context = \context_module::instance($cm->id);
         stage_placement_save_wishes($theme, $s1->id, [$a->id, $b->id]);
         stage_placement_set_assignment($theme, $s2->id, $b->id, $deve->id);
+        // Trace d'un tour lancé par la DEVE, où s1 figure.
+        $roundid = stage_placement_run_matching($theme, null, false, $deve->id)->roundid;
+        $this->assertTrue($DB->record_exists('stage_placement_draw', ['roundid' => $roundid, 'userid' => $s1->id]));
+        stage_placement_set_assignment($theme, $s1->id, 0, $deve->id);
 
         foreach ([$s1, $s2, $deve] as $user) {
             $this->assertEquals(
@@ -1431,11 +1866,13 @@ final class placement_test extends \advanced_testcase {
         $assignment = stage_placement_get_assignment($theme->id, $s2->id);
         $this->assertEquals($b->id, $assignment->offerid);
         $this->assertNull($assignment->assignedby);
+        $this->assertNull($DB->get_field('stage_placement_round', 'runby', ['id' => $roundid]));
 
         \mod_stage\privacy\provider::delete_data_for_user(
             new \core_privacy\local\request\approved_contextlist($s1, 'mod_stage', [$context->id])
         );
         $this->assertSame([], stage_placement_get_wishes($theme->id, $s1->id));
+        $this->assertFalse($DB->record_exists('stage_placement_draw', ['userid' => $s1->id]));
         $this->assertSame(1, $DB->count_records('stage_placement_assign', ['themeid' => $theme->id]));
 
         \mod_stage\privacy\provider::delete_data_for_user(

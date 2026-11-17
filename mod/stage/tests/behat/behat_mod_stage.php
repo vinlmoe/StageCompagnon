@@ -35,6 +35,8 @@ class behat_mod_stage extends behat_base {
      * Conventions, Teacher validation, Academic office validation, Pilotage, Evaluation lists.
      * Pour une thématique à organismes proposés, désignée par « Activité > Thématique » : Placement
      * offers (organismes), Placement matching (vœux et appariement), Placement wishes (étudiant).
+     * Convention request et Entry detail : demande de convention et détail du dernier stage d'un
+     * étudiant sur une thématique, désigné par « Activité > identifiant de l'étudiant > Thématique ».
      *
      * @param string $type
      * @param string $identifier
@@ -57,6 +59,20 @@ class behat_mod_stage extends behat_base {
             'placement matching' => 'placement_matching.php',
             'placement wishes' => 'placement.php',
         ];
+        // Demande de convention d'un stage déjà enregistré : « Activité > étudiant > Thématique ».
+        if ($key === 'convention request' || $key === 'entry detail') {
+            global $DB;
+            [$activity, $username, $themename] = array_map('trim', explode('>', $identifier, 3));
+            $cm = $this->get_cm_by_activity_name('stage', $activity);
+            $themeid = $DB->get_field('stage_theme', 'id', ['stageid' => $cm->instance, 'name' => $themename], MUST_EXIST);
+            $userid = $DB->get_field('user', 'id', ['username' => $username], MUST_EXIST);
+            $entryid = $DB->get_field_sql(
+                'SELECT MAX(id) FROM {stage_entry} WHERE stageid = ? AND themeid = ? AND userid = ?',
+                [$cm->instance, $themeid, $userid]
+            );
+            $page = $key === 'entry detail' ? 'entrydetail.php' : 'convention_request.php';
+            return new moodle_url('/mod/stage/' . $page, ['id' => $cm->id, 'entryid' => $entryid]);
+        }
         if (isset($themepages[$key])) {
             global $DB;
             [$activity, $themename] = array_map('trim', explode('>', $identifier, 2));

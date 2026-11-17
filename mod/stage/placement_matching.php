@@ -36,6 +36,7 @@ $id = required_param('id', PARAM_INT);
 $themeid = required_param('themeid', PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHA);
 $dataformat = optional_param('dataformat', '', PARAM_ALPHA);
+$roundid = optional_param('roundid', 0, PARAM_INT);
 
 $cm = get_coursemodule_from_id('stage', $id, 0, false, MUST_EXIST);
 $course = get_course($cm->course);
@@ -56,12 +57,21 @@ $PAGE->set_context($context);
 
 $students = stage_get_enrolled_students($context);
 
+// Tour d'appariement désigné : il doit appartenir à la thématique.
+$round = $roundid ? $DB->get_record('stage_placement_round', ['id' => $roundid, 'themeid' => $theme->id], '*', MUST_EXIST) : null;
+
 if ($dataformat !== '') {
-    $export = stage_placement_get_export($theme, $students);
+    $export = $round
+        ? \mod_stage\local\placement_export::round($round)
+        : \mod_stage\local\placement_export::offers($theme, $students);
     // Formats HTML et PDF : les cellules y sont écrites sans échappement par Moodle.
     $escape = \core\dataformat::get_format_instance($dataformat)->supports_html() ? 's' : fn($value) => $value;
     \core\dataformat::download_data(
-        clean_filename(get_string('placementexportfilename', 'mod_stage', stage_plain_string($theme->name))),
+        clean_filename(get_string(
+            $round ? 'placementroundfilename' : 'placementexportfilename',
+            'mod_stage',
+            stage_plain_string($theme->name)
+        )),
         $dataformat,
         array_map($escape, $export['columns']),
         array_map(fn($row) => array_map($escape, $row), $export['rows'])
@@ -69,9 +79,23 @@ if ($dataformat !== '') {
     exit;
 }
 
+// Vérification d'un tour : il est rejoué à partir de sa trace, et comparé au résultat enregistré.
+if ($action === 'verify' && $round) {
+    $replay = stage_placement_replay_round($round->id);
+    redirect(
+        $baseurl,
+        get_string($replay->identical ? 'placementreplayidentical' : 'placementreplaydifferent', 'mod_stage', (object) [
+            'date' => userdate($round->timecreated),
+            'count' => count($replay->differences),
+        ]),
+        null,
+        $replay->identical ? \core\output\notification::NOTIFY_SUCCESS : \core\output\notification::NOTIFY_ERROR
+    );
+}
+
 if ($action === 'match' && data_submitted()) {
     require_sesskey();
-    $result = stage_placement_run_matching($theme);
+    $result = stage_placement_run_matching($theme, null, false, $USER->id);
     if (optional_param('notify', 0, PARAM_BOOL)) {
         // Les courriels partent au prochain passage du cron : un par étudiant, ils ne tiendraient
         // pas dans le délai de la page pour une promotion entière.
@@ -161,6 +185,18 @@ $statelines[] = get_string('placementmatchingsummary', 'mod_stage', (object) [
     'places' => array_sum(array_map(fn($offer) => (int) $offer->places, $offers)),
     'free' => array_sum($remaining),
 ]);
+// Vœux incomplets : organismes ajoutés ou supprimés après leur enregistrement.
+$wishablecount = count(stage_placement_wishable_offers($theme));
+$incomplete = 0;
+foreach (array_intersect_key($wishes, $students) as $userid => $userwishes) {
+    if (!isset($assignments[$userid]) && stage_placement_missing_wishes($theme, count($userwishes), $wishablecount)) {
+        $incomplete++;
+    }
+}
+if ($incomplete) {
+    $statelines[] = html_writer::span(get_string('placementincompletecount', 'mod_stage', $incomplete), 'text-danger');
+}
+$statelines[] = get_string('placementmodecurrent', 'mod_stage', stage_placement_mode_options()[stage_placement_mode($theme)]);
 echo $OUTPUT->box(implode(html_writer::empty_tag('br'), $statelines), 'generalbox mb-3');
 
 // Lancement de l'appariement : immédiat, sans attendre la date de clôture ni la tâche planifiée.
@@ -282,7 +318,7 @@ foreach ($students as $student) {
             [0 => get_string('placementnoassignment', 'mod_stage')],
             ['id' => 'placementoffer_' . $student->id, 'class' => 'custom-select']
         ),
-        $assignment ? stage_placement_rank_label($assignment->wishrank) : '-',
+        $assignment ? \mod_stage\output\placement_view::rank_label($assignment->wishrank) : '-',
         $entrycell,
     ];
 }
@@ -291,5 +327,41 @@ echo html_writer::tag('button', get_string('placementsaveassignments', 'mod_stag
     'type' => 'submit', 'class' => 'btn btn-primary',
 ]);
 echo html_writer::end_tag('form');
+
+// Historique des tours d'appariement : chacun est consigné et peut être rejoué pour justifier un
+// résultat, ou exporté (ordre de passage, vœux de chacun à ce moment, organisme attribué).
+$rounds = stage_placement_get_rounds($theme->id);
+if ($rounds) {
+    echo $OUTPUT->heading(get_string('placementrounds', 'mod_stage'), 3);
+    echo html_writer::tag('p', get_string('placementrounds_help', 'mod_stage'));
+    $runnerids = array_filter(array_column($rounds, 'runby'));
+    $runners = $runnerids ? $DB->get_records_list('user', 'id', $runnerids) : [];
+    $table = new html_table();
+    $table->attributes['class'] = 'generaltable stage-placement-rounds';
+    $table->head = [
+        get_string('date'),
+        get_string('placementmode', 'mod_stage'),
+        get_string('placementroundrunby', 'mod_stage'),
+        get_string('placementroundresult', 'mod_stage'),
+        get_string('actions', 'mod_stage'),
+    ];
+    foreach ($rounds as $item) {
+        $roundparams = $params + ['roundid' => $item->id];
+        $table->data[] = [
+            userdate($item->timecreated, get_string('strftimedatetimeshort', 'langconfig')),
+            s(stage_placement_mode_options()[$item->mode] ?? $item->mode),
+            !empty($item->runby) && isset($runners[$item->runby])
+                ? fullname($runners[$item->runby]) : get_string('placementroundtask', 'mod_stage'),
+            get_string('placementroundcounts', 'mod_stage', (object) [
+                'assigned' => (int) $item->assigned, 'candidates' => (int) $item->candidates,
+            ]),
+            stage_render_actions([
+                get_string('placementroundverify', 'mod_stage') => new moodle_url($baseurl, $roundparams + ['action' => 'verify']),
+                get_string('placementroundexport', 'mod_stage') => new moodle_url($baseurl, $roundparams + ['dataformat' => 'csv']),
+            ], 'btn btn-sm btn-secondary mr-1 mb-1'),
+        ];
+    }
+    echo html_writer::table($table);
+}
 
 echo $OUTPUT->footer();

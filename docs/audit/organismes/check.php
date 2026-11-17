@@ -11,7 +11,9 @@
 //  7. un stage hors affectation, en France, porte un SIRET valide ;
 //  8. tout stage déposé a une demande de convention et son détail ;
 //  9. aucun organisme n'est proposé deux fois (même SIRET ou même nom) dans une thématique de
-//     l'activité, quels que soient les imports Excel simultanés ou rejoués.
+//     l'activité, quels que soient les imports Excel simultanés ou rejoués ;
+// 10. chaque tour d'appariement, rejoué à partir de sa trace, donne le résultat enregistré, et
+//     chaque affectation issue d'un tour figure dans sa trace.
 // Usage : php check.php site-<tag>.json  (code de sortie 1 si un invariant est violé).
 define('CLI_SCRIPT', true);
 require(getenv('MOODLE_CONFIG') ?: '/home/user/moodle/moodle/config.php');
@@ -108,7 +110,25 @@ foreach ($DB->get_fieldset_select('stage_theme', 'id', 'stageid = ?', [$site->st
         $keys[$key] = $offer->id;
     }
 }
+$rounds = stage_placement_get_rounds($theme->id);
+$traced = [];
+foreach ($rounds as $round) {
+    $replay = stage_placement_replay_round($round->id);
+    if (!$replay->identical) {
+        $bad[] = "tour {$round->id} : " . count($replay->differences) . " résultat(s) différents au rejeu";
+    }
+    foreach ($DB->get_records_select('stage_placement_draw', 'roundid = ? AND offerid IS NOT NULL', [$round->id]) as $draw) {
+        $traced[$draw->userid] = (int) $draw->offerid;
+    }
+}
+foreach ($assignments as $a) {
+    if ($a->assignedby === null && ($traced[$a->userid] ?? 0) !== (int) $a->offerid) {
+        $bad[] = "affectation {$a->id} : absente de la trace des tours";
+    }
+}
 echo json_encode([
+    'règle' => stage_placement_mode($theme),
+    'tours' => count($rounds),
     'organismes' => count($offers),
     'organismes en double' => $duplicates,
     'places' => array_sum(array_column($offers, 'places')),

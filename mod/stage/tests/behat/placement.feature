@@ -221,3 +221,160 @@ Feature: Themes with organisations offered by the institution
     And I log out
     When I am on the "Internships" "mod_stage > Activity" page logged in as student1
     Then I should see "You are assigned to: Alpine Farm (Outside wishes)."
+
+  Scenario: An assigned student gives up the place, then requests an agreement outside the list
+    Given the following "mod_stage > themes" exist:
+      | stage       | name  | placementenabled | placementchoices | placementofflist |
+      | Internships | Rural | 1                | 1                | 1                |
+    And the following "mod_stage > placement offers" exist:
+      | stage       | theme | name        |
+      | Internships | Rural | Alpine Farm |
+    And the following "mod_stage > placement assignments" exist:
+      | stage       | theme | user     | offer       |
+      | Internships | Rural | student1 | Alpine Farm |
+    # Holding a place, the student cannot request an agreement elsewhere on the same theme.
+    When I am on the "Internships" "mod_stage > Activity" page logged in as student1
+    And I follow "Request an agreement (outside StageVet)"
+    And I set the following fields to these values:
+      | structure                 | Hill Farm               |
+      | declaredduration          | 10                      |
+      | perioddatestart[0][day]   | 2                       |
+      | perioddatestart[0][month] | March                   |
+      | perioddatestart[0][year]  | ##+1 year##%Y##         |
+      | perioddateend[0][day]     | 13                      |
+      | perioddateend[0][month]   | March                   |
+      | perioddateend[0][year]    | ##+1 year##%Y##         |
+      | studentaddress            | 12 rue des Lilas, Lyon  |
+      | studentphone              | 0600000001              |
+      | hostaddress               | 4 place du Marché, Lyon |
+      | hostrepresentative        | Dr Paul Roux            |
+      | hostrepresentativetitle   | Director                |
+      | hostservice               | Cattle                  |
+      | hostphone                 | 0400000002              |
+      | hostemail                 | hill@example.com        |
+      | siret                     | 732 829 320 00074       |
+      | tutorname                 | Dr Marie Petit          |
+      | tutorfunction             | Veterinarian            |
+      | tutorphone                | 0400000003              |
+      | tutoremail                | tutor@example.com       |
+      | gratificationamount       | 0                       |
+    And I press "Request an agreement (outside StageVet)"
+    Then I should see "You are assigned to \"Alpine Farm\" for this theme."
+    And I should not see "The internship has been registered"
+    # The student gives up the place from the offered organisations page.
+    When I am on the "Internships > Rural" "mod_stage > Placement wishes" page
+    Then I should see "Found an internship elsewhere? First give up your assignment"
+    When I press "Give up this assignment"
+    Then I should see "You have given up your assignment; the place is freed."
+    And I should not see "Give up this assignment"
+    # The off-list request now goes through.
+    When I am on the "Internships" "mod_stage > Activity" page
+    And I follow "Request an agreement (outside StageVet)"
+    And I set the following fields to these values:
+      | structure                 | Hill Farm               |
+      | declaredduration          | 10                      |
+      | perioddatestart[0][day]   | 2                       |
+      | perioddatestart[0][month] | March                   |
+      | perioddatestart[0][year]  | ##+1 year##%Y##         |
+      | perioddateend[0][day]     | 13                      |
+      | perioddateend[0][month]   | March                   |
+      | perioddateend[0][year]    | ##+1 year##%Y##         |
+      | studentaddress            | 12 rue des Lilas, Lyon  |
+      | studentphone              | 0600000001              |
+      | hostaddress               | 4 place du Marché, Lyon |
+      | hostrepresentative        | Dr Paul Roux            |
+      | hostrepresentativetitle   | Director                |
+      | hostservice               | Cattle                  |
+      | hostphone                 | 0400000002              |
+      | hostemail                 | hill@example.com        |
+      | siret                     | 732 829 320 00074       |
+      | tutorname                 | Dr Marie Petit          |
+      | tutorfunction             | Veterinarian            |
+      | tutorphone                | 0400000003              |
+      | tutoremail                | tutor@example.com       |
+      | gratificationamount       | 0                       |
+    And I press "Request an agreement (outside StageVet)"
+    Then I should see "The internship has been registered and the agreement request sent to the DEVE."
+    And I should see "You have submitted an agreement request for this theme outside the offered organisations"
+
+  Scenario: An internship registered by the academic office at the assigned organisation uses the assignment
+    Given the following "mod_stage > themes" exist:
+      | stage       | name  | placementenabled | placementchoices |
+      | Internships | Rural | 1                | 1                |
+    And the following "mod_stage > placement offers" exist:
+      | stage       | theme | name        |
+      | Internships | Rural | Alpine Farm |
+    And the following "mod_stage > placement assignments" exist:
+      | stage       | theme | user     | offer       |
+      | Internships | Rural | student1 | Alpine Farm |
+    And the following "mod_stage > entries" exist:
+      | stage       | user     | theme | structure   | datestart | dateend  |
+      | Internships | student1 | Rural | Alpine Farm | +1 month  | +6 weeks |
+      | Internships | student2 | Rural | Hill Farm   | +1 month  | +6 weeks |
+    # The student requests the agreement of the registered internship: no SIRET is needed, and the
+    # request uses the assignment.
+    When I am on the "Internships > student1 > Rural" "mod_stage > Convention request" page logged in as student1
+    And I set the following fields to these values:
+      | studentaddress          | 12 rue des Lilas, Lyon  |
+      | studentphone            | 0600000001              |
+      | hostaddress             | 4 place du Marché, Lyon |
+      | hostrepresentative      | Dr Paul Roux            |
+      | hostrepresentativetitle | Director                |
+      | hostservice             | Cattle                  |
+      | hostphone               | 0400000002              |
+      | hostemail               | farm@example.com        |
+      | tutorname               | Dr Marie Petit          |
+      | tutorfunction           | Veterinarian            |
+      | tutorphone              | 0400000003              |
+      | tutoremail              | tutor@example.com       |
+      | gratificationamount     | 0                       |
+    And I press "Request the agreement"
+    Then I should see "Agreement request submitted."
+    And I log out
+    # The academic office sees where the request comes from.
+    When I am on the "Internships > student1 > Rural" "mod_stage > Entry detail" page logged in as deve1
+    Then I should see "Offered organisation, assigned to the student"
+    And I log out
+    # Registered elsewhere, on a theme without off-list requests: the SIRET is required from the student.
+    When I am on the "Internships > student2 > Rural" "mod_stage > Convention request" page logged in as student2
+    And I set the following fields to these values:
+      | studentaddress          | 3 rue du Pont, Lyon     |
+      | studentphone            | 0600000002              |
+      | hostaddress             | 9 chemin du Haut        |
+      | hostrepresentative      | M. Haut                 |
+      | hostrepresentativetitle | Farmer                  |
+      | hostservice             | Cattle                  |
+      | hostphone               | 0400000012              |
+      | hostemail               | hill@example.com        |
+      | tutorname               | Dr Haut                 |
+      | tutorfunction           | Veterinarian            |
+      | tutorphone              | 0400000013              |
+      | tutoremail              | haut@example.com        |
+      | gratificationamount     | 0                       |
+    And I press "Request the agreement"
+    Then I should see "The organisation's SIRET number is required for a request outside the offered organisations"
+    When I set the field "siret" to "732 829 320 00074"
+    And I press "Request the agreement"
+    Then I should see "The agreement request has been saved."
+
+  Scenario: The "most students placed" rule places everyone it can, and each round can be verified
+    Given the following "mod_stage > themes" exist:
+      | stage       | name  | placementenabled | placementchoices | placementmode |
+      | Internships | Rural | 1                | 2                | maxplaced     |
+    And the following "mod_stage > placement offers" exist:
+      | stage       | theme | name          | places |
+      | Internships | Rural | Alpine Farm   | 1      |
+      | Internships | Rural | Valley Clinic | 1      |
+    And the following "mod_stage > placement wishes" exist:
+      | stage       | theme | user     | offers                     |
+      | Internships | Rural | student1 | Alpine Farm, Valley Clinic |
+      | Internships | Rural | student2 | Alpine Farm, Valley Clinic |
+    When I am on the "Internships > Rural" "mod_stage > Placement matching" page logged in as deve1
+    Then I should see "Matching rule: Most students placed."
+    When I press "Run the matching now"
+    Then I should see "Matching done: 2 student(s) assigned, 0 without assignment."
+    And I should see "Matching rounds"
+    And I should see "2 of 2 assigned"
+    And I should see "Claire Dupont" in the "stage-placement-rounds" "table"
+    When I follow "Verify"
+    Then I should see "replayed from its record: same result as the one saved."
