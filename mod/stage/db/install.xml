@@ -78,6 +78,10 @@
             COMMENT="Autorise une demande de convention hors des organismes proposés ; le SIRET y est alors obligatoire, sauf stage à l'étranger"/>
         <FIELD NAME="placementmatchedtime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
             COMMENT="Date du premier appariement (0 = pas encore fait : les vœux restent modifiables jusqu'à la clôture)"/>
+        <FIELD NAME="placementmode" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="draw" SEQUENCE="false"
+            COMMENT="Règle d'appariement : draw (tirage au sort, puis meilleur vœu libre) ou maxplaced (le plus d'étudiants placés)"/>
+        <FIELD NAME="placementremindertime" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"
+            COMMENT="Date de la relance des étudiants sans vœux complets avant la clôture (0 = pas encore faite)"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
@@ -519,6 +523,8 @@
         <FIELD NAME="tutorphone" TYPE="char" LENGTH="30" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="tutoremail" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="places" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Nombre d'étudiants que l'organisme peut accueillir"/>
+        <FIELD NAME="datestart" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Début de la période d'accueil imposée (0 = libre)"/>
+        <FIELD NAME="dateend" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Fin de la période d'accueil imposée (0 = libre)"/>
         <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Précisions affichées aux étudiants (activité, période, conditions)"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
@@ -571,6 +577,46 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="themeid-userid" UNIQUE="true" FIELDS="themeid, userid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="stage_placement_round" COMMENT="Tour d'appariement d'une thématique à organismes proposés : règle, graine du tirage, places disponibles au départ ; avec stage_placement_draw, permet de rejouer et de justifier le résultat">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="themeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="mode" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="draw" SEQUENCE="false" COMMENT="Règle appliquée (draw ou maxplaced)"/>
+        <FIELD NAME="seed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Graine du tirage au sort de l'ordre de passage"/>
+        <FIELD NAME="places" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Places libres de chaque organisme au départ du tour (JSON offerid => places)"/>
+        <FIELD NAME="runby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Membre de la DEVE qui a lancé le tour (vide = tâche planifiée)"/>
+        <FIELD NAME="candidates" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="assigned" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="themeid" TYPE="foreign" FIELDS="themeid" REFTABLE="stage_theme" REFFIELDS="id"/>
+        <KEY NAME="runby" TYPE="foreign" FIELDS="runby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="stage_placement_draw" COMMENT="Place d'un étudiant dans un tour d'appariement : son rang de passage, ses vœux à ce moment et le résultat">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="roundid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Étudiant"/>
+        <FIELD NAME="position" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Rang de passage tiré au sort (1 = premier)"/>
+        <FIELD NAME="wishes" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Vœux de l'étudiant au moment du tour : identifiants d'organismes, dans l'ordre, séparés par des virgules"/>
+        <FIELD NAME="offerid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Organisme attribué (vide = sans affectation)"/>
+        <FIELD NAME="wishrank" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="roundid" TYPE="foreign" FIELDS="roundid" REFTABLE="stage_placement_round" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="offerid" TYPE="foreign" FIELDS="offerid" REFTABLE="stage_placement_offer" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="roundid-userid" UNIQUE="true" FIELDS="roundid, userid"/>
       </INDEXES>
     </TABLE>
   </TABLES>

@@ -17,8 +17,9 @@
 namespace mod_stage\task;
 
 /**
- * Tâche planifiée : apparie les étudiants aux organismes proposés des thématiques dont les vœux
- * viennent d'être clos (voir stage_placement_run_matching()), et annonce à chacun le résultat.
+ * Tâche planifiée des organismes proposés : relance, quelques jours avant la clôture, les étudiants
+ * sans vœux complets ; apparie les étudiants des thématiques dont les vœux viennent d'être clos (voir
+ * stage_placement_run_matching()), et annonce à chacun le résultat.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -45,6 +46,17 @@ class run_placement_matching extends \core\task\scheduled_task {
         require_once($CFG->dirroot . '/mod/stage/lib.php');
         require_once($CFG->dirroot . '/mod/stage/locallib.php');
 
+        // Relance des étudiants sans vœux complets, quelques jours avant la clôture.
+        foreach (stage_placement_get_themes_to_remind() as $theme) {
+            $stage = $DB->get_record('stage', ['id' => $theme->stageid]);
+            $cm = $stage ? get_coursemodule_from_instance('stage', $stage->id, 0, false, IGNORE_MISSING) : null;
+            if (!$cm || empty($theme->visible)) {
+                continue;
+            }
+            $sent = \mod_stage\local\placement_notifier::reminders($stage, $cm, $theme);
+            mtrace("mod_stage : thématique {$theme->id}, relance avant la clôture des vœux, $sent courriel(s).");
+        }
+
         foreach (stage_placement_get_themes_to_match() as $theme) {
             $stage = $DB->get_record('stage', ['id' => $theme->stageid]);
             $cm = $stage ? get_coursemodule_from_instance('stage', $stage->id, 0, false, IGNORE_MISSING) : null;
@@ -64,7 +76,7 @@ class run_placement_matching extends \core\task\scheduled_task {
             if ($result->skipped) {
                 continue;
             }
-            $sent = stage_placement_notify_results($stage, $cm, $theme, $result);
+            $sent = \mod_stage\local\placement_notifier::results($stage, $cm, $theme, $result);
             mtrace(sprintf(
                 'mod_stage : thématique %d appariée, %d affecté(s), %d sans affectation, %d courriel(s).',
                 $theme->id,

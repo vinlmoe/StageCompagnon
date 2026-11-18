@@ -119,6 +119,7 @@ if ($theme) {
         ['name', 'description', 'mandatory', 'requiredduration', 'minstudyyear', 'maxstudyyear', 'sortorder',
             'visible', 'tutorevaluationenabled', 'reportmode', 'studentlistid', 'teacherlistid', 'tutorlistid',
             'requestlistid', 'placementenabled', 'placementchoices', 'placementdeadline', 'placementofflist',
+            'placementmode',
         ] as $field
     ) {
         $formdata[$field] = $theme->$field;
@@ -169,10 +170,17 @@ if ($data = $mform->get_data()) {
             $record->placementchoices = max(1, (int) ($data->placementchoices ?? 3));
             $record->placementdeadline = (int) ($data->placementdeadline ?? 0);
             $record->placementofflist = !empty($data->placementofflist) ? 1 : 0;
+            $record->placementmode = array_key_exists((string) ($data->placementmode ?? ''), stage_placement_mode_options())
+                ? $data->placementmode : STAGE_PLACEMENT_MODE_DRAW;
             // Rouvrir les vœux : l'appariement sera refait à la nouvelle date de clôture. Les
             // affectations déjà faites sont conservées, seuls les étudiants sans affectation y passent.
             if (!empty($data->placementreopen)) {
                 $record->placementmatchedtime = 0;
+                $reopened = true;
+            }
+            // Nouvelle date de clôture, ou vœux rouverts : la relance sera refaite avant cette date.
+            if (!$theme || !empty($data->placementreopen) || (int) $theme->placementdeadline !== $record->placementdeadline) {
+                $record->placementremindertime = 0;
             }
         }
         // Liste d'évaluation de chaque formulaire : seule une liste de cette activité et de ce type
@@ -247,6 +255,16 @@ if ($data = $mform->get_data()) {
         $transaction->allow_commit();
     } finally {
         $lock->release();
+    }
+
+    if (!empty($reopened)) {
+        stage_placement_trigger_event(
+            \mod_stage\event\placement_wishes_reopened::class,
+            $DB->get_record('stage_theme', ['id' => $savedthemeid], '*', MUST_EXIST),
+            null,
+            0,
+            ['deadline' => (int) $record->placementdeadline]
+        );
     }
 
     file_save_draft_area_files(

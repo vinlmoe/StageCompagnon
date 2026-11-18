@@ -16,8 +16,9 @@
 
 /**
  * Organismes proposés d'une thématique, côté étudiant : la liste des organismes et de leurs
- * places, le classement de ses vœux tant qu'ils sont ouverts, puis le résultat de l'appariement et
- * l'accès à la demande de convention préremplie avec les coordonnées de l'organisme attribué.
+ * places, le classement de ses vœux tant qu'ils sont ouverts, puis le résultat de l'appariement,
+ * l'accès à la demande de convention préremplie avec les coordonnées de l'organisme attribué, et
+ * la possibilité d'y renoncer tant que la demande n'est pas déposée.
  *
  * @package   mod_stage
  * @copyright 2026 Sébastien Lefebvre
@@ -55,6 +56,14 @@ $PAGE->set_title(format_string($stage->name) . ' - ' . get_string('placementoffe
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
+if (data_submitted() && confirm_sesskey() && optional_param('renounce', 0, PARAM_BOOL)) {
+    $error = stage_placement_renounce($theme, $USER->id);
+    if ($error !== null) {
+        redirect($baseurl, get_string($error, 'mod_stage'), null, \core\output\notification::NOTIFY_ERROR);
+    }
+    redirect($baseurl, get_string('placementrenounced', 'mod_stage'), null, \core\output\notification::NOTIFY_SUCCESS);
+}
+
 if (data_submitted() && confirm_sesskey()) {
     $withdraw = optional_param('withdraw', 0, PARAM_BOOL);
     // Les vœux sont lus dans l'ordre des rangs ; un rang laissé vide est signalé comme incomplet.
@@ -77,10 +86,12 @@ if (data_submitted() && confirm_sesskey()) {
 }
 
 $offers = stage_placement_get_offers($theme->id);
+// Organismes à classer : tous, ou ceux qui ont encore une place lors d'un tour complémentaire.
+$wishable = stage_placement_wishable_offers($theme);
 $wishes = stage_placement_get_wishes($theme->id, $USER->id);
 $assignment = stage_placement_get_assignment($theme->id, $USER->id);
 $state = stage_placement_state($theme);
-$required = stage_placement_required_wishes($theme, count($offers));
+$required = stage_placement_required_wishes($theme, count($wishable));
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('placementoffers', 'mod_stage') . ' : ' . format_string($theme->name));
@@ -90,7 +101,7 @@ echo html_writer::link($viewurl, get_string('back'));
 if ($assignment && isset($offers[$assignment->offerid])) {
     $message = get_string('placementassignedto', 'mod_stage', (object) [
         'name' => format_string($offers[$assignment->offerid]->name),
-        'rank' => stage_placement_rank_label($assignment->wishrank),
+        'rank' => \mod_stage\output\placement_view::rank_label($assignment->wishrank),
     ]);
     if (stage_placement_assignment_usable($assignment)) {
         $message .= ' ' . html_writer::link(
@@ -102,12 +113,30 @@ if ($assignment && isset($offers[$assignment->offerid])) {
         $message .= ' ' . get_string('placementrequestdone', 'mod_stage');
     }
     echo $OUTPUT->notification($message, \core\output\notification::NOTIFY_SUCCESS, false);
+    // Renoncer libère la place : utile à l'étudiant qui a trouvé ailleurs, si la thématique admet
+    // les demandes hors liste, ou qui ne fera pas ce stage.
+    if (stage_placement_assignment_usable($assignment)) {
+        echo html_writer::tag('p', get_string(
+            empty($theme->placementofflist) ? 'placementrenounceexplain' : 'placementrenounceexplainofflist',
+            'mod_stage'
+        ));
+        echo stage_post_button(
+            new moodle_url($baseurl, ['renounce' => 1]),
+            get_string('placementrenounce', 'mod_stage'),
+            'btn btn-outline-danger mb-3',
+            get_string('placementrenounceconfirm', 'mod_stage', format_string($offers[$assignment->offerid]->name))
+        );
+    }
 } else if ($state === STAGE_PLACEMENT_OPEN) {
     echo $OUTPUT->notification(
         (!empty($theme->placementdeadline)
             ? get_string('placementopenuntil', 'mod_stage', userdate($theme->placementdeadline))
             : get_string('placementopen', 'mod_stage'))
-        . ' ' . get_string('placementmatchingrule', 'mod_stage'),
+        . ' ' . get_string(
+            stage_placement_mode($theme) === STAGE_PLACEMENT_MODE_MAXPLACED
+                ? 'placementmatchingrulemaxplaced' : 'placementmatchingrule',
+            'mod_stage'
+        ),
         \core\output\notification::NOTIFY_INFO,
         false
     );
@@ -128,9 +157,16 @@ if (!empty($theme->placementofflist) && !$assignment) {
 if (!$assignment && $state === STAGE_PLACEMENT_OPEN && $required > 0) {
     echo $OUTPUT->heading(get_string('placementmywishes', 'mod_stage'), 3);
     echo html_writer::tag('p', get_string('placementwishesexplain', 'mod_stage', $required));
+    if (count($wishable) < count($offers)) {
+        echo html_writer::tag('p', get_string('placementcomplementaryround', 'mod_stage'));
+    }
+    $missing = stage_placement_missing_wishes($theme, count($wishes), count($wishable));
+    if ($missing) {
+        echo $OUTPUT->notification(get_string('placementwishesmissing', 'mod_stage', $missing), 'warning');
+    }
     $options = [];
-    foreach ($offers as $offer) {
-        $place = stage_placement_offer_place($offer);
+    foreach ($wishable as $offer) {
+        $place = \mod_stage\output\placement_view::offer_place($offer);
         $options[$offer->id] = format_string($offer->name) . ($place !== '' ? ' — ' . s($place) : '');
     }
     echo html_writer::start_tag('form', ['method' => 'post', 'action' => $baseurl, 'class' => 'mb-4']);
@@ -180,13 +216,15 @@ if (empty($offers)) {
         get_string('structure', 'mod_stage'),
         get_string('placementofferplace', 'mod_stage'),
         get_string('placementplaces', 'mod_stage'),
+        get_string('placementofferperiod', 'mod_stage'),
         get_string('placementofferdescription', 'mod_stage'),
     ];
     foreach ($offers as $offer) {
         $table->data[] = [
             html_writer::tag('strong', format_string($offer->name)),
-            s(stage_placement_offer_place($offer)),
+            s(\mod_stage\output\placement_view::offer_place($offer)),
             (int) $offer->places,
+            s(\mod_stage\output\placement_view::offer_period($offer)),
             format_text((string) $offer->description, FORMAT_PLAIN),
         ];
     }

@@ -232,6 +232,8 @@ $validations = stage_render_convention_validation_status($stage, $entry);
 if ($validations !== '') {
     echo $OUTPUT->box($validations, 'generalbox mb-3');
 }
+// Thématique à organismes proposés : la demande vient-elle d'une affectation ou est-elle hors liste ?
+echo \mod_stage\output\placement_view::entry_origin($entry);
 echo stage_render_request_answers($entry);
 
 $mform->display();

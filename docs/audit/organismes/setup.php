@@ -3,7 +3,8 @@
 // d'accueil, avec moins de places que d'étudiants (une partie de la promotion restera sans
 // affectation), des enseignants référents, quatre comptes DEVE et un gabarit de convention.
 //
-// Usage : php setup.php <étudiants> [organismes] [vœux à classer]  ; écrit site-<tag>.json.
+// Usage : php setup.php <étudiants> [organismes] [vœux à classer] [règle]  ; écrit site-<tag>.json.
+// Règle d'appariement : draw (tirage au sort, par défaut) ou maxplaced (le plus d'étudiants placés).
 define('CLI_SCRIPT', true);
 require(getenv('MOODLE_CONFIG') ?: '/home/user/moodle/moodle/config.php');
 require_once($CFG->libdir . "/testing/generator/lib.php");
@@ -14,6 +15,7 @@ require_once($CFG->dirroot . '/mod/stage/tests/generator/lib.php');
 $n = (int) ($argv[1] ?? 300);
 $noffers = (int) ($argv[2] ?? max(10, intdiv($n, 5)));
 $choices = (int) ($argv[3] ?? 5);
+$mode = $argv[4] ?? STAGE_PLACEMENT_MODE_DRAW;
 $nt = 10;
 $gen = new testing_data_generator();
 $course = $gen->create_course(['fullname' => 'Promotion organismes', 'shortname' => 'ORG' . time()]);
@@ -21,7 +23,8 @@ $stage = $gen->create_module('stage', ['course' => $course->id, 'name' => 'Stage
 $cmid = $stage->cmid;
 $sg = $gen->get_plugin_generator('mod_stage');
 $theme = $sg->create_theme($stage, ['name' => 'Rurale (organismes proposés)', 'placementenabled' => 1,
-    'placementchoices' => $choices, 'placementdeadline' => time() + 30 * DAYSECS, 'placementofflist' => 0]);
+    'placementchoices' => $choices, 'placementdeadline' => time() + 30 * DAYSECS, 'placementofflist' => 0,
+    'placementmode' => $mode]);
 $free = $sg->create_theme($stage, ['name' => 'Thème libre']);
 $tpl = $sg->create_convention_template($stage, ['name' => 'Gabarit FR', 'lang' => 'fr']);
 
@@ -70,6 +73,7 @@ for ($i = 1; $i <= $n; $i++) {
 }
 $info = ['courseid' => (int) $course->id, 'stageid' => (int) $stage->id, 'cmid' => (int) $cmid, 'tag' => (int) $tag,
     'theme' => (int) $theme->id, 'themefree' => (int) $free->id, 'tplfr' => (int) $tpl->id, 'choices' => $choices,
+    'mode' => $mode,
     'offers' => $offers, 'students' => $students];
 file_put_contents(__DIR__ . "/site-$tag.json", json_encode($info, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 echo "site-$tag.json cm=$cmid thématique={$theme->id} étudiants=$n organismes=$noffers places=" . array_sum($places) . "\n";

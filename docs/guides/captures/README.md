@@ -50,12 +50,12 @@ MOODLE_URL=http://localhost:8001 node shot.js plan_questions.json ../images
 MOODLE_URL=http://localhost:8001 node export_shot.js 1 2 ../images/87_request_export.png
 ```
 
-Captures des thématiques à organismes proposés (images 90 à 94). Elles supposent, sur la
-thématique « Animaux de production » de la promotion 2030 (thématique 3), l'option activée avec
-deux vœux à classer, une date de clôture à venir, des organismes proposés et les vœux de quelques
-étudiants, dont deux déjà affectés :
+Captures des thématiques à organismes proposés (images 90 à 97), après `demo_placement.php`, qui
+fait de la thématique « Animaux de production » de la promotion 2030 (thématique 3) une thématique
+à organismes proposés, avec des vœux et un tour d'appariement lancé par la DEVE :
 
 ```bash
+php docs/guides/captures/demo_placement.php /chemin/vers/moodle/config.php
 MOODLE_URL=http://localhost:8001 node shot.js plan_placement.json ../images
 ```
 

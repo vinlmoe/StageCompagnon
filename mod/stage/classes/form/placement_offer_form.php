@@ -63,6 +63,11 @@ class placement_offer_form extends \moodleform {
         $mform->setType('description', PARAM_TEXT);
         $mform->addHelpButton('description', 'placementofferdescription', 'mod_stage');
 
+        // Période d'accueil imposée : elle préremplit les dates de la demande de convention.
+        $mform->addElement('date_selector', 'datestart', get_string('placementofferstart', 'mod_stage'), ['optional' => true]);
+        $mform->addHelpButton('datestart', 'placementofferstart', 'mod_stage');
+        $mform->addElement('date_selector', 'dateend', get_string('placementofferend', 'mod_stage'), ['optional' => true]);
+
         $mform->addElement('header', 'hosthdr', get_string('conventionhoststructure', 'mod_stage'));
         $mform->setExpanded('hosthdr', true);
         $mform->addElement('static', 'prefillintro', '', get_string('placementofferprefill', 'mod_stage'));
@@ -134,6 +139,11 @@ class placement_offer_form extends \moodleform {
             $errors['places'] = get_string('placementplacesbelowassigned', 'mod_stage', $assigned);
         }
         $errors += stage_validate_siret_field($data);
+        $start = (int) ($data['datestart'] ?? 0);
+        $end = (int) ($data['dateend'] ?? 0);
+        if (($start xor $end) || ($start && $end < $start)) {
+            $errors['dateend'] = get_string('placementofferperiodinvalid', 'mod_stage');
+        }
         $tutoremail = trim((string) ($data['tutoremail'] ?? ''));
         if ($tutoremail !== '' && !validate_email($tutoremail)) {
             $errors['tutoremail'] = get_string('invalidemail');

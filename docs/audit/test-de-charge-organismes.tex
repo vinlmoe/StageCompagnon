@@ -15,25 +15,29 @@
 
 \section{Résumé}
 
-Quatre vagues d'utilisateurs simulés ont été jouées contre un Moodle complet : trois promotions de
-400~étudiants, avec 16, 32 puis 64~utilisateurs simultanés, et une promotion de 1\,000~étudiants
-avec 48~utilisateurs simultanés. Chaque vague enchaîne l'import Excel des organismes, l'ouverture
+Huit vagues d'utilisateurs simulés ont été jouées contre un Moodle complet. Quatre servent de
+référence, avec la règle du tirage au sort sur PostgreSQL : trois promotions de 400~étudiants, avec
+16, 32 puis 64~utilisateurs simultanés, et une promotion de 1\,000~étudiants avec
+48~utilisateurs simultanés. Deux autres rejouent la vague de 32 et celle de 1\,000 avec la règle
+\og le plus d'étudiants placés\fg{}, et deux dernières font de même sur MariaDB. Chaque vague enchaîne l'import Excel des organismes, l'ouverture
 des vœux, leur clôture,
 l'appariement et le dépôt des demandes de convention, en provoquant les situations de concurrence
 qu'une promotion réelle peut produire.
 
 \begin{itemize}
-  \item Aucune des 15\,959~réponses mesurées n'est une erreur. Le journal du serveur ne contient ni
+  \item Aucune des 31\,156~réponses mesurées, sur les huit vagues, n'est une erreur. Le journal du serveur ne contient ni
     avertissement PHP ni réponse~500.
-  \item Les neuf invariants relus en base après chaque vague sont respectés : aucune place
-    dépassée, aucune affectation en double, aucun stage en double, aucun organisme en double.
-  \item Le débit plafonne entre 30 et 33~requêtes par seconde sur la machine de test, quelle que
+  \item Les dix invariants relus en base après chaque vague sont respectés : aucune place
+    dépassée, aucune affectation en double, aucun stage ni organisme en double, et chaque tour
+    d'appariement, rejoué à partir de sa trace, redonne le résultat enregistré.
+  \item Le débit plafonne autour de 40~requêtes par seconde sur la machine de test, quelle que
     soit la concurrence : le serveur est saturé, les durées s'allongent, rien ne casse.
   \item Le test a fait apparaître un défaut de performance, corrigé : la page \og Vœux et
     appariement\fg{} pesait 11~Mo pour 1\,000~étudiants (section~\ref{sec:defaut}).
-  \item Une observation d'usage, sans défaut de code : quand les vœux se concentrent sur les mêmes
-    organismes, des étudiants restent sans affectation alors que des places sont libres
-    (section~\ref{sec:voeux}).
+  \item Une observation d'usage : quand les vœux se concentrent sur les mêmes organismes, le tirage
+    au sort laisse des étudiants sans affectation alors que des places sont libres
+    (section~\ref{sec:voeux}). La règle \og le plus d'étudiants placés\fg{}, ajoutée depuis, en
+    place de 38 à 102 de plus par tour sur les mêmes vœux (section~\ref{sec:regles}).
 \end{itemize}
 
 \section{Méthode}
@@ -106,7 +110,9 @@ Après chaque vague, \code{check.php} relit la base :
   \item un stage hors liste en France porte un SIRET valide ;
   \item tout stage déposé a sa demande de convention et son détail ;
   \item aucun organisme n'est proposé deux fois (même SIRET, ou à défaut même nom) dans une
-    thématique.
+    thématique ;
+  \item chaque tour d'appariement, rejoué à partir de sa trace, donne le résultat enregistré, et
+    chaque affectation issue d'un tour figure dans sa trace.
 \end{enumerate}
 
 \section{Résultats}
@@ -122,12 +128,12 @@ Après chaque vague, \code{check.php} relit la base :
 Utilisateurs simultanés & 16 & 32 & 64 & 48 \\
 Organismes proposés, après import & 115 & 115 & 115 & 185 \\
 Places & 391 & 391 & 391 & 889 \\
-Requêtes HTTP mesurées & 2\,990 & 2\,863 & 2\,967 & 7\,139 \\
-Durée des cinq phases (s) & 98{,}4 & 91{,}6 & 92{,}7 & 218{,}8 \\
-Débit moyen (requêtes/s) & 30{,}4 & 31{,}3 & 32{,}0 & 32{,}6 \\
+Requêtes HTTP mesurées & 3\,064 & 2\,897 & 2\,901 & 7\,057 \\
+Durée des cinq phases (s) & 82{,}9 & 74{,}6 & 74{,}9 & 168{,}1 \\
+Débit moyen (requêtes/s) & 37{,}0 & 38{,}8 & 38{,}7 & 42{,}0 \\
 Réponses en erreur & 0 & 0 & 0 & 0 \\
 Invariants violés & 0 & 0 & 0 & 0 \\
-Réponse la plus lente (s) & 3{,}87 & 3{,}62 & 5{,}21 & 4{,}21 \\
+Réponse la plus lente (s) & 2{,}33 & 2{,}41 & 3{,}89 & 2{,}79 \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -145,31 +151,31 @@ Médiane et 95\textsuperscript{e}~centile, en secondes.
 & \multicolumn{2}{c}{\textbf{16}} & \multicolumn{2}{c}{\textbf{32}} & \multicolumn{2}{c}{\textbf{64}} & \multicolumn{2}{c}{\textbf{48, 1\,000 ét.}} \\
 \textbf{Action} & méd. & p95 & méd. & p95 & méd. & p95 & méd. & p95 \\
 \midrule
-Page \og Mes stages\fg{} & 0{,}36 & 0{,}75 & 0{,}65 & 1{,}08 & 1{,}26 & 1{,}63 & 0{,}96 & 1{,}40 \\
-Page des organismes et des vœux & 0{,}32 & 0{,}65 & 0{,}62 & 1{,}02 & 1{,}28 & 1{,}71 & 0{,}96 & 1{,}37 \\
-Enregistrement des vœux & 0{,}65 & 1{,}29 & 1{,}18 & 1{,}99 & 2{,}26 & 2{,}98 & 1{,}79 & 2{,}60 \\
-Vœux, double clic & 0{,}94 & 1{,}57 & 1{,}31 & 1{,}99 & 2{,}22 & 2{,}92 & 1{,}90 & 2{,}74 \\
-Vœux pendant la clôture & 0{,}48 & 0{,}98 & 0{,}99 & 1{,}56 & 2{,}01 & 2{,}58 & 1{,}42 & 2{,}08 \\
-Appariement (médiane de trois) & 0{,}79 & -- & 1{,}83 & -- & 2{,}56 & -- & 2{,}25 & -- \\
-Affectation par la DEVE & 0{,}21 & 0{,}38 & 0{,}21 & 0{,}42 & 0{,}19 & 0{,}34 & 0{,}28 & 0{,}48 \\
-Demande préremplie, page & 0{,}39 & 0{,}70 & 0{,}85 & 1{,}23 & 1{,}58 & 2{,}13 & 1{,}24 & 1{,}71 \\
-Demande préremplie, envoi & 0{,}70 & 1{,}20 & 1{,}49 & 2{,}26 & 2{,}86 & 3{,}90 & 2{,}36 & 3{,}11 \\
-Demande hors liste avec SIRET & 0{,}53 & 0{,}90 & 1{,}07 & 2{,}04 & 2{,}28 & 3{,}31 & 2{,}07 & 2{,}77 \\
-Liste des organismes (DEVE) & 0{,}31 & 0{,}65 & 0{,}51 & 1{,}01 & 0{,}61 & 1{,}74 & 0{,}92 & 1{,}69 \\
-Vœux et appariement (DEVE) & 0{,}46 & 0{,}81 & 0{,}74 & 1{,}37 & 0{,}97 & 1{,}84 & 1{,}35 & 1{,}85 \\
-Export des affectations (DEVE) & 0{,}17 & 0{,}61 & 0{,}36 & 0{,}77 & 0{,}83 & 1{,}66 & 0{,}87 & 1{,}33 \\
-Réimport Excel pendant les vœux (DEVE) & 0{,}77 & 1{,}06 & 0{,}99 & 1{,}21 & 1{,}70 & 2{,}13 & 1{,}46 & 1{,}92 \\
+Page \og Mes stages\fg{} & 0{,}30 & 0{,}54 & 0{,}53 & 0{,}76 & 1{,}03 & 1{,}29 & 0{,}77 & 1{,}01 \\
+Page des organismes et des vœux & 0{,}28 & 0{,}51 & 0{,}51 & 0{,}78 & 1{,}04 & 1{,}26 & 0{,}75 & 1{,}01 \\
+Enregistrement des vœux & 0{,}60 & 1{,}05 & 0{,}98 & 1{,}45 & 1{,}93 & 2{,}48 & 1{,}49 & 1{,}94 \\
+Vœux, double clic & 0{,}65 & 1{,}04 & 1{,}05 & 1{,}51 & 2{,}01 & 2{,}51 & 1{,}57 & 2{,}01 \\
+Vœux pendant la clôture & 0{,}56 & 0{,}86 & 0{,}91 & 1{,}23 & 1{,}69 & 2{,}13 & 1{,}39 & 1{,}73 \\
+Appariement (médiane de trois) & 0{,}87 & -- & 1{,}26 & -- & 1{,}97 & -- & 1{,}80 & -- \\
+Affectation par la DEVE & 0{,}14 & 0{,}30 & 0{,}16 & 0{,}34 & 0{,}15 & 0{,}34 & 0{,}22 & 0{,}40 \\
+Demande préremplie, page & 0{,}34 & 0{,}58 & 0{,}64 & 0{,}85 & 1{,}39 & 1{,}64 & 0{,}91 & 1{,}11 \\
+Demande préremplie, envoi & 0{,}64 & 1{,}08 & 1{,}22 & 1{,}71 & 2{,}50 & 3{,}24 & 1{,}71 & 2{,}19 \\
+Demande hors liste avec SIRET & 0{,}51 & 0{,}85 & 1{,}00 & 1{,}59 & 2{,}23 & 2{,}70 & 1{,}52 & 2{,}07 \\
+Liste des organismes (DEVE) & 0{,}28 & 0{,}52 & 0{,}48 & 0{,}69 & 0{,}62 & 1{,}30 & 0{,}74 & 1{,}05 \\
+Vœux et appariement (DEVE) & 0{,}30 & 0{,}60 & 0{,}54 & 0{,}83 & 0{,}88 & 1{,}59 & 0{,}85 & 1{,}24 \\
+Export des affectations (DEVE) & 0{,}22 & 0{,}44 & 0{,}43 & 0{,}69 & 0{,}52 & 1{,}20 & 0{,}71 & 1{,}07 \\
+Réimport Excel pendant les vœux (DEVE) & 0{,}50 & 0{,}79 & 0{,}69 & 0{,}94 & 1{,}19 & 1{,}44 & 0{,}97 & 1{,}24 \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
-Le débit reste entre 30 et 33~requêtes par seconde de 16 à 64~utilisateurs simultanés : les quatre
+Le débit reste autour de 40~requêtes par seconde de 16 à 64~utilisateurs simultanés : les quatre
 cœurs sont occupés dès la première vague. Au-delà, les requêtes attendent leur tour et les durées croissent
 avec la concurrence, sans erreur ni délai dépassé. L'enregistrement des vœux et le dépôt d'une
 demande sont les actions les plus longues : elles prennent le verrou de l'activité, qui met en
 file les écritures d'une même promotion. C'est ce verrou qui garantit les invariants.
 
-L'appariement lui-même dure environ trois secondes pour 1\,000~étudiants, sous la charge des vœux
+L'appariement lui-même dure moins de deux secondes pour 1\,000~étudiants, sous la charge des vœux
 envoyés au même moment.
 
 \subsection{Concurrence}
@@ -179,23 +185,23 @@ envoyés au même moment.
 \toprule
 & \textbf{Vague 1} & \textbf{Vague 2} & \textbf{Vague 3} & \textbf{Vague 4} \\
 \midrule
-Vœux invalides refusés & 78 & 69 & 87 & 168 \\
-Doubles clics sur les vœux (envois) & 114 & 82 & 98 & 222 \\
+Vœux invalides refusés & 93 & 51 & 69 & 138 \\
+Doubles clics sur les vœux (envois) & 104 & 74 & 86 & 182 \\
 Appariements lancés au même instant & 3 & 3 & 3 & 3 \\
 \quad dont ayant affecté des étudiants & 1 & 1 & 1 & 1 \\
-Étudiants affectés par l'appariement & 320 & 328 & 313 & 707 \\
-Vœux envoyés pendant la clôture : acceptés & 16 & 50 & 94 & 71 \\
-\quad refusés, vœux clos & 32 & 46 & 98 & 73 \\
+Étudiants affectés par l'appariement & 310 & 317 & 326 & 729 \\
+Vœux envoyés pendant la clôture : acceptés & 26 & 48 & 91 & 71 \\
+\quad refusés, vœux clos & 22 & 48 & 101 & 73 \\
 Dernière place disputée par deux DEVE & 10 & 10 & 10 & 10 \\
 \quad obtenue par un seul étudiant & 10 & 10 & 10 & 10 \\
 \quad refusée à l'autre, organisme complet & 10 & 10 & 10 & 10 \\
-Demandes préremplies, double clic (paires) & 53 & 56 & 49 & 110 \\
-Stages rattachés à une affectation & 330 & 338 & 323 & 717 \\
-Affectations & 330 & 338 & 323 & 717 \\
-Hors liste refusé, option décochée & 70 & 62 & 77 & 283 \\
-Hors liste refusé sans SIRET & 70 & 62 & 77 & 283 \\
-Hors liste accepté avec SIRET & 48 & 48 & 59 & 209 \\
-Hors liste accepté à l'étranger & 22 & 14 & 18 & 74 \\
+Demandes préremplies, double clic (paires) & 54 & 53 & 59 & 115 \\
+Stages rattachés à une affectation & 320 & 327 & 336 & 739 \\
+Affectations & 320 & 327 & 336 & 739 \\
+Hors liste refusé, option décochée & 80 & 73 & 64 & 261 \\
+Hors liste refusé sans SIRET & 80 & 73 & 64 & 261 \\
+Hors liste accepté avec SIRET & 57 & 61 & 49 & 196 \\
+Hors liste accepté à l'étranger & 23 & 12 & 15 & 65 \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -227,14 +233,14 @@ Modèle réimporté tel quel : ajoutés / mis à jour & 0/80 & 0/80 & 0/80 & 0/1
 Classeur mixte : ajoutés / mis à jour & 20/10 & 20/10 & 20/10 & 20/10 \\
 Deux imports simultanés de 15 organismes : créés & 15 & 15 & 15 & 15 \\
 Organismes en double après la vague & 0 & 0 & 0 & 0 \\
-Réimports pendant les vœux & 38 & 25 & 15 & 41 \\
+Réimports pendant les vœux & 49 & 31 & 17 & 49 \\
 \quad dont ayant ajouté un organisme & 0 & 0 & 0 & 0 \\
-Classeurs de 40 lignes en erreur importés & 38 & 25 & 15 & 41 \\
-\quad lignes refusées et signalées & 1\,520 & 1\,000 & 600 & 1\,640 \\
+Classeurs de 40 lignes en erreur importés & 49 & 31 & 17 & 49 \\
+\quad lignes refusées et signalées & 1\,960 & 1\,240 & 680 & 1\,960 \\
 Fichier illisible, colonne du nom absente : refusés & 2 & 2 & 2 & 2 \\
-Import de 2\,000 lignes (s) & 2{,}15 & 1{,}78 & 1{,}71 & 1{,}69 \\
-Réimport des 2\,000 lignes (s) & 3{,}87 & 3{,}34 & 3{,}34 & 3{,}10 \\
-Réimport pendant les vœux, médiane / p95 (s) & 0{,}77 / 1{,}06 & 0{,}99 / 1{,}21 & 1{,}70 / 2{,}13 & 1{,}46 / 1{,}92 \\
+Import de 2\,000 lignes (s) & 1{,}31 & 1{,}30 & 1{,}05 & 0{,}96 \\
+Réimport des 2\,000 lignes (s) & 2{,}33 & 2{,}39 & 2{,}10 & 2{,}03 \\
+Réimport pendant les vœux, médiane / p95 (s) & 0{,}50 / 0{,}79 & 0{,}69 / 0{,}94 & 1{,}19 / 1{,}44 & 0{,}97 / 1{,}24 \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -250,15 +256,16 @@ Réimport pendant les vœux, médiane / p95 (s) & 0{,}77 / 1{,}06 & 0{,}99 / 1{,
     verrou.
   \item \textbf{Lignes en erreur.} Chaque ligne refusée est signalée avec son numéro ; aucune
     n'est enregistrée, et le classeur ne provoque pas d'erreur.
-  \item \textbf{Volume.} 2\,000~organismes s'importent en deux secondes environ. Le réimport,
-    qui relit chaque organisme avant de le mettre à jour, en prend moins de quatre.
+  \item \textbf{Volume.} 2\,000~organismes s'importent en moins d'une seconde et demie. Le
+    réimport, qui relit chaque organisme avant de le mettre à jour, en prend deux et demie.
 \end{itemize}
 
 \subsection{MariaDB}\label{sec:mariadb}
 
-Les quatre vagues ci-dessus tournent sur PostgreSQL. Une cinquième a été jouée sur MariaDB~10.11,
-la version de la CI, avec un second Moodle : 400~étudiants, 32~utilisateurs simultanés, les mêmes cinq
-phases. MariaDB isole les transactions autrement que PostgreSQL et Moodle y pose ses verrous par un
+Les vagues ci-dessus tournent sur PostgreSQL. Deux autres ont été jouées sur MariaDB~10.11, la
+version de la CI, avec un second Moodle : 400~étudiants, 32~utilisateurs simultanés, les mêmes cinq
+phases, avec chacune des deux règles. Le tableau donne la vague du tirage au sort ; celle de l'autre
+règle est en section~\ref{sec:regles}. MariaDB isole les transactions autrement que PostgreSQL et Moodle y pose ses verrous par un
 autre mécanisme : c'est là qu'un défaut de concurrence propre à cette base se verrait.
 
 \begin{center}
@@ -266,16 +273,16 @@ autre mécanisme : c'est là qu'un défaut de concurrence propre à cette base s
 \toprule
 \textbf{Vague MariaDB} & \\
 \midrule
-Requêtes HTTP mesurées & 2\,870 \\
+Requêtes HTTP mesurées & 2\,917 \\
 Réponses en erreur & 0 \\
 Invariants violés & 0 \\
 Organismes en double après les imports & 0 \\
 Appariements simultanés ayant affecté des étudiants & 1 sur 3 \\
-Étudiants affectés par l'appariement & 321 \\
+Étudiants affectés par l'appariement & 310 \\
 Dernière place : obtenue par un seul étudiant & 10 sur 10 \\
-Stages rattachés à une affectation / affectations & 331 / 331 \\
-Débit moyen (requêtes/s) & 54{,}7 \\
-Réponse la plus lente (s) & 1{,}51 \\
+Stages rattachés à une affectation / affectations & 320 / 320 \\
+Débit moyen (requêtes/s) & 62{,}9 \\
+Réponse la plus lente (s) & 1{,}47 \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -284,9 +291,10 @@ Le comportement est le même que sur PostgreSQL : un seul appariement, une seule
 place disputée, aucun stage ni organisme en double. Le débit, plus élevé, ne se compare pas à celui
 des autres vagues : ce second site, tout juste installé, est plus léger que le premier.
 
-Le journal du serveur contient une réponse~500, sur le tableau de bord de Moodle
-(\code{/my/}), pendant les connexions simultanées qui précèdent la vague. Elle ne vient pas du
-module et n'entre pas dans les mesures.
+Une première série sur MariaDB avait laissé une réponse~500 sur le tableau de bord de Moodle
+(\code{/my/}), pendant les connexions qui précèdent la vague. Elle ne s'est pas reproduite :
+ni dans ces deux vagues, ni en 720~premières connexions simultanées d'utilisateurs neufs, caches
+chauds puis vidés. La page n'appartient pas au module.
 
 \section{Défaut corrigé}\label{sec:defaut}
 
@@ -317,12 +325,12 @@ correction, puis rejouées après les corrections de l'audit du code
 \toprule
 & \textbf{Vague 1} & \textbf{Vague 2} & \textbf{Vague 3} & \textbf{Vague 4} \\
 \midrule
-Étudiants affectés par l'appariement & 320 (80~\%) & 328 (82~\%) & 313 (78~\%) & 707 (71~\%) \\
-\quad sur leur premier vœu & 114 & 118 & 132 & 231 \\
-\quad sur leur deuxième ou troisième vœu & 132 & 145 & 122 & 314 \\
-\quad sur leur quatrième ou cinquième vœu & 78 & 68 & 61 & 163 \\
-Étudiants sans affectation & 80 & 72 & 87 & 293 \\
-Places restées libres après l'appariement & 71 & 63 & 78 & 182 \\
+Étudiants affectés par l'appariement & 310 (78~\%) & 317 (79~\%) & 326 (82~\%) & 729 (73~\%) \\
+\quad sur leur premier vœu & 118 & 124 & 108 & 250 \\
+\quad sur leur deuxième ou troisième vœu & 138 & 133 & 138 & 313 \\
+\quad sur leur quatrième ou cinquième vœu & 57 & 64 & 82 & 167 \\
+Étudiants sans affectation & 90 & 83 & 74 & 271 \\
+Places restées libres après l'appariement & 81 & 74 & 65 & 160 \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -330,14 +338,72 @@ Places restées libres après l'appariement & 71 & 63 & 78 & 182 \\
 Les rangs sont relevés en fin de vague : ils comptent aussi les quelques affectations faites à la
 main en phase~3 lorsqu'elles tombaient sur un vœu de l'étudiant.
 
-Avec des vœux très concentrés, un cinquième à près d'un tiers des étudiants restent sans affectation alors que
-des places sont libres dans des organismes que personne, ou presque, n'a classés. Ce n'est pas un
+Avec le tirage au sort et des vœux très concentrés, près d'un cinquième à plus d'un quart des
+étudiants restent sans affectation alors que des places sont libres dans des organismes que personne, ou presque, n'a classés. Ce n'est pas un
 défaut de l'appariement : il ne peut affecter un étudiant qu'à un organisme qu'il a demandé. La
 concentration simulée est volontairement forte ; une promotion réelle sera sans doute moins
 tranchée, mais l'effet existe dès que quelques organismes attirent la majorité des vœux.
 
-Trois leviers, tous disponibles : augmenter le nombre de vœux à classer, rouvrir les vœux pour un
-tour complémentaire sur les places restantes, ou affecter à la main les derniers étudiants.
+Quatre leviers, tous disponibles : choisir la règle \og le plus d'étudiants placés\fg{}
+(section~\ref{sec:regles}), augmenter le nombre de vœux à classer, rouvrir les vœux pour un tour
+complémentaire, où seuls les organismes qui ont encore une place sont proposés, ou affecter à la main
+les derniers étudiants.
+
+\section{Les deux règles d'appariement}\label{sec:regles}
+
+Depuis l'audit, chaque thématique choisit sa règle : le tirage au sort, ou \og le plus d'étudiants
+placés\fg{} (flot de coût minimal). Les deux sont comparées de deux façons.
+
+\paragraph{Sur les mêmes vœux.} Chaque tour du tirage au sort des vagues a été rejoué avec l'autre
+règle, à partir de sa trace : mêmes étudiants, même ordre de passage, mêmes vœux, mêmes places.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}X r r r r r r r r r@{}}
+\toprule
+& & & \multicolumn{2}{c}{\textbf{Placés}} & \multicolumn{2}{c}{\textbf{1\textsuperscript{er} vœu}} & \multicolumn{2}{c}{\textbf{Rang moyen}} & \\
+\textbf{Tour} & cand. & places & tirage & max. & tirage & max. & tirage & max. & s \\
+\midrule
+400 ét., vague 16 & 400 & 391 & 310 & 366 & 118 & 118 & 2{,}23 & 2{,}49 & 0{,}10 \\
+400 ét., vague 32 & 400 & 391 & 317 & 373 & 124 & 116 & 2{,}25 & 2{,}56 & 0{,}11 \\
+400 ét., vague 64 & 400 & 391 & 326 & 364 & 107 & 114 & 2{,}46 & 2{,}54 & 0{,}13 \\
+1\,000 ét. & 1000 & 889 & 729 & 831 & 250 & 267 & 2{,}41 & 2{,}47 & 0{,}62 \\
+400 ét., MariaDB & 400 & 391 & 310 & 364 & 118 & 119 & 2{,}35 & 2{,}49 & 0{,}10 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent La dernière colonne est la durée du calcul de la seconde règle, hors base de données.
+
+La seconde règle place de 38 à 102~étudiants de plus par tour. Elle ne perd pas de premiers vœux
+dans quatre tours sur cinq ; le rang moyen des étudiants placés augmente un peu, parce que des
+étudiants qui restaient sans place reçoivent leur troisième, quatrième ou cinquième vœu. Le calcul
+prend moins d'une seconde pour 1\,000~étudiants.
+
+\paragraph{En charge.} Trois vagues ont été rejouées avec la seconde règle, sur de nouvelles
+promotions (les vœux tirés diffèrent donc de ceux des vagues du tirage).
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}X r r r r r r r r@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Placés}} & \multicolumn{2}{c}{\textbf{Sans place}} & & & \multicolumn{2}{c}{\textbf{Appariement (s)}} \\
+\textbf{Vague} & tirage & max. & tirage & max. & err. & inv. & tirage & max. \\
+\midrule
+PostgreSQL, 400 ét. & 317 & 369 & 83 & 31 & 0 & 0 & 1{,}31 & 1{,}33 \\
+PostgreSQL, 1\,000 ét. & 729 & 819 & 271 & 181 & 0 & 0 & 1{,}80 & 2{,}26 \\
+MariaDB, 400 ét. & 310 & 368 & 90 & 32 & 0 & 0 & 1{,}14 & 0{,}87 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent \og err.\fg{} : réponses en erreur ; \og inv.\fg{} : invariants violés, dans les vagues de
+la seconde règle. La durée de l'appariement est celle de la requête de la DEVE, sous la charge des
+vœux envoyés au même moment.
+
+La seconde règle n'est pas à l'abri d'un classement stratégique des vœux : un étudiant qui sait
+quels organismes sont convoités peut avoir intérêt à ne pas les mettre en tête. Le tirage au sort,
+lui, n'offre aucune prise de ce genre. Le choix revient à chaque thématique.
 
 \section{Limites}
 

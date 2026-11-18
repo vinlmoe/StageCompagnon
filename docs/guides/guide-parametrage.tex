@@ -36,6 +36,7 @@
 1.8 & 7 novembre 2026 & Questionnaire de demande de stage par thématique ; SIRET de l'organisme d'accueil ; validation de la demande par le référent, le responsable de la thématique ou les deux. \\
 1.9 & 10 novembre 2026 & Huit types de question (cases à cocher, oui/non, nombre, date, texte court) ; changement de type d'une question déjà répondue ; export par thématique des réponses au questionnaire pré-stage ; check-list des prérequis. \\
 1.10 & 17 novembre 2026 & Thématiques à organismes proposés : liste des organismes (saisie, import Excel, reprise de stages précédents), vœux des étudiants, appariement, demande de convention préremplie, demandes hors liste avec SIRET obligatoire. \\
+1.11 & 17 novembre 2026 & Règle d'appariement au choix ; relance avant la clôture ; période d'accueil des organismes ; tour complémentaire limité aux places libres ; renoncement de l'étudiant ; historique des tours, vérifiable et exportable ; origine de la demande. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -281,9 +282,14 @@ proposés\fg{} :
   \item \bouton{Clôture des vœux et appariement} : jusqu'à cette date, les
         étudiants modifient leurs vœux ; à cette date, l'appariement part tout
         seul, dans l'heure. Sans date, il se lance à la main ;
+  \item \bouton{Règle d'appariement} : voir \og Appariement\fg{} ;
   \item \bouton{Autoriser les demandes de convention hors des organismes
         proposés} : voir plus bas.
 \end{itemize}
+
+Trois jours avant la clôture, les étudiants qui n'ont pas classé tous leurs vœux
+reçoivent une relance par courriel, une seule fois par campagne (modèle
+personnalisable \og Relance avant la clôture des vœux\fg{}).
 
 \capture[0.85\linewidth]{90_placement_settings}{Volet \og Organismes proposés\fg{} de la thématique.}
 
@@ -309,14 +315,36 @@ combinent :
 \capture{91_placement_offers}{Organismes proposés d'une thématique : places, vœux reçus, étudiants affectés.}
 
 Un organisme situé hors de France se signale par son pays : le stage de
-l'étudiant affecté sera enregistré comme stage à l'étranger.
+l'étudiant affecté sera enregistré comme stage à l'étranger. Si l'organisme
+accueille sur une période imposée, indiquez-en le début et la fin : elle est
+montrée aux étudiants et préremplit les dates de la demande. Dans le classeur
+Excel, ce sont les colonnes \og Début\fg{} et \og Fin\fg{}.
+
+L'import tolère les transformations des tableurs : un SIRET ou un nombre de
+places enregistré comme un nombre, un téléphone privé de son 0 initial, une date
+convertie en date du tableur. Il refuse de ramener un organisme sous le nombre
+d'étudiants qui y sont déjà affectés.
 
 \paragraph{Appariement.} \bouton{Vœux et appariement} montre les vœux de chaque
-étudiant et son affectation. À la clôture, les étudiants qui ont des vœux sont
-tirés au sort ; dans cet ordre, chacun reçoit le mieux classé de ses vœux où il
-reste une place. Personne n'a donc intérêt à classer ses vœux autrement que selon
-ses préférences. Un étudiant dont tous les vœux sont complets reste sans
-affectation. Chaque étudiant reçoit le résultat par courriel
+étudiant et son affectation. À la clôture, l'appariement suit la règle choisie
+pour la thématique :
+
+\begin{itemize}
+  \item \textbf{Tirage au sort} (par défaut) : les étudiants sont tirés au sort ;
+        dans cet ordre, chacun reçoit le mieux classé de ses vœux où il reste une
+        place. Personne n'a intérêt à classer ses vœux autrement que selon ses
+        préférences, mais un étudiant peut rester sans affectation alors qu'un
+        autre ordre l'aurait placé ;
+  \item \textbf{Le plus d'étudiants placés} : parmi toutes les affectations
+        possibles, l'appariement retient celle qui place le plus d'étudiants,
+        puis celle qui les place sur leurs meilleurs vœux ; le tirage au sort
+        départage les égalités. Plus d'étudiants sont placés, mais un étudiant
+        peut avoir intérêt à classer ses vœux de façon stratégique.
+\end{itemize}
+
+Dans les deux cas, une affectation porte toujours sur un vœu de l'étudiant, et un
+étudiant qui a déjà un stage sur la thématique (enregistré par vous ou déposé
+hors liste) n'est pas apparié. Chaque étudiant reçoit le résultat par courriel
 (section~\ref{sec:liste-courriels}), dans les minutes qui suivent.
 
 \capture{92_placement_matching}{Vœux et affectations d'une thématique.}
@@ -335,6 +363,21 @@ Depuis cette page, vous pouvez :
   \item exporter les vœux et les affectations.
 \end{itemize}
 
+La page signale aussi les étudiants dont les vœux sont incomplets (organismes
+ajoutés ou supprimés depuis leur saisie).
+
+\paragraph{Historique des tours.} Chaque tour d'appariement est consigné :
+règle, graine du tirage au sort, ordre de passage, vœux de chaque étudiant à ce
+moment, places disponibles et résultat. \bouton{Vérifier} rejoue le tour à partir
+de cette trace et compare le résultat à celui qui a été enregistré ;
+\bouton{Exporter} en donne le détail. C'est la réponse à un étudiant qui
+conteste son affectation.
+
+\capture{95_placement_rounds}{Historique des tours d'appariement.}
+
+Lors d'un tour complémentaire (vœux rouverts après un appariement), les
+étudiants ne peuvent classer que les organismes qui ont encore une place libre.
+
 Pour rouvrir les vœux après l'appariement, cochez \bouton{Rouvrir les vœux} dans
 la fiche de la thématique et fixez une nouvelle date de clôture.
 
@@ -342,8 +385,13 @@ la fiche de la thématique et fixez une nouvelle date de clôture.
 l'encart \og Organismes proposés\fg{} de sa page \og Mes stages\fg{}. La
 thématique y est fixée et les coordonnées de l'organisme préremplies ; il les
 vérifie et complète le reste. La demande doit porter sur l'organisme attribué :
-son nom ne se change pas. Une fois la demande déposée, l'affectation ne se
-déplace plus ; annulez d'abord le stage. La demande suit ensuite le circuit habituel
+son nom ne se change pas. Tant que sa demande n'est pas déposée, l'étudiant peut
+renoncer à son affectation : la place est libérée et ses vœux retirés. Une fois
+la demande déposée, l'affectation ne se déplace plus ; annulez d'abord le stage.
+
+Le détail du stage et les pages de validation indiquent d'où vient la demande :
+organisme attribué (par l'appariement ou par vous), ou demande hors liste avec
+son SIRET. La demande suit ensuite le circuit habituel
 (section~\ref{sec:conventions}). Si le stage est annulé ou supprimé,
 l'affectation redevient utilisable.
 
@@ -355,7 +403,8 @@ l'affectation redevient utilisable.
   \item option cochée : un étudiant peut aussi demander une convention avec un
         organisme hors de la liste. Le numéro SIRET de l'organisme est alors
         \textbf{obligatoire}, sauf pour un stage à l'étranger dont le pays est
-        indiqué.
+        indiqué. Un étudiant affecté doit d'abord renoncer à son affectation ;
+        une demande hors liste retire ses vœux.
 \end{itemize}
 
 Dans les deux cas, vous pouvez toujours enregistrer vous-même un stage sur la
@@ -954,6 +1003,7 @@ Invitation du maître de stage & Maître de stage & Tâche quotidienne (6~h~45),
 Demande d'évaluation après import & Référents & Un import StageVet réunit les évaluations de l'étudiant et du maître de stage. \\
 Rappel de convention non signée & Étudiant & Tâche quotidienne (6~h~30), une seule fois, quand le stage commence dans 7~jours ou moins sans convention signée. \\
 Résultat de l'appariement & Étudiant & À la clôture des vœux d'une thématique à organismes proposés (tâche horaire), ou quand la DEVE lance l'appariement en demandant de prévenir les étudiants. \\
+Relance avant la clôture des vœux & Étudiant & Tâche horaire, une fois par campagne, trois jours avant la clôture, aux étudiants qui n'ont pas classé tous leurs vœux. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -974,6 +1024,7 @@ Résultat de l'appariement & Étudiant & À la clôture des vœux d'une thémati
 \var{datestart} & Date de début du stage & 2 novembre 2026 \\
 \var{days} & Délai du rappel, en jours & 7 \\
 \var{result} & Résultat de l'appariement & Vous êtes affecté(e) à : Clinique du Parc. \\
+\var{deadline} & Date de clôture des vœux & jeudi 19 novembre 2026, 18:00 \\
 \bottomrule
 \end{tabularx}
 \end{center}

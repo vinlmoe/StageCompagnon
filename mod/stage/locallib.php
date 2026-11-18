@@ -2893,6 +2893,12 @@ function stage_get_email_definitions() {
             'bodystring' => 'placementresultnotifbody',
             'vars' => ['student', 'stage', 'theme', 'result', 'url'],
         ],
+        'placementreminder' => [
+            'label' => get_string('emailkeyplacementreminder', 'mod_stage'),
+            'subjectstring' => 'placementremindernotifsubject',
+            'bodystring' => 'placementremindernotifbody',
+            'vars' => ['student', 'stage', 'theme', 'deadline', 'url'],
+        ],
     ];
 }
 
@@ -6249,6 +6255,7 @@ function stage_import_themes($sourcestageid, $targetstageid, ?context $sourcecon
             'placementenabled' => $theme->placementenabled,
             'placementchoices' => $theme->placementchoices,
             'placementofflist' => $theme->placementofflist,
+            'placementmode' => $theme->placementmode,
             'timecreated' => time(),
             'timemodified' => time(),
         ]));

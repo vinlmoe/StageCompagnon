@@ -244,13 +244,18 @@ final class backup_restore_test extends \advanced_testcase {
         $deadline = $now + WEEKSECS;
         $DB->update_record('stage_theme', (object) [
             'id' => $theme->id, 'placementenabled' => 1, 'placementchoices' => 1, 'placementdeadline' => $deadline,
-            'placementofflist' => 1,
+            'placementofflist' => 1, 'placementmode' => STAGE_PLACEMENT_MODE_MAXPLACED,
         ]);
         $theme = $DB->get_record('stage_theme', ['id' => $theme->id], '*', MUST_EXIST);
-        $offer = $stagegen->create_placement_offer($theme, ['name' => 'Clinique du Parc', 'places' => 2, 'address' => 'Lyon']);
+        $offer = $stagegen->create_placement_offer($theme, ['name' => 'Clinique du Parc', 'places' => 2, 'address' => 'Lyon',
+            'datestart' => make_timestamp(2027, 3, 1), 'dateend' => make_timestamp(2027, 3, 12)]);
         $this->assertNull(stage_placement_save_wishes($theme, $student->id, [$offer->id]));
         $this->assertNull(stage_placement_set_assignment($theme, $student->id, $offer->id, $teacher->id));
         stage_placement_link_entry(stage_placement_get_assignment($theme->id, $student->id)->id, $entry->id);
+        // Un second étudiant placé par un tour d'appariement, dont la trace doit suivre.
+        $student2 = $generator->create_and_enrol($course, 'student');
+        $this->assertNull(stage_placement_save_wishes($theme, $student2->id, [$offer->id]));
+        $this->assertCount(1, stage_placement_run_matching($theme)->assigned);
 
         $newcourse = $this->backup_and_restore($course);
         $newcm = $this->single_instance($newcourse->id, 'stage');
@@ -269,6 +274,20 @@ final class backup_restore_test extends \advanced_testcase {
         $this->assertSame('Clinique du Parc', $copiedoffer->name);
         $this->assertSame('Lyon', $copiedoffer->address);
         $this->assertEquals(2, $copiedoffer->places);
+        $this->assertEquals(make_timestamp(2027, 3, 1), $copiedoffer->datestart);
+        $this->assertEquals(make_timestamp(2027, 3, 12), $copiedoffer->dateend);
+        $this->assertSame(STAGE_PLACEMENT_MODE_MAXPLACED, $copiedtheme->placementmode);
+        // Trace du tour : rattachée à la thématique, à l'étudiant et à l'organisme de la copie, et
+        // rejouable à l'identique.
+        $copiedrounds = stage_placement_get_rounds($copiedtheme->id);
+        $this->assertCount(1, $copiedrounds);
+        $copiedround = reset($copiedrounds);
+        $this->assertEquals([$copiedoffer->id => 1], json_decode($copiedround->places, true));
+        $draw = $DB->get_record('stage_placement_draw', ['roundid' => $copiedround->id], '*', MUST_EXIST);
+        $this->assertEquals($student2->id, $draw->userid);
+        $this->assertSame((string) $copiedoffer->id, $draw->wishes);
+        $this->assertEquals($copiedoffer->id, $draw->offerid);
+        $this->assertTrue(stage_placement_replay_round($copiedround->id)->identical);
         $this->assertSame([(int) $copiedoffer->id], stage_placement_get_wishes($copiedtheme->id, $student->id));
         $copiedassignment = stage_placement_get_assignment($copiedtheme->id, $student->id);
         $this->assertEquals($copiedoffer->id, $copiedassignment->offerid);

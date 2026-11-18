@@ -152,6 +152,18 @@ class provider implements
             'assignedby' => 'privacy:metadata:stage_placement_assign:assignedby',
         ], 'privacy:metadata:stage_placement_assign');
 
+        $collection->add_database_table('stage_placement_draw', [
+            'userid' => 'privacy:metadata:stage_placement_draw:userid',
+            'position' => 'privacy:metadata:stage_placement_draw:position',
+            'wishes' => 'privacy:metadata:stage_placement_draw:wishes',
+            'offerid' => 'privacy:metadata:stage_placement_draw:offerid',
+        ], 'privacy:metadata:stage_placement_draw');
+
+        $collection->add_database_table('stage_placement_round', [
+            'runby' => 'privacy:metadata:stage_placement_round:runby',
+            'timecreated' => 'privacy:metadata:stage_placement_round:timecreated',
+        ], 'privacy:metadata:stage_placement_round');
+
         $collection->add_database_table('stage_study_mobility', [
             'userid' => 'privacy:metadata:stage_study_mobility:userid',
             'location' => 'privacy:metadata:stage_study_mobility:location',
@@ -270,6 +282,24 @@ class provider implements
             ] + ($table === 'stage_placement_assign' ? ['assignedby' => $userid] : []));
         }
 
+        // Place de l'étudiant dans la trace d'un tour d'appariement, et membre de la DEVE qui a lancé
+        // le tour.
+        $sql = "SELECT ctx.id
+                  FROM {context} ctx
+                  JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
+                  JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                  JOIN {stage} s ON s.id = cm.instance
+                  JOIN {stage_theme} t ON t.stageid = s.id
+                  JOIN {stage_placement_round} r ON r.themeid = t.id
+             LEFT JOIN {stage_placement_draw} d ON d.roundid = r.id AND d.userid = :studentid
+                 WHERE d.id IS NOT NULL OR r.runby = :runby";
+        $contextlist->add_from_sql($sql, [
+            'modname' => 'stage',
+            'contextlevel' => CONTEXT_MODULE,
+            'studentid' => $userid,
+            'runby' => $userid,
+        ]);
+
         // Enseignant nommé référent sur une convention : il peut n'avoir ni attribution ni
         // évaluation dans l'activité, et doit pourtant y être retrouvé.
         $sql = "SELECT ctx.id
@@ -359,6 +389,15 @@ class provider implements
                                                   WHERE cm.id = :instanceid", $params);
             }
         }
+        $roundsql = "FROM {course_modules} cm
+                     JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                     JOIN {stage} s ON s.id = cm.instance
+                     JOIN {stage_theme} t ON t.stageid = s.id
+                     JOIN {stage_placement_round} r ON r.themeid = t.id";
+        $userlist->add_from_sql('userid', "SELECT d.userid $roundsql
+                                             JOIN {stage_placement_draw} d ON d.roundid = r.id
+                                            WHERE cm.id = :instanceid", $params);
+        $userlist->add_from_sql('runby', "SELECT r.runby $roundsql WHERE cm.id = :instanceid", $params);
 
         $userlist->add_from_sql('referentteacherid', "SELECT d.referentteacherid
                                                        FROM {course_modules} cm
@@ -538,6 +577,32 @@ class provider implements
             if ($placements) {
                 writer::with_context($context)->export_data([get_string('placementoffers', 'mod_stage')], (object) [
                     'placements' => $placements,
+                ]);
+            }
+
+            // Place de l'étudiant dans chaque tour d'appariement : rang de passage, vœux à ce moment,
+            // organisme attribué.
+            $draws = $DB->get_records_sql(
+                "SELECT d.id, t.name AS theme, r.mode, r.timecreated, d.position, d.wishes, o.name AS offer, d.wishrank
+                   FROM {stage_placement_draw} d
+                   JOIN {stage_placement_round} r ON r.id = d.roundid
+                   JOIN {stage_theme} t ON t.id = r.themeid
+              LEFT JOIN {stage_placement_offer} o ON o.id = d.offerid
+                  WHERE t.stageid = :stageid AND d.userid = :userid
+               ORDER BY r.timecreated, d.id",
+                ['stageid' => $cm->instance, 'userid' => $user->id]
+            );
+            if ($draws) {
+                writer::with_context($context)->export_data([get_string('placementrounds', 'mod_stage')], (object) [
+                    'rounds' => array_values(array_map(fn($row) => [
+                        'theme' => stage_plain_string($row->theme),
+                        'mode' => $row->mode,
+                        'date' => transform::datetime($row->timecreated),
+                        'position' => (int) $row->position,
+                        'wishes' => (string) $row->wishes,
+                        'assignment' => $row->offer !== null ? stage_plain_string($row->offer) : '',
+                        'wishrank' => (int) $row->wishrank,
+                    ], $draws)),
                 ]);
             }
 
@@ -815,6 +880,13 @@ class provider implements
             'assignedby',
             null,
             "themeid IN (SELECT id FROM {stage_theme} WHERE stageid = :stageid) AND assignedby $usersql",
+            $params
+        );
+        $DB->set_field_select(
+            'stage_placement_round',
+            'runby',
+            null,
+            "themeid IN (SELECT id FROM {stage_theme} WHERE stageid = :stageid) AND runby $usersql",
             $params
         );
 

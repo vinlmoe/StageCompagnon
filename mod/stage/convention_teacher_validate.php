@@ -226,6 +226,8 @@ if ($validations !== '') {
 }
 // Questionnaire de demande : les informations complémentaires sur lesquelles se fonde la décision,
 // avec celles de la convention ci-dessous.
+// Thématique à organismes proposés : la demande vient-elle d'une affectation ou est-elle hors liste ?
+echo \mod_stage\output\placement_view::entry_origin($entry);
 echo stage_render_request_answers($entry);
 
 $mform->display();

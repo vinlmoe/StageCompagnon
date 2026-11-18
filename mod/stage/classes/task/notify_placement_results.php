@@ -68,7 +68,7 @@ class notify_placement_results extends \core\task\adhoc_task {
             // Thématique ou activité supprimée depuis : plus rien à annoncer.
             return;
         }
-        $sent = stage_placement_notify_results($stage, $cm, $theme, (object) [
+        $sent = \mod_stage\local\placement_notifier::results($stage, $cm, $theme, (object) [
             'assigned' => array_map('intval', (array) $data->assigned),
             'unassigned' => array_map('intval', (array) $data->unassigned),
         ]);
